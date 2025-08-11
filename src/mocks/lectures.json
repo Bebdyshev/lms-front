@@ -1,0 +1,14 @@
+[
+  {
+    "id": "lec-1",
+    "moduleId": "mod-1",
+    "title": "What is JSX?",
+    "videoUrl": "/videos/jsx-intro.mp4"
+  },
+  {
+    "id": "lec-2",
+    "moduleId": "mod-1",
+    "title": "Component Props",
+    "videoUrl": "/videos/props.mp4"
+  }
+]

@@ -1,0 +1,200 @@
+[
+  {
+    "id": "mod-1",
+    "title": "Reading Comprehension",
+    "description": "Understanding main ideas and supporting details",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-2", 
+    "title": "Writing and Language",
+    "description": "Grammar, punctuation, and style",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-3",
+    "title": "Text Analysis",
+    "description": "Analyzing arguments and evidence",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-4",
+    "title": "Vocabulary in Context",
+    "description": "Understanding word meanings",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-5",
+    "title": "Command of Evidence",
+    "description": "Finding and using textual evidence",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-6",
+    "title": "Expression of Ideas",
+    "description": "Improving writing clarity and effectiveness",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-7",
+    "title": "Standard English Conventions",
+    "description": "Grammar, usage, and mechanics",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-8",
+    "title": "Words in Context",
+    "description": "Understanding vocabulary in context",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-9",
+    "title": "Analysis",
+    "description": "Analyzing author's choices",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-10",
+    "title": "Synthesis",
+    "description": "Connecting information from multiple sources",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-11",
+    "title": "Rhetorical Synthesis",
+    "description": "Combining information from multiple sources",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-12",
+    "title": "Transitions",
+    "description": "Connecting ideas and paragraphs",
+    "courseId": "react-intro"
+  },
+  {
+    "id": "mod-13",
+    "title": "Algebra Fundamentals",
+    "description": "Linear equations and inequalities",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-14",
+    "title": "Advanced Algebra",
+    "description": "Quadratic equations and functions",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-15",
+    "title": "Problem Solving",
+    "description": "Real-world applications",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-16",
+    "title": "Data Analysis",
+    "description": "Statistics and probability",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-17",
+    "title": "Geometry",
+    "description": "Lines, angles, and shapes",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-18",
+    "title": "Trigonometry",
+    "description": "Sine, cosine, and tangent",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-19",
+    "title": "Complex Numbers",
+    "description": "Imaginary and complex numbers",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-20",
+    "title": "Polynomial Functions",
+    "description": "Higher degree polynomials",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-21",
+    "title": "Rational Functions",
+    "description": "Fractions and rational expressions",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-22",
+    "title": "Exponential Functions",
+    "description": "Growth and decay models",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-23",
+    "title": "Logarithmic Functions",
+    "description": "Inverse of exponential functions",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-24",
+    "title": "Sequences and Series",
+    "description": "Arithmetic and geometric sequences",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-25",
+    "title": "Limits and Continuity",
+    "description": "Introduction to calculus concepts",
+    "courseId": "math-sat"
+  },
+  {
+    "id": "mod-26",
+    "title": "Desmos Basics",
+    "description": "Introduction to Desmos calculator",
+    "courseId": "desmos-sat"
+  },
+  {
+    "id": "mod-27",
+    "title": "Graphing Functions",
+    "description": "Plotting equations and functions",
+    "courseId": "desmos-sat"
+  },
+  {
+    "id": "mod-28",
+    "title": "Solving Equations",
+    "description": "Using Desmos to solve equations",
+    "courseId": "desmos-sat"
+  },
+  {
+    "id": "mod-29",
+    "title": "Systems of Equations",
+    "description": "Solving multiple equations",
+    "courseId": "desmos-sat"
+  },
+  {
+    "id": "mod-30",
+    "title": "Inequalities",
+    "description": "Graphing and solving inequalities",
+    "courseId": "desmos-sat"
+  },
+  {
+    "id": "mod-31",
+    "title": "Statistics",
+    "description": "Data analysis with Desmos",
+    "courseId": "desmos-sat"
+  },
+  {
+    "id": "mod-32",
+    "title": "Advanced Features",
+    "description": "Sliders, tables, and more",
+    "courseId": "desmos-sat"
+  },
+  {
+    "id": "mod-33",
+    "title": "SAT Strategies",
+    "description": "Tips for using Desmos on SAT",
+    "courseId": "desmos-sat"
+  }
+]

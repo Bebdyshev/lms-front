@@ -1,0 +1,17 @@
+<svg width="300" height="200" viewBox="0 0 300 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="200" fill="#1E293B"/>
+  <rect x="20" y="20" width="260" height="160" rx="8" fill="#0F172A" stroke="#334155" stroke-width="2"/>
+  <rect x="30" y="30" width="240" height="140" fill="#0F172A"/>
+  <text x="40" y="50" font-family="monospace" font-size="12" fill="#10B981">import React from 'react';</text>
+  <text x="40" y="70" font-family="monospace" font-size="12" fill="#F59E0B">function App() {</text>
+  <text x="40" y="90" font-family="monospace" font-size="12" fill="#8B5CF6">  return (</text>
+  <text x="40" y="110" font-family="monospace" font-size="12" fill="#EF4444">    &lt;div&gt;</text>
+  <text x="40" y="130" font-family="monospace" font-size="12" fill="#06B6D4">      &lt;h1&gt;Learn React&lt;/h1&gt;</text>
+  <text x="40" y="150" font-family="monospace" font-size="12" fill="#EF4444">    &lt;/div&gt;</text>
+  <text x="40" y="170" font-family="monospace" font-size="12" fill="#8B5CF6">  );</text>
+  <text x="40" y="190" font-family="monospace" font-size="12" fill="#F59E0B">}</text>
+  <circle cx="220" cy="80" r="20" fill="#61DAFB"/>
+  <circle cx="220" cy="80" r="15" fill="#61DAFB" opacity="0.3"/>
+  <circle cx="220" cy="80" r="10" fill="#61DAFB" opacity="0.6"/>
+  <circle cx="220" cy="80" r="5" fill="#61DAFB" opacity="0.8"/>
+</svg> 

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "react-intro",
+    "image": "/assets/react-course.jpg",
+    "title": "Digital SAT: Reading & Writing",
+    "description": "Lorem ipsum dolor sit amet prandin ikoru tyra vigrano",
+    "teacher": "Ms. Saya Kurmanalina",
+    "progress": 75
+  },
+  {
+    "id": "math-sat",
+    "image": "/assets/math-course.jpg",
+    "title": "Digital SAT: Mathematics",
+    "description": "Lorem ipsum dolor sit amet prandin ikoru tyra vigrano",
+    "teacher": "Mr. Yernur Akzhol",
+    "progress": 45
+  },
+  {
+    "id": "desmos-sat",
+    "image": "/assets/desmos-course.jpg",
+    "title": "Digital SAT: Acing the Desmos Calculator",
+    "description": "Lorem ipsum dolor sit amet prandin ikoru tyra vigrano",
+    "teacher": "Mr. Beksultan Teacher",
+    "progress": 90
+  }
+]

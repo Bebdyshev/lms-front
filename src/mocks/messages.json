@@ -1,0 +1,7 @@
+[
+  {"id":"m1","threadId":"t-1","senderId":"teacher-1","text":"Hi! Please watch Lecture 1.","createdAt":"2030-01-01T09:00:00.000Z"},
+  {"id":"m2","threadId":"t-1","senderId":"demo","text":"Hello! I will.","createdAt":"2030-01-01T09:10:00.000Z"},
+  {"id":"m3","threadId":"t-2","senderId":"demo","text":"I need help with homework.","createdAt":"2030-01-01T09:15:00.000Z"}
+]
+
+

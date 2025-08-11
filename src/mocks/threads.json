@@ -1,0 +1,16 @@
+[
+  {
+    "id": "t-1",
+    "participantIds": ["demo", "teacher-1"],
+    "title": "Ms. Saya (Reading & Writing)",
+    "lastMessageAt": "2030-01-01T10:00:00.000Z"
+  },
+  {
+    "id": "t-2",
+    "participantIds": ["demo", "curator-1"],
+    "title": "Curator Support",
+    "lastMessageAt": "2030-01-01T09:30:00.000Z"
+  }
+]
+
+

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "a-1",
+    "lectureId": "lec-1",
+    "title": "Reading & Writing Practice 1",
+    "description": "Answer short questions about the lecture topic.",
+    "deadlineISO": "2030-12-31T23:59:59.000Z",
+    "maxScore": 100
+  },
+  {
+    "id": "a-2",
+    "lectureId": "lec-2",
+    "title": "Props Exercise",
+    "description": "Submit a small component using props.",
+    "deadlineISO": "2030-12-31T23:59:59.000Z",
+    "maxScore": 100
+  }
+]
+
+

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "m-1",
+    "lectureId": "lec-1",
+    "type": "pdf",
+    "title": "Lecture Slides",
+    "url": "/files/jsx-slides.pdf"
+  },
+  {
+    "id": "m-2",
+    "lectureId": "lec-2",
+    "type": "link",
+    "title": "Docs: Props",
+    "url": "https://react.dev/learn/passing-props-to-a-component"
+  }
+]
+
+

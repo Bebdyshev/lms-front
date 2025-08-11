@@ -1,0 +1,26 @@
+[
+  {
+    "id": "q-1",
+    "title": "Reading & Writing Check",
+    "target": { "lectureId": "lec-1" },
+    "timeLimitSec": 300,
+    "attempts": 2,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "single",
+        "body": "JSX stands for?",
+        "options": ["Java Syntax Extension", "JavaScript XML", "JSON X"],
+        "correct": [1]
+      },
+      {
+        "id": "q2",
+        "type": "short",
+        "body": "Name the library used in this project for UI styling (one word).",
+        "correctText": "tailwind"
+      }
+    ]
+  }
+]
+
+
