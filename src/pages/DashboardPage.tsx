@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import SummaryCard from '../components/SummaryCard';
 import CourseCard from '../components/CourseCard';
+import TeacherDashboard from './TeacherDashboard.tsx';
 import apiClient from "../services/api";
 import Skeleton from '../components/Skeleton.tsx';
 import { Users, BookOpen, GraduationCap, Shield, UserPlus } from 'lucide-react';
@@ -32,7 +33,7 @@ export default function DashboardPage() {
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, isTeacher } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -120,6 +121,11 @@ export default function DashboardPage() {
   const firstName = dashboardData?.user?.name || user?.name?.split(' ')[0] || 'User';
   const stats = dashboardData?.stats || {} as DashboardStats;
   const recentCourses = dashboardData?.recent_courses || [];
+
+  // Role-based dashboards
+  if (isTeacher()) {
+    return <TeacherDashboard />;
+  }
 
   return (
     <div className="pl-32 pr-8 pt-4 space-y-8">
@@ -252,7 +258,7 @@ export default function DashboardPage() {
         {recentCourses.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <p>No courses available</p>
-            {user?.role === 'teacher' && (
+            {isTeacher() && (
               <button 
                 onClick={() => navigate('/teacher/courses')}
                 className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

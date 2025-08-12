@@ -75,7 +75,7 @@ export interface Lesson {
   is_completed?: boolean; // For student view
 }
 
-export type LessonContentType = 'video' | 'text' | 'materials' | 'mixed';
+export type LessonContentType = 'video' | 'text' | 'quiz' | 'materials' | 'mixed';
 
 export interface LessonMaterial {
   id: string;

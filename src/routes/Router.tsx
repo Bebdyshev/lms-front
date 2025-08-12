@@ -20,6 +20,7 @@ import ProfilePage from '../pages/ProfilePage.tsx';
 import SettingsPage from '../pages/SettingsPage.tsx';
 import TeacherCoursesPage from '../pages/TeacherCoursesPage.tsx';
 import CourseBuilderPage from '../pages/CourseBuilderPage.tsx';
+import CreateCourseWizard from '../pages/CreateCourseWizard.tsx';
 
 export default function Router() {
   return (
@@ -153,6 +154,14 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['teacher', 'admin']}>
               <AppLayout>
                 <TeacherCoursesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/teacher/course/new" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <CreateCourseWizard />
               </AppLayout>
             </ProtectedRoute>
           } />

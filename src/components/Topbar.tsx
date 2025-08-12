@@ -26,13 +26,9 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
           <div className="text-xs text-gray-400 capitalize">{user.role}</div>
         )}
       </div>
-      <div className="flex items-center gap-3">
-        <button 
-          onClick={handleLogout}
-          className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1 rounded border"
-        >
-          Logout
-        </button>
+      <div className="flex items-center gap-3">.
+
+        
         <button className="lg:hidden w-9 h-9 rounded-lg bg-white border" onClick={onOpenSidebar}>☰</button>
       </div>
     </div>

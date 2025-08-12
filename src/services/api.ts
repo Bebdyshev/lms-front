@@ -264,6 +264,15 @@ class LMSApiClient {
     }
   }
 
+  async updateProfile(userId: number, profileData: { name?: string; email?: string }): Promise<User> {
+    try {
+      const response = await this.api.put(`/users/${userId}`, profileData);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to update profile');
+    }
+  }
+
   isAuthenticated(): boolean {
     return this.tokenManager.isAuthenticated();
   }
@@ -353,6 +362,32 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       throw new Error('Failed to update course');
+    }
+  }
+
+  // =============================================================================
+  // MEDIA / THUMBNAILS
+  // =============================================================================
+
+  async setCourseThumbnailUrl(courseId: string, url: string): Promise<{ cover_image_url: string }> {
+    try {
+      const response = await this.api.put(`/media/courses/${courseId}/thumbnail-url`, { url });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to set course thumbnail URL');
+    }
+  }
+
+  async uploadCourseThumbnail(courseId: string, file: File): Promise<{ cover_image_url: string }> {
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const response = await this.api.post(`/media/courses/${courseId}/thumbnail`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload course thumbnail');
     }
   }
 
@@ -586,17 +621,17 @@ class LMSApiClient {
     }
   }
 
-  async fetchThreads() {
+  fetchThreads = async () => {
     try {
       const response = await this.api.get('/messages/conversations');
       return response.data;
     } catch (error) {
       console.warn('Failed to load threads:', error);
-    return [];
+      return [];
+    }
   }
-}
 
-  async fetchMessages(threadId: string): Promise<any[]> {
+  fetchMessages = async (threadId: string): Promise<any[]> => {
     try {
       const response = await this.api.get('/messages', {
         params: { with_user_id: threadId }
@@ -608,7 +643,7 @@ class LMSApiClient {
     }
   }
 
-  async sendMessage(toUserId: string, content: string): Promise<any> {
+  sendMessage = async (toUserId: string, content: string): Promise<any> => {
     try {
       const response = await this.api.post('/messages', {
         to_user_id: toUserId,
@@ -624,7 +659,7 @@ class LMSApiClient {
   // QUIZZES (Mock implementation)
   // =============================================================================
 
-  async fetchQuizzes() {
+  fetchQuizzes = async () => {
     console.warn('fetchQuizzes is not implemented in the backend yet');
     return [
       {
@@ -636,7 +671,7 @@ class LMSApiClient {
     ];
   }
 
-  async fetchQuizById(quizId: string): Promise<any> {
+  fetchQuizById = async (quizId: string): Promise<any> => {
     console.warn('fetchQuizById is not implemented in the backend yet');
     return {
       id: quizId,
@@ -646,12 +681,12 @@ class LMSApiClient {
     };
   }
 
-  getQuizAttemptsLeft(_quizId: string): number {
+  getQuizAttemptsLeft = (_quizId: string): number => {
     console.warn('getQuizAttemptsLeft is not implemented');
     return 3; // Default attempts
   }
 
-  async submitQuiz(_quizId: string, _answers: any, score: number): Promise<any> {
+  submitQuiz = async (_quizId: string, _answers: any, score: number): Promise<any> => {
     console.warn('submitQuiz is not implemented in the backend yet');
     return { success: true, score: score };
   }
@@ -660,7 +695,7 @@ class LMSApiClient {
   // TEACHER FUNCTIONS (Mock implementation)
   // =============================================================================
 
-  async getPendingSubmissions() {
+  getPendingSubmissions = async () => {
     try {
       // Get assignments and their submissions
       const assignments = await this.getAssignments();
@@ -678,12 +713,12 @@ class LMSApiClient {
     }
   }
 
-  async gradeSubmission(_submissionId: string, _score: number, _feedback: string): Promise<any> {
+  gradeSubmission = async (_submissionId: string, _score: number, _feedback: string): Promise<any> => {
     console.warn('gradeSubmission needs to be implemented in the backend');
     return { success: true };
   }
 
-  async allowResubmission(_submissionId: string): Promise<any> {
+  allowResubmission = async (_submissionId: string): Promise<any> => {
     console.warn('allowResubmission needs to be implemented in the backend');
     return { success: true };
   }
@@ -692,7 +727,7 @@ class LMSApiClient {
   // LEGACY SUPPORT
   // =============================================================================
 
-  async fetchModules() {
+  fetchModules = async () => {
     console.warn('fetchModules needs course context - use getCourses() instead');
     try {
       const courses = await this.getCourses();
@@ -705,12 +740,12 @@ class LMSApiClient {
     }
   }
 
-  async fetchLectures(_moduleId: string): Promise<any[]> {
+  fetchLectures = async (_moduleId: string): Promise<any[]> => {
     console.warn('fetchLectures needs course context - use getModuleLessons(courseId, moduleId)');
     return [];
   }
 
-  async createLecture(moduleId: string, lectureData: any): Promise<any> {
+  createLecture = async (moduleId: string, lectureData: any): Promise<any> => {
     console.warn('createLecture needs course context for new API');
     try {
       // Find course context first
@@ -732,7 +767,7 @@ class LMSApiClient {
     }
   }
 
-  async deleteLecture(lectureId: string): Promise<void> {
+  deleteLecture = async (lectureId: string): Promise<void> => {
     try {
       return await this.deleteLesson(lectureId);
     } catch (error) {
@@ -740,7 +775,7 @@ class LMSApiClient {
     }
   }
 
-  async updateLecture(lectureId: string, lectureData: any): Promise<any> {
+  updateLecture = async (lectureId: string, lectureData: any): Promise<any> => {
     try {
       return await this.updateLesson(lectureId, lectureData);
     } catch (error) {
@@ -748,12 +783,12 @@ class LMSApiClient {
     }
   }
 
-  getAssignmentStatusForStudent(_assignmentId: string): string {
+  getAssignmentStatusForStudent = (_assignmentId: string): string => {
     console.warn('getAssignmentStatusForStudent needs to be properly implemented');
     return 'not-started'; // Default status
   }
 
-  async fetchAssignmentsByLecture(lectureId: string): Promise<any[]> {
+  fetchAssignmentsByLecture = async (lectureId: string): Promise<any[]> => {
     try {
       return await this.getAssignments({ lesson_id: lectureId });
     } catch (error) {
@@ -798,27 +833,27 @@ class LMSApiClient {
   // =============================================================================
 
   // Legacy methods to support existing components during migration
-  fetchCourses() {
+  fetchCourses = () => {
     return this.getCourses();
   }
 
-  fetchCourseById(courseId: string): Promise<Course> {
+  fetchCourseById = (courseId: string): Promise<Course> => {
     return this.getCourse(courseId);
   }
 
-  fetchModulesByCourse(courseId: string): Promise<CourseModule[]> {
+  fetchModulesByCourse = (courseId: string): Promise<CourseModule[]> => {
     return this.getCourseModules(courseId);
   }
 
-  fetchLectureById(lectureId: string): Promise<Lesson> {
+  fetchLectureById = (lectureId: string): Promise<Lesson> => {
     return this.getLesson(lectureId);
   }
 
-  markLectureComplete(lectureId: string): Promise<any> {
+  markLectureComplete = (lectureId: string): Promise<any> => {
     return this.markLessonComplete(lectureId);
   }
 
-  isLectureCompleted(lectureId: string) {
+  isLectureCompleted = (lectureId: string) => {
     console.warn('isLectureCompleted is deprecated - use isLessonCompleted');
     return this.isLessonCompleted(lectureId);
   }
@@ -883,6 +918,7 @@ export const {
   login,
   logout,
   getCurrentUser,
+  updateProfile,
   isAuthenticated,
   getCurrentUserSync,
   getDashboardStats,

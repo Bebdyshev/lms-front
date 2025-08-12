@@ -1,4 +1,7 @@
-
+ 
+// Enhance default input focus ring to be consistent across browsers
+// Usage: <input className="input" ... />
+export const inputFocusClass = 'focus:outline-none focus:ring-2 focus:ring-blue-500';
 interface InputProps {
   label?: string;
   type?: string;

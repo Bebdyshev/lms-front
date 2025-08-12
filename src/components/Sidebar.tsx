@@ -9,9 +9,10 @@ import {
   ClipboardList, 
   MessageCircle, 
   UserCheck,
-  GraduationCap,
   Settings,
   BookMarked,
+  ChevronDown,
+  LogOut,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -21,12 +22,11 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number):
   const allItems: NavItemTuple[] = [
     ['/dashboard', 'Dashboard', Home, 0, null],
     ['/courses', 'My Courses', BookOpen, 0, ['student']],
-    ['/assignments', 'Assignments', ClipboardList, 0, ['student']],
+    ['/assignments', 'My assignments', ClipboardList, 0, ['student']],
+    ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher']],
+    ['/teacher/courses', 'Manage Courses', BookMarked, 0, ['admin']],
+    ['/assignments', 'Assignments', ClipboardList, 0, ['teacher']],
     ['/chat', 'Chat', MessageCircle, unreadCount, null],
-    ['/profile', 'Profile', UserCheck, 0, null],
-    ['/teacher', 'Teacher Dashboard', GraduationCap, 0, ['teacher', 'admin']],
-    ['/teacher/courses', 'Manage Courses', BookMarked, 0, ['teacher', 'admin']],
-    ['/settings', 'Settings', Settings, 0, null],
   ];
 
   return allItems;
@@ -34,7 +34,8 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number):
 
 export default function Sidebar() {
   const [unread, setUnread] = useState(0);
-  const { user } = useAuth();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const { user, logout } = useAuth();
   
   useEffect(() => {
     // Load unread messages count
@@ -51,6 +52,11 @@ export default function Sidebar() {
       console.error('Failed to load unread count:', error);
     }
   };
+
+  const handleLogout = () => {
+    logout();
+  };
+
   return (
     <aside className="hidden lg:flex w-64 h-screen fixed top-0 left-0 bg-white border-r p-6 flex-col">
       <div className="flex items-center mb-8">
@@ -69,6 +75,7 @@ export default function Sidebar() {
             <NavLink
               key={to}
               to={to}
+              end={to === '/courses' || to === '/teacher/courses'}
               className={({ isActive }) =>
                 `nav-link ${isActive ? 'nav-link-active' : ''}`
               }
@@ -83,16 +90,52 @@ export default function Sidebar() {
         }).filter(Boolean)}
       </nav>
       
-      {}
       <div className="mt-auto pt-6 border-t">
-        <div className="flex items-center">
-          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
-            {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-          </div>
-          <div className="ml-3">
-            <div className="text-sm font-medium text-gray-900">{user?.name || 'User'}</div>
-            <div className="text-xs text-gray-500 capitalize">{user?.role || 'Unknown'}</div>
-          </div>
+        <div className="relative">
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+              </div>
+              <div className="ml-3 text-left">
+                <div className="text-sm font-medium text-gray-900">{user?.name || 'User'}</div>
+                <div className="text-xs text-gray-500 capitalize">{user?.role || 'Unknown'}</div>
+              </div>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {isDropdownOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border rounded-lg shadow-lg py-2 z-10">
+              <NavLink
+                to="/profile"
+                onClick={() => setIsDropdownOpen(false)}
+                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <UserCheck className="w-4 h-4 mr-3" />
+                Profile
+              </NavLink>
+              <NavLink
+                to="/settings"
+                onClick={() => setIsDropdownOpen(false)}
+                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Settings className="w-4 h-4 mr-3" />
+                Settings
+              </NavLink>
+              <div className="border-t my-1"></div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4 mr-3" />
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </aside>
