@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from '../contexts/AuthContext.jsx';
+import ProtectedRoute from '../components/ProtectedRoute.jsx';
 import AuthLayout from '../layouts/AuthLayout.jsx';
 import AppLayout from '../layouts/AppLayout.jsx';
 import LoginPage from '../pages/LoginPage.jsx';
@@ -19,41 +21,163 @@ import SettingsPage from '../pages/SettingsPage.jsx';
 import TeacherCoursesPage from '../pages/TeacherCoursesPage.jsx';
 import CourseBuilderPage from '../pages/CourseBuilderPage.jsx';
 
-function RequireAuth() {
-  const isAuthed = Boolean(localStorage.getItem('sid'));
-  if (!isAuthed) return <Navigate to="/login" replace />;
-  return <Outlet />;
-}
-
 export default function Router() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-        </Route>
-        <Route element={<RequireAuth />}>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/courses" element={<CoursesPage />} />
-            <Route path="/course/:courseId" element={<CourseOverviewPage />} />
-            <Route path="/module/:moduleId" element={<ModulePage />} />
-            <Route path="/lecture/:lectureId" element={<LecturePage />} />
-            <Route path="/assignments" element={<AssignmentsPage />} />
-            <Route path="/assignment/:id" element={<AssignmentPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/teacher" element={<TeacherDashboard />} />
-            <Route path="/teacher/courses" element={<TeacherCoursesPage />} />
-            <Route path="/teacher/course/:courseId/builder" element={<CourseBuilderPage />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/quizzes" element={<QuizzesPage />} />
-            <Route path="/quiz/:id" element={<QuizPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Route>
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          {/* Auth Routes */}
+          <Route path="/login" element={
+            <ProtectedRoute requireAuth={false}>
+              <AuthLayout>
+                <LoginPage />
+              </AuthLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Protected App Routes */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Navigate to="/dashboard" replace />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DashboardPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/courses" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <CoursesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/course/:courseId" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <CourseOverviewPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/module/:moduleId" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ModulePage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/lecture/:lectureId" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <LecturePage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assignments" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <AssignmentsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assignment/:id" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <AssignmentPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/chat" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ChatPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/quizzes" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <QuizzesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/quiz/:id" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <QuizPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ProfilePage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <SettingsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Teacher Routes */}
+          <Route path="/teacher" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <TeacherDashboard />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/teacher/courses" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <TeacherCoursesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/teacher/course/:courseId/builder" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <CourseBuilderPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Admin Routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AppLayout>
+                <AdminDashboard />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 } 

@@ -4,6 +4,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+
+.cursorrules
+cursor-logs.md
+
 # Build outputs
 dist/
 build/

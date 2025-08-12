@@ -1,428 +1,940 @@
-import courses from '../mocks/courses.json';
-import modules from '../mocks/modules.json';
-import lectures from '../mocks/lectures.json';
-import assignments from '../mocks/assignments.json';
-import materials from '../mocks/materials.json';
-import threads from '../mocks/threads.json';
-import messages from '../mocks/messages.json';
-import quizzes from '../mocks/quizzes.json';
+import axios from 'axios';
 
+// API Base URL - adjust for your backend
+const API_BASE_URL = 'http://localhost:8000';
 
-const LS_KEYS = {
-  completedLectures: 'completedLectures',
-  submissions: 'submissions',
-  dynamicContent: 'dynamicContent',
-};
+// =============================================================================
+// TOKEN MANAGEMENT
+// =============================================================================
 
+// Утилиты для работы с cookies
+class CookieUtils {
+  static setCookie(name, value, days = 7) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict;Secure=${window.location.protocol === 'https:'}`;
+  }
 
-function readDynamic() {
-  try {
-    const raw = localStorage.getItem(LS_KEYS.dynamicContent);
-    const def = { modules: [], lectures: [] };
-    return raw ? { ...def, ...JSON.parse(raw) } : def;
-  } catch {
-    return { modules: [], lectures: [] };
+  static getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+  }
+
+  static deleteCookie(name) {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:01 GMT;path=/;SameSite=Strict`;
   }
 }
 
-function writeDynamic(state) {
-  localStorage.setItem(LS_KEYS.dynamicContent, JSON.stringify(state));
-}
+class TokenManager {
+  constructor() {
+    // Миграция из localStorage в cookies (если есть старые токены)
+    this.migrateFromLocalStorage();
+    
+    this.accessToken = CookieUtils.getCookie('access_token');
+    this.refreshToken = CookieUtils.getCookie('refresh_token');
+  }
 
-function mergeById(staticArr, dynamicArr) {
-  const map = new Map();
-  for (const s of staticArr) map.set(s.id, s);
-  for (const d of dynamicArr) {
-    if (d.__deleted) {
-      map.delete(d.id);
-    } else {
-      map.set(d.id, { ...(map.get(d.id) || {}), ...d });
+  migrateFromLocalStorage() {
+    // Проверяем, есть ли старые токены в localStorage
+    const oldAccessToken = localStorage.getItem('access_token');
+    const oldRefreshToken = localStorage.getItem('refresh_token');
+    
+    if (oldAccessToken && oldRefreshToken) {
+      // Перемещаем в cookies
+      CookieUtils.setCookie('access_token', oldAccessToken, 1); // Access token на 1 день
+      CookieUtils.setCookie('refresh_token', oldRefreshToken, 7); // Refresh token на 7 дней
+      
+      // Удаляем из localStorage
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('current_user');
+      
+      console.info('🔄 Токены перенесены из localStorage в cookies');
     }
   }
-  return Array.from(map.values());
+
+  setTokens(accessToken, refreshToken) {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    
+    // Сохраняем в cookies с разными сроками жизни
+    CookieUtils.setCookie('access_token', accessToken, 1); // Access token на 1 день
+    CookieUtils.setCookie('refresh_token', refreshToken, 7); // Refresh token на 7 дней
+  }
+
+  getAccessToken() {
+    if (!this.accessToken) {
+      this.accessToken = CookieUtils.getCookie('access_token');
+    }
+    return this.accessToken;
+  }
+
+  getRefreshToken() {
+    if (!this.refreshToken) {
+      this.refreshToken = CookieUtils.getCookie('refresh_token');
+    }
+    return this.refreshToken;
+  }
+
+  clearTokens() {
+    this.accessToken = null;
+    this.refreshToken = null;
+    
+    // Удаляем cookies
+    CookieUtils.deleteCookie('access_token');
+    CookieUtils.deleteCookie('refresh_token');
+    CookieUtils.deleteCookie('current_user');
+    
+    // Также очищаем localStorage на всякий случай
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('current_user');
+  }
+
+  isAuthenticated() {
+    const token = this.getAccessToken();
+    return !!token;
+  }
 }
 
-function readCompletedLectures() {
-  try {
-    const raw = localStorage.getItem(LS_KEYS.completedLectures);
-    return raw ? JSON.parse(raw) : [];
+// =============================================================================
+// HTTP CLIENT SETUP
+// =============================================================================
+
+class LMSApiClient {
+  constructor() {
+    this.tokenManager = new TokenManager();
+    this.setupAxios();
+    this.currentUser = this.getCurrentUserFromStorage();
+  }
+
+  setupAxios() {
+    // Create axios instance
+    this.api = axios.create({
+      baseURL: API_BASE_URL,
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      withCredentials: true, // Важно для работы с cookies между доменами
+    });
+
+    // Request interceptor to add auth token
+    this.api.interceptors.request.use(
+      (config) => {
+        const token = this.tokenManager.getAccessToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor for token refresh
+    this.api.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+
+          try {
+            const refreshToken = this.tokenManager.getRefreshToken();
+            if (refreshToken) {
+              const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+                refresh_token: refreshToken
+              });
+
+              const { access_token, refresh_token } = response.data;
+              this.tokenManager.setTokens(access_token, refresh_token);
+
+              // Retry original request with new token
+              originalRequest.headers.Authorization = `Bearer ${access_token}`;
+              return this.api(originalRequest);
+            }
+          } catch (refreshError) {
+            // Refresh failed, logout user
+            this.logout();
+            window.location.href = '/login';
+          }
+        }
+
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  getCurrentUserFromStorage() {
+    try {
+      // Сначала пробуем получить из cookies
+      let userData = CookieUtils.getCookie('current_user');
+      
+      // Если нет в cookies, проверяем localStorage для миграции
+      if (!userData) {
+        userData = localStorage.getItem('current_user');
+        if (userData) {
+          // Мигрируем в cookies
+          CookieUtils.setCookie('current_user', userData, 7);
+          localStorage.removeItem('current_user');
+          console.info('🔄 Данные пользователя перенесены в cookies');
+        }
+      }
+      
+      return userData ? JSON.parse(userData) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  setCurrentUser(user) {
+    this.currentUser = user;
+    const userData = JSON.stringify(user);
+    CookieUtils.setCookie('current_user', userData, 7); // Данные пользователя на 7 дней
+    
+    // Также очищаем из localStorage, если там есть
+    localStorage.removeItem('current_user');
+  }
+
+  // =============================================================================
+  // AUTHENTICATION
+  // =============================================================================
+
+  async login(email, password) {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+        email,
+        password
+      });
+
+      const { access_token, refresh_token } = response.data;
+      this.tokenManager.setTokens(access_token, refresh_token);
+
+      // Get user info
+      const user = await this.getCurrentUser();
+      this.setCurrentUser(user);
+
+      return { success: true, user };
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || 'Login failed');
+    }
+  }
+
+  async logout() {
+    try {
+      if (this.tokenManager.isAuthenticated()) {
+        await this.api.post('/auth/logout');
+      }
+    } catch (error) {
+      console.warn('Logout request failed:', error);
+    } finally {
+      this.tokenManager.clearTokens();
+      this.currentUser = null;
+    }
+  }
+
+  async getCurrentUser() {
+    try {
+      const response = await this.api.get('/auth/me');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get current user');
+    }
+  }
+
+  isAuthenticated() {
+    return this.tokenManager.isAuthenticated();
+  }
+
+  getCurrentUserSync() {
+    return this.currentUser;
+  }
+
+  // =============================================================================
+  // DASHBOARD
+  // =============================================================================
+
+  async getDashboardStats() {
+    try {
+      const response = await this.api.get('/dashboard/stats');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load dashboard stats');
+    }
+  }
+
+  async getMyCourses() {
+    try {
+      const response = await this.api.get('/dashboard/my-courses');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load courses');
+    }
+  }
+
+  async getRecentActivity(limit = 10) {
+    try {
+      const response = await this.api.get('/dashboard/recent-activity', {
+        params: { limit }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load recent activity');
+    }
+  }
+
+  async updateStudyTime(minutes) {
+    try {
+      const response = await this.api.post('/dashboard/update-study-time', null, {
+        params: { minutes_studied: minutes }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update study time');
+    }
+  }
+
+  // =============================================================================
+  // COURSES
+  // =============================================================================
+
+  async getCourses(params = {}) {
+    try {
+      const response = await this.api.get('/courses/', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load courses');
+    }
+  }
+
+  async getCourse(courseId) {
+    try {
+      const response = await this.api.get(`/courses/${courseId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load course');
+    }
+  }
+
+  async createCourse(courseData) {
+    try {
+      const response = await this.api.post('/courses/', courseData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create course');
+    }
+  }
+
+  async updateCourse(courseId, courseData) {
+    try {
+      const response = await this.api.put(`/courses/${courseId}`, courseData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update course');
+    }
+  }
+
+  async deleteCourse(courseId) {
+    try {
+      await this.api.delete(`/courses/${courseId}`);
+      return { success: true };
+    } catch (error) {
+      throw new Error('Failed to delete course');
+    }
+  }
+
+  async enrollInCourse(courseId) {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/enroll`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to enroll in course');
+    }
+  }
+
+  async unenrollFromCourse(courseId) {
+    try {
+      const response = await this.api.delete(`/courses/${courseId}/enroll`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to unenroll from course');
+    }
+  }
+
+  // =============================================================================
+  // MODULES
+  // =============================================================================
+
+  async getCourseModules(courseId) {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/modules`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load modules');
+    }
+  }
+
+  async createModule(courseId, moduleData) {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/modules`, moduleData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create module');
+    }
+  }
+
+  async updateModule(courseId, moduleId, moduleData) {
+    try {
+      const response = await this.api.put(`/courses/${courseId}/modules/${moduleId}`, moduleData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update module');
+    }
+  }
+
+  async deleteModule(courseId, moduleId) {
+    try {
+      await this.api.delete(`/courses/${courseId}/modules/${moduleId}`);
+      return { success: true };
+    } catch (error) {
+      throw new Error('Failed to delete module');
+    }
+  }
+
+  // =============================================================================
+  // LESSONS
+  // =============================================================================
+
+  async getModuleLessons(courseId, moduleId) {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/modules/${moduleId}/lessons`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load lessons');
+    }
+  }
+
+  async getLesson(lessonId) {
+    try {
+      const response = await this.api.get(`/courses/lessons/${lessonId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load lesson');
+    }
+  }
+
+  async createLesson(courseId, moduleId, lessonData) {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/modules/${moduleId}/lessons`, lessonData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create lesson');
+    }
+  }
+
+  async updateLesson(lessonId, lessonData) {
+    try {
+      const response = await this.api.put(`/courses/lessons/${lessonId}`, lessonData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update lesson');
+    }
+  }
+
+  async deleteLesson(lessonId) {
+    try {
+      await this.api.delete(`/courses/lessons/${lessonId}`);
+      return { success: true };
+    } catch (error) {
+      throw new Error('Failed to delete lesson');
+    }
+  }
+
+  async getLessonMaterials(lessonId) {
+    try {
+      const response = await this.api.get(`/courses/lessons/${lessonId}/materials`);
+      return response.data;
+    } catch (error) {
+      console.warn('Failed to load lesson materials:', error);
+      return [];
+    }
+  }
+
+  // =============================================================================
+  // ASSIGNMENTS
+  // =============================================================================
+
+  async getAssignments(params = {}) {
+    try {
+      const response = await this.api.get('/assignments/', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load assignments');
+    }
+  }
+
+  async getAssignment(assignmentId) {
+    try {
+      const response = await this.api.get(`/assignments/${assignmentId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load assignment');
+    }
+  }
+
+  async submitAssignment(assignmentId, answers) {
+    try {
+      const response = await this.api.post(`/assignments/${assignmentId}/submit`, { answers });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to submit assignment');
+    }
+  }
+
+  async getMySubmissions(courseId = null) {
+    try {
+      const params = courseId ? { course_id: courseId } : {};
+      const response = await this.api.get('/assignments/submissions/my', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load my submissions');
+    }
+  }
+
+  // =============================================================================
+  // PROGRESS
+  // =============================================================================
+
+  async markLessonComplete(lessonId, timeSpent = 0) {
+    try {
+      const response = await this.api.post(`/progress/lesson/${lessonId}/complete`, null, {
+        params: { time_spent: timeSpent }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to mark lesson complete');
+    }
+  }
+
+  async startLesson(lessonId) {
+    try {
+      const response = await this.api.post(`/progress/lesson/${lessonId}/start`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to start lesson');
+    }
+  }
+
+  async markLessonComplete(lessonId, timeSpent = 0) {
+    try {
+      const response = await this.api.post(`/progress/lesson/${lessonId}/complete`, null, {
+        params: { time_spent: timeSpent }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to mark lesson complete');
+    }
+  }
+
+  async getMyProgress(params = {}) {
+    try {
+      const response = await this.api.get('/progress/my', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load progress');
+    }
+  }
+
+  async getCourseProgress(courseId, studentId = null) {
+    try {
+      const params = studentId ? { student_id: studentId } : {};
+      const response = await this.api.get(`/progress/course/${courseId}`, { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load course progress');
+    }
+  }
+
+  async isLectureCompleted(lectureId) {
+    try {
+      const progress = await this.getMyProgress({ lesson_id: lectureId });
+      return progress.some(p => p.lesson_id === lectureId && p.status === 'completed');
   } catch {
+      return false;
+    }
+  }
+
+  // =============================================================================
+  // MESSAGES
+  // =============================================================================
+
+  async getUnreadMessageCount() {
+    try {
+      const response = await this.api.get('/messages/unread-count');
+      return response.data;
+    } catch (error) {
+      console.warn('Failed to load unread count:', error);
+      return { unread_count: 0 };
+    }
+  }
+
+  async fetchThreads() {
+    try {
+      const response = await this.api.get('/messages/conversations');
+      return response.data;
+    } catch (error) {
+      console.warn('Failed to load threads:', error);
     return [];
   }
 }
 
-function writeCompletedLectures(ids) {
-  localStorage.setItem(LS_KEYS.completedLectures, JSON.stringify(ids));
-}
-
-export function fetchCourses() {
-  const dyn = readDynamic();
-  const mergedModules = mergeById(modules, dyn.modules);
-  return Promise.resolve(
-    courses.map(c => ({
-      ...c,
-      modulesCount: mergedModules.filter(m => m.courseId === c.id).length,
-      progress: getCourseProgress(c.id),
-      status: getCourseStatus(c.id),
-    }))
-  );
-}
-export function fetchModules() {
-  return Promise.resolve(modules);
-}
-export function fetchLectures(moduleId) {
-  return Promise.resolve(
-    lectures.filter(l => l.moduleId === moduleId)
-  );
-}
-
-
-export function fetchCourseById(courseId) {
-  return Promise.resolve(courses.find(c => c.id === courseId));
-}
-
-export function fetchModulesByCourse(courseId) {
-  const dyn = readDynamic();
-  const base = modules.filter(m => m.courseId === courseId);
-  const overlay = dyn.modules.filter(m => m.courseId === courseId);
-  return Promise.resolve(mergeById(base, overlay));
-}
-
-export function fetchModuleById(moduleId) {
-  const dyn = readDynamic();
-  const foundDyn = dyn.modules.find(m => m.id === moduleId && !m.__deleted);
-  if (foundDyn) return Promise.resolve(foundDyn);
-  return Promise.resolve(modules.find(m => m.id === moduleId));
-}
-
-export function fetchLecturesByModule(moduleId) {
-  const dyn = readDynamic();
-  const base = lectures.filter(l => l.moduleId === moduleId);
-  const overlay = dyn.lectures.filter(l => l.moduleId === moduleId);
-  return Promise.resolve(mergeById(base, overlay));
-}
-
-export function fetchLectureById(lectureId) {
-  const dyn = readDynamic();
-  const foundDyn = dyn.lectures.find(l => l.id === lectureId && !l.__deleted);
-  if (foundDyn) return Promise.resolve(foundDyn);
-  return Promise.resolve(lectures.find(l => l.id === lectureId));
-}
-
-
-export function createModule(courseId, data) {
-  const dyn = readDynamic();
-  const item = {
-    id: `mod-${Date.now()}`,
-    courseId,
-    title: data.title || 'New module',
-    description: data.description || '',
-  };
-  dyn.modules.push(item);
-  writeDynamic(dyn);
-  return Promise.resolve(item);
-}
-
-export function updateModule(moduleId, data) {
-  const dyn = readDynamic();
-  // push overlay update
-  dyn.modules = dyn.modules.filter(m => m.id !== moduleId).concat([{ id: moduleId, ...data }]);
-  writeDynamic(dyn);
-  return fetchModuleById(moduleId);
-}
-
-export function deleteModule(moduleId) {
-  const dyn = readDynamic();
-  dyn.modules = dyn.modules.filter(m => m.id !== moduleId).concat([{ id: moduleId, __deleted: true }]);
-  // also mark lectures under this module as deleted overlays
-  const under = mergeById(lectures, dyn.lectures).filter(l => l.moduleId === moduleId);
-  for (const l of under) dyn.lectures = dyn.lectures.filter(x => x.id !== l.id).concat([{ id: l.id, __deleted: true }]);
-  writeDynamic(dyn);
-  return Promise.resolve(true);
-}
-
-export function createLecture(moduleId, data) {
-  const dyn = readDynamic();
-  const item = {
-    id: `lec-${Date.now()}`,
-    moduleId,
-    title: data.title || 'New lecture',
-    videoUrl: data.videoUrl || '/videos/placeholder.mp4',
-  };
-  dyn.lectures.push(item);
-  writeDynamic(dyn);
-  return Promise.resolve(item);
-}
-
-export function updateLecture(lectureId, data) {
-  const dyn = readDynamic();
-  dyn.lectures = dyn.lectures.filter(l => l.id !== lectureId).concat([{ id: lectureId, ...data }]);
-  writeDynamic(dyn);
-  return fetchLectureById(lectureId);
-}
-
-export function deleteLecture(lectureId) {
-  const dyn = readDynamic();
-  dyn.lectures = dyn.lectures.filter(l => l.id !== lectureId).concat([{ id: lectureId, __deleted: true }]);
-  writeDynamic(dyn);
-  return Promise.resolve(true);
-}
-
-export function fetchMaterialsByLecture(lectureId) {
-  return Promise.resolve(materials.filter(m => m.lectureId === lectureId));
-}
-
-export function fetchAssignmentsByLecture(lectureId) {
-  return Promise.resolve(assignments.filter(a => a.lectureId === lectureId));
-}
-
-export function markLectureComplete(lectureId) {
-  const ids = readCompletedLectures();
-  if (!ids.includes(lectureId)) {
-    ids.push(lectureId);
-    writeCompletedLectures(ids);
+  async fetchMessages(threadId) {
+    try {
+      const response = await this.api.get('/messages', {
+        params: { with_user_id: threadId }
+      });
+      return response.data;
+    } catch (error) {
+      console.warn('Failed to load messages:', error);
+      return [];
+    }
   }
-}
 
-export function isLectureCompleted(lectureId) {
-  return readCompletedLectures().includes(lectureId);
-}
+  async sendMessage(toUserId, content) {
+    try {
+      const response = await this.api.post('/messages', {
+        to_user_id: toUserId,
+        content: content
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to send message');
+    }
+  }
 
-export function getModuleProgress(moduleId) {
-  const moduleLectures = lectures.filter(l => l.moduleId === moduleId);
-  if (moduleLectures.length === 0) return 0;
-  const done = moduleLectures.filter(l => isLectureCompleted(l.id)).length;
-  return Math.round((done / moduleLectures.length) * 100);
-}
+  // =============================================================================
+  // QUIZZES (Mock implementation)
+  // =============================================================================
 
-export function getCourseProgress(courseId) {
-  const courseModules = modules.filter(m => m.courseId === courseId);
-  if (courseModules.length === 0) return 0;
-  const percents = courseModules.map(m => getModuleProgress(m.id));
-  const avg = percents.reduce((a, b) => a + b, 0) / percents.length;
-  return Math.round(avg);
-}
+  async fetchQuizzes() {
+    console.warn('fetchQuizzes is not implemented in the backend yet');
+    return [
+      {
+        id: 1,
+        title: 'Sample Quiz',
+        description: 'This is a sample quiz',
+        questions: []
+      }
+    ];
+  }
 
+  async fetchQuizById(quizId) {
+    console.warn('fetchQuizById is not implemented in the backend yet');
+    return {
+      id: quizId,
+      title: 'Sample Quiz',
+      description: 'This quiz functionality needs to be implemented',
+      questions: []
+    };
+  }
 
-export function getLectureStatus(lectureId) {
-  return isLectureCompleted(lectureId) ? 'completed' : 'not-started';
-}
+  getQuizAttemptsLeft(quizId) {
+    console.warn('getQuizAttemptsLeft is not implemented');
+    return 3; // Default attempts
+  }
 
-export function getModuleStatus(moduleId) {
-  const moduleLectures = mergeById(lectures, readDynamic().lectures).filter(l => l.moduleId === moduleId && !l.__deleted);
-  if (moduleLectures.length === 0) return 'not-started';
-  const done = moduleLectures.filter(l => isLectureCompleted(l.id)).length;
-  if (done === 0) return 'not-started';
-  if (done === moduleLectures.length) return 'completed';
-  return 'in-progress';
-}
+  async submitQuiz(quizId, answers, score) {
+    console.warn('submitQuiz is not implemented in the backend yet');
+    return { success: true, score: score };
+  }
 
-function fetchModulesByCourseSync(courseId) {
-  const dyn = readDynamic();
-  const base = modules.filter(m => m.courseId === courseId);
-  const overlay = dyn.modules.filter(m => m.courseId === courseId);
-  return mergeById(base, overlay);
-}
+  // =============================================================================
+  // TEACHER FUNCTIONS (Mock implementation)
+  // =============================================================================
 
-export function getCourseStatus(courseId) {
-  const mods = fetchModulesByCourseSync(courseId);
-  if (mods.length === 0) return 'not-started';
-  const statuses = mods.map(m => getModuleStatus(m.id));
-  if (statuses.every(s => s === 'completed')) return 'completed';
-  if (statuses.every(s => s === 'not-started')) return 'not-started';
-  return 'in-progress';
-}
+  async getPendingSubmissions() {
+    try {
+      // Get assignments and their submissions
+      const assignments = await this.getAssignments();
+      const submissions = [];
+      
+      for (const assignment of assignments) {
+        const assignmentSubmissions = await this.api.get(`/assignments/${assignment.id}/submissions`);
+        submissions.push(...assignmentSubmissions.data.filter(s => !s.is_graded));
+      }
+      
+      return submissions;
+    } catch (error) {
+      console.warn('Failed to load pending submissions:', error);
+      return [];
+    }
+  }
 
+  async gradeSubmission(submissionId, score, feedback) {
+    console.warn('gradeSubmission needs to be implemented in the backend');
+    return { success: true };
+  }
 
-export function fetchThreads() {
-  return Promise.resolve(threads);
-}
+  async allowResubmission(submissionId) {
+    console.warn('allowResubmission needs to be implemented in the backend');
+    return { success: true };
+  }
 
-export function fetchMessages(threadId) {
-  const studentId = localStorage.getItem('sid') || 'demo';
-  
-  const list = messages.filter(m => m.threadId === threadId);
-  
-  localStorage.setItem(`read:${studentId}:${threadId}`, String(Date.now()));
-  return Promise.resolve(list);
-}
+  // =============================================================================
+  // LEGACY SUPPORT
+  // =============================================================================
 
-export function sendMessage(threadId, text) {
-  const msg = {
-    id: `m${Date.now()}`,
-    threadId,
-    senderId: (localStorage.getItem('sid') || 'demo'),
-    text,
-    createdAt: new Date().toISOString(),
-  };
-  messages.push(msg); 
-  return Promise.resolve(msg);
-}
+  async fetchModules() {
+    console.warn('fetchModules needs course context - use getCourses() instead');
+    try {
+      const courses = await this.getCourses();
+      if (courses.length > 0) {
+        return await this.getCourseModules(courses[0].id);
+      }
+      return [];
+    } catch (error) {
+      return [];
+    }
+  }
 
-
-function readSubmissions() {
-  try {
-    const raw = localStorage.getItem(LS_KEYS.submissions);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
+  async fetchLectures(moduleId) {
+    console.warn('fetchLectures needs course context - use getModuleLessons(courseId, moduleId)');
     return [];
   }
-}
 
-function writeSubmissions(list) {
-  localStorage.setItem(LS_KEYS.submissions, JSON.stringify(list));
-}
-
-export function submitAssignment(assignmentId, payload) {
-  const studentId = localStorage.getItem('sid') || 'demo';
-  const list = readSubmissions();
-  const history = list.filter(s => s.assignmentId === assignmentId && s.studentId === studentId);
-  const attempts = history.length;
-  if (attempts >= 2) {
-    return Promise.reject(new Error('No attempts left'));
+  async createLecture(moduleId, lectureData) {
+    console.warn('createLecture needs course context for new API');
+    try {
+      // Find course context first
+      const courses = await this.getCourses();
+      for (const course of courses) {
+        try {
+          const modules = await this.getCourseModules(course.id);
+          const targetModule = modules.find(m => m.id === parseInt(moduleId));
+          if (targetModule) {
+            return await this.createLesson(course.id, moduleId, lectureData);
+          }
+        } catch (err) {
+          continue;
+        }
+      }
+      throw new Error('Could not find course context for module');
+    } catch (error) {
+      throw new Error('Failed to create lecture');
+    }
   }
-  const submission = {
-    id: `s${Date.now()}`,
-    assignmentId,
-    studentId,
-    createdAt: new Date().toISOString(),
-    status: 'submitted', 
-    score: null,
-    feedback: null,
-    content: payload,
-    attempt: attempts + 1,
-  };
-  list.push(submission);
-  writeSubmissions(list);
-  return Promise.resolve(submission);
-}
 
-export function getSubmissionForStudent(assignmentId, studentId = (localStorage.getItem('sid') || 'demo')) {
-  const list = readSubmissions().filter(s => s.assignmentId === assignmentId && s.studentId === studentId);
-  if (list.length === 0) return null;
-  return list[list.length - 1];
-}
-
-export function getPendingSubmissions() {
-  return Promise.resolve(readSubmissions().filter(s => s.status === 'submitted'));
-}
-
-export function gradeSubmission(submissionId, score, feedback) {
-  const list = readSubmissions();
-  const idx = list.findIndex(s => s.id === submissionId);
-  if (idx >= 0) {
-    list[idx].status = 'graded';
-    list[idx].score = score;
-    list[idx].feedback = feedback;
-    writeSubmissions(list);
+  async deleteLecture(lectureId) {
+    try {
+      return await this.deleteLesson(lectureId);
+    } catch (error) {
+      throw new Error('Failed to delete lecture');
+    }
   }
-  return Promise.resolve(list[idx]);
-}
 
-export function allowResubmission(submissionId) {
-  const list = readSubmissions();
-  const idx = list.findIndex(s => s.id === submissionId);
-  if (idx >= 0) {
-    list[idx].status = 'resubmission-allowed';
-    writeSubmissions(list);
+  async updateLecture(lectureId, lectureData) {
+    try {
+      return await this.updateLesson(lectureId, lectureData);
+    } catch (error) {
+      throw new Error('Failed to update lecture');
+    }
   }
-  return Promise.resolve(list[idx]);
-}
 
-export function getAssignmentStatusForStudent(assignmentId, studentId = (localStorage.getItem('sid') || 'demo')) {
-  const a = assignments.find(x => x.id === assignmentId);
-  const sub = getSubmissionForStudent(assignmentId, studentId);
-  const now = Date.now();
-  const deadline = a ? Date.parse(a.deadlineISO) : now;
-  const base = { status: 'not-submitted', attemptsLeft: 2, late: false, score: null };
-  if (!sub) {
-    base.attemptsLeft = 2;
-    base.late = now > deadline;
-    return base;
+  getAssignmentStatusForStudent(assignmentId) {
+    console.warn('getAssignmentStatusForStudent needs to be properly implemented');
+    return 'not-started'; // Default status
   }
-  base.attemptsLeft = Math.max(0, 2 - sub.attempt);
-  base.score = sub.score;
-  if (sub.status === 'submitted') base.status = 'submitted';
-  if (sub.status === 'graded') base.status = 'graded';
-  if (sub.status === 'resubmission-allowed') base.status = 'resubmission-allowed';
-  base.late = Date.parse(sub.createdAt) > deadline;
-  return base;
-}
 
-
-export function countOverdueAssignments(studentId = (localStorage.getItem('sid') || 'demo')) {
-  
-  const now = Date.now();
-  return assignments.filter(a => Date.parse(a.deadlineISO) < now && !getSubmissionForStudent(a.id, studentId)).length;
-}
-
-export function countUnwatchedLectures(studentId = (localStorage.getItem('sid') || 'demo')) {
-  const done = readCompletedLectures();
-  return lectures.filter(l => !done.includes(l.id)).length;
-}
-
-export function countUnansweredThreadsForCurators() {
-  
-  const studentId = localStorage.getItem('sid') || 'demo';
-  let count = 0;
-  for (const t of threads) {
-    const list = messages.filter(m => m.threadId === t.id);
-    if (list.length === 0) continue;
-    const last = list[list.length - 1];
-    if (last.senderId === studentId) count += 1;
+  async fetchAssignmentsByLecture(lectureId) {
+    try {
+      return await this.getAssignments({ lesson_id: lectureId });
+    } catch (error) {
+      console.warn('Failed to load assignments by lecture:', error);
+      return [];
+    }
   }
-  return count;
-}
 
-export function getUnreadThreadsCount() {
-  const studentId = localStorage.getItem('sid') || 'demo';
-  let unread = 0;
-  for (const t of threads) {
-    const lastMsg = messages.filter(m => m.threadId === t.id).slice(-1)[0];
-    const lastRead = Number(localStorage.getItem(`read:${studentId}:${t.id}`) || 0);
-    if (lastMsg && Date.parse(lastMsg.createdAt) > lastRead && lastMsg.senderId !== studentId) unread += 1;
+  // =============================================================================
+  // ADMIN
+  // =============================================================================
+
+  async createUser(userData) {
+    try {
+      const response = await this.api.post('/admin/users/single', userData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create user');
+    }
   }
-  return unread;
-}
 
+  async getUsers(params = {}) {
+    try {
+      const response = await this.api.get('/admin/users', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load users');
+    }
+  }
 
-const LS_QUIZ = 'quizAttempts';
+  async getAdminStats() {
+    try {
+      const response = await this.api.get('/admin/stats');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load admin stats');
+    }
+  }
 
-function readQuizAttempts() {
-  try {
-    const raw = localStorage.getItem(LS_QUIZ);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
+  // =============================================================================
+  // BACKWARD COMPATIBILITY (for existing components)
+  // =============================================================================
+
+  // Legacy methods to support existing components during migration
+  fetchCourses() {
+    return this.getCourses();
+  }
+
+  fetchCourseById(courseId) {
+    return this.getCourse(courseId);
+  }
+
+  fetchModulesByCourse(courseId) {
+    return this.getCourseModules(courseId);
+  }
+
+  fetchLectureById(lectureId) {
+    return this.getLesson(lectureId);
+  }
+
+  markLectureComplete(lectureId) {
+    return this.markLessonComplete(lectureId);
+  }
+
+  isLectureCompleted(lectureId) {
+    return this.isLectureCompleted(lectureId);
+  }
+
+  // Mock compatibility methods for smooth migration
+  async fetchLecturesByModule(moduleId) {
+    // This needs course context in the new API
+    console.warn('fetchLecturesByModule needs course context - use getModuleLessons(courseId, moduleId)');
+    try {
+      // Try to find the course context by getting all courses and their modules
+      const courses = await this.getCourses();
+      for (const course of courses) {
+        try {
+          const modules = await this.getCourseModules(course.id);
+          const targetModule = modules.find(m => m.id === parseInt(moduleId));
+          if (targetModule) {
+            return await this.getModuleLessons(course.id, moduleId);
+          }
+        } catch (err) {
+          continue;
+        }
+      }
+      return [];
+    } catch (error) {
+      console.warn('Failed to fetch lectures by module:', error);
+      return [];
+    }
+  }
+
+  async fetchModuleById(moduleId) {
+    // This needs course context, for now return null
+    console.warn('fetchModuleById needs course context');
+    return null;
+  }
+
+  // Progress tracking compatibility
+  getModuleProgress(moduleId) {
+    console.warn('getModuleProgress needs course context - use getMyProgress');
+    return 0;
+  }
+
+  getCourseProgress(courseId) {
+    console.warn('getCourseProgress needs updating to use new API');
+    return 0;
+  }
+
+  getCourseStatus(courseId) {
+    console.warn('getCourseStatus needs updating to use new API');
+    return 'not-started';
   }
 }
 
-function writeQuizAttempts(map) {
-  localStorage.setItem(LS_QUIZ, JSON.stringify(map));
-}
+// =============================================================================
+// EXPORT SINGLETON INSTANCE
+// =============================================================================
 
-export function fetchQuizzes() {
-  return Promise.resolve(quizzes);
-}
+const apiClient = new LMSApiClient();
+export default apiClient;
 
-export function fetchQuizById(id) {
-  return Promise.resolve(quizzes.find(q => q.id === id));
-}
-
-export function getQuizAttemptsLeft(quizId, studentId = (localStorage.getItem('sid') || 'demo')) {
-  const map = readQuizAttempts();
-  const key = `${studentId}:${quizId}`;
-  const done = map[key]?.length || 0;
-  const def = quizzes.find(q => q.id === quizId)?.attempts || 1;
-  return Math.max(0, def - done);
-}
-
-export function submitQuiz(quizId, answers, score) {
-  const studentId = localStorage.getItem('sid') || 'demo';
-  const map = readQuizAttempts();
-  const key = `${studentId}:${quizId}`;
-  if (!map[key]) map[key] = [];
-  map[key].push({ answers, score, createdAt: new Date().toISOString() });
-  writeQuizAttempts(map);
-  return Promise.resolve(map[key][map[key].length - 1]);
-}
+// Also export individual methods for easier migration
+export const {
+  login,
+  logout,
+  getCurrentUser,
+  isAuthenticated,
+  getCurrentUserSync,
+  getDashboardStats,
+  getMyCourses,
+  getCourses,
+  getCourse,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+  getCourseModules,
+  createModule,
+  updateModule,
+  deleteModule,
+  getModuleLessons,
+  getLesson,
+  createLesson,
+  updateLesson,
+  deleteLesson,
+  getAssignments,
+  getAssignment,
+  submitAssignment,
+  getMySubmissions,
+  getCourseProgress,
+  getMyProgress,
+  markLessonComplete,
+  getLessonMaterials,
+  // Messages
+  getUnreadMessageCount,
+  fetchThreads,
+  fetchMessages,
+  sendMessage,
+  // Quizzes (mock)
+  fetchQuizzes,
+  fetchQuizById,
+  getQuizAttemptsLeft,
+  submitQuiz,
+  // Teacher functions (mock)
+  getPendingSubmissions,
+  gradeSubmission,
+  allowResubmission,
+  // Legacy support
+  fetchModules,
+  fetchLectures,
+  fetchLecturesByModule,
+  createLecture,
+  deleteLecture,
+  updateLecture,
+  getAssignmentStatusForStudent,
+  fetchAssignmentsByLecture,
+  // Legacy exports
+  fetchCourses,
+  fetchCourseById,
+  fetchModulesByCourse,
+  fetchLectureById,
+  markLectureComplete,
+  isLectureCompleted
+} = apiClient;
