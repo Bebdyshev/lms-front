@@ -43,7 +43,7 @@ export default function CoursesPage() {
           id: course.course_id,
           title: course.course_title,
           teacher: course.teacher_name,
-          image: course.cover_image_url,
+          image: (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + course.cover_image_url,
           progress: course.completion_percentage,
           status: course.status,
           modules: course.total_modules,

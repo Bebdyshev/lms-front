@@ -18,4 +18,48 @@
   .nav-link-active {
     @apply bg-blue-50 text-blue-700;
   }
+  .course-module {
+    @apply bg-white border border-gray-200 rounded-lg transition-all duration-200 hover:shadow-md;
+  }
+  .lesson-item {
+    @apply bg-gray-50 border border-gray-200 rounded-lg p-3 transition-all duration-200 hover:bg-gray-100;
+  }
+  .dashed-button {
+    @apply border-2 border-dashed border-gray-300 rounded-lg transition-all duration-200 hover:border-gray-400 hover:bg-gray-50;
+  }
+}
+
+@layer utilities {
+  /* Logo Loader Animations */
+  .animate-logo-spin {
+    animation: logo-spin 1s linear infinite;
+  }
+  
+  .animate-logo-pulse {
+    animation: logo-pulse 2s ease-in-out infinite;
+  }
+  
+  .animate-logo-spin-pulse {
+    animation: logo-spin 1s linear infinite, logo-pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes logo-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  @keyframes logo-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.05);
+    }
+  }
 }

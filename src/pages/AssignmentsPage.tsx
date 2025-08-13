@@ -194,12 +194,6 @@ export default function AssignmentsPage() {
           <ClipboardList className="w-8 h-8 mr-3 text-blue-600" />
           Assignments
         </h1>
-        <button
-          onClick={loadAssignments}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Refresh
-        </button>
       </div>
 
       {/* Filter Tabs */}

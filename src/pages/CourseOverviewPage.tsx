@@ -114,14 +114,14 @@ export default function CourseOverviewPage() {
     <div className="space-y-8">
       <Breadcrumbs items={[{ to: '/dashboard', label: 'Dashboard' }, { label: course.title }]} />
       <div className="flex items-start gap-6">
-        {course.image && (
-          <img src={course.image} alt="" className="w-56 h-36 object-cover rounded-xl" />
+        {(course.image || (course as any).cover_image_url) && (
+          <img src={(course.image || (course as any).cover_image_url) as string} alt="" className="w-56 h-36 object-cover rounded-xl" />
         )}
         <div className="flex-1">
           <h1 className="text-3xl font-bold">{course.title}</h1>
           <p className="text-gray-600 mt-1">{course.description}</p>
           <div className="text-sm text-gray-500 mt-2">
-            Teacher: {course.teacher?.name || 'Unknown'}
+            Teacher: {course.teacher?.name || (course as any).teacher_name || 'Unknown'}
           </div>
           {user?.role === 'student' && (
             <div className="mt-4 card p-5">

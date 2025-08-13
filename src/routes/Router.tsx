@@ -21,6 +21,7 @@ import SettingsPage from '../pages/SettingsPage.tsx';
 import TeacherCoursesPage from '../pages/TeacherCoursesPage.tsx';
 import CourseBuilderPage from '../pages/CourseBuilderPage.tsx';
 import CreateCourseWizard from '../pages/CreateCourseWizard.tsx';
+import TeacherCoursePage from '../pages/TeacherCoursePage.tsx';
 
 export default function Router() {
   return (
@@ -162,6 +163,14 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['teacher', 'admin']}>
               <AppLayout>
                 <CreateCourseWizard />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/teacher/course/:courseId" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <TeacherCoursePage />
               </AppLayout>
             </ProtectedRoute>
           } />

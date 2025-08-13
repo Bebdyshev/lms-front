@@ -92,7 +92,7 @@ export default function TeacherCoursesPage() {
               completed_count: completedCount,
               avg_progress: avgProgress,
               last_activity: lastActivity,
-              status: 'active' as const
+              status: ((course as any).status || ((course as any).is_active ? 'active' : 'draft')) as 'active' | 'draft' | 'archived'
             };
           } catch (err) {
             console.warn('Could not load additional stats for course', course.id);
@@ -102,7 +102,7 @@ export default function TeacherCoursesPage() {
               students_count: 0,
               completed_count: 0,
               avg_progress: 0,
-              status: 'active' as const
+              status: ((course as any).status || ((course as any).is_active ? 'active' : 'draft')) as 'active' | 'draft' | 'archived'
             };
           }
         })
@@ -171,12 +171,6 @@ export default function TeacherCoursesPage() {
           >
             <Plus className="w-4 h-4 mr-2" />
             New Course
-          </button>
-          <button
-            onClick={loadCourses}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-          >
-            Refresh
           </button>
         </div>
       </div>
@@ -251,7 +245,7 @@ export default function TeacherCoursesPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-md bg-gray-100 overflow-hidden flex items-center justify-center text-gray-500 text-xs">
                           {course.cover_image_url ? (
-                            <img src={course.cover_image_url} alt={course.title} className="w-full h-full object-cover" />
+                            <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + course.cover_image_url} alt={course.title} className="w-full h-full object-cover" />
                           ) : (
                             <span className="font-medium">{course.title?.slice(0,1)?.toUpperCase() || 'C'}</span>
                           )}
