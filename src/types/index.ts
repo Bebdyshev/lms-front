@@ -73,9 +73,38 @@ export interface Lesson {
   created_at: string;
   updated_at: string;
   is_completed?: boolean; // For student view
+  quiz_data?: QuizData;
 }
 
 export type LessonContentType = 'video' | 'text' | 'quiz' | 'materials' | 'mixed';
+
+// =============================================================================
+// QUIZ TYPES
+// =============================================================================
+
+export interface QuestionOption {
+  id: string;
+  text: string;
+  is_correct: boolean;
+}
+
+export interface Question {
+  id: string;
+  assignment_id: string;
+  question_text: string;
+  question_type: 'single_choice' | 'multiple_choice' | 'fill_blank';
+  options?: QuestionOption[];
+  correct_answer: string | string[];
+  points: number;
+  order_index: number;
+}
+
+export interface QuizData {
+  title: string;
+  questions: Question[];
+  time_limit_minutes?: number;
+  max_score?: number;
+}
 
 export interface LessonMaterial {
   id: string;

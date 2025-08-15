@@ -469,6 +469,24 @@ class LMSApiClient {
     }
   }
 
+  async getCourseLessons(courseId: string): Promise<Lesson[]> {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/lessons`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load course lessons');
+    }
+  }
+
+  async fixLessonOrder(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/fix-lesson-order`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fix lesson order');
+    }
+  }
+
   async getLesson(lessonId: string): Promise<Lesson> {
     try {
       const response = await this.api.get(`/courses/lessons/${lessonId}`);
@@ -533,6 +551,25 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       throw new Error('Failed to load assignment');
+    }
+  }
+
+  async createAssignment(assignmentData: any, lessonId?: string): Promise<any> {
+    try {
+      const params = lessonId ? { lesson_id: lessonId } : {};
+      const response = await this.api.post('/assignments/', assignmentData, { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create assignment');
+    }
+  }
+
+  async updateAssignment(assignmentId: string, assignmentData: any): Promise<any> {
+    try {
+      const response = await this.api.put(`/assignments/${assignmentId}`, assignmentData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update assignment');
     }
   }
 
@@ -883,6 +920,15 @@ class LMSApiClient {
     }
   }
 
+  async fetchLesson(lessonId: string): Promise<Lesson> {
+    try {
+      const response = await this.api.get(`/courses/lessons/${lessonId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch lesson');
+    }
+  }
+
   async fetchModuleById(_moduleId: string): Promise<CourseModule | null> {
     // This needs course context, for now return null
     console.warn('fetchModuleById needs course context');
@@ -937,6 +983,7 @@ export const {
   createLesson,
   updateLesson,
   deleteLesson,
+  fetchLesson,
   getAssignments,
   getAssignment,
   submitAssignment,

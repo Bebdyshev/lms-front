@@ -62,4 +62,195 @@
       transform: scale(1.05);
     }
   }
+  
+  /* YouTube iframe restrictions */
+  .youtube-iframe {
+    pointer-events: auto !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+  }
+  
+  .youtube-iframe:focus {
+    outline: none !important;
+  }
+  
+  /* Prevent context menu on YouTube iframes */
+  .youtube-iframe-container {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Rich Text Editor Styles */
+  .rich-text-editor {
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+  
+  .rich-text-editor .ql-toolbar {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-bottom: none;
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+  
+  .rich-text-editor .ql-container {
+    border: 1px solid #e5e7eb;
+    border-top: none;
+    border-radius: 0 0 0.5rem 0.5rem;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  
+  .rich-text-editor .ql-editor {
+    min-height: 200px;
+    max-height: 800px;
+    padding: 1rem;
+    background-color: white;
+    transition: height 0.2s ease-in-out;
+    overflow-y: auto;
+  }
+  
+  .rich-text-editor .ql-editor:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .rich-text-editor .ql-editor p {
+    margin-bottom: 0.5rem;
+  }
+  
+  .rich-text-editor .ql-editor h1,
+  .rich-text-editor .ql-editor h2,
+  .rich-text-editor .ql-editor h3,
+  .rich-text-editor .ql-editor h4,
+  .rich-text-editor .ql-editor h5,
+  .rich-text-editor .ql-editor h6 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+  
+  .rich-text-editor .ql-editor blockquote {
+    border-left: 4px solid #e5e7eb;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    font-style: italic;
+    color: #6b7280;
+  }
+  
+  .rich-text-editor .ql-editor code {
+    background-color: #f3f4f6;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+  }
+  
+  .rich-text-editor .ql-editor pre {
+    background-color: #f3f4f6;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+  }
+  
+  .rich-text-editor .ql-editor ul,
+  .rich-text-editor .ql-editor ol {
+    padding-left: 1.5rem;
+    margin: 0.5rem 0;
+  }
+  
+  .rich-text-editor .ql-editor li {
+    margin-bottom: 0.25rem;
+  }
+  
+  .rich-text-editor .ql-editor a {
+    color: #3b82f6;
+    text-decoration: underline;
+  }
+  
+  .rich-text-editor .ql-editor a:hover {
+    color: #2563eb;
+  }
+  
+  .rich-text-editor .ql-editor img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.25rem;
+    margin: 0.5rem 0;
+  }
+}
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

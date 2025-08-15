@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import CourseSidebar from '../components/CourseSidebar';
 import Modal from '../components/Modal.tsx';
 import ConfirmDialog from '../components/ConfirmDialog.tsx';
 import type { Course, CourseModule, Lesson, LessonContentType } from '../types';
-import { ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreVertical, FileText, Video, HelpCircle } from 'lucide-react';
 
 type CourseSection = 'overview' | 'description' | 'content';
 
@@ -36,12 +36,14 @@ interface ConfirmDialog {
 
 export default function TeacherCoursePage() {
   const { courseId } = useParams<{ courseId: string }>();
+  const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [activeSection, setActiveSection] = useState<CourseSection>('content');
   
   // Course Builder state
   const [mods, setMods] = useState<CourseModule[]>([]);
   const [selected, setSelected] = useState<SelectedModule | null>(null);
+  const [moduleLectures, setModuleLectures] = useState<Map<string, Lesson[]>>(new Map());
   const [modForm, setModForm] = useState<ModuleForm>({ open: false, title: '', description: '' });
   const [lecForm, setLecForm] = useState<LectureForm>({ open: false, title: '', type: 'text' });
   const [confirm, setConfirm] = useState<ConfirmDialog>({ open: false, action: null });
@@ -85,9 +87,17 @@ export default function TeacherCoursePage() {
       const modules = await apiClient.fetchModulesByCourse(courseId);
       setMods(modules);
       
+      // Load lectures for all modules
+      const lecturesMap = new Map<string, Lesson[]>();
+      for (const module of modules) {
+        const lectures = await apiClient.fetchLecturesByModule(module.id);
+        lecturesMap.set(module.id, lectures);
+      }
+      setModuleLectures(lecturesMap);
+      
       // If modules exist, select the first one
       if (modules[0]) {
-        const lectures = await apiClient.fetchLecturesByModule(modules[0].id);
+        const lectures = lecturesMap.get(modules[0].id) || [];
         setSelected({ module: modules[0], lectures });
       }
       
@@ -144,6 +154,13 @@ export default function TeacherCoursePage() {
   const onSelectModule = async (m: CourseModule) => {
     const lectures = await apiClient.fetchLecturesByModule(m.id);
     setSelected({ module: m, lectures });
+    
+    // Update lectures in the map
+    setModuleLectures(prev => {
+      const newMap = new Map(prev);
+      newMap.set(m.id, lectures);
+      return newMap;
+    });
   };
 
   const onAddModule = () => {
@@ -264,15 +281,10 @@ export default function TeacherCoursePage() {
     }
   }});
 
-  const onAddLecture = (moduleId?: string) => {
-    if (moduleId) {
-      // Show inline form for specific module
-      setShowInlineLectureForm(moduleId);
-      setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
-    } else {
-      // Show modal form
-      setLecForm({ open: true, title: '', type: 'text', videoUrl: '' });
-    }
+  const onAddLecture = (moduleId: string) => {
+    // Show inline form for specific module
+    setShowInlineLectureForm(moduleId);
+    setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
   };
 
   const handleSaveInlineLecture = (moduleId: string) => {
@@ -296,6 +308,19 @@ export default function TeacherCoursePage() {
   const handleCancelInlineLecture = () => {
     setShowInlineLectureForm(null);
     setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
+  };
+
+  const getLessonTypeIcon = (type: LessonContentType) => {
+    switch (type) {
+      case 'text':
+        return <FileText className="w-4 h-4 text-gray-600" />;
+      case 'video':
+        return <Video className="w-4 h-4 text-gray-600" />;
+      case 'quiz':
+        return <HelpCircle className="w-4 h-4 text-gray-600" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-600" />;
+    }
   };
 
   const onRemoveLecture = (id: string) => setConfirm({ open: true, action: async () => {
@@ -346,6 +371,7 @@ export default function TeacherCoursePage() {
             courseId={courseId}
             mods={mods}
             selected={selected}
+            moduleLectures={moduleLectures}
             modForm={modForm}
             lecForm={lecForm}
             confirm={confirm}
@@ -379,6 +405,8 @@ export default function TeacherCoursePage() {
             setConfirm={setConfirm}
             setPendingUpdates={setPendingUpdates}
             setHasUnsavedChanges={setHasUnsavedChanges}
+            getLessonTypeIcon={getLessonTypeIcon}
+            navigate={navigate}
           />
         )}
       </div>
@@ -749,6 +777,7 @@ function CourseContentSection({
   courseId,
   mods,
   selected,
+  moduleLectures,
   modForm,
   lecForm,
   confirm,
@@ -781,12 +810,15 @@ function CourseContentSection({
   setLecForm,
   setConfirm,
   setPendingUpdates,
-  setHasUnsavedChanges
+  setHasUnsavedChanges,
+  getLessonTypeIcon,
+  navigate
 }: { 
   course: Course; 
   courseId?: string;
   mods: CourseModule[];
   selected: SelectedModule | null;
+  moduleLectures: Map<string, Lesson[]>;
   modForm: ModuleForm;
   lecForm: LectureForm;
   confirm: ConfirmDialog;
@@ -811,7 +843,7 @@ function CourseContentSection({
   toggleModuleExpanded: (moduleId: string) => void;
   toggleDropdown: (moduleId: string) => void;
   onRemoveModule: (id: string) => void;
-  onAddLecture: (moduleId?: string) => void;
+  onAddLecture: (moduleId: string) => void;
   onRemoveLecture: (id: string) => void;
   setInlineModuleData: (data: { title: string; description: string }) => void;
   setInlineLectureData: (data: { title: string; type: LessonContentType; videoUrl: string }) => void;
@@ -820,17 +852,13 @@ function CourseContentSection({
   setConfirm: (confirm: ConfirmDialog) => void;
   setPendingUpdates: (updates: any[]) => void;
   setHasUnsavedChanges: (hasChanges: boolean) => void;
+  getLessonTypeIcon: (type: LessonContentType) => JSX.Element;
+  navigate: (path: string) => void;
 }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Course Program</h1>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Autosave</span>
-            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-          </div>
-        </div>
       </div>
 
       {/* All Modules */}
@@ -956,85 +984,86 @@ function CourseContentSection({
 
                               {!module.isPending && expandedModules.has(module.id) && (
                   <div className="border-t pt-4">
-                    {/* Existing Lectures */}
-                    {selected?.module?.id === module.id && selected?.lectures && selected.lectures.length > 0 && (
-                      <div className="space-y-3 mb-4">
-                        {selected.lectures.map((l: any, lecIndex: number) => (
-                          <div key={l.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm text-gray-500">{lecIndex + 1}.1</span>
-                              <div>
-                                <div className="font-medium">{l.title}</div>
-                                <div className="text-sm text-gray-500">Kerey Berdyshev</div>
+                                        {/* Existing Lectures */}
+                    {(function() {
+                      const moduleLecturesList = moduleLectures.get(module.id) || [];
+                      if (moduleLecturesList.length > 0) {
+                        return (
+                          <div className="space-y-3 mb-4">
+                            {moduleLecturesList.map((l: any, lecIndex: number) => (
+                              <div key={l.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center justify-center w-8 h-8 bg-gray-200 rounded">
+                                    {getLessonTypeIcon(l.content_type)}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium">{l.title}</div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => navigate(`/teacher/course/${courseId}/lesson/${l.id}/edit`)} 
+                                    className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button 
+                                    onClick={() => onRemoveLecture(l.id)} 
+                                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button 
-                                onClick={() => setLecForm({ open: true, id: l.id, title: l.title, type: l.content_type as LessonContentType })} 
-                                className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                onClick={() => onRemoveLecture(l.id)} 
-                                className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
-                              >
-                                ✕
-                              </button>
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {/* Pending Lectures */}
-                    {pendingLectures.filter(l => l.module_id === module.id).map((l: any, lecIndex: number) => (
-                      <div key={l.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg mb-3">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-gray-500">
-                            {(selected?.lectures?.length || 0) + lecIndex + 1}.1
-                          </span>
-                          <div>
-                            <div className="font-medium">{l.title}</div>
-                            <div className="text-sm text-gray-500">Pending</div>
+                    {pendingLectures.filter(l => l.module_id === module.id).map((l: any, lecIndex: number) => {
+                      const moduleLecturesList = moduleLectures.get(module.id) || [];
+                      return (
+                        <div key={l.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-8 h-8 bg-blue-200 rounded">
+                              {getLessonTypeIcon(l.content_type)}
+                            </div>
+                            <div>
+                              <div className="font-medium">{l.title}</div>
+                              <div className="text-sm text-gray-500">Pending</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => onRemoveLecture(l.id)} 
+                              className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
+                            >
+                              ✕
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => onRemoveLecture(l.id)} 
-                            className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {/* Inline Lecture Creation Form */}
                     {showInlineLectureForm === module.id && (
                       <div className="bg-blue-50 rounded-lg p-4 mb-3">
                         <div className="space-y-3">
                           <div className="flex items-center gap-3">
-                            <span className="text-sm text-gray-500">
-                              {(selected?.lectures?.length || 0) + (pendingLectures.filter(l => l.module_id === module.id).length) + 1}.1
-                            </span>
+                            <div className="flex items-center justify-center w-8 h-8 bg-blue-200 rounded">
+                              {getLessonTypeIcon(inlineLectureData.type)}
+                            </div>
                             <div className="flex-1">
                               <input 
                                 type="text" 
-                                placeholder="New lesson"
+                                placeholder="Enter lesson title and press Enter"
                                 value={inlineLectureData.title}
                                 onChange={(e) => {
                                   const newTitle = e.target.value;
                                   setInlineLectureData(prev => ({ ...prev, title: newTitle }));
-                                  
-                                  // Auto-create lesson when user starts typing
-                                  if (newTitle.trim() && !inlineLectureData.title.trim()) {
-                                    setTimeout(() => {
-                                      if (inlineLectureData.title.trim()) {
-                                        handleSaveInlineLecture(module.id);
-                                      }
-                                    }, 1000);
-                                  }
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' && inlineLectureData.title.trim()) {
@@ -1050,28 +1079,6 @@ function CourseContentSection({
                                 autoFocus
                               />
                             </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <select 
-                              value={inlineLectureData.type} 
-                              onChange={(e) => setInlineLectureData(prev => ({ ...prev, type: e.target.value as LessonContentType }))}
-                              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                              <option value="text">Text</option>
-                              <option value="video">Video</option>
-                              <option value="quiz">Quiz</option>
-                            </select>
-                            
-                            {inlineLectureData.type === 'video' && (
-                              <input 
-                                type="text" 
-                                placeholder="Video URL"
-                                value={inlineLectureData.videoUrl}
-                                onChange={(e) => setInlineLectureData(prev => ({ ...prev, videoUrl: e.target.value }))}
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                            )}
                           </div>
                         </div>
                       </div>
@@ -1224,62 +1231,61 @@ function CourseContentSection({
         </div>
       </Modal>
 
-      <Modal
-        open={lecForm.open}
-        title={lecForm.id ? 'Edit lesson' : 'New lesson'}
-        onClose={() => setLecForm({ open: false, title: '', type: 'text', videoUrl: '' })}
-        onSubmit={async () => {
-          if (!lecForm.title.trim() || !selected?.module) return;
-          const payload: any = { title: lecForm.title.trim(), content_type: lecForm.type };
-          if (lecForm.type === 'video' && lecForm.videoUrl) payload.video_url = lecForm.videoUrl.trim();
-          if (lecForm.id) {
-            await apiClient.updateLecture(lecForm.id, payload);
-          } else {
-            await apiClient.createLecture(selected.module.id, payload);
-          }
-          setLecForm({ open: false, title: '' });
-          setHasUnsavedChanges(true);
-          const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
-          setSelected({ module: selected.module, lectures });
-        }}
-        submitText="Save"
-        cancelText="Cancel"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Lesson title</label>
-            <input 
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              value={lecForm.title} 
-              onChange={e => setLecForm(f => ({ ...f, title: e.target.value }))} 
-              placeholder="Enter lesson title"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Lesson type</label>
-            <select 
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              value={lecForm.type} 
-              onChange={(e) => setLecForm(f => ({ ...f, type: e.target.value as LessonContentType }))}
-            >
-              <option value="text">Text</option>
-              <option value="video">Video</option>
-              <option value="quiz">Quiz</option>
-            </select>
-          </div>
-          {lecForm.type === 'video' && (
+      {/* Edit Lesson Modal - only for editing existing lessons */}
+      {lecForm.id && (
+        <Modal
+          open={lecForm.open}
+          title="Edit lesson"
+          onClose={() => setLecForm({ open: false, title: '', type: 'text', videoUrl: '' })}
+          onSubmit={async () => {
+            if (!lecForm.title.trim() || !selected?.module) return;
+            const payload: any = { title: lecForm.title.trim(), content_type: lecForm.type };
+            if (lecForm.type === 'video' && lecForm.videoUrl) payload.video_url = lecForm.videoUrl.trim();
+            await apiClient.updateLecture(lecForm.id!, payload);
+            setLecForm({ open: false, title: '' });
+            setHasUnsavedChanges(true);
+            const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
+            setSelected({ module: selected.module, lectures });
+          }}
+          submitText="Save"
+          cancelText="Cancel"
+        >
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Video URL</label>
+              <label className="block text-sm text-gray-600 mb-1">Lesson title</label>
               <input 
                 className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                value={lecForm.videoUrl || ''} 
-                onChange={e => setLecForm(f => ({ ...f, videoUrl: e.target.value }))} 
-                placeholder="https://..." 
+                value={lecForm.title} 
+                onChange={e => setLecForm(f => ({ ...f, title: e.target.value }))} 
+                placeholder="Enter lesson title"
               />
             </div>
-          )}
-        </div>
-      </Modal>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Lesson type</label>
+              <select 
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                value={lecForm.type} 
+                onChange={(e) => setLecForm(f => ({ ...f, type: e.target.value as LessonContentType }))}
+              >
+                <option value="text">Text</option>
+                <option value="video">Video</option>
+                <option value="quiz">Quiz</option>
+              </select>
+            </div>
+            {lecForm.type === 'video' && (
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Video URL</label>
+                <input 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  value={lecForm.videoUrl || ''} 
+                  onChange={e => setLecForm(f => ({ ...f, videoUrl: e.target.value }))} 
+                  placeholder="https://..." 
+                />
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
 
       <ConfirmDialog
         open={confirm.open}

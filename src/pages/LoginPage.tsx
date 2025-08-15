@@ -68,16 +68,10 @@ export default function LoginPage() {
         <p className="text-xs text-gray-600 mb-4">
           If you don't know your credentials, please contact your administrator.
         </p>
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'Signing In...' : 'Sign In'}
         </Button>
       </form>
-      
-      <div className="mt-6 p-3 text-xs text-gray-600 bg-gray-50 rounded">
-        <strong>Demo credentials:</strong><br />
-        Admin: admin@lms.com / admin123<br />
-        (Or create users via migration script)
-      </div>
     </div>
   );
 }

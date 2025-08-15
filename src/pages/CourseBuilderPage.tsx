@@ -5,7 +5,27 @@ import Modal from '../components/Modal.tsx';
 import ConfirmDialog from '../components/ConfirmDialog.tsx';
 import CourseSidebar from '../components/CourseSidebar.tsx';
 import type { Course, CourseModule, Lesson, LessonContentType } from '../types';
-import { ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreVertical, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import Loader from '../components/Loader.tsx';
 
 interface SelectedModule {
   module: CourseModule;
@@ -32,6 +52,165 @@ interface ConfirmDialog {
   action: (() => Promise<void>) | null;
 }
 
+interface DraggableModuleProps {
+  module: CourseModule | any;
+  index: number;
+  children: React.ReactNode;
+  onToggleExpanded: (moduleId: string) => void;
+  onToggleDropdown: (moduleId: string) => void;
+  onRemoveModule: (moduleId: string) => void;
+  onEditModule: (module: CourseModule | any) => void;
+  expandedModules: Set<string>;
+  openDropdown: string | null;
+  isPending?: boolean;
+  onUpdatePendingModule?: (moduleId: string, field: string, value: string) => void;
+}
+
+const DraggableModule = ({ 
+  module, 
+  index, 
+  children, 
+  onToggleExpanded, 
+  onToggleDropdown, 
+  onRemoveModule, 
+  onEditModule,
+  expandedModules,
+  openDropdown,
+  isPending = false,
+  onUpdatePendingModule
+}: DraggableModuleProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: module.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style}
+      className={`bg-white rounded-[5px] border border-l-8 border-l-blue-500 ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div 
+              {...attributes}
+              {...listeners}
+              className="cursor-grab hover:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+            >
+              <GripVertical className="w-4 h-4 text-gray-400" />
+            </div>
+            <span className="text-lg font-medium">{index + 1}</span>
+            <div className="flex-1">
+              {isPending ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <input 
+                        type="text" 
+                        placeholder="New module"
+                        value={module.title}
+                        onChange={(e) => {
+                          if (onUpdatePendingModule) {
+                            onUpdatePendingModule(module.id, 'title', e.target.value);
+                          }
+                        }}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <span className="text-sm text-gray-500">Total points: 0</span>
+                      <button className="p-2 hover:bg-gray-100 rounded">
+                        <MoreVertical className="w-4 h-4 text-gray-500" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <input 
+                    type="text" 
+                    placeholder="Additional description"
+                    value={module.description}
+                    onChange={(e) => {
+                      if (onUpdatePendingModule) {
+                        onUpdatePendingModule(module.id, 'description', e.target.value);
+                      }
+                    }}
+                    maxLength={254}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-lg font-medium">{module.title}</h3>
+                  {module.description && (
+                    <p className="text-gray-600 text-sm mt-1">{module.description}</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isPending && (
+              <button 
+                onClick={() => onToggleExpanded(module.id)}
+                className="p-2 hover:bg-gray-100 rounded"
+              >
+                {expandedModules.has(module.id) ? 
+                  <ChevronUp className="w-4 h-4" /> : 
+                  <ChevronDown className="w-4 h-4" />
+                }
+              </button>
+            )}
+            <div className="relative dropdown-container">
+              <button 
+                onClick={() => onToggleDropdown(module.id)}
+                className="p-2 hover:bg-gray-100 rounded"
+              >
+                <MoreVertical className="w-4 h-4 text-gray-500" />
+              </button>
+              {openDropdown === module.id && (
+                <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-10 min-w-[120px]">
+                  {!isPending && (
+                    <button 
+                      onClick={() => {
+                        onEditModule(module);
+                        // onToggleDropdown(null) will be handled by parent
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-t-lg"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => {
+                      onRemoveModule(module.id);
+                      // onToggleDropdown(null) will be handled by parent
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 export default function CourseBuilderPage() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
@@ -49,6 +228,18 @@ export default function CourseBuilderPage() {
   const [pendingUpdates, setPendingUpdates] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [showInlineLessonForm, setShowInlineLessonForm] = useState(false);
+  const [inlineLessonData, setInlineLessonData] = useState({ title: '', type: 'text' as LessonContentType });
+  const [moduleLectures, setModuleLectures] = useState<Map<string, Lesson[]>>(new Map());
+  const [moduleOrder, setModuleOrder] = useState<string[]>([]);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Legacy state from old inline create form removed
 
@@ -86,6 +277,28 @@ export default function CourseBuilderPage() {
     // Then add all pending modules (new modules) at the end
     displayModules.push(...pendingModules);
     
+    // If we have a custom order, apply it
+    if (moduleOrder.length > 0) {
+      const orderedModules = [];
+      const moduleMap = new Map(displayModules.map(module => [module.id, module]));
+      
+      // Add modules in the custom order
+      for (const moduleId of moduleOrder) {
+        const module = moduleMap.get(moduleId);
+        if (module) {
+          orderedModules.push(module);
+          moduleMap.delete(moduleId);
+        }
+      }
+      
+      // Add any remaining modules that weren't in the order
+      for (const module of moduleMap.values()) {
+        orderedModules.push(module);
+      }
+      
+      return orderedModules;
+    }
+    
     return displayModules;
   };
 
@@ -120,10 +333,11 @@ export default function CourseBuilderPage() {
       console.log('Modules loaded:', modules);
       setMods(modules);
       
-      // If modules exist, select the first one
+      // If modules exist, select the first one and load its lectures
       if (modules[0]) {
         const lectures = await apiClient.fetchLecturesByModule(modules[0].id);
         setSelected({ module: modules[0], lectures });
+        setModuleLectures(new Map([[modules[0].id, lectures]]));
       }
       
       // Show inline form if no modules exist or if we want to allow creating next module
@@ -144,6 +358,7 @@ export default function CourseBuilderPage() {
   const onSelectModule = async (m: CourseModule) => {
     const lectures = await apiClient.fetchLecturesByModule(m.id);
     setSelected({ module: m, lectures });
+    setModuleLectures(prev => new Map(prev).set(m.id, lectures));
   };
 
   const onAddModule = () => {
@@ -179,6 +394,42 @@ export default function CourseBuilderPage() {
     setInlineModuleData({ title: '', description: '' });
   };
 
+  const handleSaveInlineLesson = async () => {
+    if (!inlineLessonData.title.trim() || !selected?.module) return;
+    
+    try {
+      // Get current lectures to determine the next order_index
+      const currentLectures = moduleLectures.get(selected.module.id) || [];
+      const nextOrderIndex = currentLectures.length;
+      
+      console.log(`Creating lesson with order_index: ${nextOrderIndex}`);
+      
+      const payload: any = { 
+        title: inlineLessonData.title.trim(), 
+        content_type: inlineLessonData.type,
+        order_index: nextOrderIndex
+      };
+      
+      await apiClient.createLecture(selected.module.id, payload);
+      
+      // Refresh lectures for the current module
+      const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
+      setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
+      
+      // Reset form
+      setInlineLessonData({ title: '', type: 'text' });
+      setShowInlineLessonForm(false);
+      setHasUnsavedChanges(true);
+    } catch (error) {
+      console.error('Failed to create lesson:', error);
+    }
+  };
+
+  const handleCancelInlineLesson = () => {
+    setShowInlineLessonForm(false);
+    setInlineLessonData({ title: '', type: 'text' });
+  };
+
   const handleSaveAllChanges = async () => {
     if (!courseId) return;
     
@@ -203,9 +454,25 @@ export default function CourseBuilderPage() {
         });
       }
       
+      // Update module order if it has changed
+      if (moduleOrder.length > 0) {
+        const displayModules = getDisplayModules();
+        for (let i = 0; i < displayModules.length; i++) {
+          const module = displayModules[i];
+          if (!module.id.startsWith('temp-')) {
+            await apiClient.updateModule(courseId, module.id, {
+              title: module.title,
+              description: module.description,
+              order_index: i
+            });
+          }
+        }
+      }
+      
       // Clear pending changes
       setPendingModules([]);
       setPendingUpdates([]);
+      setModuleOrder([]);
       setHasUnsavedChanges(false);
       
       // Refresh modules from server
@@ -225,8 +492,208 @@ export default function CourseBuilderPage() {
       newExpanded.delete(moduleId);
     } else {
       newExpanded.add(moduleId);
+      // Load lectures for this module if not already loaded
+      if (!moduleLectures.has(moduleId)) {
+        loadModuleLectures(moduleId);
+      }
     }
     setExpandedModules(newExpanded);
+  };
+
+  const loadModuleLectures = async (moduleId: string) => {
+    try {
+      const lectures = await apiClient.fetchLecturesByModule(moduleId);
+      setModuleLectures(prev => new Map(prev).set(moduleId, lectures));
+    } catch (error) {
+      console.error('Failed to load lectures for module:', moduleId, error);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const displayModules = getDisplayModules();
+      const oldIndex = displayModules.findIndex(module => module.id === active.id);
+      const newIndex = displayModules.findIndex(module => module.id === over?.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(displayModules, oldIndex, newIndex);
+        setModuleOrder(newOrder.map(module => module.id));
+        setHasUnsavedChanges(true);
+      }
+    }
+  };
+
+  const handleUpdatePendingModule = (moduleId: string, field: string, value: string) => {
+    if (field === 'title') {
+      if (moduleId.startsWith('temp-')) {
+        // Update pending module
+        setPendingModules(prev => prev.map(m => 
+          m.id === moduleId ? { ...m, title: value } : m
+        ));
+      } else {
+        // Update existing module
+        setPendingUpdates(prev => prev.map(u => 
+          u.id === moduleId ? { ...u, title: value } : u
+        ));
+      }
+    } else if (field === 'description') {
+      if (moduleId.startsWith('temp-')) {
+        // Update pending module
+        setPendingModules(prev => prev.map(m => 
+          m.id === moduleId ? { ...m, description: value } : m
+        ));
+      } else {
+        // Update existing module
+        setPendingUpdates(prev => prev.map(u => 
+          u.id === moduleId ? { ...u, description: value } : u
+        ));
+      }
+    }
+    setHasUnsavedChanges(true);
+  };
+
+  const renderModuleLectures = (moduleId: string) => {
+    const lectures = moduleLectures.get(moduleId) || [];
+    
+    if (lectures.length > 0) {
+      return (
+        <div className="space-y-3">
+          {lectures.map((l, lecIndex) => (
+            <div key={l.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">{lecIndex + 1}.1</span>
+                <div>
+                  <div className="font-medium">{l.title}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                                              <button 
+                                onClick={() => navigate(`/teacher/course/${courseId}/lesson/${l.id}/edit`)} 
+                                className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
+                              >
+                                Edit
+                              </button>
+                <button 
+                  onClick={() => onRemoveLecture(l.id)} 
+                  className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+          {showInlineLessonForm && selected?.module?.id === moduleId ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">{lectures.length + 1}.1</span>
+                <div className="flex-1">
+                  <input 
+                    type="text" 
+                    placeholder="New lesson"
+                    value={inlineLessonData.title}
+                    onChange={(e) => {
+                      const newTitle = e.target.value;
+                      setInlineLessonData(prev => ({ ...prev, title: newTitle }));
+                      
+                      // Auto-create lesson when user starts typing
+                      if (newTitle.trim() && !inlineLessonData.title.trim()) {
+                        setTimeout(() => {
+                          if (inlineLessonData.title.trim()) {
+                            handleSaveInlineLesson();
+                          }
+                        }, 1000);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inlineLessonData.title.trim()) {
+                        handleSaveInlineLesson();
+                      }
+                      if (e.key === 'Escape') {
+                        handleCancelInlineLesson();
+                      }
+                    }}
+                    onBlur={() => {
+                      // Create lesson when user leaves the field
+                      if (inlineLessonData.title.trim()) {
+                        handleSaveInlineLesson();
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button 
+              onClick={() => { onSelectModule(mods.find(m => m.id === moduleId) || mods[0]); onAddLecture(moduleId); }} 
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700"
+            >
+              <span>+</span>
+              <span>Create lesson</span>
+            </button>
+          )}
+        </div>
+      );
+    } else {
+      return (
+        <div className="text-center py-6">
+          {showInlineLessonForm && selected?.module?.id === moduleId ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">1.1</span>
+                <div className="flex-1">
+                  <input 
+                    type="text" 
+                    placeholder="New lesson"
+                    value={inlineLessonData.title}
+                    onChange={(e) => {
+                      const newTitle = e.target.value;
+                      setInlineLessonData(prev => ({ ...prev, title: newTitle }));
+                      
+                      // Auto-create lesson when user starts typing
+                      if (newTitle.trim() && !inlineLessonData.title.trim()) {
+                        setTimeout(() => {
+                          if (inlineLessonData.title.trim()) {
+                            handleSaveInlineLesson();
+                          }
+                        }, 1000);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inlineLessonData.title.trim()) {
+                        handleSaveInlineLesson();
+                      }
+                      if (e.key === 'Escape') {
+                        handleCancelInlineLesson();
+                      }
+                    }}
+                    onBlur={() => {
+                      // Create lesson when user leaves the field
+                      if (inlineLessonData.title.trim()) {
+                        handleSaveInlineLesson();
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button 
+              onClick={() => { onSelectModule(mods.find(m => m.id === moduleId) || mods[0]); onAddLecture(moduleId); }} 
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <span>+</span>
+              <span>Create lesson</span>
+            </button>
+          )}
+        </div>
+      );
+    }
   };
 
   const toggleDropdown = (moduleId: string) => {
@@ -253,7 +720,11 @@ export default function CourseBuilderPage() {
     }
   }});
 
-  const onAddLecture = () => setLecForm({ open: true, title: '', type: 'text', videoUrl: '' });
+  const onAddLecture = (moduleId: string) => {
+    setSelected({ module: mods.find(m => m.id === moduleId) || mods[0], lectures: [] });
+    setShowInlineLessonForm(true);
+    setInlineLessonData({ title: '', type: 'text' });
+  };
   // removed unused handler placeholder to satisfy noUnusedLocals
   // const submitAddLecture = async () => {};
 
@@ -261,7 +732,7 @@ export default function CourseBuilderPage() {
     if (!selected?.module) return;
     await apiClient.deleteLecture(id);
     const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
-    setSelected({ module: selected.module, lectures });
+    setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
   }});
 
   // Redirect new course flow to the wizard
@@ -272,7 +743,8 @@ export default function CourseBuilderPage() {
 
 
 
-  if (!course) return <div className="text-gray-500">Loading...</div>;
+  if (!course) return <Loader size="xl" animation="spin" color="#2563eb" />
+
 
   return (
     <div className="flex gap-6 h-full">
@@ -303,180 +775,43 @@ export default function CourseBuilderPage() {
         </div>
 
         {/* All Modules */}
-        <div className="space-y-4">
-          {getDisplayModules().map((module, index) => (
-            <div key={module.id} className="bg-white rounded-[5px] border border-l-8 border-l-blue-500">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-lg font-medium">{index + 1}</span>
-                    <div className="flex-1">
-                      {module.isPending ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <input 
-                                type="text" 
-                                placeholder="New module"
-                                value={module.title}
-                                onChange={(e) => {
-                                  if (module.isPending && !module.id.startsWith('temp-')) {
-                                    // Update existing module
-                                    setPendingUpdates(prev => prev.map(u => 
-                                      u.id === module.id ? { ...u, title: e.target.value } : u
-                                    ));
-                                  } else {
-                                    // Update pending module
-                                    setPendingModules(prev => prev.map(m => 
-                                      m.id === module.id ? { ...m, title: e.target.value } : m
-                                    ));
-                                  }
-                                  setHasUnsavedChanges(true);
-                                }}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                            </div>
-                            <div className="flex items-center gap-2 ml-4">
-                              <span className="text-sm text-gray-500">Total points: 0</span>
-                              <button className="p-2 hover:bg-gray-100 rounded">
-                                <MoreVertical className="w-4 h-4 text-gray-500" />
-                              </button>
-                            </div>
-                          </div>
-                          
-                          <input 
-                            type="text" 
-                            placeholder="Additional description"
-                            value={module.description}
-                            onChange={(e) => {
-                              if (module.isPending && !module.id.startsWith('temp-')) {
-                                // Update existing module
-                                setPendingUpdates(prev => prev.map(u => 
-                                  u.id === module.id ? { ...u, description: e.target.value } : u
-                                ));
-                              } else {
-                                // Update pending module
-                                setPendingModules(prev => prev.map(m => 
-                                  m.id === module.id ? { ...m, description: e.target.value } : m
-                                ));
-                              }
-                              setHasUnsavedChanges(true);
-                            }}
-                            maxLength={254}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          <h3 className="text-lg font-medium">{module.title}</h3>
-                          {module.description && (
-                            <p className="text-gray-600 text-sm mt-1">{module.description}</p>
-                          )}
-                        </>
-                      )}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={getDisplayModules().map(module => module.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-4">
+              {getDisplayModules().map((module, index) => (
+                <DraggableModule
+                  key={module.id}
+                  module={module}
+                  index={index}
+                  onToggleExpanded={toggleModuleExpanded}
+                  onToggleDropdown={toggleDropdown}
+                  onRemoveModule={onRemoveModule}
+                  onEditModule={(module) => {
+                    setModForm({ open: true, id: module.id, title: module.title, description: module.description });
+                    setOpenDropdown(null);
+                  }}
+                  expandedModules={expandedModules}
+                  openDropdown={openDropdown}
+                  isPending={module.isPending}
+                  onUpdatePendingModule={handleUpdatePendingModule}
+                >
+                  {!module.isPending && expandedModules.has(module.id) && (
+                    <div className="border-t pt-4">
+                      {renderModuleLectures(module.id)}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!module.isPending && (
-                      <button 
-                        onClick={() => toggleModuleExpanded(module.id)}
-                        className="p-2 hover:bg-gray-100 rounded"
-                      >
-                        {expandedModules.has(module.id) ? 
-                          <ChevronUp className="w-4 h-4" /> : 
-                          <ChevronDown className="w-4 h-4" />
-                        }
-                      </button>
-                    )}
-                    <div className="relative dropdown-container">
-                      <button 
-                        onClick={() => toggleDropdown(module.id)}
-                        className="p-2 hover:bg-gray-100 rounded"
-                      >
-                        <MoreVertical className="w-4 h-4 text-gray-500" />
-                      </button>
-                      {openDropdown === module.id && (
-                        <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-10 min-w-[120px]">
-                          {!module.isPending && (
-                            <button 
-                              onClick={() => {
-                                setModForm({ open: true, id: module.id, title: module.title, description: module.description });
-                                setOpenDropdown(null);
-                              }}
-                              className="block w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-t-lg"
-                            >
-                              Edit
-                            </button>
-                          )}
-                          <button 
-                            onClick={() => {
-                              onRemoveModule(module.id);
-                              setOpenDropdown(null);
-                            }}
-                            className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {!module.isPending && expandedModules.has(module.id) && (
-                  <div className="border-t pt-4">
-                    {selected?.module?.id === module.id && selected?.lectures && selected.lectures.length > 0 ? (
-                      <div className="space-y-3">
-                        {selected.lectures.map((l, lecIndex) => (
-                          <div key={l.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm text-gray-500">{lecIndex + 1}.1</span>
-                              <div>
-                                <div className="font-medium">{l.title}</div>
-                                <div className="text-sm text-gray-500">Kerey Berdyshev</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button 
-                                onClick={() => setLecForm({ open: true, id: l.id, title: l.title, type: l.content_type as LessonContentType })} 
-                                className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                onClick={() => onRemoveLecture(l.id)} 
-                                className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        <button 
-                          onClick={() => { onSelectModule(module); onAddLecture(); }} 
-                          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700"
-                        >
-                          <span>+</span>
-                          <span>Create lesson</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="text-center py-6">
-                        <button 
-                          onClick={() => { onSelectModule(module); onAddLecture(); }} 
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                        >
-                          <span>+</span>
-                          <span>Create lesson</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                  )}
+                </DraggableModule>
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
 
         {/* Inline Module Creation Form */}
         {showInlineModuleForm && (
@@ -614,21 +949,18 @@ export default function CourseBuilderPage() {
       
       <Modal
         open={lecForm.open}
-        title={lecForm.id ? 'Edit lesson' : 'New lesson'}
+        title="Edit lesson"
         onClose={() => setLecForm({ open: false, title: '', type: 'text', videoUrl: '' })}
         onSubmit={async () => {
-          if (!lecForm.title.trim() || !selected?.module) return;
+          if (!lecForm.title.trim() || !selected?.module || !lecForm.id) return;
           const payload: any = { title: lecForm.title.trim(), content_type: lecForm.type };
           if (lecForm.type === 'video' && lecForm.videoUrl) payload.video_url = lecForm.videoUrl.trim();
-          if (lecForm.id) {
-            await apiClient.updateLecture(lecForm.id, payload);
-          } else {
-            await apiClient.createLecture(selected.module.id, payload);
-          }
+          
+          await apiClient.updateLecture(lecForm.id, payload);
           setLecForm({ open: false, title: '' });
           setHasUnsavedChanges(true);
           const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
-          setSelected({ module: selected.module, lectures });
+          setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
         }}
         submitText="Save"
         cancelText="Cancel"

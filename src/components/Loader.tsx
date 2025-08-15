@@ -31,7 +31,7 @@ export default function Loader({
   animation = 'spin-pulse',
   className = '',
   color,
-  label = 'Loading...'
+  label = ''
 }: LoaderProps) {
   const sizeClass = sizeClasses[size];
   const animationClass = animationClasses[animation];
