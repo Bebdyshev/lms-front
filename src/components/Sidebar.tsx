@@ -13,6 +13,7 @@ import {
   BookMarked,
   ChevronDown,
   LogOut,
+  Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -24,7 +25,8 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number):
     ['/courses', 'My Courses', BookOpen, 0, ['student']],
     ['/assignments', 'My assignments', ClipboardList, 0, ['student']],
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher']],
-    ['/teacher/courses', 'Manage Courses', BookMarked, 0, ['admin']],
+    ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin']],
+    ['/admin/users', 'Manage Users', Users, 0, ['admin']],
     ['/assignments', 'Assignments', ClipboardList, 0, ['teacher']],
     ['/chat', 'Chat', MessageCircle, unreadCount, null],
   ];

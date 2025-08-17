@@ -193,7 +193,7 @@ export default function AdminDashboard() {
               Recent Groups
             </h2>
             <button
-              onClick={() => navigate('/admin/groups')}
+              onClick={() => navigate('/admin/users')}
               className="text-sm text-blue-600 hover:text-blue-700"
             >
               View All

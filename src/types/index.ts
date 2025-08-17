@@ -9,10 +9,9 @@ export interface User {
   name?: string; // Для обратной совместимости
   role: UserRole;
   student_id?: string;
-  group_id?: string;
-  group_name?: string;
   teacher_name?: string;
   curator_name?: string;
+  group_id?: number; // ID группы, в которой состоит студент
   is_active?: boolean;
   created_at: string;
   updated_at: string;
@@ -61,7 +60,10 @@ export interface Group {
   description?: string;
   teacher_id: number;
   teacher_name?: string;
+  curator_id?: number;
+  curator_name?: string;
   student_count: number;
+  students?: User[];
   created_at: string;
   is_active: boolean;
 }
@@ -389,11 +391,17 @@ export interface MessageAttachment {
 // =============================================================================
 
 export interface Group {
-  id: string;
+  id: number;
   name: string;
   description?: string;
-  created_at: string;
+  teacher_id: number;
+  teacher_name?: string;
+  curator_id?: number;
+  curator_name?: string;
+  student_count: number;
   students?: User[];
+  created_at: string;
+  is_active: boolean;
 }
 
 export interface Enrollment {

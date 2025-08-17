@@ -215,6 +215,14 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
+          <Route path="/admin/courses" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AppLayout>
+                <TeacherCoursesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

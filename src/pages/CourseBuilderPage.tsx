@@ -927,13 +927,6 @@ export default function CourseBuilderPage() {
             <div className="bg-white rounded-lg border p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">Group Access</h2>
-                <button
-                  onClick={loadCourseGroups}
-                  disabled={isLoadingGroups}
-                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isLoadingGroups ? 'Loading...' : 'Refresh'}
-                </button>
               </div>
               
               {isLoadingGroups ? (

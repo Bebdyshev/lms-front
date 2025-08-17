@@ -1110,6 +1110,30 @@ class LMSApiClient {
     }
   }
 
+  async addStudentToGroup(groupId: number, studentId: number): Promise<void> {
+    try {
+      await this.api.post(`/admin/groups/${groupId}/students`, { student_id: studentId });
+    } catch (error) {
+      throw new Error('Failed to add student to group');
+    }
+  }
+
+  async removeStudentFromGroup(groupId: number, studentId: number): Promise<void> {
+    try {
+      await this.api.delete(`/admin/groups/${groupId}/students/${studentId}`);
+    } catch (error) {
+      throw new Error('Failed to remove student from group');
+    }
+  }
+
+  async bulkAddStudentsToGroup(groupId: number, studentIds: number[]): Promise<void> {
+    try {
+      await this.api.post(`/admin/groups/${groupId}/students/bulk`, studentIds);
+    } catch (error) {
+      throw new Error('Failed to bulk add students to group');
+    }
+  }
+
   async createUser(userData: CreateUserRequest): Promise<{ user: User; generated_password?: string }> {
     try {
       const response = await this.api.post('/admin/users/single', userData);
