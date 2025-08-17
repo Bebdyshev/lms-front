@@ -23,6 +23,8 @@ import CourseBuilderPage from '../pages/CourseBuilderPage.tsx';
 import CreateCourseWizard from '../pages/CreateCourseWizard.tsx';
 import TeacherCoursePage from '../pages/TeacherCoursePage.tsx';
 import LessonEditPage from '../pages/LessonEditPage.tsx';
+import AdminDashboard from '../pages/AdminDashboard.tsx';
+import UserManagement from '../pages/UserManagement.tsx';
 
 export default function Router() {
   return (
@@ -71,12 +73,18 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
-          <Route path="/module/:moduleId" element={
+          {/* Updated module route with course context */}
+          <Route path="/course/:courseId/module/:moduleId" element={
             <ProtectedRoute>
               <AppLayout>
                 <ModulePage />
               </AppLayout>
             </ProtectedRoute>
+          } />
+
+          {/* Legacy module route - redirect to courses page */}
+          <Route path="/module/:moduleId" element={
+            <Navigate to="/courses" replace />
           } />
 
           <Route path="/lecture/:lectureId" element={
@@ -190,7 +198,22 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
-          {/* Admin routes now integrated into main dashboard */}
+          {/* Admin Routes */}
+          <Route path="/admin/dashboard" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AppLayout>
+                <AdminDashboard />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/users" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AppLayout>
+                <UserManagement />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

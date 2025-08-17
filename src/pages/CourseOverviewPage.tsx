@@ -182,7 +182,7 @@ export default function CourseOverviewPage() {
                       {status.replace('-', ' ')}
                     </span>
                     <Link 
-                      to={`/module/${module.id}`} 
+                      to={`/course/${courseId}/module/${module.id}`} 
                       className="btn-secondary text-sm"
                     >
                       {status === 'not-started' ? 'Start' : 

@@ -117,7 +117,7 @@ export default function QuizLessonEditor({
     // Only validate if the question has been started (has some content)
     const hasStarted = question.question_text.trim() || 
                       (question.options && question.options.some(opt => opt.text.trim())) ||
-                      (question.correct_answer && (typeof question.correct_answer === 'string' ? question.correct_answer.trim() : question.correct_answer.length > 0));
+                      (question.correct_answer && (typeof question.correct_answer === 'string' ? question.correct_answer.trim() : Array.isArray(question.correct_answer) ? question.correct_answer.length > 0 : true));
     
     if (!hasStarted) {
       return { isValid: true, errors: [] }; // Don't show errors for empty questions

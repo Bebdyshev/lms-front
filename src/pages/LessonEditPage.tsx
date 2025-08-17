@@ -916,11 +916,7 @@ export default function LessonEditPage() {
                 <Save className="w-4 h-4" />
                 {isSaving ? 'Saving...' : 'Save'}
               </button>
-              <div
-                className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                >
-                Next lesson
-              </div>
+             
             </div>
           </div>
         </div>

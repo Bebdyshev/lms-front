@@ -4,9 +4,9 @@ import { useAuth } from '../contexts/AuthContext.tsx';
 import SummaryCard from '../components/SummaryCard';
 import CourseCard from '../components/CourseCard';
 import TeacherDashboard from './TeacherDashboard.tsx';
+import AdminDashboard from './AdminDashboard.tsx';
 import apiClient from "../services/api";
 import Skeleton from '../components/Skeleton.tsx';
-import { Users, BookOpen, GraduationCap, Shield, UserPlus } from 'lucide-react';
 import type { DashboardStats, Course, User } from '../types';
 
 interface DashboardData {
@@ -16,21 +16,10 @@ interface DashboardData {
   recent_activity?: any[];
 }
 
-interface AdminStats {
-  total_users: number;
-  total_courses: number;
-  total_enrollments: number;
-  active_users: number;
-  total_students: number;
-  total_teachers: number;
-  recent_registrations: number;
-  total_curators: number;
-  total_active_enrollments: number;
-}
+
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { user, isTeacher } = useAuth();
@@ -49,15 +38,7 @@ export default function DashboardPage() {
       const data = await apiClient.getDashboardStats();
       setDashboardData(data as DashboardData);
 
-      // Если пользователь админ, загружаем дополнительную статистику
-      if (user?.role === 'admin') {
-        try {
-          const adminData = await apiClient.getAdminStats();
-          setAdminStats(adminData);
-        } catch (adminErr) {
-          console.warn('Failed to load admin stats:', adminErr);
-        }
-      }
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard';
       setError(errorMessage);
@@ -123,6 +104,10 @@ export default function DashboardPage() {
   const recentCourses = dashboardData?.recent_courses || [];
 
   // Role-based dashboards
+  if (user?.role === 'admin') {
+    return <AdminDashboard />;
+  }
+  
   if (isTeacher()) {
     return <TeacherDashboard />;
   }
@@ -152,104 +137,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Admin Statistics Section */}
-      {user?.role === 'admin' && adminStats && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 flex items-center">
-                <Shield className="w-5 h-5 mr-2 text-blue-600" />
-                Platform Administration
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">System overview and management tools</p>
-            </div>
-            <button
-              onClick={loadDashboardData}
-              className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            >
-              Refresh
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-lg p-4 border border-gray-100">
-              <div className="flex items-center">
-                <Users className="w-8 h-8 text-blue-600 mr-3" />
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{adminStats.total_users}</div>
-                  <div className="text-xs text-gray-600">Total Users</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 border border-gray-100">
-              <div className="flex items-center">
-                <GraduationCap className="w-8 h-8 text-green-600 mr-3" />
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{adminStats.total_students}</div>
-                  <div className="text-xs text-gray-600">Students</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 border border-gray-100">
-              <div className="flex items-center">
-                <BookOpen className="w-8 h-8 text-purple-600 mr-3" />
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{adminStats.total_teachers}</div>
-                  <div className="text-xs text-gray-600">Teachers</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 border border-gray-100">
-              <div className="flex items-center">
-                <UserPlus className="w-8 h-8 text-orange-600 mr-3" />
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{adminStats.recent_registrations}</div>
-                  <div className="text-xs text-gray-600">New (7d)</div>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => navigate('/admin/users')}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-            >
-              Manage Users
-            </button>
-            <button
-              onClick={() => {
-                if (!adminStats) return;
-                
-                const rows = [
-                  ['Metric', 'Value'],
-                  ['Total Users', adminStats.total_users],
-                  ['Students', adminStats.total_students],
-                  ['Teachers', adminStats.total_teachers],
-                  ['Curators', adminStats.total_curators],
-                  ['Total Courses', adminStats.total_courses],
-                  ['Active Enrollments', adminStats.total_active_enrollments],
-                  ['Recent Registrations', adminStats.recent_registrations],
-                ];
-                const csv = rows.map(r => r.join(',')).join('\\n');
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'admin-stats.csv';
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
-            >
-              Export Data
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="mt-12">
         <h3 className="text-2xl font-semibold mb-4">

@@ -5,7 +5,16 @@ import type {
   CourseModule,
   Lesson,
   DashboardStats,
-  RecentActivity
+  RecentActivity,
+  Group,
+  CourseGroupAccess,
+  AdminDashboard,
+  UserListResponse,
+  GroupListResponse,
+  CreateGroupRequest,
+  UpdateGroupRequest,
+  CreateUserRequest,
+  UpdateUserRequest
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -439,7 +448,7 @@ class LMSApiClient {
     }
   }
 
-  async updateModule(courseId: string, moduleId: string, moduleData: any): Promise<CourseModule> {
+  async updateModule(courseId: string, moduleId: number, moduleData: any): Promise<CourseModule> {
     try {
       const response = await this.api.put(`/courses/${courseId}/modules/${moduleId}`, moduleData);
       return response.data;
@@ -448,7 +457,7 @@ class LMSApiClient {
     }
   }
 
-  async deleteModule(courseId: string, moduleId: string): Promise<void> {
+  async deleteModule(courseId: string, moduleId: number): Promise<void> {
     try {
       await this.api.delete(`/courses/${courseId}/modules/${moduleId}`);
     } catch (error) {
@@ -460,7 +469,7 @@ class LMSApiClient {
   // LESSONS
   // =============================================================================
 
-  async getModuleLessons(courseId: string, moduleId: string): Promise<Lesson[]> {
+  async getModuleLessons(courseId: string, moduleId: number): Promise<Lesson[]> {
     try {
       const response = await this.api.get(`/courses/${courseId}/modules/${moduleId}/lessons`);
       return response.data;
@@ -496,7 +505,7 @@ class LMSApiClient {
     }
   }
 
-  async createLesson(courseId: string, moduleId: string, lessonData: any): Promise<Lesson> {
+  async createLesson(courseId: string, moduleId: number, lessonData: any): Promise<Lesson> {
     try {
       const response = await this.api.post(`/courses/${courseId}/modules/${moduleId}/lessons`, lessonData);
       return response.data;
@@ -787,12 +796,14 @@ class LMSApiClient {
     try {
       // Find course context first
       const courses = await this.getCourses();
+      const moduleIdNum = parseInt(moduleId);
+      
       for (const course of courses) {
         try {
           const modules = await this.getCourseModules(course.id);
-          const targetModule = modules.find(m => m.id === moduleId);
+          const targetModule = modules.find(m => m.id === moduleIdNum);
           if (targetModule) {
-            return await this.createLesson(course.id, moduleId, lectureData);
+            return await this.createLesson(course.id, moduleIdNum, lectureData);
           }
         } catch (err) {
           continue;
@@ -902,12 +913,14 @@ class LMSApiClient {
     try {
       // Try to find the course context by getting all courses and their modules
       const courses = await this.getCourses();
+      const moduleIdNum = parseInt(moduleId);
+      
       for (const course of courses) {
         try {
           const modules = await this.getCourseModules(course.id);
-          const targetModule = modules.find(m => m.id === moduleId);
+          const targetModule = modules.find(m => m.id === moduleIdNum);
           if (targetModule) {
-            return await this.getModuleLessons(course.id, moduleId);
+            return await this.getModuleLessons(course.id, moduleIdNum);
           }
         } catch (err) {
           continue;
@@ -949,6 +962,170 @@ class LMSApiClient {
   getCourseStatus(_courseId: string): string {
     console.warn('getCourseStatus needs updating to use new API');
     return 'not-started';
+  }
+
+  // =============================================================================
+  // GROUP MANAGEMENT
+  // =============================================================================
+
+  async getGroups(): Promise<Group[]> {
+    try {
+      const response = await this.api.get('/admin/groups');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch groups');
+    }
+  }
+
+  async getCourseGroups(courseId: string): Promise<CourseGroupAccess[]> {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/groups`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch course groups');
+    }
+  }
+
+  async grantCourseAccessToGroup(courseId: string, groupId: number): Promise<void> {
+    try {
+      await this.api.post(`/courses/${courseId}/groups/${groupId}`);
+    } catch (error) {
+      throw new Error('Failed to grant course access to group');
+    }
+  }
+
+  async revokeCourseAccessFromGroup(courseId: string, groupId: number): Promise<void> {
+    try {
+      await this.api.delete(`/courses/${courseId}/groups/${groupId}`);
+    } catch (error) {
+      throw new Error('Failed to revoke course access from group');
+    }
+  }
+
+  // =============================================================================
+  // ADMIN MANAGEMENT
+  // =============================================================================
+
+  async getAdminDashboard(): Promise<AdminDashboard> {
+    try {
+      const response = await this.api.get('/admin/dashboard');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch admin dashboard');
+    }
+  }
+
+  async getUsers(params?: {
+    skip?: number;
+    limit?: number;
+    role?: string;
+    group_id?: number;
+    is_active?: boolean;
+    search?: string;
+  }): Promise<UserListResponse> {
+    try {
+      const response = await this.api.get('/admin/users', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch users');
+    }
+  }
+
+  async updateUser(userId: number, userData: UpdateUserRequest): Promise<User> {
+    try {
+      const response = await this.api.put(`/admin/users/${userId}`, userData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update user');
+    }
+  }
+
+  async deactivateUser(userId: number): Promise<void> {
+    try {
+      await this.api.delete(`/admin/users/${userId}`);
+    } catch (error) {
+      throw new Error('Failed to deactivate user');
+    }
+  }
+
+  async assignUserToGroup(userId: number, groupId: number): Promise<void> {
+    try {
+      await this.api.post(`/admin/users/${userId}/assign-group`, { group_id: groupId });
+    } catch (error) {
+      throw new Error('Failed to assign user to group');
+    }
+  }
+
+  async bulkAssignUsersToGroup(userIds: number[], groupId: number): Promise<void> {
+    try {
+      await this.api.post('/admin/users/bulk-assign-group', {
+        user_ids: userIds,
+        group_id: groupId
+      });
+    } catch (error) {
+      throw new Error('Failed to bulk assign users to group');
+    }
+  }
+
+  async createGroup(groupData: CreateGroupRequest): Promise<Group> {
+    try {
+      const response = await this.api.post('/admin/groups', groupData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create group');
+    }
+  }
+
+  async updateGroup(groupId: number, groupData: UpdateGroupRequest): Promise<Group> {
+    try {
+      const response = await this.api.put(`/admin/groups/${groupId}`, groupData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update group');
+    }
+  }
+
+  async deleteGroup(groupId: number): Promise<void> {
+    try {
+      await this.api.delete(`/admin/groups/${groupId}`);
+    } catch (error) {
+      throw new Error('Failed to delete group');
+    }
+  }
+
+  async assignTeacherToGroup(groupId: number, teacherId: number): Promise<void> {
+    try {
+      await this.api.post(`/admin/groups/${groupId}/assign-teacher`, { teacher_id: teacherId });
+    } catch (error) {
+      throw new Error('Failed to assign teacher to group');
+    }
+  }
+
+  async getGroupStudents(groupId: number): Promise<User[]> {
+    try {
+      const response = await this.api.get(`/admin/groups/${groupId}/students`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch group students');
+    }
+  }
+
+  async createUser(userData: CreateUserRequest): Promise<{ user: User; generated_password?: string }> {
+    try {
+      const response = await this.api.post('/admin/users/single', userData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create user');
+    }
+  }
+
+  async resetUserPassword(userId: number): Promise<{ new_password: string; user_email: string }> {
+    try {
+      const response = await this.api.post(`/admin/reset-password/${userId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to reset user password');
+    }
   }
 }
 
@@ -1021,5 +1198,24 @@ export const {
   fetchModulesByCourse,
   fetchLectureById,
   markLectureComplete,
-  isLectureCompleted
+  isLectureCompleted,
+  // Group management
+  getGroups,
+  getCourseGroups,
+  grantCourseAccessToGroup,
+  revokeCourseAccessFromGroup,
+  // Admin management
+  getAdminDashboard,
+  getUsers,
+  updateUser,
+  deactivateUser,
+  assignUserToGroup,
+  bulkAssignUsersToGroup,
+  createGroup,
+  updateGroup,
+  deleteGroup,
+  assignTeacherToGroup,
+  getGroupStudents,
+  createUser,
+  resetUserPassword
 } = apiClient;

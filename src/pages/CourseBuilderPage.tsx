@@ -4,7 +4,7 @@ import apiClient from '../services/api';
 import Modal from '../components/Modal.tsx';
 import ConfirmDialog from '../components/ConfirmDialog.tsx';
 import CourseSidebar from '../components/CourseSidebar.tsx';
-import type { Course, CourseModule, Lesson, LessonContentType } from '../types';
+import type { Course, CourseModule, Lesson, LessonContentType, Group, CourseGroupAccess } from '../types';
 import { ChevronDown, ChevronUp, MoreVertical, GripVertical } from 'lucide-react';
 import {
   DndContext,
@@ -232,6 +232,10 @@ export default function CourseBuilderPage() {
   const [inlineLessonData, setInlineLessonData] = useState({ title: '', type: 'text' as LessonContentType });
   const [moduleLectures, setModuleLectures] = useState<Map<string, Lesson[]>>(new Map());
   const [moduleOrder, setModuleOrder] = useState<string[]>([]);
+  const [activeSection, setActiveSection] = useState<'overview' | 'description' | 'content'>('overview');
+  const [courseGroups, setCourseGroups] = useState<CourseGroupAccess[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -348,6 +352,9 @@ export default function CourseBuilderPage() {
         console.log('Modules found, hiding inline form');
         setShowInlineModuleForm(false);
       }
+      
+      // Load course groups
+      await loadCourseGroups();
     } catch (error) {
       console.error('Failed to load course data:', error);
     }
@@ -735,34 +742,364 @@ export default function CourseBuilderPage() {
     setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
   }});
 
-  // Redirect new course flow to the wizard
-  if (isNewCourse) {
-    navigate('/teacher/course/new');
-    return null;
-  }
+  const handleNavigate = (section: 'overview' | 'description' | 'content') => {
+    setActiveSection(section);
+  };
 
+  const loadCourseGroups = async () => {
+    if (!courseId) return;
+    
+    try {
+      setIsLoadingGroups(true);
+      const [groups, courseGroupsData] = await Promise.all([
+        apiClient.getGroups(),
+        apiClient.getCourseGroups(courseId)
+      ]);
+      
+      setAvailableGroups(groups);
+      setCourseGroups(courseGroupsData);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  };
 
+  const handleGrantAccessToGroup = async (groupId: number) => {
+    if (!courseId) return;
+    
+    try {
+      await apiClient.grantCourseAccessToGroup(courseId, groupId);
+      await loadCourseGroups(); // Reload groups
+    } catch (error) {
+      console.error('Failed to grant access:', error);
+    }
+  };
 
-  if (!course) return <Loader size="xl" animation="spin" color="#2563eb" />
+  const handleRevokeAccessFromGroup = async (groupId: number) => {
+    if (!courseId) return;
+    
+    try {
+      await apiClient.revokeCourseAccessFromGroup(courseId, groupId);
+      await loadCourseGroups(); // Reload groups
+    } catch (error) {
+      console.error('Failed to revoke access:', error);
+    }
+  };
 
+  const renderOverviewSection = () => {
+    const totalLessons = Array.from(moduleLectures.values()).reduce((total, lectures) => total + lectures.length, 0);
+    const lessonTypes = Array.from(moduleLectures.values()).flat().reduce((acc, lesson) => {
+      acc[lesson.content_type] = (acc[lesson.content_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
   return (
-    <div className="flex gap-6 h-full">
-      {/* Course Navigation Panel */}
-      <div className="w-64 bg-white rounded-lg border flex-shrink-0 h-full">
-        <CourseSidebar 
-          courseTitle={course.title}
-          courseId={courseId}
-          coverImageUrl={(course as any).cover_image_url}
-          isActive={(course as any).is_active}
-          onSave={handleSaveAllChanges}
-          hasUnsavedChanges={hasUnsavedChanges}
-          pendingChangesCount={pendingModules.length + pendingUpdates.length}
-        />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Course Overview</h1>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Last updated:</span>
+            <span className="text-sm font-medium">
+              {course?.updated_at ? new Date(course.updated_at).toLocaleDateString() : 'Unknown'}
+            </span>
+          </div>
       </div>
 
-      {/* Main Content Area */}
+        {course && (
+          <>
+            {/* Course Information Card */}
+            <div className="bg-white rounded-lg border p-6">
+              <h2 className="text-xl font-semibold mb-4">Course Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Title</label>
+                    <p className="mt-1 text-lg font-medium">{course.title}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${
+                        (course as any).is_active ? 'bg-green-500' : 'bg-gray-400'
+                      }`}></span>
+                      <span className={`text-sm font-medium ${
+                        (course as any).is_active ? 'text-green-600' : 'text-gray-500'
+                      }`}>
+                        {(course as any).is_active ? 'Active' : 'Draft'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Created</label>
+                    <p className="mt-1 text-gray-600">
+                      {course.created_at ? new Date(course.created_at).toLocaleDateString() : 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <p className="mt-1 text-gray-600 leading-relaxed">
+                    {(course as any).description || 'No description provided'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Modules</p>
+                    <p className="text-2xl font-bold text-blue-600">{mods.length}</p>
+                  </div>
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                </div>
+      </div>
+
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Lessons</p>
+                    <p className="text-2xl font-bold text-green-600">{totalLessons}</p>
+                  </div>
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Text Lessons</p>
+                    <p className="text-2xl font-bold text-purple-600">{lessonTypes.text || 0}</p>
+                  </div>
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Video Lessons</p>
+                    <p className="text-2xl font-bold text-red-600">{lessonTypes.video || 0}</p>
+                  </div>
+                  <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quiz Statistics */}
+            {(lessonTypes.quiz || 0) > 0 && (
+              <div className="bg-white rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Quiz Lessons</p>
+                    <p className="text-2xl font-bold text-orange-600">{lessonTypes.quiz || 0}</p>
+                  </div>
+                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            )}
+
+                        {/* Group Access Management */}
+            <div className="bg-white rounded-lg border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Group Access</h2>
+                <button
+                  onClick={loadCourseGroups}
+                  disabled={isLoadingGroups}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isLoadingGroups ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              
+              {isLoadingGroups ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-sm text-gray-500 mt-2">Loading groups...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Current Groups with Access */}
+                  <div>
+                    <h3 className="text-lg font-medium mb-3">Groups with Access ({courseGroups.length})</h3>
+                    {courseGroups.length > 0 ? (
+                      <div className="space-y-2">
+                        {courseGroups.map((groupAccess) => (
+                          <div key={groupAccess.id} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
       <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{groupAccess.group_name}</span>
+                                <span className="text-sm text-gray-500">({groupAccess.student_count} students)</span>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                Access granted by {groupAccess.granted_by_name} on {new Date(groupAccess.granted_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleRevokeAccessFromGroup(groupAccess.group_id)}
+                              className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-gray-500">
+                        <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <p className="text-sm">No groups have access to this course yet.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Available Groups to Add */}
+                  <div>
+                    <h3 className="text-lg font-medium mb-3">Available Groups</h3>
+                    {availableGroups.length > 0 ? (
+                      <div className="space-y-2">
+                        {availableGroups
+                          .filter(group => !courseGroups.some(cg => cg.group_id === group.id))
+                          .map((group) => (
+                            <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{group.name}</span>
+                                  <span className="text-sm text-gray-500">({group.student_count} students)</span>
+                                </div>
+                                {group.description && (
+                                  <p className="text-xs text-gray-500">{group.description}</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleGrantAccessToGroup(group.id)}
+                                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                              >
+                                Grant Access
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-gray-500">
+                        <p className="text-sm">No available groups to add.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Recent Activity */}
+            <div className="bg-white rounded-lg border p-6">
+              <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
+              <div className="space-y-3">
+                {mods.length > 0 ? (
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Course structure updated</p>
+                      <p className="text-xs text-gray-500">{mods.length} modules, {totalLessons} lessons</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <p className="text-sm">No activity yet. Start by adding modules and lessons.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderDescriptionSection = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Course Description</h1>
+      </div>
+      
+      {course && (
+        <div className="bg-white rounded-lg border p-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Course Title</label>
+              <input 
+                type="text"
+                value={course.title}
+                onChange={(e) => setCourse(prev => prev ? { ...prev, title: e.target.value } : null)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+              <textarea 
+                value={(course as any).description || ''}
+                onChange={(e) => setCourse(prev => prev ? { ...prev, description: e.target.value } : null)}
+                rows={6}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter course description..."
+              />
+            </div>
+            
+            <div className="flex justify-end">
+              <button 
+                onClick={async () => {
+                  if (course && courseId) {
+                    try {
+                      await apiClient.updateCourse(courseId, {
+                        title: course.title,
+                        description: (course as any).description
+                      });
+                      setHasUnsavedChanges(false);
+                    } catch (error) {
+                      console.error('Failed to update course:', error);
+                    }
+                  }
+                }}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderContentSection = () => (
         <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Course Program</h1>
@@ -883,11 +1220,47 @@ export default function CourseBuilderPage() {
           <span>+</span>
           <span>Add module</span>
         </button>
+    </div>
+  );
+
+  // Redirect new course flow to the wizard
+  if (isNewCourse) {
+    navigate('/teacher/course/new');
+    return null;
+  }
 
 
+
+  if (!course) return <Loader size="xl" animation="spin" color="#2563eb" />
+
+
+  return (
+    <>
+      <div className="flex gap-6 h-full">
+        {/* Course Navigation Panel */}
+        <div className="w-64 bg-white rounded-lg border flex-shrink-0 h-full">
+          <CourseSidebar 
+            courseTitle={course.title}
+            courseId={courseId}
+            coverImageUrl={(course as any).cover_image_url}
+            isActive={(course as any).is_active}
+            onSave={handleSaveAllChanges}
+            hasUnsavedChanges={hasUnsavedChanges}
+            pendingChangesCount={pendingModules.length + pendingUpdates.length}
+            onNavigate={handleNavigate}
+            activeSection={activeSection}
+          />
       </div>
 
-      
+        {/* Main Content Area */}
+        <div className="flex-1">
+          {activeSection === 'overview' && renderOverviewSection()}
+          {activeSection === 'description' && renderDescriptionSection()}
+          {activeSection === 'content' && renderContentSection()}
+        </div>
+      </div>
+
+      {/* Modals and Dialogs */}
       <Modal
         open={modForm.open}
         title={modForm.id ? 'Edit module' : 'New module'}
@@ -1008,8 +1381,7 @@ export default function CourseBuilderPage() {
         title="Delete item?"
         description="This action cannot be undone."
       />
-      </div>
-    </div>
+    </> 
   );
 }
 

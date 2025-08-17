@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-// import apiClient from "../services/api";
+import apiClient from "../services/api";
 import ProgressBar from '../components/ProgressBar';
 import Breadcrumbs from '../components/Breadcrumbs.tsx';
 import Skeleton from '../components/Skeleton.tsx';
-import type { CourseModule, Lesson } from '../types';
+import type { CourseModule, Lesson, Course } from '../types';
 
 export default function ModulePage() {
-  const { moduleId } = useParams<{ moduleId: string }>();
+  const { courseId, moduleId } = useParams<{ courseId: string; moduleId: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [course, setCourse] = useState<Course | null>(null);
   const [module, setModule] = useState<CourseModule | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [progress, setProgress] = useState(0);
@@ -17,43 +19,68 @@ export default function ModulePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!courseId || !moduleId) {
+      navigate('/courses');
+      return;
+    }
     loadModuleData();
-  }, [moduleId]);
+  }, [courseId, moduleId, navigate]);
 
   const loadModuleData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Note: We need course context for the new API, this is a limitation
-      // For now, we'll show a message that this page needs course context
-      console.warn('ModulePage needs course context to work with new API');
+      if (!courseId || !moduleId) return;
+
+
+      // Load course data
+      const courseData = await apiClient.getCourse(courseId);
+      setCourse(courseData);
+
+      // Load all modules for the course to find the specific module
+      const modules = await apiClient.getCourseModules(courseId);
       
-      // Mock module data for now
-      if (!moduleId) return;
-      setModule({
-        id: moduleId,
-        title: 'Module ' + moduleId,
-        description: 'This module page needs course context to work with the new API',
-        course_id: 'unknown',
-        order_index: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+      // Fix type comparison - moduleId from URL is string, but m.id is number
+      const targetModule = modules.find(m => {
+        const moduleIdNum = parseInt(moduleId);
+        const isMatch = m.id === moduleIdNum;
+        return isMatch;
       });
-      setLessons([]);
-      setProgress(0);
+      
+      console.log('🎯 Target module found:', targetModule);
+      
+      if (!targetModule) {
+        console.error('❌ Module not found. Available modules:', modules.map(m => ({ id: m.id, title: m.title })));
+        setError(`Module not found. Available modules: ${modules.map(m => m.title).join(', ')}`);
+        return;
+      }
+
+      setModule(targetModule);
+
+      // Load lessons for this module
+      const moduleLessons = await apiClient.getModuleLessons(courseId, parseInt(moduleId));
+      console.log('📖 Module lessons:', moduleLessons);
+      setLessons(moduleLessons);
+
+      // Calculate progress (for students)
+      if (user?.role === 'student') {
+        const completedLessons = moduleLessons.filter(lesson => lesson.is_completed).length;
+        const totalLessons = moduleLessons.length;
+        setProgress(totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0);
+      }
       
     } catch (err) {
-      setError((err as any).message);
+      setError((err as any).message || 'Failed to load module data');
       console.error('Failed to load module data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getLessonStatus = (_lessonId: string) => {
-    // Default status for now
-    return 'not-started';
+  const getLessonStatus = (lessonId: string) => {
+    const lesson = lessons.find(l => l.id === lessonId);
+    return lesson?.is_completed ? 'completed' : 'not-started';
   };
 
   if (loading) {
@@ -99,27 +126,19 @@ export default function ModulePage() {
     );
   }
 
-  if (!module) {
+  if (!module || !course) {
     return <div className="text-gray-500">Module not found</div>;
   }
 
   return (
     <div className="space-y-8">
-      <Breadcrumbs items={[{ to: '/dashboard', label: 'Dashboard' }, { to: `/courses`, label: 'Courses' }, { label: module.title }]} />
+      <Breadcrumbs items={[
+        { to: '/dashboard', label: 'Dashboard' }, 
+        { to: '/courses', label: 'Courses' }, 
+        { to: `/course/${courseId}`, label: course.title },
+        { label: module.title }
+      ]} />
       
-      <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mb-6">
-        <h3 className="font-semibold text-yellow-800">⚠️ Module page needs updating</h3>
-        <p className="text-yellow-700 text-sm">
-          This page needs course context to work with the new API. Please navigate to modules through the course overview page.
-        </p>
-        <Link 
-          to="/courses" 
-          className="mt-2 inline-block px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
-        >
-          Go to Courses
-        </Link>
-      </div>
-
       <div>
         <h1 className="text-3xl font-bold">{module.title}</h1>
         <p className="text-gray-600 mt-1">{module.description}</p>
@@ -139,7 +158,7 @@ export default function ModulePage() {
         {lessons.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <p>No lessons available</p>
-            <p className="text-sm mt-2">Navigate through the course overview to access lessons</p>
+            <p className="text-sm mt-2">This module doesn't have any lessons yet</p>
           </div>
         ) : (
           <div className="space-y-4">

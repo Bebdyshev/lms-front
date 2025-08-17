@@ -8,7 +8,12 @@ export interface User {
   full_name: string;
   name?: string; // Для обратной совместимости
   role: UserRole;
+  student_id?: string;
   group_id?: string;
+  group_name?: string;
+  teacher_name?: string;
+  curator_name?: string;
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -50,8 +55,103 @@ export interface Course {
   progress?: number; // For student view
 }
 
+export interface Group {
+  id: number;
+  name: string;
+  description?: string;
+  teacher_id: number;
+  teacher_name?: string;
+  student_count: number;
+  created_at: string;
+  is_active: boolean;
+}
+
+export interface CourseGroupAccess {
+  id: number;
+  course_id: number;
+  group_id: number;
+  group_name?: string;
+  student_count: number;
+  granted_by: number;
+  granted_by_name?: string;
+  granted_at: string;
+  is_active: boolean;
+}
+
+export interface AdminStats {
+  total_users: number;
+  total_students: number;
+  total_teachers: number;
+  total_curators: number;
+  total_courses: number;
+  total_active_enrollments: number;
+  recent_registrations: number;
+}
+
+export interface AdminDashboard {
+  stats: AdminStats;
+  recent_users: User[];
+  recent_groups: Group[];
+  recent_courses: Array<{
+    id: number;
+    title: string;
+    teacher_name: string;
+    module_count: number;
+    is_active: boolean;
+    created_at: string;
+  }>;
+}
+
+export interface UserListResponse {
+  users: User[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface GroupListResponse {
+  groups: Group[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface CreateGroupRequest {
+  name: string;
+  description?: string;
+  teacher_id: number;
+  is_active?: boolean;
+}
+
+export interface UpdateGroupRequest {
+  name?: string;
+  description?: string;
+  teacher_id?: number;
+  is_active?: boolean;
+}
+
+export interface CreateUserRequest {
+  email: string;
+  name: string;
+  password?: string;
+  role: UserRole;
+  student_id?: string;
+  group_id?: number;
+  is_active?: boolean;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  role?: UserRole;
+  student_id?: string;
+  group_id?: number;
+  is_active?: boolean;
+  password?: string;
+}
+
 export interface CourseModule {
-  id: string;
+  id: number;
   course_id: string;
   title: string;
   description: string;
@@ -86,6 +186,7 @@ export interface QuestionOption {
   id: string;
   text: string;
   is_correct: boolean;
+  image_url?: string;
 }
 
 export interface Question {
@@ -94,7 +195,7 @@ export interface Question {
   question_text: string;
   question_type: 'single_choice' | 'multiple_choice' | 'fill_blank';
   options?: QuestionOption[];
-  correct_answer: string | string[];
+  correct_answer: any; // Use any to avoid complex type issues
   points: number;
   order_index: number;
 }
@@ -138,17 +239,6 @@ export interface Assignment {
 
 export type AssignmentType = 'quiz' | 'essay' | 'coding' | 'file_upload' | 'mixed';
 
-export interface Question {
-  id: string;
-  assignment_id: string;
-  question_text: string;
-  question_type: QuestionType;
-  options?: QuestionOption[];
-  correct_answer?: string | string[];
-  points: number;
-  order_index: number;
-}
-
 export type QuestionType = 
   | 'single_choice' 
   | 'multiple_choice' 
@@ -158,12 +248,7 @@ export type QuestionType =
   | 'picture_choice'
   | 'file_upload';
 
-export interface QuestionOption {
-  id: string;
-  text: string;
-  is_correct?: boolean;
-  image_url?: string;
-}
+// QuestionOption is already defined in QUIZ TYPES section above
 
 export interface AssignmentSubmission {
   id: string;
