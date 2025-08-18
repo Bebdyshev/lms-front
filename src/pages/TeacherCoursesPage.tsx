@@ -3,8 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import EmptyState from '../components/EmptyState';
-import { BookOpen, Plus, Users, Settings, AlertCircle } from 'lucide-react';
+import { BookOpen, Plus, Users, Settings, AlertCircle, Eye, Pencil } from 'lucide-react';
 import CreateCourseModal from '../components/CreateCourseModal.tsx';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface CourseWithStats {
   id: number;
@@ -118,7 +121,7 @@ export default function TeacherCoursesPage() {
   };
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <div className="animate-pulse">
           <div className="flex items-center justify-between mb-6">
             <div className="h-8 bg-gray-200 rounded w-48"></div>
@@ -138,7 +141,7 @@ export default function TeacherCoursesPage() {
 
   if (error) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <h1 className="text-3xl font-bold">My Courses</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center">
@@ -158,20 +161,21 @@ export default function TeacherCoursesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold flex items-center">
           <BookOpen className="w-8 h-8 mr-3 text-blue-600" />
           My Courses
         </h1>
         <div className="flex gap-3">
-          <button 
+          <Button 
             onClick={() => setCreateOpen(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center"
+            variant="outline"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg"
           >
             <Plus className="w-4 h-4 mr-2" />
             New Course
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -218,30 +222,28 @@ export default function TeacherCoursesPage() {
           subtitle="Create your first course to start teaching"
         />
       ) : (
-        <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold">Course Management</h2>
-            <p className="text-sm text-gray-600 mt-1">Manage your courses and track progress</p>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600">
-                <tr>
-                  <th className="text-left px-6 py-3 font-medium">Course</th>
-                  <th className="text-left px-6 py-3 font-medium">Modules</th>
-                  <th className="text-left px-6 py-3 font-medium">Students</th>
-                  <th className="text-left px-6 py-3 font-medium">Completed</th>
-                  <th className="text-left px-6 py-3 font-medium">Avg Progress</th>
-                  <th className="text-left px-6 py-3 font-medium">Last Activity</th>
-                  <th className="text-left px-6 py-3 font-medium">Status</th>
-                  <th className="text-left px-6 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+        <Card className="rounded-2xl-top shadow-card overflow-hidden">
+          <CardHeader className="p-6">
+            <CardTitle className="text-lg">Course Management</CardTitle>
+            <CardDescription>Manage your courses and track progress</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0 pt-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</TableHead>
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modules</TableHead>
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</TableHead>
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</TableHead>
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Progress</TableHead>
+                  <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</TableHead>
+                  <TableHead className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {courses.map(course => (
-                  <tr key={course.id} className="border-t hover:bg-gray-50">
-                    <td className="px-6 py-4">
+                  <TableRow key={course.id} className="hover:bg-gray-50">
+                    <TableCell className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-md bg-gray-100 overflow-hidden flex items-center justify-center text-gray-500 text-xs">
                           {course.cover_image_url ? (
@@ -252,23 +254,20 @@ export default function TeacherCoursesPage() {
                         </div>
                         <div className="font-medium text-gray-900">{course.title}</div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-gray-600 whitespace-nowrap">
                       <span className="font-medium">{course.modules_count || 0}</span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-gray-600 whitespace-nowrap">
                       <span className="font-medium">{course.students_count || 0}</span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-gray-600 whitespace-nowrap">
                       <span className="font-medium">{course.completed_count || 0}</span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-gray-600 whitespace-nowrap">
                       <span className="font-medium">{course.avg_progress ?? 0}%</span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      <span className="font-medium">{course.last_activity ? new Date(course.last_activity).toLocaleDateString() : '-'}</span>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                         course.status === 'active' 
                           ? 'bg-green-100 text-green-800' 
@@ -278,29 +277,39 @@ export default function TeacherCoursesPage() {
                       }`}>
                         {course.status || 'Active'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex space-x-2">
-                        <Link 
-                          to={`/course/${course.id}`}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs"
+                    </TableCell>
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-right">
+                      <div className="flex space-x-2 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          title="View course"
+                          aria-label="View course"
                         >
-                          View
-                        </Link>
-                        <Link 
-                          to={`/teacher/course/${course.id}/builder`}
-                          className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded text-xs"
+                          <Link to={`/course/${course.id}`}>
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          title="Edit course"
+                          aria-label="Edit course"
                         >
-                          Edit
-                        </Link>
+                          <Link to={`/teacher/course/${course.id}/builder`}>
+                            <Pencil className="w-4 h-4" />
+                          </Link>
+                        </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       <CreateCourseModal

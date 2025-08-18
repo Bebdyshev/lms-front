@@ -23,6 +23,7 @@ import CourseBuilderPage from '../pages/CourseBuilderPage.tsx';
 import CreateCourseWizard from '../pages/CreateCourseWizard.tsx';
 import TeacherCoursePage from '../pages/TeacherCoursePage.tsx';
 import LessonEditPage from '../pages/LessonEditPage.tsx';
+import TeacherClassPage from '../pages/TeacherClassPage.tsx';
 import AdminDashboard from '../pages/AdminDashboard.tsx';
 import UserManagement from '../pages/UserManagement.tsx';
 
@@ -192,9 +193,25 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
+          <Route path="/teacher/class" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <TeacherClassPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
           <Route path="/teacher/course/:courseId/lesson/:lessonId/edit" element={
             <ProtectedRoute allowedRoles={['teacher', 'admin']}>
               <LessonEditPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/teacher/class/:classId" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <TeacherClassPage />
+              </AppLayout>
             </ProtectedRoute>
           } />
 

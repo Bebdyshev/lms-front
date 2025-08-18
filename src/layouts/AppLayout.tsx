@@ -12,7 +12,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="flex">
       <SidebarDesktop />
-      <main className="flex-1 lg:ml-64 ml-0 bg-gray-50 min-h-screen">
+      <main className="flex-1 bg-gray-50 min-h-screen lg:pl-64 overflow-x-hidden">
         <Topbar onOpenSidebar={() => setMobileOpen(true)} />
         <div className="p-8">
           {children}

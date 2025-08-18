@@ -228,18 +228,35 @@ export interface LessonMaterial {
 export interface Assignment {
   id: string;
   lesson_id?: string;
+  group_id?: number;
   title: string;
   description: string;
   assignment_type: AssignmentType;
-  questions: Question[];
+  content: any; // JSON content with questions and options
   max_score: number;
   time_limit_minutes?: number;
-  deadline?: string;
+  due_date?: string; // Deadline for assignment
+  file_url?: string; // File attachment for assignment
+  allowed_file_types?: string[]; // Allowed file types for submissions
+  max_file_size_mb?: number; // Max file size in MB
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export type AssignmentType = 'quiz' | 'essay' | 'coding' | 'file_upload' | 'mixed';
+export type AssignmentType = 
+  | 'single_choice' 
+  | 'multiple_choice' 
+  | 'picture_choice'
+  | 'fill_in_blanks'
+  | 'matching'
+  | 'matching_text'
+  | 'free_text'
+  | 'file_upload'
+  | 'quiz' 
+  | 'essay' 
+  | 'coding' 
+  | 'mixed';
 
 export type QuestionType = 
   | 'single_choice' 
@@ -255,21 +272,30 @@ export type QuestionType =
 export interface AssignmentSubmission {
   id: string;
   assignment_id: string;
-  student_id: string;
-  answers: SubmissionAnswer[];
+  user_id: string;
+  answers: any; // JSON with student answers
+  file_url?: string; // File attachment for submission
+  submitted_file_name?: string; // Original filename
   score?: number;
-  feedback?: string;
+  max_score: number;
+  is_graded: boolean;
   submitted_at: string;
   graded_at?: string;
   status: SubmissionStatus;
 }
 
-export type SubmissionStatus = 'draft' | 'submitted' | 'graded' | 'needs_revision';
+export type SubmissionStatus = 'draft' | 'submitted' | 'graded' | 'needs_revision' | 'overdue';
 
 export interface SubmissionAnswer {
   question_id: string;
   answer: string | string[] | File;
   points_earned?: number;
+}
+
+export interface SubmitAssignmentRequest {
+  answers: any;
+  file_url?: string;
+  submitted_file_name?: string;
 }
 
 // =============================================================================

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import CourseSidebar from '../components/CourseSidebar';
@@ -6,6 +7,8 @@ import Modal from '../components/Modal.tsx';
 import ConfirmDialog from '../components/ConfirmDialog.tsx';
 import type { Course, CourseModule, Lesson, LessonContentType } from '../types';
 import { ChevronDown, ChevronUp, MoreVertical, FileText, Video, HelpCircle } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 
 type CourseSection = 'overview' | 'description' | 'content';
 
@@ -57,24 +60,13 @@ export default function TeacherCoursePage() {
   const [pendingLectures, setPendingLectures] = useState<any[]>([]);
   const [pendingUpdates, setPendingUpdates] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   useEffect(() => {
     if (!courseId) return;
     loadCourseData();
   }, [courseId]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (openDropdown && !(event.target as Element).closest('.dropdown-container')) {
-        setOpenDropdown(null);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openDropdown]);
+  // removed manual dropdown close handler; using shadcn DropdownMenu
 
   const loadCourseData = async () => {
     if (!courseId) return;
@@ -90,8 +82,8 @@ export default function TeacherCoursePage() {
       // Load lectures for all modules
       const lecturesMap = new Map<string, Lesson[]>();
       for (const module of modules) {
-        const lectures = await apiClient.fetchLecturesByModule(module.id);
-        lecturesMap.set(module.id, lectures);
+        const lectures = await apiClient.fetchLecturesByModule(String(module.id));
+        lecturesMap.set(String(module.id), lectures);
       }
       setModuleLectures(lecturesMap);
       
@@ -152,13 +144,13 @@ export default function TeacherCoursePage() {
   };
 
   const onSelectModule = async (m: CourseModule) => {
-    const lectures = await apiClient.fetchLecturesByModule(m.id);
+    const lectures = await apiClient.fetchLecturesByModule(String(m.id));
     setSelected({ module: m, lectures });
     
     // Update lectures in the map
     setModuleLectures(prev => {
       const newMap = new Map(prev);
-      newMap.set(m.id, lectures);
+      newMap.set(String(m.id), lectures);
       return newMap;
     });
   };
@@ -259,9 +251,7 @@ export default function TeacherCoursePage() {
     setExpandedModules(newExpanded);
   };
 
-  const toggleDropdown = (moduleId: string) => {
-    setOpenDropdown(openDropdown === moduleId ? null : moduleId);
-  };
+  // removed manual dropdown toggler; using shadcn DropdownMenu
 
   const onRemoveModule = (id: string) => setConfirm({ open: true, action: async () => {
     // Check if it's a pending module
@@ -385,7 +375,6 @@ export default function TeacherCoursePage() {
             pendingLectures={pendingLectures}
             pendingUpdates={pendingUpdates}
             isSaving={isSaving}
-            openDropdown={openDropdown}
             getDisplayModules={getDisplayModules}
             onSelectModule={onSelectModule}
             onAddModule={onAddModule}
@@ -394,7 +383,6 @@ export default function TeacherCoursePage() {
             handleSaveInlineLecture={handleSaveInlineLecture}
             handleCancelInlineLecture={handleCancelInlineLecture}
             toggleModuleExpanded={toggleModuleExpanded}
-            toggleDropdown={toggleDropdown}
             onRemoveModule={onRemoveModule}
             onAddLecture={onAddLecture}
             onRemoveLecture={onRemoveLecture}
@@ -791,7 +779,7 @@ function CourseContentSection({
   pendingLectures,
   pendingUpdates,
   isSaving,
-  openDropdown,
+  
   getDisplayModules,
   onSelectModule,
   onAddModule,
@@ -800,7 +788,7 @@ function CourseContentSection({
   handleSaveInlineLecture,
   handleCancelInlineLecture,
   toggleModuleExpanded,
-  toggleDropdown,
+  
   onRemoveModule,
   onAddLecture,
   onRemoveLecture,
@@ -832,7 +820,7 @@ function CourseContentSection({
   pendingLectures: any[];
   pendingUpdates: any[];
   isSaving: boolean;
-  openDropdown: string | null;
+  
   getDisplayModules: () => any[];
   onSelectModule: (m: CourseModule) => Promise<void>;
   onAddModule: () => void;
@@ -841,7 +829,7 @@ function CourseContentSection({
   handleSaveInlineLecture: (moduleId: string) => void;
   handleCancelInlineLecture: () => void;
   toggleModuleExpanded: (moduleId: string) => void;
-  toggleDropdown: (moduleId: string) => void;
+  
   onRemoveModule: (id: string) => void;
   onAddLecture: (moduleId: string) => void;
   onRemoveLecture: (id: string) => void;
@@ -859,6 +847,14 @@ function CourseContentSection({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Course Program</h1>
+        <div className="flex items-center gap-2">
+          <Button onClick={onAddModule}>
+            + Add module
+          </Button>
+          <Button onClick={handleSaveAllChanges} variant="outline" disabled={!hasUnsavedChanges || isSaving}>
+            {isSaving ? 'Saving…' : 'Save all'}
+          </Button>
+        </div>
       </div>
 
       {/* All Modules */}
@@ -947,38 +943,24 @@ function CourseContentSection({
                       }
                     </button>
                   )}
-                  <div className="relative dropdown-container">
-                    <button 
-                      onClick={() => toggleDropdown(module.id)}
-                      className="p-2 hover:bg-gray-100 rounded"
-                    >
-                      <MoreVertical className="w-4 h-4 text-gray-500" />
-                    </button>
-                    {openDropdown === module.id && (
-                      <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-10 min-w-[120px]">
-                        {!module.isPending && (
-                          <button 
-                            onClick={() => {
-                              setModForm({ open: true, id: module.id, title: module.title, description: module.description });
-                              setOpenDropdown(null);
-                            }}
-                            className="block w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-t-lg"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        <button 
-                          onClick={() => {
-                            onRemoveModule(module.id);
-                            setOpenDropdown(null);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="w-4 h-4 text-gray-500" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {!module.isPending && (
+                        <DropdownMenuItem onClick={() => setModForm({ open: true, id: module.id, title: module.title, description: module.description })}>
+                          Edit
+                        </DropdownMenuItem>
+                      )}
+                      {!module.isPending && <DropdownMenuSeparator />}
+                      <DropdownMenuItem className="text-red-600" onClick={() => onRemoveModule(module.id)}>
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
@@ -1063,7 +1045,7 @@ function CourseContentSection({
                                 value={inlineLectureData.title}
                                 onChange={(e) => {
                                   const newTitle = e.target.value;
-                                  setInlineLectureData(prev => ({ ...prev, title: newTitle }));
+                                  setInlineLectureData((prev: { title: string; type: LessonContentType; videoUrl: string }) => ({ ...prev, title: newTitle }));
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' && inlineLectureData.title.trim()) {
@@ -1115,7 +1097,7 @@ function CourseContentSection({
                     value={inlineModuleData.title}
                     onChange={(e) => {
                       const newTitle = e.target.value;
-                      setInlineModuleData(prev => ({ ...prev, title: newTitle }));
+                      setInlineModuleData((prev: { title: string; description: string }) => ({ ...prev, title: newTitle }));
                       
                       // Auto-create module when user starts typing
                       if (newTitle.trim() && !inlineModuleData.title.trim()) {
@@ -1154,7 +1136,7 @@ function CourseContentSection({
                 type="text" 
                 placeholder="Additional description"
                 value={inlineModuleData.description}
-                onChange={(e) => setInlineModuleData(prev => ({ ...prev, description: e.target.value }))}
+                onChange={(e) => setInlineModuleData((prev: { title: string; description: string }) => ({ ...prev, description: e.target.value }))}
                 maxLength={254}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />

@@ -6,6 +6,11 @@ import ConfirmDialog from '../components/ConfirmDialog.tsx';
 import CourseSidebar from '../components/CourseSidebar.tsx';
 import type { Course, CourseModule, Lesson, LessonContentType, Group, CourseGroupAccess } from '../types';
 import { ChevronDown, ChevronUp, MoreVertical, GripVertical } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Label } from '../components/ui/label';
+import { Button } from '../components/ui/button';
 import {
   DndContext,
   closestCenter,
@@ -36,7 +41,7 @@ interface ModuleForm {
   open: boolean;
   title: string;
   description?: string;
-  id?: string;
+  id?: number;
 }
 
 interface LectureForm {
@@ -56,14 +61,14 @@ interface DraggableModuleProps {
   module: CourseModule | any;
   index: number;
   children: React.ReactNode;
-  onToggleExpanded: (moduleId: string) => void;
-  onToggleDropdown: (moduleId: string) => void;
-  onRemoveModule: (moduleId: string) => void;
+  onToggleExpanded: (moduleId: number | string) => void;
+  onToggleDropdown: (moduleId: number | string) => void;
+  onRemoveModule: (moduleId: number | string) => void;
   onEditModule: (module: CourseModule | any) => void;
-  expandedModules: Set<string>;
-  openDropdown: string | null;
+  expandedModules: Set<number | string>;
+  openDropdown: number | string | null;
   isPending?: boolean;
-  onUpdatePendingModule?: (moduleId: string, field: string, value: string) => void;
+  onUpdatePendingModule?: (moduleId: number | string, field: string, value: string) => void;
 }
 
 const DraggableModule = ({ 
@@ -220,18 +225,18 @@ export default function CourseBuilderPage() {
   const [modForm, setModForm] = useState<ModuleForm>({ open: false, title: '', description: '' });
   const [lecForm, setLecForm] = useState<LectureForm>({ open: false, title: '', type: 'text' });
   const [confirm, setConfirm] = useState<ConfirmDialog>({ open: false, action: null });
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const [expandedModules, setExpandedModules] = useState<Set<number | string>>(new Set());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showInlineModuleForm, setShowInlineModuleForm] = useState(true);
   const [inlineModuleData, setInlineModuleData] = useState({ title: '', description: '' });
   const [pendingModules, setPendingModules] = useState<any[]>([]);
   const [pendingUpdates, setPendingUpdates] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<number | string | null>(null);
   const [showInlineLessonForm, setShowInlineLessonForm] = useState(false);
   const [inlineLessonData, setInlineLessonData] = useState({ title: '', type: 'text' as LessonContentType });
-  const [moduleLectures, setModuleLectures] = useState<Map<string, Lesson[]>>(new Map());
-  const [moduleOrder, setModuleOrder] = useState<string[]>([]);
+  const [moduleLectures, setModuleLectures] = useState<Map<number, Lesson[]>>(new Map());
+  const [moduleOrder, setModuleOrder] = useState<Array<number | string>>([]);
   const [activeSection, setActiveSection] = useState<'overview' | 'description' | 'content'>('overview');
   const [courseGroups, setCourseGroups] = useState<CourseGroupAccess[]>([]);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
@@ -339,7 +344,7 @@ export default function CourseBuilderPage() {
       
       // If modules exist, select the first one and load its lectures
       if (modules[0]) {
-        const lectures = await apiClient.fetchLecturesByModule(modules[0].id);
+        const lectures = await apiClient.getModuleLessons(courseId, modules[0].id);
         setSelected({ module: modules[0], lectures });
         setModuleLectures(new Map([[modules[0].id, lectures]]));
       }
@@ -363,7 +368,8 @@ export default function CourseBuilderPage() {
   // New course creation handled in CreateCourseWizard
 
   const onSelectModule = async (m: CourseModule) => {
-    const lectures = await apiClient.fetchLecturesByModule(m.id);
+    if (!courseId) return;
+    const lectures = await apiClient.getModuleLessons(courseId, m.id);
     setSelected({ module: m, lectures });
     setModuleLectures(prev => new Map(prev).set(m.id, lectures));
   };
@@ -414,13 +420,14 @@ export default function CourseBuilderPage() {
       const payload: any = { 
         title: inlineLessonData.title.trim(), 
         content_type: inlineLessonData.type,
-        order_index: nextOrderIndex
+        order_index: 0
       };
       
-      await apiClient.createLecture(selected.module.id, payload);
+      if (!courseId) return;
+      await apiClient.createLesson(courseId, selected.module.id, payload);
       
       // Refresh lectures for the current module
-      const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
+      const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
       setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
       
       // Reset form
@@ -493,23 +500,24 @@ export default function CourseBuilderPage() {
     }
   };
 
-  const toggleModuleExpanded = (moduleId: string) => {
+  const toggleModuleExpanded = (moduleId: number | string) => {
     const newExpanded = new Set(expandedModules);
     if (newExpanded.has(moduleId)) {
       newExpanded.delete(moduleId);
     } else {
       newExpanded.add(moduleId);
       // Load lectures for this module if not already loaded
-      if (!moduleLectures.has(moduleId)) {
-        loadModuleLectures(moduleId);
+      if (!moduleLectures.has(Number(moduleId))) {
+        loadModuleLectures(Number(moduleId));
       }
     }
     setExpandedModules(newExpanded);
   };
 
-  const loadModuleLectures = async (moduleId: string) => {
+  const loadModuleLectures = async (moduleId: number) => {
     try {
-      const lectures = await apiClient.fetchLecturesByModule(moduleId);
+      if (!courseId) return;
+      const lectures = await apiClient.getModuleLessons(courseId, moduleId);
       setModuleLectures(prev => new Map(prev).set(moduleId, lectures));
     } catch (error) {
       console.error('Failed to load lectures for module:', moduleId, error);
@@ -532,9 +540,9 @@ export default function CourseBuilderPage() {
     }
   };
 
-  const handleUpdatePendingModule = (moduleId: string, field: string, value: string) => {
+  const handleUpdatePendingModule = (moduleId: number | string, field: string, value: string) => {
     if (field === 'title') {
-      if (moduleId.startsWith('temp-')) {
+      if (typeof moduleId === 'string' && moduleId.startsWith('temp-')) {
         // Update pending module
         setPendingModules(prev => prev.map(m => 
           m.id === moduleId ? { ...m, title: value } : m
@@ -546,7 +554,7 @@ export default function CourseBuilderPage() {
         ));
       }
     } else if (field === 'description') {
-      if (moduleId.startsWith('temp-')) {
+      if (typeof moduleId === 'string' && moduleId.startsWith('temp-')) {
         // Update pending module
         setPendingModules(prev => prev.map(m => 
           m.id === moduleId ? { ...m, description: value } : m
@@ -561,7 +569,7 @@ export default function CourseBuilderPage() {
     setHasUnsavedChanges(true);
   };
 
-  const renderModuleLectures = (moduleId: string) => {
+  const renderModuleLectures = (moduleId: number) => {
     const lectures = moduleLectures.get(moduleId) || [];
     
     if (lectures.length > 0) {
@@ -703,13 +711,13 @@ export default function CourseBuilderPage() {
     }
   };
 
-  const toggleDropdown = (moduleId: string) => {
+  const toggleDropdown = (moduleId: number | string) => {
     setOpenDropdown(openDropdown === moduleId ? null : moduleId);
   };
   // removed unused handler placeholder to satisfy noUnusedLocals
   // const submitAddModule = async () => {};
 
-  const onRemoveModule = (id: string) => setConfirm({ open: true, action: async () => {
+  const onRemoveModule = (id: number | string) => setConfirm({ open: true, action: async () => {
     // Check if it's a pending module
     const pendingModule = pendingModules.find(m => m.id === id);
     if (pendingModule) {
@@ -718,7 +726,7 @@ export default function CourseBuilderPage() {
     } else {
       // It's an existing module - delete immediately
       if (courseId) {
-        await apiClient.deleteModule(courseId, id);
+        await apiClient.deleteModule(courseId, Number(id));
         const ms = await apiClient.fetchModulesByCourse(courseId);
         setMods(ms);
         setSelected(null);
@@ -727,7 +735,7 @@ export default function CourseBuilderPage() {
     }
   }});
 
-  const onAddLecture = (moduleId: string) => {
+  const onAddLecture = (moduleId: number) => {
     setSelected({ module: mods.find(m => m.id === moduleId) || mods[0], lectures: [] });
     setShowInlineLessonForm(true);
     setInlineLessonData({ title: '', type: 'text' });
@@ -738,7 +746,8 @@ export default function CourseBuilderPage() {
   const onRemoveLecture = (id: string) => setConfirm({ open: true, action: async () => {
     if (!selected?.module) return;
     await apiClient.deleteLecture(id);
-    const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
+    if (!courseId) return;
+    const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
     setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
   }});
 
@@ -1040,53 +1049,66 @@ export default function CourseBuilderPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Course Description</h1>
+        <span className="text-xs text-gray-500">
+          {course?.updated_at ? `Last updated: ${new Date((course as any).updated_at).toLocaleString()}` : ''}
+        </span>
       </div>
       
       {course && (
-        <div className="bg-white rounded-lg border p-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Course Title</label>
-              <input 
-                type="text"
-                value={course.title}
-                onChange={(e) => setCourse(prev => prev ? { ...prev, title: e.target.value } : null)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-              <textarea 
-                value={(course as any).description || ''}
-                onChange={(e) => setCourse(prev => prev ? { ...prev, description: e.target.value } : null)}
-                rows={6}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter course description..."
-              />
-            </div>
-            
-            <div className="flex justify-end">
-              <button 
-                onClick={async () => {
-                  if (course && courseId) {
-                    try {
-                      await apiClient.updateCourse(courseId, {
-                        title: course.title,
-                        description: (course as any).description
-                      });
-                      setHasUnsavedChanges(false);
-                    } catch (error) {
-                      console.error('Failed to update course:', error);
+        <div className="grid grid-cols-1 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Course Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="course-title">Course Title</Label>
+                <Input
+                  id="course-title"
+                  value={course.title}
+                  onChange={(e) => setCourse(prev => prev ? { ...prev, title: e.target.value } : null)}
+                  placeholder="Enter course title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="course-description">Description</Label>
+                <Textarea
+                  id="course-description"
+                  value={(course as any).description || ''}
+                  onChange={(e) => setCourse(prev => prev ? { ...prev, description: e.target.value } : null)}
+                  placeholder="Describe what students will learn..."
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setCourse(prev => prev ? { ...prev, title: prev.title || '', description: (prev as any).description || '' } : prev);
+                  }}
+                >
+                  Reset
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (course && courseId) {
+                      try {
+                        await apiClient.updateCourse(courseId, {
+                          title: course.title,
+                          description: (course as any).description
+                        });
+                        setHasUnsavedChanges(false);
+                      } catch (error) {
+                        console.error('Failed to update course:', error);
+                      }
                     }
-                  }
-                }}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
+                  }}
+                >
+                  Save changes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
@@ -1325,7 +1347,8 @@ export default function CourseBuilderPage() {
           await apiClient.updateLecture(lecForm.id, payload);
           setLecForm({ open: false, title: '' });
           setHasUnsavedChanges(true);
-          const lectures = await apiClient.fetchLecturesByModule(selected.module.id);
+          if (!courseId) return;
+          const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
           setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
         }}
         submitText="Save"

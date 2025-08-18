@@ -26,7 +26,7 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
           <div className="text-xs text-gray-400 capitalize">{user.role}</div>
         )}
       </div>
-      <div className="flex items-center gap-3">.
+      <div className="flex items-center gap-3">
 
         
         <button className="lg:hidden w-9 h-9 rounded-lg bg-white border" onClick={onOpenSidebar}>☰</button>

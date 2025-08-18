@@ -602,6 +602,59 @@ class LMSApiClient {
   }
 
   // =============================================================================
+  // FILE UPLOAD
+  // =============================================================================
+
+  async uploadAssignmentFile(assignmentId: string, file: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('assignment_id', assignmentId);
+      formData.append('file', file);
+
+      const response = await this.api.post('/media/assignments/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload assignment file');
+    }
+  }
+
+  async uploadSubmissionFile(assignmentId: string, file: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('assignment_id', assignmentId);
+      formData.append('file', file);
+
+      const response = await this.api.post('/media/submissions/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload submission file');
+    }
+  }
+
+  async downloadFile(fileType: string, filename: string): Promise<Blob> {
+    try {
+      const response = await this.api.get(`/media/files/${fileType}/${filename}`, {
+        responseType: 'blob',
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to download file');
+    }
+  }
+
+  getFileUrl(fileType: string, filename: string): string {
+    return `${API_BASE_URL}/media/files/${fileType}/${filename}`;
+  }
+
+  // =============================================================================
   // PROGRESS
   // =============================================================================
 
@@ -849,23 +902,9 @@ class LMSApiClient {
   // ADMIN
   // =============================================================================
 
-  async createUser(userData: any): Promise<User> {
-    try {
-      const response = await this.api.post('/admin/users/single', userData);
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to create user');
-    }
-  }
 
-  async getUsers(params = {}) {
-    try {
-      const response = await this.api.get('/admin/users', { params });
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to load users');
-    }
-  }
+
+
 
   async getAdminStats() {
     try {
@@ -974,6 +1013,15 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       throw new Error('Failed to fetch groups');
+    }
+  }
+
+  async getTeacherGroups(): Promise<Group[]> {
+    try {
+      const response = await this.api.get('/admin/groups');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch teacher groups');
     }
   }
 
@@ -1104,9 +1152,22 @@ class LMSApiClient {
   async getGroupStudents(groupId: number): Promise<User[]> {
     try {
       const response = await this.api.get(`/admin/groups/${groupId}/students`);
-      return response.data;
+      return response.data || [];
     } catch (error) {
-      throw new Error('Failed to fetch group students');
+      console.error(`Failed to fetch group students for group ${groupId}:`, error);
+      // Возвращаем пустой массив вместо выброса исключения
+      return [];
+    }
+  }
+
+  async getStudentProgress(studentId: string): Promise<any[]> {
+    try {
+      const response = await this.api.get(`/progress/student/${studentId}`);
+      return response.data || [];
+    } catch (error) {
+      console.error('Failed to fetch student progress:', error);
+      // Возвращаем пустой массив вместо выброса исключения
+      return [];
     }
   }
 
@@ -1189,6 +1250,11 @@ export const {
   getAssignment,
   submitAssignment,
   getMySubmissions,
+  // File upload
+  uploadAssignmentFile,
+  uploadSubmissionFile,
+  downloadFile,
+  getFileUrl,
   getCourseProgress,
   getMyProgress,
   markLessonComplete,
@@ -1225,6 +1291,7 @@ export const {
   isLectureCompleted,
   // Group management
   getGroups,
+  getTeacherGroups,
   getCourseGroups,
   grantCourseAccessToGroup,
   revokeCourseAccessFromGroup,
@@ -1240,6 +1307,7 @@ export const {
   deleteGroup,
   assignTeacherToGroup,
   getGroupStudents,
+  getStudentProgress,
   createUser,
   resetUserPassword
 } = apiClient;

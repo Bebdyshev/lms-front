@@ -2,21 +2,25 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
-import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText } from 'lucide-react';
+import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download } from 'lucide-react';
 
 interface AssignmentWithStatus {
   id: number;
   title: string;
   description?: string;
   lesson_id: number;
+  group_id?: number;
   due_date?: string;
   created_at: string;
   lesson_title?: string;
   course_title?: string;
+  file_url?: string;
+  allowed_file_types?: string[];
   status?: 'not_submitted' | 'submitted' | 'graded' | 'overdue';
   score?: number;
   submitted_at?: string;
   graded_at?: string;
+  has_file_submission?: boolean;
 }
 
 export default function AssignmentsPage() {
@@ -25,7 +29,7 @@ export default function AssignmentsPage() {
   const [assignments, setAssignments] = useState<AssignmentWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'graded'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'graded' | 'overdue'>('all');
 
   useEffect(() => {
     loadAssignments();
@@ -46,10 +50,11 @@ export default function AssignmentsPage() {
           let score = undefined;
           let submitted_at = undefined;
           let graded_at = undefined;
+          let has_file_submission = false;
 
           try {
             // Try to get submission status for this assignment
-            const submissions = await apiClient.getSubmissions({ assignment_id: assignment.id });
+            const submissions = await apiClient.getMySubmissions();
             const mySubmission = submissions.find((sub: any) => sub.user_id === user?.id);
             
             if (mySubmission) {
@@ -61,6 +66,7 @@ export default function AssignmentsPage() {
                 status = 'submitted';
               }
               submitted_at = mySubmission.submitted_at;
+              has_file_submission = !!mySubmission.file_url;
             } else if (assignment.due_date && new Date(assignment.due_date) < new Date()) {
               status = 'overdue';
             }
@@ -74,7 +80,8 @@ export default function AssignmentsPage() {
             status,
             score,
             submitted_at,
-            graded_at
+            graded_at,
+            has_file_submission
           };
         })
       );
@@ -91,11 +98,13 @@ export default function AssignmentsPage() {
   const filteredAssignments = assignments.filter(assignment => {
     switch (filter) {
       case 'pending':
-        return assignment.status === 'not_submitted' || assignment.status === 'overdue';
+        return assignment.status === 'not_submitted';
       case 'submitted':
         return assignment.status === 'submitted';
       case 'graded':
         return assignment.status === 'graded';
+      case 'overdue':
+        return assignment.status === 'overdue';
       default:
         return true;
     }
@@ -149,6 +158,10 @@ export default function AssignmentsPage() {
     }
   };
 
+  const isOverdue = (dueDate: string) => {
+    return new Date(dueDate) < new Date();
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -200,9 +213,10 @@ export default function AssignmentsPage() {
       <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex">
         {[
           { key: 'all', label: 'All', count: assignments.length },
-          { key: 'pending', label: 'Pending', count: assignments.filter(a => a.status === 'not_submitted' || a.status === 'overdue').length },
+          { key: 'pending', label: 'Pending', count: assignments.filter(a => a.status === 'not_submitted').length },
           { key: 'submitted', label: 'Submitted', count: assignments.filter(a => a.status === 'submitted').length },
-          { key: 'graded', label: 'Graded', count: assignments.filter(a => a.status === 'graded').length }
+          { key: 'graded', label: 'Graded', count: assignments.filter(a => a.status === 'graded').length },
+          { key: 'overdue', label: 'Overdue', count: assignments.filter(a => a.status === 'overdue').length }
         ].map(tab => (
           <button
             key={tab.key}
@@ -219,7 +233,7 @@ export default function AssignmentsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
           <div className="flex items-center">
             <FileText className="w-6 h-6 text-gray-600 mr-2" />
@@ -236,7 +250,7 @@ export default function AssignmentsPage() {
             <div>
               <div className="text-sm text-gray-600">Pending</div>
               <div className="text-xl font-bold">
-                {assignments.filter(a => a.status === 'not_submitted' || a.status === 'overdue').length}
+                {assignments.filter(a => a.status === 'not_submitted').length}
               </div>
             </div>
           </div>
@@ -261,6 +275,18 @@ export default function AssignmentsPage() {
               <div className="text-sm text-gray-600">Overdue</div>
               <div className="text-xl font-bold">
                 {assignments.filter(a => a.status === 'overdue').length}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <Download className="w-6 h-6 text-purple-600 mr-2" />
+            <div>
+              <div className="text-sm text-gray-600">With Files</div>
+              <div className="text-xl font-bold">
+                {assignments.filter(a => a.file_url || a.has_file_submission).length}
               </div>
             </div>
           </div>
@@ -291,6 +317,7 @@ export default function AssignmentsPage() {
                   <th className="text-left px-6 py-3 font-medium">Lesson</th>
                   <th className="text-left px-6 py-3 font-medium">Due Date</th>
                   <th className="text-left px-6 py-3 font-medium">Status</th>
+                  <th className="text-left px-6 py-3 font-medium">Files</th>
                   <th className="text-left px-6 py-3 font-medium">Action</th>
                 </tr>
               </thead>
@@ -312,9 +339,12 @@ export default function AssignmentsPage() {
                     </td>
                     <td className="px-6 py-4 text-gray-600">
                       {assignment.due_date ? (
-                        <div className="flex items-center">
+                        <div className={`flex items-center ${isOverdue(assignment.due_date) ? 'text-red-600' : ''}`}>
                           <Calendar className="w-4 h-4 mr-1" />
                           {new Date(assignment.due_date).toLocaleDateString()}
+                          {isOverdue(assignment.due_date) && (
+                            <AlertCircle className="w-4 h-4 ml-1" />
+                          )}
                         </div>
                       ) : (
                         <span className="text-gray-400">No deadline</span>
@@ -322,6 +352,22 @@ export default function AssignmentsPage() {
                     </td>
                     <td className="px-6 py-4">
                       {getStatusBadge(assignment)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        {assignment.file_url && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                            <Download className="w-3 h-3 mr-1" />
+                            Has file
+                          </span>
+                        )}
+                        {assignment.has_file_submission && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            <Download className="w-3 h-3 mr-1" />
+                            Submitted
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <button

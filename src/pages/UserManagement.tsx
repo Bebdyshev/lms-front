@@ -1486,9 +1486,9 @@ interface GroupFormProps {
 function GroupForm({ formData, setFormData, teachers, curators, students, errors = {} }: GroupFormProps) {
   // Функция для генерации названия группы
   const generateGroupName = (teacherName: string, description?: string) => {
-    const baseName = teacherName;
+    const firstName = teacherName.split(" ")[0]; // Берем только первое имя
     const suffix = description?.trim() || 'Group';
-    return `${baseName} - ${suffix}`;
+    return `${firstName} - ${suffix}`;
   };
 
   // Автоматически обновляем название группы при изменении учителя или описания
@@ -1556,7 +1556,7 @@ function GroupForm({ formData, setFormData, teachers, curators, students, errors
         <Input
           id="group_name"
           type="text"
-          value={formData.name.split(" ")[0]}
+          value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           required
           className={errors.name ? 'border-red-500' : ''}
@@ -1566,7 +1566,7 @@ function GroupForm({ formData, setFormData, teachers, curators, students, errors
           <p className="text-red-500 text-xs mt-1">{errors.name}</p>
         )}
         <p className="text-xs text-gray-500 mt-1">
-          Format: "Teacher Name - Description". You can edit this field.
+          Format: "First Name - Description". You can edit this field.
         </p>
       </div>
       

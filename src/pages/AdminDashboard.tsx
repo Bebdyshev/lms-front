@@ -17,6 +17,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import Loader from '../components/Loader';
+import { Button } from '../components/ui/button';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -61,20 +62,21 @@ export default function AdminDashboard() {
           <p className="text-gray-600 mt-1">System overview and management</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/admin/users')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <UserPlus className="w-4 h-4" />
-            Add User
-          </button>
-          <button
-            onClick={() => navigate('/admin/groups')}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          <Button
+            onClick={() => navigate('/admin/users?tab=1')}
+            variant="outline"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg"
           >
             <Plus className="w-4 h-4" />
             Create Group
-          </button>
+          </Button>
+          <Button
+            onClick={() => navigate('/admin/users')}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add User
+          </Button>
         </div>
       </div>
 

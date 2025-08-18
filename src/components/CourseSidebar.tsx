@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Button } from './ui/button';
 
 import { 
   BookOpen, 
@@ -89,16 +90,13 @@ export default function CourseSidebar({
             </div>
           </div>
         </div>
-        <button 
+        <Button 
           onClick={handlePublish}
-          className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            isActive 
-              ? 'bg-gray-100 text-gray-500'
-              : 'bg-green-600 hover:bg-green-700 text-white'
-          }`}
+          variant={isActive ? 'secondary' : 'outline'}
+          className='w-full'
         >
           {isActive ? 'Published' : 'Publish'}
-        </button>
+        </Button>
       </div>
 
       {/* Course Navigation */}
@@ -124,17 +122,14 @@ export default function CourseSidebar({
       {/* Save Button */}
       {onSave && (
         <div className="p-6 pt-0 mt-auto">
-          <button
+          <Button
             onClick={onSave}
             disabled={!hasUnsavedChanges}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-              hasUnsavedChanges
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            }`}
+            className='w-full'
+            variant={hasUnsavedChanges ? 'default' : 'outline'}
           >
             {hasUnsavedChanges ? `Save` : 'No Changes'}
-          </button>
+          </Button>
         </div>
       )}
     </div>
