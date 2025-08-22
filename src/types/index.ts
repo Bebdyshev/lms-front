@@ -39,6 +39,94 @@ export interface RefreshTokenRequest {
 }
 
 // =============================================================================
+// STEP TYPES
+// =============================================================================
+
+export interface Step {
+  id: number;
+  lesson_id: number;
+  title: string;
+  content_type: 'text' | 'video_text' | 'quiz';
+  video_url?: string;
+  content_text?: string;
+  order_index: number;
+  created_at: string;
+}
+
+export interface StepProgress {
+  id: number;
+  user_id: number;
+  course_id: number;
+  lesson_id: number;
+  step_id: number;
+  status: 'not_started' | 'completed';
+  visited_at?: string;
+  completed_at?: string;
+  time_spent_minutes: number;
+}
+
+export interface StepProgressCreate {
+  step_id: number;
+  time_spent_minutes: number;
+}
+
+export interface StudentStepProgress {
+  student_id: number;
+  student_name: string;
+  completed_steps: number;
+  total_steps: number;
+  completion_percentage: number;
+  time_spent_minutes: number;
+}
+
+export interface LessonStepsProgress {
+  lesson_id: number;
+  lesson_title: string;
+  total_steps: number;
+  students_progress: StudentStepProgress[];
+}
+
+export interface ModuleStepsProgress {
+  module_id: number;
+  module_title: string;
+  lessons: LessonStepsProgress[];
+}
+
+export interface CourseStepsProgress {
+  course_id: number;
+  course_title: string;
+  total_students: number;
+  modules: ModuleStepsProgress[];
+}
+
+export interface StudentProgressOverview {
+  student_id: number;
+  student_name: string;
+  total_courses: number;
+  total_lessons: number;
+  total_steps: number;
+  completed_lessons: number;
+  completed_steps: number;
+  overall_completion_percentage: number;
+  total_time_spent_minutes: number;
+  courses: StudentCourseProgress[];
+}
+
+export interface StudentCourseProgress {
+  course_id: number;
+  course_title: string;
+  teacher_name: string;
+  cover_image_url?: string;
+  total_lessons: number;
+  total_steps: number;
+  completed_lessons: number;
+  completed_steps: number;
+  completion_percentage: number;
+  time_spent_minutes: number;
+  last_accessed?: string;
+}
+
+// =============================================================================
 // COURSE TYPES
 // =============================================================================
 
@@ -48,7 +136,11 @@ export interface Course {
   description: string;
   teacher_id: string;
   teacher?: User;
+  teacher_name?: string; // Added to match backend response
   image?: string;
+  coverImageUrl?: string;
+  estimatedDurationMinutes?: number;
+  isActive?: boolean;
   created_at: string;
   updated_at: string;
   progress?: number; // For student view
@@ -158,11 +250,29 @@ export interface CourseModule {
   title: string;
   description: string;
   order_index: number;
+  total_lessons?: number;
+  lessons?: Lesson[];
   created_at: string;
   updated_at: string;
 }
 
+// Updated lesson interface without content fields
 export interface Lesson {
+  id: string;
+  module_id: string;
+  title: string;
+  description: string;
+  order_index: number;
+  duration_minutes?: number;
+  created_at: string;
+  updated_at: string;
+  is_completed?: boolean; // For student view
+  steps?: Step[];
+  total_steps?: number;
+}
+
+// Legacy lesson interface for backward compatibility (will be removed)
+export interface LegacyLesson {
   id: string;
   module_id: string;
   title: string;
@@ -189,6 +299,7 @@ export interface QuestionOption {
   text: string;
   is_correct: boolean;
   image_url?: string;
+  letter?: string; // For SAT format: A, B, C, D
 }
 
 export interface Question {
@@ -200,6 +311,11 @@ export interface Question {
   correct_answer: any; // Use any to avoid complex type issues
   points: number;
   order_index: number;
+  // SAT-specific fields
+  explanation?: string; // Explanation for the correct answer
+  original_image_url?: string; // URL of the original SAT image
+  is_sat_question?: boolean; // Flag to identify SAT questions
+  content_text?: string; // The full content/passage that the question is based on
 }
 
 export interface QuizData {

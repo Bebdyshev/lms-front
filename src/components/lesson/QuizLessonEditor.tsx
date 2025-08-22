@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Question } from '../../types';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -6,6 +7,8 @@ import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import apiClient from '../../services/api';
+import { Textarea } from '../ui/textarea';
 
 export interface QuizLessonEditorProps {
   quizTitle: string;
@@ -24,24 +27,34 @@ export default function QuizLessonEditor({
   quizTimeLimit,
   setQuizTimeLimit,
 }: QuizLessonEditorProps) {
-  const addQuestion = () => {
-    const newQuestion: Question = {
-      id: Date.now().toString(),
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [draftQuestion, setDraftQuestion] = useState<Question | null>(null);
+  const [showSatImageModal, setShowSatImageModal] = useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [satAnalysisResult, setSatAnalysisResult] = useState<any>(null);
+
+  const openAddQuestion = () => {
+    const ts = Date.now().toString();
+    const base: Question = {
+      id: ts,
       assignment_id: '',
       question_text: '',
       question_type: 'single_choice',
       options: [
-        { id: Date.now().toString() + '_1', text: 'Option 1', is_correct: false },
-        { id: Date.now().toString() + '_2', text: 'Option 2', is_correct: false },
-        { id: Date.now().toString() + '_3', text: 'Option 3', is_correct: false },
-        { id: Date.now().toString() + '_4', text: 'Option 4', is_correct: false }
+        { id: ts + '_1', text: 'Option 1', is_correct: false },
+        { id: ts + '_2', text: 'Option 2', is_correct: false },
       ],
-      correct_answer: 0, // First option is correct by default for single choice
+      correct_answer: 0,
       points: 10,
-      order_index: quizQuestions.length
+      order_index: quizQuestions.length,
     };
-    console.log('Adding new question:', newQuestion);
-    setQuizQuestions([...quizQuestions, newQuestion]);
+    setDraftQuestion(base);
+    setShowQuestionModal(true);
+  };
+
+  const applyDraftUpdate = (patch: Partial<Question>) => {
+    if (!draftQuestion) return;
+    setDraftQuestion({ ...draftQuestion, ...patch });
   };
 
   const updateQuestion = (index: number, field: keyof Question, value: any) => {
@@ -228,8 +241,134 @@ export default function QuizLessonEditor({
     }
   };
 
+  const updateDraftOptionText = (idx: number, text: string) => {
+    if (!draftQuestion || !draftQuestion.options) return;
+    const options = [...draftQuestion.options];
+    options[idx] = { ...options[idx], text };
+    applyDraftUpdate({ options });
+  };
+
+  const addDraftOption = () => {
+    if (!draftQuestion) return;
+    const options = draftQuestion.options ? [...draftQuestion.options] : [];
+    options.push({ id: Date.now().toString(), text: '', is_correct: false });
+    applyDraftUpdate({ options });
+  };
+
+  const removeDraftOption = (idx: number) => {
+    if (!draftQuestion || !draftQuestion.options) return;
+    const options = draftQuestion.options.filter((_, i) => i !== idx);
+    // Adjust correct_answer indices if needed
+    let correct = draftQuestion.correct_answer;
+    if (draftQuestion.question_type === 'single_choice' && typeof correct === 'number') {
+      if (correct === idx) correct = 0;
+      else if (correct > idx) correct = correct - 1;
+    } else if (draftQuestion.question_type === 'multiple_choice' && Array.isArray(correct)) {
+      correct = correct.filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i));
+      if (correct.length === 0) correct = [0];
+    }
+    applyDraftUpdate({ options, correct_answer: correct });
+  };
+
+  const setDraftCorrect = (idx: number, checked: boolean) => {
+    if (!draftQuestion) return;
+    if (draftQuestion.question_type === 'single_choice') {
+      if (checked) applyDraftUpdate({ correct_answer: idx });
+    } else if (draftQuestion.question_type === 'multiple_choice') {
+      const current = Array.isArray(draftQuestion.correct_answer)
+        ? [...draftQuestion.correct_answer]
+        : [];
+      const next = checked ? Array.from(new Set([...current, idx])) : current.filter((i) => i !== idx);
+      applyDraftUpdate({ correct_answer: next });
+    }
+  };
+
+  const saveDraftQuestion = () => {
+    if (!draftQuestion) return;
+    const toSave: Question = {
+      ...draftQuestion,
+      order_index: quizQuestions.length,
+    };
+    setQuizQuestions([...quizQuestions, toSave]);
+    setShowQuestionModal(false);
+    setDraftQuestion(null);
+  };
+
+  const analyzeImageFile = React.useCallback(async (file: File) => {
+    setIsAnalyzingImage(true);
+    try {
+      const result = await apiClient.analyzeSatImage(file);
+      setSatAnalysisResult(result);
+      
+      // Convert SAT format to our Question format
+      const satQuestion: Question = {
+        id: Date.now().toString(),
+        assignment_id: '',
+        question_text: result.question_text,
+        question_type: 'single_choice',
+        options: result.options?.map((opt: any, index: number) => ({
+          id: Date.now().toString() + '_' + index,
+          text: opt.text,
+          is_correct: opt.letter === result.correct_answer,
+          letter: opt.letter
+        })) || [],
+        correct_answer: result.options?.findIndex((opt: any) => opt.letter === result.correct_answer) || 0,
+        points: 10,
+        order_index: quizQuestions.length,
+        explanation: result.explanation,
+        original_image_url: result.image_url,
+        is_sat_question: true,
+        content_text: result.content_text
+      };
+      
+      setDraftQuestion(satQuestion);
+      setShowSatImageModal(false);
+      setShowQuestionModal(true);
+    } catch (error) {
+      console.error('Error analyzing SAT image:', error);
+      alert('Failed to analyze image. Please try again.');
+    } finally {
+      setIsAnalyzingImage(false);
+    }
+  }, [quizQuestions.length]);
+
+  const handleSatImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    await analyzeImageFile(file);
+  };
+
+  // Global paste handler for the entire component
+  React.useEffect(() => {
+    const handleGlobalPaste = async (event: ClipboardEvent) => {
+      // Only handle paste if SAT modal is open
+      if (!showSatImageModal) return;
+      
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            event.preventDefault();
+            await analyzeImageFile(file);
+            break;
+          }
+        }
+      }
+    };
+
+    document.addEventListener('paste', handleGlobalPaste);
+    return () => {
+      document.removeEventListener('paste', handleGlobalPaste);
+    };
+  }, [showSatImageModal, analyzeImageFile]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-1">
       {/* Quiz Basic Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -244,9 +383,18 @@ export default function QuizLessonEditor({
         </div>
         <div className="space-y-2">
           <Label>Max Score</Label>
-          <div className="flex items-center px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
-            <span className="text-gray-700">{quizQuestions.length} points</span>
-          </div>
+          <Input
+            id="max-score"
+            type="number"
+            value={quizQuestions.length}
+            onChange={(e) => {
+              // This should probably be calculated automatically, not set manually
+              // For now, just ignore the input
+            }}
+            min="1"
+            placeholder="Auto-calculated"
+            disabled
+          />
         </div>
       </div>
 
@@ -266,9 +414,14 @@ export default function QuizLessonEditor({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium text-gray-900">Questions</h3>
-          <Button onClick={addQuestion} variant="default">
-            Add Question
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowSatImageModal(true)} variant="outline">
+              Analyze SAT Image
+            </Button>
+            <Button onClick={openAddQuestion} variant="default">
+              Add Question
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -337,6 +490,24 @@ export default function QuizLessonEditor({
                   </div>
                 </div>
 
+                {question.is_sat_question && question.explanation && (
+                  <div className="space-y-2">
+                    <Label>Explanation</Label>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-800">{question.explanation}</p>
+                    </div>
+                  </div>
+                )}
+
+                {question.is_sat_question && question.content_text && (
+                  <div className="space-y-2">
+                    <Label>Content</Label>
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{question.content_text}</p>
+                    </div>
+                  </div>
+                )}
+
                 {(question.question_type === 'single_choice' || question.question_type === 'multiple_choice') && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -371,6 +542,9 @@ export default function QuizLessonEditor({
                               checked={isOptionCorrect(question, optionIndex)}
                               onCheckedChange={(checked) => updateCorrectAnswer(questionIndex, optionIndex, checked === true)}
                             />
+                          )}
+                          {question.is_sat_question && option.letter && (
+                            <span className="font-bold text-blue-600 w-6 text-center">{option.letter}.</span>
                           )}
                           <Input
                             type="text"
@@ -427,6 +601,198 @@ export default function QuizLessonEditor({
         )}
 
       </div>
+
+      {showQuestionModal && draftQuestion && createPortal(
+        <div className="fixed inset-0 z-[1000]">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative z-[1001] flex items-center justify-center min-h-screen">
+            <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Add Question</h3>
+                <Button variant="outline" onClick={() => { setShowQuestionModal(false); setDraftQuestion(null); }}>Close</Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Question Text</Label>
+                  <Input
+                    value={draftQuestion.question_text}
+                    onChange={(e) => applyDraftUpdate({ question_text: e.target.value })}
+                    placeholder="Enter your question"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Points</Label>
+                  <Input
+                    type="number"
+                    value={draftQuestion.points}
+                    onChange={(e) => applyDraftUpdate({ points: parseInt(e.target.value) || 0 })}
+                    min={1}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Question Type</Label>
+                  <Select
+                    value={draftQuestion.question_type}
+                    onValueChange={(value) => {
+                      // reset correct answer according to type
+                      if (value === 'single_choice') applyDraftUpdate({ question_type: 'single_choice', correct_answer: 0 });
+                      else if (value === 'multiple_choice') applyDraftUpdate({ question_type: 'multiple_choice', correct_answer: [0] });
+                      else applyDraftUpdate({ question_type: 'fill_blank', correct_answer: '' });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single_choice">Single Choice</SelectItem>
+                      <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                      <SelectItem value="fill_blank">Fill in the Blank</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {draftQuestion.is_sat_question && (
+                  <div className="space-y-2">
+                    <Label>Explanation</Label>
+                    <Input
+                      value={draftQuestion.explanation || ''}
+                      onChange={(e) => applyDraftUpdate({ explanation: e.target.value })}
+                      placeholder="Explanation for the correct answer"
+                    />
+                  </div>
+                )}
+
+                {draftQuestion.is_sat_question && (
+                  <div className="space-y-2">
+                    <Label>Passage:</Label>
+                    <Textarea
+                      value={draftQuestion.content_text || ''}
+                      onChange={(e) => applyDraftUpdate({ content_text: e.target.value })}
+                      placeholder="The full content/passage that the question is based on"
+                      className="w-full p-2 border border-gray-300 rounded-md min-h-[100px] resize-y"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {(draftQuestion.question_type === 'single_choice' || draftQuestion.question_type === 'multiple_choice') && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Options</Label>
+                    <Button variant="outline" size="sm" onClick={addDraftOption}>Add Option</Button>
+                  </div>
+                  <div className="space-y-2">
+                    {draftQuestion.options?.map((opt, idx) => (
+                      <div key={opt.id} className="flex items-center gap-2 p-2 border rounded-md bg-white">
+                        {draftQuestion.question_type === 'single_choice' ? (
+                          <input
+                            type="radio"
+                            name="draft-correct"
+                            checked={draftQuestion.correct_answer === idx}
+                            onChange={() => setDraftCorrect(idx, true)}
+                          />
+                        ) : (
+                          <Checkbox
+                            checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
+                            onCheckedChange={(checked) => setDraftCorrect(idx, checked === true)}
+                          />
+                        )}
+                        <Input
+                          value={opt.text}
+                          onChange={(e) => updateDraftOptionText(idx, e.target.value)}
+                          placeholder={`Option ${idx + 1}`}
+                          className="flex-1"
+                        />
+                        {draftQuestion.options && draftQuestion.options.length > 2 && (
+                          <Button variant="destructive" size="sm" onClick={() => removeDraftOption(idx)}>Remove</Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {draftQuestion.question_type === 'fill_blank' && (
+                <div className="space-y-2">
+                  <Label>Correct Answer</Label>
+                  <Input
+                    value={(draftQuestion.correct_answer as string) || ''}
+                    onChange={(e) => applyDraftUpdate({ correct_answer: e.target.value })}
+                    placeholder="Enter the correct answer"
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => { setShowQuestionModal(false); setDraftQuestion(null); }}>Cancel</Button>
+                <Button onClick={saveDraftQuestion} className="bg-blue-600 hover:bg-blue-700">Save Question</Button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* SAT Image Analysis Modal */}
+      {showSatImageModal && createPortal(
+        <div className="fixed inset-0 z-[1000]">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative z-[1001] flex items-center justify-center min-h-screen">
+            <div 
+              className="bg-white rounded-lg w-full max-w-md p-6 space-y-4 shadow-xl"
+              tabIndex={0}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Import SAT Image</h3>
+                <Button variant="outline" onClick={() => setShowSatImageModal(false)}>Close</Button>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Upload an image of a SAT question to automatically extract the question text, options, and correct answer.
+                </p>
+                
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSatImageUpload}
+                    className="hidden"
+                    id="sat-image-upload"
+                    disabled={isAnalyzingImage}
+                  />
+                  <label htmlFor="sat-image-upload" className="cursor-pointer">
+                    <div className="space-y-2">
+                      <div className="text-4xl">📷</div>
+                      <div className="text-sm font-medium">
+                        {isAnalyzingImage ? 'Analyzing...' : 'Click to upload image'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Supports JPG, PNG, GIF
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="text-center">
+                  <div className="text-sm text-gray-500 mb-2">or</div>
+                  <div className="text-sm text-gray-600">
+                    Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Ctrl+V</kbd> to paste from clipboard
+                  </div>
+                </div>
+
+                {isAnalyzingImage && (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-sm text-gray-600 mt-2">Analyzing image with AI...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

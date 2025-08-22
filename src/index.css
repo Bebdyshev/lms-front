@@ -98,6 +98,31 @@
     user-select: none;
   }
   
+  /* Custom scrollbar styles */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db #f3f4f6;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #f3f4f6;
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+  
   /* Rich Text Editor Styles */
   .rich-text-editor {
     border-radius: 0.5rem;
@@ -167,10 +192,49 @@
   
   .rich-text-editor .ql-editor pre {
     background-color: #f3f4f6;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    overflow-x: auto;
-    margin: 1rem 0;
+  }
+
+  /* Copy Protection Styles */
+  .copy-protected {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .copy-protected * {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+  }
+
+  .copy-protected::selection {
+    background: transparent !important;
+  }
+
+  .copy-protected *::selection {
+    background: transparent !important;
+  }
+
+  /* Student content protection */
+  .student-content {
+    position: relative;
+  }
+
+  .student-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    background: linear-gradient(45deg, transparent 49%, rgba(59, 130, 246, 0.01) 50%, transparent 51%);
+    background-size: 30px 30px;
+    z-index: 1;
   }
   
   .rich-text-editor .ql-editor ul,
@@ -199,8 +263,6 @@
     margin: 0.5rem 0;
   }
 }
-
-
 
 @layer base {
   :root {

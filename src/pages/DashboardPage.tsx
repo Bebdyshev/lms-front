@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import SummaryCard from '../components/SummaryCard';
-import CourseCard from '../components/CourseCard';
+// import SummaryCard from '../components/SummaryCard';
+// import CourseCard from '../components/CourseCard';
+import StudentDashboard from './StudentDashboard';
 import TeacherDashboard from './TeacherDashboard.tsx';
 import AdminDashboard from './AdminDashboard.tsx';
 import apiClient from "../services/api";
@@ -113,68 +114,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="pl-32 pr-8 pt-4 space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold">Welcome back, {firstName}!</h2>
-        <p className="text-gray-600 text-base">Continue your learning journey with Master Education</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-        <SummaryCard
-          icon="/assets/book.svg"
-          value={user?.role === 'student' ? stats.courses_count || 0 : stats.courses_count || 0}
-          label={user?.role === 'student' ? "Enrolled Courses" : "Total Courses"}
-        />
-        <SummaryCard
-          icon="/assets/clock.svg"
-          value={user?.role === 'student' ? `${Math.round((stats.total_study_time || 0) / 60)}h` : `${stats.courses_count || 0}`}
-          label={user?.role === 'student' ? "Total Study Time" : "Total Students"}
-        />
-        <SummaryCard
-          icon="/assets/chart.svg"
-          value={user?.role === 'student' ? `${stats.overall_progress || 0}%` : `${stats.assignments_pending || 0}`}
-          label={user?.role === 'student' ? "Avg. Progress" : "Active Enrollments"}
-        />
-      </div>
-
-
-
-      <div className="mt-12">
-        <h3 className="text-2xl font-semibold mb-4">
-          {user?.role === 'student' ? 'My Courses' : 'Recent Courses'}
-        </h3>
-        {recentCourses.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <p>No courses available</p>
-            {isTeacher() && (
-              <button 
-                onClick={() => navigate('/teacher/courses')}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Create Your First Course
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recentCourses.map(course => (
-              <CourseCard
-                key={course.id}
-                course={{
-                  id: course.id,
-                  title: course.title,
-                  teacher: course.teacher?.name || 'Unknown',
-                  progress: 0,
-                  status: 'active',
-                  image: course.image,
-                  modulesCount: 0
-                }}
-                onContinue={(id: string) => navigate(`/course/${id}`)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <StudentDashboard
+      firstName={firstName}
+      stats={stats}
+      recentCourses={recentCourses}
+      recentActivity={dashboardData?.recent_activity || []}
+      onContinueCourse={(id: string) => navigate(`/course/${id}`)}
+      onGoToAllCourses={() => navigate('/courses')}
+    />
   );
 }

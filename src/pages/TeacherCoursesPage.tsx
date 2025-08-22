@@ -298,7 +298,7 @@ export default function TeacherCoursesPage() {
                           title="Edit course"
                           aria-label="Edit course"
                         >
-                          <Link to={`/teacher/course/${course.id}/builder`}>
+                          <Link to={`/teacher/course/${course.id}`}>
                             <Pencil className="w-4 h-4" />
                           </Link>
                         </Button>

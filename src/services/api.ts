@@ -14,7 +14,11 @@ import type {
   CreateGroupRequest,
   UpdateGroupRequest,
   CreateUserRequest,
-  UpdateUserRequest
+  UpdateUserRequest,
+  Step,
+  StepProgress,
+  CourseStepsProgress,
+  StudentProgressOverview
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -430,9 +434,10 @@ class LMSApiClient {
   // MODULES
   // =============================================================================
 
-  async getCourseModules(courseId: string): Promise<CourseModule[]> {
+  async getCourseModules(courseId: string, includeLessons: boolean = false): Promise<CourseModule[]> {
     try {
-      const response = await this.api.get(`/courses/${courseId}/modules`);
+      const params = includeLessons ? { include_lessons: 'true' } : {};
+      const response = await this.api.get(`/courses/${courseId}/modules`, { params });
       return response.data;
     } catch (error) {
       throw new Error('Failed to load modules');
@@ -487,6 +492,15 @@ class LMSApiClient {
     }
   }
 
+  async getCourseLessonsTyped(courseId: string): Promise<Array<{type: string, data: any}>> {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/lessons/typed`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load course lessons');
+    }
+  }
+
   async fixLessonOrder(courseId: string): Promise<any> {
     try {
       const response = await this.api.post(`/courses/${courseId}/fix-lesson-order`);
@@ -499,6 +513,15 @@ class LMSApiClient {
   async getLesson(lessonId: string): Promise<Lesson> {
     try {
       const response = await this.api.get(`/courses/lessons/${lessonId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load lesson');
+    }
+  }
+
+  async getLessonTyped(lessonId: string): Promise<{type: string, data: any}> {
+    try {
+      const response = await this.api.get(`/courses/lessons/${lessonId}/typed`);
       return response.data;
     } catch (error) {
       throw new Error('Failed to load lesson');
@@ -531,18 +554,139 @@ class LMSApiClient {
     }
   }
 
-  async getLessonMaterials(lessonId: string): Promise<any[]> {
+  // =============================================================================
+  // STEP MANAGEMENT
+  // =============================================================================
+
+  async getLessonSteps(lessonId: string): Promise<Step[]> {
     try {
-      const response = await this.api.get(`/courses/lessons/${lessonId}/materials`);
+      const response = await this.api.get(`/courses/lessons/${lessonId}/steps`);
       return response.data;
     } catch (error) {
-      console.warn('Failed to load lesson materials:', error);
-      return [];
+      throw new Error('Failed to get lesson steps');
+    }
+  }
+
+  async createStep(lessonId: string, stepData: any): Promise<Step> {
+    try {
+      const response = await this.api.post(`/courses/lessons/${lessonId}/steps`, stepData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create step');
+    }
+  }
+
+  async getStep(stepId: string): Promise<Step> {
+    try {
+      const response = await this.api.get(`/courses/steps/${stepId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get step');
+    }
+  }
+
+  async updateStep(stepId: string, stepData: any): Promise<Step> {
+    try {
+      const response = await this.api.put(`/courses/steps/${stepId}`, stepData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update step');
+    }
+  }
+
+  async deleteStep(stepId: string): Promise<void> {
+    try {
+      await this.api.delete(`/courses/steps/${stepId}`);
+    } catch (error) {
+      throw new Error('Failed to delete step');
+    }
+  }
+
+  // SAT Image Analysis
+  async analyzeSatImage(imageFile: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      
+      const response = await this.api.post('/courses/analyze-sat-image', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to analyze SAT image');
+    }
+  }
+
+  // Course Enrollment
+  async enrollInCourse(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/enroll`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to enroll in course');
+    }
+  }
+
+  async autoEnrollStudents(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/auto-enroll-students`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to auto-enroll students');
+    }
+  }
+
+  // Course Group Access
+  async grantGroupAccess(courseId: string, groupId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/grant-group-access/${groupId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to grant group access');
+    }
+  }
+
+  async revokeGroupAccess(courseId: string, groupId: string): Promise<any> {
+    try {
+      const response = await this.api.delete(`/courses/${courseId}/revoke-group-access/${groupId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to revoke group access');
+    }
+  }
+
+  async getCourseGroups(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/groups`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get course groups');
+    }
+  }
+
+  async getCourseGroupAccessStatus(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/group-access-status`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get course group access status');
+    }
+  }
+
+  // Groups
+  async getGroups(): Promise<any> {
+    try {
+      const response = await this.api.get('/groups');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get groups');
     }
   }
 
   // =============================================================================
-  // ASSIGNMENTS
+  // ASSIGNMENT MANAGEMENT
   // =============================================================================
 
   async getAssignments(params = {}) {
@@ -928,8 +1072,8 @@ class LMSApiClient {
     return this.getCourse(courseId);
   }
 
-  fetchModulesByCourse = (courseId: string): Promise<CourseModule[]> => {
-    return this.getCourseModules(courseId);
+  fetchModulesByCourse = (courseId: string, includeLessons: boolean = false): Promise<CourseModule[]> => {
+    return this.getCourseModules(courseId, includeLessons);
   }
 
   fetchLectureById = (lectureId: string): Promise<Lesson> => {
@@ -1212,6 +1356,100 @@ class LMSApiClient {
       throw new Error('Failed to reset user password');
     }
   }
+
+  // Step management
+  async getLessonSteps(lessonId: string): Promise<Step[]> {
+    try {
+      const response = await this.api.get(`/courses/lessons/${lessonId}/steps`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get lesson steps');
+    }
+  }
+
+  async createStep(lessonId: string, stepData: any): Promise<Step> {
+    try {
+      const response = await this.api.post(`/courses/lessons/${lessonId}/steps`, stepData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to create step');
+    }
+  }
+
+  async updateStep(stepId: string, stepData: any): Promise<Step> {
+    try {
+      const response = await this.api.put(`/courses/steps/${stepId}`, stepData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update step');
+    }
+  }
+
+  async deleteStep(stepId: string): Promise<void> {
+    try {
+      await this.api.delete(`/courses/steps/${stepId}`);
+    } catch (error) {
+      throw new Error('Failed to delete step');
+    }
+  }
+
+  // Step progress tracking
+  async markStepVisited(stepId: string, timeSpent: number = 0): Promise<StepProgress> {
+    try {
+      const response = await this.api.post(`/progress/step/${stepId}/visit`, {
+        step_id: parseInt(stepId),
+        time_spent_minutes: timeSpent
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to mark step visited');
+    }
+  }
+
+  async getStepProgress(stepId: string): Promise<StepProgress> {
+    try {
+      const response = await this.api.get(`/progress/step/${stepId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get step progress');
+    }
+  }
+
+  async getLessonStepsProgress(lessonId: string): Promise<StepProgress[]> {
+    try {
+      const response = await this.api.get(`/progress/lesson/${lessonId}/steps`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get lesson steps progress');
+    }
+  }
+
+  async getCourseStudentsStepsProgress(courseId: string): Promise<CourseStepsProgress> {
+    try {
+      const response = await this.api.get(`/progress/course/${courseId}/students/steps`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get course students steps progress');
+    }
+  }
+
+  async getStudentProgressOverview(): Promise<StudentProgressOverview> {
+    try {
+      const response = await this.api.get('/progress/student/overview');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get student progress overview');
+    }
+  }
+
+  async getStudentProgressOverviewById(studentId: string): Promise<StudentProgressOverview> {
+    try {
+      const response = await this.api.get(`/progress/student/${studentId}/overview`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get student progress overview');
+    }
+  }
 }
 
 // =============================================================================
@@ -1245,6 +1483,11 @@ export const {
   createLesson,
   updateLesson,
   deleteLesson,
+  getLessonSteps,
+  createStep,
+  getStep,
+  updateStep,
+  deleteStep,
   fetchLesson,
   getAssignments,
   getAssignment,
@@ -1295,6 +1538,7 @@ export const {
   getCourseGroups,
   grantCourseAccessToGroup,
   revokeCourseAccessFromGroup,
+  getCourseGroupAccessStatus,
   // Admin management
   getAdminDashboard,
   getUsers,
@@ -1309,5 +1553,12 @@ export const {
   getGroupStudents,
   getStudentProgress,
   createUser,
-  resetUserPassword
+  resetUserPassword,
+  // Step management
+  markStepVisited,
+  getStepProgress,
+  getLessonStepsProgress,
+  getCourseStudentsStepsProgress,
+  getStudentProgressOverview,
+  getStudentProgressOverviewById
 } = apiClient;

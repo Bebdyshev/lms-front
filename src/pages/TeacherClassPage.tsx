@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
-import type { User, Group } from '../types';
+import type { User, Group, StudentProgressOverview } from '../types';
 import { 
   GraduationCap, 
   Users, 
@@ -13,13 +13,18 @@ import {
   ChevronRight,
   User as UserIcon,
   Mail,
-  Calendar
+  Calendar,
+  Clock,
+  CheckCircle,
+  Target
 } from 'lucide-react';
 import Loader from '../components/Loader';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+import { Progress } from '../components/ui/progress';
+import { Badge } from '../components/ui/badge';
 
 interface TeacherGroup extends Group {
   students: User[];
@@ -34,6 +39,13 @@ interface StudentStats {
   completed_courses: number;
   average_progress: number;
   last_activity: string | null;
+  // New detailed progress fields
+  total_lessons: number;
+  completed_lessons: number;
+  total_steps: number;
+  completed_steps: number;
+  total_time_spent_minutes: number;
+  overall_completion_percentage: number;
 }
 
 export default function TeacherClassPage() {
@@ -74,27 +86,26 @@ export default function TeacherClassPage() {
             // Получаем статистику для каждого студента
             const statsPromises = students.map(async (student) => {
               try {
-                const progressResponse = await apiClient.getStudentProgress(student.id);
-                const progress = progressResponse || [];
+                // Use new detailed progress endpoint for specific student
+                const progressOverview = await apiClient.getStudentProgressOverviewById(student.id.toString());
                 
-                const totalCourses = progress.length;
-                const completedCourses = progress.filter(p => p.completion_percentage >= 100).length;
-                const averageProgress = totalCourses > 0 
-                  ? progress.reduce((sum, p) => sum + p.completion_percentage, 0) / totalCourses 
-                  : 0;
-                
-                const lastActivity = progress.length > 0 
-                  ? Math.max(...progress.map(p => new Date(p.last_accessed || 0).getTime()))
-                  : null;
+                const stats = {
+                  total_courses: progressOverview.total_courses,
+                  completed_courses: progressOverview.courses.filter(c => c.completion_percentage >= 100).length,
+                  average_progress: progressOverview.overall_completion_percentage,
+                  last_activity: null, // Would need to be calculated from step progress
+                  // New detailed fields
+                  total_lessons: progressOverview.total_lessons,
+                  completed_lessons: progressOverview.completed_lessons,
+                  total_steps: progressOverview.total_steps,
+                  completed_steps: progressOverview.completed_steps,
+                  total_time_spent_minutes: progressOverview.total_time_spent_minutes,
+                  overall_completion_percentage: progressOverview.overall_completion_percentage
+                };
                 
                 return {
                   studentId: student.id,
-                  stats: {
-                    total_courses: totalCourses,
-                    completed_courses: completedCourses,
-                    average_progress: averageProgress,
-                    last_activity: lastActivity ? new Date(lastActivity).toISOString() : null
-                  }
+                  stats
                 };
               } catch (error) {
                 console.error(`Failed to load stats for student ${student.id}:`, error);
@@ -104,7 +115,13 @@ export default function TeacherClassPage() {
                     total_courses: 0,
                     completed_courses: 0,
                     average_progress: 0,
-                    last_activity: null
+                    last_activity: null,
+                    total_lessons: 0,
+                    completed_lessons: 0,
+                    total_steps: 0,
+                    completed_steps: 0,
+                    total_time_spent_minutes: 0,
+                    overall_completion_percentage: 0
                   }
                 };
               }
@@ -208,14 +225,6 @@ export default function TeacherClassPage() {
             variant="outline"
           >
             Back to Courses
-          </Button>
-          <Button
-            onClick={loadTeacherGroups}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
           </Button>
         </div>
       </div>
@@ -373,13 +382,16 @@ export default function TeacherClassPage() {
                               Student
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Courses
+                              Overall Progress
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Progress
+                              Lessons
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Last Activity
+                              Steps
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Time Spent
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Status
@@ -403,35 +415,48 @@ export default function TeacherClassPage() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">
-                                    {stats?.total_courses || 0} total
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {stats?.completed_courses || 0} completed
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                                      <div 
-                                        className="bg-blue-600 h-2 rounded-full" 
-                                        style={{ width: `${stats?.average_progress || 0}%` }}
-                                      ></div>
-                                    </div>
-                                    <span className="text-sm text-gray-900">
-                                      {stats?.average_progress?.toFixed(1) || 0}%
+                                  <div className="flex items-center gap-2">
+                                    <Progress 
+                                      value={stats?.overall_completion_percentage || 0} 
+                                      className="w-20 h-2"
+                                    />
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {stats?.overall_completion_percentage?.toFixed(1) || 0}%
                                     </span>
                                   </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {formatLastActivity(stats?.last_activity || null)}
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {stats?.total_courses || 0} courses
+                                  </div>
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap">
-                                  <span className={`px-2 py-1 text-xs rounded-full ${
-                                    student.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                  }`}>
+                                  <div className="text-sm text-gray-900">
+                                    {stats?.completed_lessons || 0}/{stats?.total_lessons || 0}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {stats?.total_lessons ? ((stats.completed_lessons / stats.total_lessons) * 100).toFixed(1) : 0}% complete
+                                  </div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-900">
+                                    {stats?.completed_steps || 0}/{stats?.total_steps || 0}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {stats?.total_steps ? ((stats.completed_steps / stats.total_steps) * 100).toFixed(1) : 0}% complete
+                                  </div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-1 text-sm text-gray-900">
+                                    <Clock className="w-4 h-4" />
+                                    {stats?.total_time_spent_minutes || 0} min
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {stats?.total_time_spent_minutes ? Math.floor(stats.total_time_spent_minutes / 60) : 0}h {stats?.total_time_spent_minutes ? stats.total_time_spent_minutes % 60 : 0}m
+                                  </div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <Badge variant={student.is_active ? "default" : "secondary"}>
                                     {student.is_active ? 'Active' : 'Inactive'}
-                                  </span>
+                                  </Badge>
                                 </td>
                               </tr>
                             );

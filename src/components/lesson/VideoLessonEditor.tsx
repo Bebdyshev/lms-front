@@ -1,6 +1,7 @@
 import React from 'react';
 import YouTubeVideoPlayer from '../YouTubeVideoPlayer';
 import RichTextEditor from '../RichTextEditor';
+import { Input } from '../ui/input';
 
 export interface VideoLessonEditorProps {
   lessonTitle: string;
@@ -43,14 +44,12 @@ export default function VideoLessonEditor({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Video URL (YouTube)
         </label>
-        <div className="flex gap-2">
-          <input
+        <div className="flex gap-2 p-1">
+          <Input
             type="url"
             value={videoUrl}
             onChange={(e) => onVideoUrlChange(e.target.value)}
-            className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              videoError ? 'border-red-300' : 'border-gray-300'
-            }`}
+            className="flex-1"
             placeholder="https://www.youtube.com/watch?v=..."
           />
           <button

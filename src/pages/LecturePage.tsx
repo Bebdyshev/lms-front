@@ -1,141 +1,80 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext.tsx';
-import apiClient from "../services/api";
-import Tabs from '../components/Tabs.tsx';
-import Breadcrumbs from '../components/Breadcrumbs.tsx';
-import Skeleton from '../components/Skeleton.tsx';
-import type { Lesson, Assignment, LessonMaterial } from '../types';
+import apiClient from '../services/api';
+import type { Lesson, Step } from '../types';
+import Tabs from '../components/Tabs';
+import Loader from '../components/Loader';
 
 export default function LecturePage() {
-  const { lectureId } = useParams<{ lectureId: string }>();
-  const { user } = useAuth();
+  const { lessonId } = useParams<{ lessonId: string }>();
   const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [completed, setCompleted] = useState<boolean>(false);
-  const [materials, setMaterials] = useState<LessonMaterial[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [tab, setTab] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [tab, setTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [user] = useState(() => apiClient.getCurrentUserSync());
 
   useEffect(() => {
-    loadLessonData();
-  }, [lectureId]);
+    if (!lessonId) return;
 
-  const loadLessonData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+    const loadLessonData = async () => {
+      try {
+        setLoading(true);
+        const [lessonData, stepsData, materialsData, assignmentsData] = await Promise.all([
+          apiClient.getLesson(lessonId),
+          apiClient.getLessonSteps(lessonId),
+          apiClient.getLessonMaterials(lessonId),
+          apiClient.getAssignments({ lesson_id: lessonId })
+        ]);
 
-      if (!lectureId) return;
-
-      // Load lesson data
-      const lessonData = await apiClient.getLesson(lectureId);
-      setLesson(lessonData);
-
-      // Load materials and assignments in parallel
-      const [materialsData, assignmentsData] = await Promise.all([
-        apiClient.getLessonMaterials(lectureId),
-        apiClient.getAssignments({ lesson_id: lectureId })
-      ]);
-
-      setMaterials(materialsData);
-      setAssignments(assignmentsData);
-
-      // Check if lesson is completed (for students)
-      if (user?.role === 'student') {
-        try {
-          const progressData = await apiClient.getMyProgress({ lesson_id: lectureId });
-          const lessonProgress = progressData.find((p: any) => p.lesson_id === parseInt(lectureId));
-          setCompleted(lessonProgress?.status === 'completed');
-        } catch (err) {
-          console.warn('Failed to load progress:', err);
-          setCompleted(false);
-        }
+        setLesson(lessonData);
+        setSteps(stepsData);
+        setMaterials(materialsData);
+        setAssignments(assignmentsData);
+      } catch (error) {
+        console.error('Failed to load lesson data:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load lesson data';
-      setError(errorMessage);
-      console.error('Failed to load lesson data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  const onComplete = async () => {
-    if (!lectureId) return;
-    
-    try {
-      await apiClient.markLessonComplete(lectureId);
-      setCompleted(true);
-    } catch (err) {
-      console.error('Failed to mark lesson complete:', err);
-    }
-  };
+    loadLessonData();
+  }, [lessonId]);
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-6 w-80" />
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <Skeleton className="h-8 w-48" />
-        <div className="bg-gray-100 rounded-2xl aspect-video">
-          <Skeleton className="w-full h-full" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="bg-red-50 border border-red-200 rounded p-4">
-          <h3 className="font-semibold text-red-800">Error loading lesson</h3>
-          <p className="text-red-600">{error}</p>
-          <button 
-            onClick={loadLessonData}
-            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <Loader />
       </div>
     );
   }
 
   if (!lesson) {
-    return <div className="text-gray-500">Lesson not found</div>;
+    return (
+      <div className="text-center py-8">
+        <h2 className="text-xl font-semibold text-gray-900">Lesson not found</h2>
+        <p className="text-gray-600 mt-2">The lesson you're looking for doesn't exist or you don't have access to it.</p>
+      </div>
+    );
   }
+
+  // Get the first step to determine content type and content
+  const firstStep = steps.length > 0 ? steps[0] : null;
+  const contentType = firstStep?.content_type || 'text';
+  const videoUrl = firstStep?.video_url;
+  const contentText = firstStep?.content_text;
 
   return (
     <div className="space-y-6">
-      <Breadcrumbs items={[
-        { to: '/dashboard', label: 'Dashboard' }, 
-        { to: '/courses', label: 'Courses' }, 
-        { label: lesson.title }
-      ]} />
-      
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{lesson.title}</h1>
-        {user?.role === 'student' && (
-          <button
-            onClick={onComplete}
-            disabled={completed}
-            className={`px-4 py-2 rounded-lg text-white ${
-              completed ? 'bg-gray-400 cursor-default' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {completed ? 'Completed' : 'Mark as Complete'}
-          </button>
-        )}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{lesson.title}</h1>
+          {lesson.description && (
+            <p className="text-gray-600 mt-1">{lesson.description}</p>
+          )}
+        </div>
       </div>
-
-      {lesson.description && (
-        <p className="text-gray-600">{lesson.description}</p>
-      )}
 
       <div className="flex items-center justify-between">
         <Tabs tabs={["Content", "Materials", "Assignments"]} value={tab} onChange={setTab} />
@@ -143,24 +82,24 @@ export default function LecturePage() {
 
       {tab === 0 && (
         <div className="space-y-4">
-          {lesson.content_type === 'video' && lesson.video_url ? (
+          {contentType === 'video_text' && videoUrl ? (
             <div className="bg-gray-900 rounded-2xl overflow-hidden aspect-video">
-              {lesson.video_url.includes('youtube.com') || lesson.video_url.includes('youtu.be') ? (
+              {videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be') ? (
                 <iframe
-                  src={lesson.video_url.replace('watch?v=', 'embed/')}
+                  src={videoUrl.replace('watch?v=', 'embed/')}
                   className="w-full h-full"
                   allowFullScreen
                   title={lesson.title}
                 />
               ) : (
-                <video controls src={lesson.video_url} className="w-full h-full" />
+                <video controls src={videoUrl} className="w-full h-full" />
               )}
             </div>
           ) : (
             <div className="card p-6">
               <div className="prose max-w-none">
-                {lesson.content_text ? (
-                  <div dangerouslySetInnerHTML={{ __html: lesson.content_text }} />
+                {contentText ? (
+                  <div dangerouslySetInnerHTML={{ __html: contentText }} />
                 ) : (
                   <p className="text-gray-500">No content available for this lesson</p>
                 )}

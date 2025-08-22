@@ -78,9 +78,31 @@ export default function ModulePage() {
     }
   };
 
-  const getLessonStatus = (lessonId: string) => {
-    const lesson = lessons.find(l => l.id === lessonId);
-    return lesson?.is_completed ? 'completed' : 'not-started';
+  const getLessonStatus = (lessonId: string): 'not-started' | 'in-progress' | 'completed' => {
+    const progress = progressByLesson[lessonId];
+    if (!progress) return 'not-started';
+    if (progress.status === 'completed') return 'completed';
+    return 'in-progress';
+  };
+
+  // Helper function to get lesson type from steps or fallback
+  const getLessonType = (lesson: any): string => {
+    if (!lesson) return 'Video lesson';
+    
+    // Try to get from steps first
+    if (Array.isArray(lesson.steps) && lesson.steps.length > 0) {
+      const stepType = lesson.steps[0].content_type;
+      // Map step content_type to display name
+      switch (stepType) {
+        case 'video_text': return 'Video lesson';
+        case 'text': return 'Text lesson';
+        case 'quiz': return 'Quiz lesson';
+        default: return 'Video lesson';
+      }
+    }
+    
+    // Fallback to legacy content_type
+    return (lesson as any).content_type || 'Video lesson';
   };
 
   if (loading) {
@@ -173,7 +195,7 @@ export default function ModulePage() {
                     <div className="text-sm text-gray-600 flex items-center gap-3">
                       <span className="inline-flex items-center gap-1">
                         <span className="opacity-60">▶</span> 
-                        {lesson.content_type || 'Video lesson'}
+                        {getLessonType(lesson)}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <span className="opacity-60">⏱</span> 

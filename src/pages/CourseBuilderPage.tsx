@@ -1,36 +1,25 @@
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import apiClient from '../services/api';
-import Modal from '../components/Modal.tsx';
-import ConfirmDialog from '../components/ConfirmDialog.tsx';
-import CourseSidebar from '../components/CourseSidebar.tsx';
-import type { Course, CourseModule, Lesson, LessonContentType, Group, CourseGroupAccess } from '../types';
-import { ChevronDown, ChevronUp, MoreVertical, GripVertical } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Label } from '../components/ui/label';
-import { Button } from '../components/ui/button';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  useSortable,
-} from '@dnd-kit/sortable';
+import { useAuth } from '../contexts/AuthContext';
+import apiClient from '../services/api';
+import CourseSidebar from '../components/CourseSidebar.tsx';
+import type { Course, CourseModule, Lesson, LessonContentType, Group, CourseGroupAccess } from '../types';
+import { ChevronDown, ChevronUp, MoreVertical, GripVertical, FileText, Video, HelpCircle, Users, Save, Check, X } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Loader from '../components/Loader.tsx';
+import Modal from '../components/Modal.tsx';
+import ConfirmDialog from '../components/ConfirmDialog.tsx';
 
 interface SelectedModule {
   module: CourseModule;
@@ -219,6 +208,8 @@ const DraggableModule = ({
 export default function CourseBuilderPage() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
   const [course, setCourse] = useState<Course | null>(null);
   const [mods, setMods] = useState<CourseModule[]>([]);
   const [selected, setSelected] = useState<SelectedModule | null>(null);
@@ -238,9 +229,14 @@ export default function CourseBuilderPage() {
   const [moduleLectures, setModuleLectures] = useState<Map<number, Lesson[]>>(new Map());
   const [moduleOrder, setModuleOrder] = useState<Array<number | string>>([]);
   const [activeSection, setActiveSection] = useState<'overview' | 'description' | 'content'>('overview');
+  const [showInlineLectureForm, setShowInlineLectureForm] = useState<string | null>(null);
+  const [inlineLectureData, setInlineLectureData] = useState({ title: '', type: 'text' as LessonContentType, videoUrl: '' });
+  const [pendingLectures, setPendingLectures] = useState<any[]>([]);
   const [courseGroups, setCourseGroups] = useState<CourseGroupAccess[]>([]);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
+  const [showGroupManagementModal, setShowGroupManagementModal] = useState(false);
+  const [groupsWithAccess, setGroupsWithAccess] = useState<number[]>([]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -329,6 +325,12 @@ export default function CourseBuilderPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openDropdown]);
 
+  useEffect(() => {
+    if (showGroupManagementModal) {
+      loadGroups();
+    }
+  }, [showGroupManagementModal]);
+
   const loadCourseData = async () => {
     if (!courseId || courseId === 'new') return;
     
@@ -338,15 +340,26 @@ export default function CourseBuilderPage() {
       setCourse(courseData);
       console.log('Course loaded:', courseData);
       
-      const modules = await apiClient.fetchModulesByCourse(courseId);
+      const modules = await apiClient.fetchModulesByCourse(courseId, true);
       console.log('Modules loaded:', modules);
       setMods(modules);
       
-      // If modules exist, select the first one and load its lectures
+      // Create lectures map from modules with lessons
+      const lecturesMap = new Map<number, Lesson[]>();
+      for (const module of modules) {
+        if (module.lessons && module.lessons.length > 0) {
+          const lectures = module.lessons;
+          lecturesMap.set(module.id, lectures);
+        } else {
+          lecturesMap.set(module.id, []);
+        }
+      }
+      setModuleLectures(lecturesMap);
+      
+      // If modules exist, select the first one
       if (modules[0]) {
-        const lectures = await apiClient.getModuleLessons(courseId, modules[0].id);
+        const lectures = lecturesMap.get(modules[0].id) || [];
         setSelected({ module: modules[0], lectures });
-        setModuleLectures(new Map([[modules[0].id, lectures]]));
       }
       
       // Show inline form if no modules exist or if we want to allow creating next module
@@ -368,10 +381,8 @@ export default function CourseBuilderPage() {
   // New course creation handled in CreateCourseWizard
 
   const onSelectModule = async (m: CourseModule) => {
-    if (!courseId) return;
-    const lectures = await apiClient.getModuleLessons(courseId, m.id);
+    const lectures = moduleLectures.get(m.id) || [];
     setSelected({ module: m, lectures });
-    setModuleLectures(prev => new Map(prev).set(m.id, lectures));
   };
 
   const onAddModule = () => {
@@ -483,15 +494,47 @@ export default function CourseBuilderPage() {
         }
       }
       
+      // Save all pending lectures
+      for (const lecture of pendingLectures) {
+        // Create lesson first
+        const lessonPayload = { 
+          title: lecture.title
+        };
+        const createdLesson = await apiClient.createLesson(courseId, lecture.module_id, lessonPayload);
+        
+        // Create step with content
+        const stepPayload = {
+          title: lecture.title,
+          content_type: lecture.content_type === 'video' ? 'video_text' : lecture.content_type,
+          video_url: lecture.content_type === 'video' ? lecture.video_url : undefined,
+          content_text: lecture.content_type === 'text' ? lecture.content_text : undefined,
+          order_index: 1
+        };
+        await apiClient.createStep(createdLesson.id, stepPayload);
+      }
+      
       // Clear pending changes
       setPendingModules([]);
       setPendingUpdates([]);
+      setPendingLectures([]);
       setModuleOrder([]);
       setHasUnsavedChanges(false);
       
-      // Refresh modules from server
-      const updatedModules = await apiClient.fetchModulesByCourse(courseId);
+      // Refresh modules with lessons from server
+      const updatedModules = await apiClient.fetchModulesByCourse(courseId, true);
       setMods(updatedModules);
+      
+      // Update lectures map
+      const updatedLecturesMap = new Map<number, Lesson[]>();
+      for (const module of updatedModules) {
+        if (module.lessons) {
+          const lectures = module.lessons;
+          updatedLecturesMap.set(module.id, lectures);
+        } else {
+          updatedLecturesMap.set(module.id, []);
+        }
+      }
+      setModuleLectures(updatedLecturesMap);
       
     } catch (error) {
       console.error('Failed to save changes:', error);
@@ -506,23 +549,12 @@ export default function CourseBuilderPage() {
       newExpanded.delete(moduleId);
     } else {
       newExpanded.add(moduleId);
-      // Load lectures for this module if not already loaded
-      if (!moduleLectures.has(Number(moduleId))) {
-        loadModuleLectures(Number(moduleId));
-      }
+
     }
     setExpandedModules(newExpanded);
   };
 
-  const loadModuleLectures = async (moduleId: number) => {
-    try {
-      if (!courseId) return;
-      const lectures = await apiClient.getModuleLessons(courseId, moduleId);
-      setModuleLectures(prev => new Map(prev).set(moduleId, lectures));
-    } catch (error) {
-      console.error('Failed to load lectures for module:', moduleId, error);
-    }
-  };
+
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -575,23 +607,28 @@ export default function CourseBuilderPage() {
     if (lectures.length > 0) {
       return (
         <div className="space-y-3">
-          {lectures.map((l, lecIndex) => (
-            <div key={l.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          {lectures.filter(l => l).map((l, lecIndex) => (
+            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">{lecIndex + 1}.1</span>
+                <div className="flex items-center justify-center w-8 h-8 bg-white rounded-md">
+                  {getLessonTypeIcon(getLessonType(l))}
+                </div>
                 <div>
-                  <div className="font-medium">{l.title}</div>
+                  <div className="font-medium text-gray-900 text-sm">{l?.title || 'Untitled'}</div>
+                  <div className="text-xs text-gray-500 capitalize">
+                    {getLessonType(l)} • {lecIndex + 1}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                                              <button 
-                                onClick={() => navigate(`/teacher/course/${courseId}/lesson/${l.id}/edit`)} 
-                                className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
-                              >
-                                Edit
-                              </button>
                 <button 
-                  onClick={() => onRemoveLecture(l.id)} 
+                  onClick={() => navigate(`/teacher/course/${courseId}/lesson/${l?.id}/edit`)} 
+                  className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
+                >
+                  Edit
+                </button>
+                <button 
+                  onClick={() => onRemoveLecture(l?.id)} 
                   className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
                 >
                   ✕
@@ -599,55 +636,74 @@ export default function CourseBuilderPage() {
               </div>
             </div>
           ))}
-          {showInlineLessonForm && selected?.module?.id === moduleId ? (
-            <div className="space-y-3">
+          
+          {/* Pending Lectures */}
+          {pendingLectures.filter(l => l && l.module_id === moduleId).map((l: any, lecIndex: number) => (
+            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-blue-50 rounded-md border border-blue-200 mb-2">
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">{lectures.length + 1}.1</span>
+                <div className="flex items-center justify-center w-8 h-8 bg-blue-200 rounded-md">
+                  {getLessonTypeIcon(getLessonType(l))}
+                </div>
                 <div className="flex-1">
-                  <input 
-                    type="text" 
-                    placeholder="New lesson"
-                    value={inlineLessonData.title}
-                    onChange={(e) => {
-                      const newTitle = e.target.value;
-                      setInlineLessonData(prev => ({ ...prev, title: newTitle }));
-                      
-                      // Auto-create lesson when user starts typing
-                      if (newTitle.trim() && !inlineLessonData.title.trim()) {
-                        setTimeout(() => {
-                          if (inlineLessonData.title.trim()) {
-                            handleSaveInlineLesson();
-                          }
-                        }, 1000);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && inlineLessonData.title.trim()) {
-                        handleSaveInlineLesson();
-                      }
-                      if (e.key === 'Escape') {
-                        handleCancelInlineLesson();
-                      }
-                    }}
-                    onBlur={() => {
-                      // Create lesson when user leaves the field
-                      if (inlineLessonData.title.trim()) {
-                        handleSaveInlineLesson();
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    autoFocus
-                  />
+                  <div className="font-medium text-gray-900 text-sm">{l?.title || "Untitled"}</div>
+                  <div className="text-xs text-blue-600">Pending</div>
+                </div>
+              </div>
+              <button 
+                onClick={() => onRemoveLecture(l?.id)}
+                className="px-3 py-1 text-xs text-red-600 hover:bg-red-100 rounded"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          {/* Inline Lecture Creation Form */}
+          {showInlineLectureForm === String(moduleId) && (
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center w-10 h-10 bg-blue-200 rounded-lg">
+                    {getLessonTypeIcon(inlineLectureData.type)}
+                  </div>
+                  <div className="flex-1">
+                    <input 
+                      type="text" 
+                      placeholder="Enter lesson title..."
+                      value={inlineLectureData.title}
+                      onChange={(e) => {
+                        const newTitle = e.target.value;
+                        setInlineLectureData(prev => ({ ...prev, title: newTitle }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && inlineLectureData.title.trim()) {
+                          handleSaveInlineLecture(String(moduleId));
+                        }
+                      }}
+                      onBlur={() => {
+                        if (inlineLectureData.title.trim()) {
+                          handleSaveInlineLecture(String(moduleId));
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      autoFocus
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          ) : (
+          )}
+
+          {/* Add Lesson Button */}
+          {!showInlineLectureForm && (
             <button 
-              onClick={() => { onSelectModule(mods.find(m => m.id === moduleId) || mods[0]); onAddLecture(moduleId); }} 
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700"
+              onClick={() => onAddLecture(moduleId)}
+              className="w-full py-3 border border-dashed border-gray-300 rounded-md text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <span>+</span>
-              <span>Create lesson</span>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-lg">+</span>
+                <span className="text-sm">Add lesson</span>
+              </div>
             </button>
           )}
         </div>
@@ -655,51 +711,67 @@ export default function CourseBuilderPage() {
     } else {
       return (
         <div className="text-center py-6">
-          {showInlineLessonForm && selected?.module?.id === moduleId ? (
-            <div className="space-y-3">
+          {/* Pending Lectures */}
+          {pendingLectures.filter(l => l && l.module_id === moduleId).map((l: any, lecIndex: number) => (
+            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-blue-50 rounded-md border border-blue-200 mb-2">
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">1.1</span>
+                <div className="flex items-center justify-center w-8 h-8 bg-blue-200 rounded-md">
+                  {getLessonTypeIcon(getLessonType(l))}
+                </div>
                 <div className="flex-1">
-                  <input 
-                    type="text" 
-                    placeholder="New lesson"
-                    value={inlineLessonData.title}
-                    onChange={(e) => {
-                      const newTitle = e.target.value;
-                      setInlineLessonData(prev => ({ ...prev, title: newTitle }));
-                      
-                      // Auto-create lesson when user starts typing
-                      if (newTitle.trim() && !inlineLessonData.title.trim()) {
-                        setTimeout(() => {
-                          if (inlineLessonData.title.trim()) {
-                            handleSaveInlineLesson();
-                          }
-                        }, 1000);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && inlineLessonData.title.trim()) {
-                        handleSaveInlineLesson();
-                      }
-                      if (e.key === 'Escape') {
-                        handleCancelInlineLesson();
-                      }
-                    }}
-                    onBlur={() => {
-                      // Create lesson when user leaves the field
-                      if (inlineLessonData.title.trim()) {
-                        handleSaveInlineLesson();
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    autoFocus
-                  />
+                  <div className="font-medium text-gray-900 text-sm">{l?.title || "Untitled"}</div>
+                  <div className="text-xs text-blue-600">Pending</div>
+                </div>
+              </div>
+              <button 
+                onClick={() => onRemoveLecture(l?.id)}
+                className="px-3 py-1 text-xs text-red-600 hover:bg-red-100 rounded"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          {/* Inline Lecture Creation Form */}
+          {showInlineLectureForm === String(moduleId) && (
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center w-10 h-10 bg-blue-200 rounded-lg">
+                    {getLessonTypeIcon(inlineLectureData.type)}
+                  </div>
+                  <div className="flex-1">
+                    <input 
+                      type="text" 
+                      placeholder="Enter lesson title..."
+                      value={inlineLectureData.title}
+                      onChange={(e) => {
+                        const newTitle = e.target.value;
+                        setInlineLectureData(prev => ({ ...prev, title: newTitle }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && inlineLectureData.title.trim()) {
+                          handleSaveInlineLecture(String(moduleId));
+                        }
+                      }}
+                      onBlur={() => {
+                        if (inlineLectureData.title.trim()) {
+                          handleSaveInlineLecture(String(moduleId));
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      autoFocus
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          ) : (
+          )}
+
+          {/* Add Lesson Button */}
+          {!showInlineLectureForm && (
             <button 
-              onClick={() => { onSelectModule(mods.find(m => m.id === moduleId) || mods[0]); onAddLecture(moduleId); }} 
+              onClick={() => onAddLecture(moduleId)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               <span>+</span>
@@ -727,8 +799,20 @@ export default function CourseBuilderPage() {
       // It's an existing module - delete immediately
       if (courseId) {
         await apiClient.deleteModule(courseId, Number(id));
-        const ms = await apiClient.fetchModulesByCourse(courseId);
+        const ms = await apiClient.fetchModulesByCourse(courseId, true);
         setMods(ms);
+        
+        // Update lectures map
+        const updatedLecturesMap = new Map<number, Lesson[]>();
+        for (const module of ms) {
+          if (module.lessons) {
+            const lectures = module.lessons;
+            updatedLecturesMap.set(module.id, lectures);
+          } else {
+            updatedLecturesMap.set(module.id, []);
+          }
+        }
+        setModuleLectures(updatedLecturesMap);
         setSelected(null);
         setHasUnsavedChanges(true);
       }
@@ -736,19 +820,81 @@ export default function CourseBuilderPage() {
   }});
 
   const onAddLecture = (moduleId: number) => {
-    setSelected({ module: mods.find(m => m.id === moduleId) || mods[0], lectures: [] });
-    setShowInlineLessonForm(true);
-    setInlineLessonData({ title: '', type: 'text' });
+    setShowInlineLectureForm(String(moduleId));
+    setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
+  };
+
+  const handleSaveInlineLecture = (moduleId: string) => {
+    if (!inlineLectureData.title.trim()) return;
+    
+    const newLecture = {
+      id: `temp-lecture-${Date.now()}`,
+      title: inlineLectureData.title.trim(),
+      content_type: inlineLectureData.type,
+      video_url: inlineLectureData.videoUrl,
+      module_id: moduleId,
+      isPending: true
+    };
+    
+    setPendingLectures(prev => [...prev, newLecture]);
+    setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
+    setShowInlineLectureForm(null);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleCancelInlineLecture = () => {
+    setShowInlineLectureForm(null);
+    setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
+  };
+
+  const getLessonTypeIcon = (type: LessonContentType) => {
+    switch (type) {
+      case 'text':
+        return <FileText className="w-4 h-4 text-gray-600" />;
+      case 'video':
+        return <Video className="w-4 h-4 text-gray-600" />;
+      case 'quiz':
+        return <HelpCircle className="w-4 h-4 text-gray-600" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-600" />;
+    }
+  };
+
+  // Helper function to get lesson type from steps or fallback
+  const getLessonType = (lesson: any): LessonContentType => {
+    if (!lesson) return 'text';
+    
+    // Try to get from steps first
+    if (Array.isArray(lesson.steps) && lesson.steps.length > 0) {
+      const stepType = lesson.steps[0].content_type;
+      // Map step content_type to lesson content_type
+      switch (stepType) {
+        case 'video_text': return 'video';
+        case 'text': return 'text';
+        case 'quiz': return 'quiz';
+        default: return 'text';
+      }
+    }
+    
+    // Fallback to legacy content_type
+    return (lesson as any).content_type || 'text';
   };
   // removed unused handler placeholder to satisfy noUnusedLocals
   // const submitAddLecture = async () => {};
 
   const onRemoveLecture = (id: string) => setConfirm({ open: true, action: async () => {
-    if (!selected?.module) return;
-    await apiClient.deleteLecture(id);
-    if (!courseId) return;
-    const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
-    setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
+    // Check if it's a pending lecture
+    const pendingLecture = pendingLectures.find(l => l.id === id);
+    if (pendingLecture) {
+      setPendingLectures(prev => prev.filter(l => l.id !== id));
+      setHasUnsavedChanges(pendingLectures.length > 1 || pendingUpdates.length > 0);
+    } else {
+      // It's an existing lecture - delete immediately
+      if (!selected?.module || !courseId) return;
+      await apiClient.deleteLecture(id);
+      const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
+      setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
+    }
   }});
 
   const handleNavigate = (section: 'overview' | 'description' | 'content') => {
@@ -798,22 +944,19 @@ export default function CourseBuilderPage() {
 
   const renderOverviewSection = () => {
     const totalLessons = Array.from(moduleLectures.values()).reduce((total, lectures) => total + lectures.length, 0);
-    const lessonTypes = Array.from(moduleLectures.values()).flat().reduce((acc, lesson) => {
-      acc[lesson.content_type] = (acc[lesson.content_type] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const lessonTypes = Array.from(moduleLectures.values())
+      .flat()
+      .filter((l): l is Lesson => Boolean(l))
+      .reduce((acc, lesson) => {
+        const type = (lesson as any).content_type ?? (Array.isArray((lesson as any).steps) && (lesson as any).steps.length > 0
+          ? (lesson as any).steps[0].content_type
+          : 'unknown');
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
   return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Course Overview</h1>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Last updated:</span>
-            <span className="text-sm font-medium">
-              {course?.updated_at ? new Date(course.updated_at).toLocaleDateString() : 'Unknown'}
-            </span>
-          </div>
-      </div>
 
         {course && (
           <>
@@ -932,91 +1075,6 @@ export default function CourseBuilderPage() {
               </div>
             )}
 
-                        {/* Group Access Management */}
-            <div className="bg-white rounded-lg border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Group Access</h2>
-              </div>
-              
-              {isLoadingGroups ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="text-sm text-gray-500 mt-2">Loading groups...</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Current Groups with Access */}
-                  <div>
-                    <h3 className="text-lg font-medium mb-3">Groups with Access ({courseGroups.length})</h3>
-                    {courseGroups.length > 0 ? (
-                      <div className="space-y-2">
-                        {courseGroups.map((groupAccess) => (
-                          <div key={groupAccess.id} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-      <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{groupAccess.group_name}</span>
-                                <span className="text-sm text-gray-500">({groupAccess.student_count} students)</span>
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                Access granted by {groupAccess.granted_by_name} on {new Date(groupAccess.granted_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => handleRevokeAccessFromGroup(groupAccess.group_id)}
-                              className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 text-gray-500">
-                        <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        <p className="text-sm">No groups have access to this course yet.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Available Groups to Add */}
-                  <div>
-                    <h3 className="text-lg font-medium mb-3">Available Groups</h3>
-                    {availableGroups.length > 0 ? (
-                      <div className="space-y-2">
-                        {availableGroups
-                          .filter(group => !courseGroups.some(cg => cg.group_id === group.id))
-                          .map((group) => (
-                            <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{group.name}</span>
-                                  <span className="text-sm text-gray-500">({group.student_count} students)</span>
-                                </div>
-                                {group.description && (
-                                  <p className="text-xs text-gray-500">{group.description}</p>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => handleGrantAccessToGroup(group.id)}
-                                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                              >
-                                Grant Access
-                              </button>
-                            </div>
-                          ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 text-gray-500">
-                        <p className="text-sm">No available groups to add.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Recent Activity */}
             <div className="bg-white rounded-lg border p-6">
               <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
@@ -1115,126 +1173,146 @@ export default function CourseBuilderPage() {
   );
 
   const renderContentSection = () => (
-        <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Course Program</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Autosave</span>
-              <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+    <div className="space-y-8">
+      {/* Header with better visual hierarchy */}
+      <div className="bg-white rounded-lg border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Course Program</h1>
+            <p className="text-gray-600 mt-1">Organize your course content into modules and lessons</p>
+          </div>
+        </div>
+        
+        {/* Quick stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-3 bg-gray-50 rounded-lg">
+            <div className="text-2xl font-bold text-gray-900">{mods.length}</div>
+            <div className="text-sm text-gray-600">Modules</div>
+          </div>
+          <div className="text-center p-3 bg-gray-50 rounded-lg">
+            <div className="text-2xl font-bold text-gray-900">
+              {Array.from(moduleLectures.values()).reduce((total, lectures) => total + lectures.length, 0)}
+            </div>
+            <div className="text-sm text-gray-600">Total Lessons</div>
+          </div>
+          <div className="text-center p-3 bg-gray-50 rounded-lg">
+            <div className="text-2xl font-bold text-gray-900">{pendingModules.length + pendingLectures.length}</div>
+            <div className="text-sm text-gray-600">Pending</div>
+          </div>
+        </div>
+      </div>
+
+      {/* All Modules */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={getDisplayModules().map(module => module.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-4">
+            {getDisplayModules().map((module, index) => (
+              <DraggableModule
+                key={module.id}
+                module={module}
+                index={index}
+                onToggleExpanded={toggleModuleExpanded}
+                onToggleDropdown={toggleDropdown}
+                onRemoveModule={onRemoveModule}
+                onEditModule={(module) => {
+                  setModForm({ open: true, id: module.id, title: module.title, description: module.description });
+                  setOpenDropdown(null);
+                }}
+                expandedModules={expandedModules}
+                openDropdown={openDropdown}
+                isPending={module.isPending}
+                onUpdatePendingModule={handleUpdatePendingModule}
+              >
+                {!module.isPending && expandedModules.has(module.id) && (
+                  <div className="border-t pt-4">
+                    {renderModuleLectures(module.id)}
+                  </div>
+                )}
+              </DraggableModule>
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+
+      {/* Inline Module Creation Form */}
+      {showInlineModuleForm && (
+        <div className="bg-white rounded-lg border p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-600 rounded-md font-medium text-sm">
+              {getDisplayModules().length + 1}
+            </div>
+            <div className="flex-1 space-y-3">
+              <input 
+                type="text" 
+                placeholder="Module title..."
+                value={inlineModuleData.title}
+                onChange={(e) => {
+                  const newTitle = e.target.value;
+                  setInlineModuleData(prev => ({ ...prev, title: newTitle }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && inlineModuleData.title.trim()) {
+                    handleSaveInlineModule();
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
+                autoFocus
+              />
+              
+              <input 
+                type="text" 
+                placeholder="Description (optional)"
+                value={inlineModuleData.description}
+                onChange={(e) => setInlineModuleData(prev => ({ ...prev, description: e.target.value }))}
+                maxLength={254}
+                className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+              
+              <div className="flex items-center gap-2 pt-1">
+                <button 
+                  onClick={handleSaveInlineModule}
+                  disabled={!inlineModuleData.title.trim()}
+                  className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                >
+                  Create
+                </button>
+                <button 
+                  onClick={handleCancelInlineModule}
+                  className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        {/* All Modules */}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={getDisplayModules().map(module => module.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-4">
-              {getDisplayModules().map((module, index) => (
-                <DraggableModule
-                  key={module.id}
-                  module={module}
-                  index={index}
-                  onToggleExpanded={toggleModuleExpanded}
-                  onToggleDropdown={toggleDropdown}
-                  onRemoveModule={onRemoveModule}
-                  onEditModule={(module) => {
-                    setModForm({ open: true, id: module.id, title: module.title, description: module.description });
-                    setOpenDropdown(null);
-                  }}
-                  expandedModules={expandedModules}
-                  openDropdown={openDropdown}
-                  isPending={module.isPending}
-                  onUpdatePendingModule={handleUpdatePendingModule}
-                >
-                  {!module.isPending && expandedModules.has(module.id) && (
-                    <div className="border-t pt-4">
-                      {renderModuleLectures(module.id)}
-                    </div>
-                  )}
-                </DraggableModule>
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-
-        {/* Inline Module Creation Form */}
-        {showInlineModuleForm && (
-          <div className="bg-white rounded-lg border p-6">
-            <div className="flex items-start gap-4 mb-4">
-              <span className="text-lg font-medium mt-3">{getDisplayModules().length + 1}</span>
-              <div className="flex-1 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <input 
-                      type="text" 
-                      placeholder="New module"
-                      value={inlineModuleData.title}
-                      onChange={(e) => {
-                        const newTitle = e.target.value;
-                        setInlineModuleData(prev => ({ ...prev, title: newTitle }));
-                        
-                        // Auto-create module when user starts typing
-                        if (newTitle.trim() && !inlineModuleData.title.trim()) {
-                          // User started typing, create module after a short delay
-                          setTimeout(() => {
-                            if (inlineModuleData.title.trim()) {
-                              handleSaveInlineModule();
-                            }
-                          }, 1000);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && inlineModuleData.title.trim()) {
-                          handleSaveInlineModule();
-                        }
-                      }}
-                      onBlur={() => {
-                        // Create module when user leaves the field
-                        if (inlineModuleData.title.trim()) {
-                          handleSaveInlineModule();
-                        }
-                      }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <span className="text-sm text-gray-500">Total points: 0</span>
-                    <button className="p-2 hover:bg-gray-100 rounded">
-                      <MoreVertical className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </div>
-                </div>
-                
-                <input 
-                  type="text" 
-                  placeholder="Additional description"
-                  value={inlineModuleData.description}
-                  onChange={(e) => setInlineModuleData(prev => ({ ...prev, description: e.target.value }))}
-                  maxLength={254}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                              </div>
-              </div>
-            </div>
-          )}
-
-        {/* Add New Module Button */}
-        <button 
+      {/* Add New Module Button */}
+      <div className="bg-white rounded-lg border p-6">
+        <Button 
           onClick={onAddModule}
-          className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 bg-white"
+          variant="outline"
+          className="w-full py-6 border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-600 hover:text-blue-600"
         >
-          <span>+</span>
-          <span>Add module</span>
-        </button>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+              <span className="text-blue-600 font-bold text-lg">+</span>
+            </div>
+            <div className="text-left">
+              <div className="font-medium">Add New Module</div>
+              <div className="text-sm text-gray-500">Create a new module for your course</div>
+            </div>
+          </div>
+        </Button>
+      </div>
     </div>
   );
 
@@ -1244,6 +1322,113 @@ export default function CourseBuilderPage() {
     return null;
   }
 
+  const handleAutoEnrollStudents = async () => {
+    setShowGroupManagementModal(true);
+  };
+
+  const loadGroups = async () => {
+    if (!user?.id || !course?.id) return;
+    
+    setIsLoadingGroups(true);
+    try {
+      const [groups, accessStatus] = await Promise.all([
+        apiClient.getGroups(),
+        apiClient.getCourseGroupAccessStatus(course.id.toString())
+      ]);
+      
+      const teacherGroups = groups.filter((group: any) => group.teacher_id === user.id);
+      setAvailableGroups(teacherGroups);
+      setGroupsWithAccess(accessStatus.groups_with_access || []);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  };
+
+  const grantAccessToGroup = async (groupId: string) => {
+    if (!course?.id) return;
+    
+    try {
+      const result = await apiClient.grantGroupAccess(course.id.toString(), groupId);
+      
+      if (result.status === 'granted') {
+        alert('Доступ предоставлен группе!');
+      } else if (result.status === 'already_granted') {
+        alert('Группа уже имеет доступ к курсу');
+      }
+      
+      loadGroups(); // Reload to update status
+    } catch (error) {
+      console.error('Failed to grant access:', error);
+      alert('Не удалось предоставить доступ группе');
+    }
+  };
+
+  const revokeAccessFromGroup = async (groupId: string) => {
+    if (!course?.id) return;
+    
+    try {
+      await apiClient.revokeGroupAccess(course.id.toString(), groupId);
+      alert('Доступ отозван у группы');
+      loadGroups(); // Reload to update status
+    } catch (error) {
+      console.error('Failed to revoke access:', error);
+      alert('Не удалось отозвать доступ у группы');
+    }
+  };
+
+  const grantAccessToAllGroups = async () => {
+    if (!course?.id) return;
+    
+    let grantedCount = 0;
+    let alreadyGrantedCount = 0;
+    
+    for (const group of availableGroups) {
+      try {
+        const result = await apiClient.grantGroupAccess(course.id.toString(), group.id.toString());
+        if (result.status === 'granted') {
+          grantedCount++;
+        } else if (result.status === 'already_granted') {
+          alreadyGrantedCount++;
+        }
+      } catch (error) {
+        console.error(`Failed to grant access to group ${group.name}:`, error);
+      }
+    }
+    
+    let message = '';
+    if (grantedCount > 0) {
+      message += `Доступ предоставлен ${grantedCount} группам. `;
+    }
+    if (alreadyGrantedCount > 0) {
+      message += `${alreadyGrantedCount} групп уже имели доступ.`;
+    }
+    
+    alert(message || 'Операция завершена');
+    loadGroups(); // Reload to update status
+  };
+
+  const handleSaveCourse = async () => {
+    if (!course?.id) return;
+    
+    setIsSaving(true);
+    try {
+      // Save course changes if any
+      await apiClient.updateCourse(course.id.toString(), {
+        title: course.title,
+        description: course.description || '',
+        estimated_duration_minutes: course.estimatedDurationMinutes || 0
+      });
+      
+      alert('Course saved successfully!');
+    } catch (error) {
+      console.error('Failed to save course:', error);
+      alert('Failed to save course. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
 
   if (!course) return <Loader size="xl" animation="spin" color="#2563eb" />
@@ -1261,7 +1446,7 @@ export default function CourseBuilderPage() {
             isActive={(course as any).is_active}
             onSave={handleSaveAllChanges}
             hasUnsavedChanges={hasUnsavedChanges}
-            pendingChangesCount={pendingModules.length + pendingUpdates.length}
+            pendingChangesCount={pendingModules.length + pendingUpdates.length + pendingLectures.length}
             onNavigate={handleNavigate}
             activeSection={activeSection}
           />
@@ -1269,6 +1454,22 @@ export default function CourseBuilderPage() {
 
         {/* Main Content Area */}
         <div className="flex-1">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{course?.title || 'Course Builder'}</h1>
+              <p className="text-gray-600 mt-1">Create and organize your course content</p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Button
+                onClick={handleAutoEnrollStudents}
+                variant="outline"
+                className="flex items-center space-x-2"
+              >
+                <Users className="w-4 h-4" />
+                <span>Grant access to groups</span>
+              </Button>
+            </div>
+          </div>
           {activeSection === 'overview' && renderOverviewSection()}
           {activeSection === 'description' && renderDescriptionSection()}
           {activeSection === 'content' && renderContentSection()}
@@ -1341,10 +1542,27 @@ export default function CourseBuilderPage() {
         onClose={() => setLecForm({ open: false, title: '', type: 'text', videoUrl: '' })}
         onSubmit={async () => {
           if (!lecForm.title.trim() || !selected?.module || !lecForm.id) return;
-          const payload: any = { title: lecForm.title.trim(), content_type: lecForm.type };
-          if (lecForm.type === 'video' && lecForm.videoUrl) payload.video_url = lecForm.videoUrl.trim();
           
-          await apiClient.updateLecture(lecForm.id, payload);
+          // Update lesson
+          const lessonPayload = { title: lecForm.title.trim() };
+          await apiClient.updateLesson(lecForm.id, lessonPayload);
+          
+          // Get existing steps and update the first one
+          const steps = await apiClient.getLessonSteps(lecForm.id);
+          const stepPayload = {
+            title: lecForm.title.trim(),
+            content_type: lecForm.type === 'video' ? 'video_text' : lecForm.type,
+            video_url: lecForm.type === 'video' ? lecForm.videoUrl?.trim() : undefined,
+            content_text: lecForm.type === 'text' ? '' : undefined,
+            order_index: 1
+          };
+          
+          if (steps.length > 0) {
+            await apiClient.updateStep(steps[0].id.toString(), stepPayload);
+          } else {
+            await apiClient.createStep(lecForm.id.toString(), stepPayload);
+          }
+          
           setLecForm({ open: false, title: '' });
           setHasUnsavedChanges(true);
           if (!courseId) return;
@@ -1397,6 +1615,97 @@ export default function CourseBuilderPage() {
         title="Delete item?"
         description="This action cannot be undone."
       />
+
+      {/* Group Management Modal */}
+      <Modal
+        open={showGroupManagementModal}
+        title="Управление доступом к курсу"
+        onClose={() => setShowGroupManagementModal(false)}
+        onSubmit={() => setShowGroupManagementModal(false)}
+        submitText="Закрыть"
+        cancelText=""
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 mb-4">
+            Выберите группы, которым хотите предоставить доступ к курсу. Все студенты в выбранных группах автоматически получат доступ к курсу.
+          </p>
+          
+          {isLoadingGroups ? (
+            <div className="flex justify-center py-8">
+              <Loader />
+            </div>
+          ) : availableGroups.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-4">У вас пока нет групп</p>
+              <Button onClick={() => navigate('/groups')} variant="outline">
+                Создать группу
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-medium">Ваши группы ({availableGroups.length})</h3>
+                <Button 
+                  onClick={grantAccessToAllGroups}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center space-x-2"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Предоставить всем</span>
+                </Button>
+              </div>
+              
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {availableGroups.map((group) => {
+                  const hasAccess = groupsWithAccess.includes(group.id);
+                  return (
+                    <div 
+                      key={group.id} 
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <h4 className="font-medium">{group.name}</h4>
+                        <p className="text-sm text-gray-500">
+                          {group.student_count || 0} студентов
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {hasAccess ? (
+                          <>
+                            <Badge variant="secondary" className="text-green-600 bg-green-50">
+                              Доступ есть
+                            </Badge>
+                            <Button
+                              onClick={() => revokeAccessFromGroup(group.id.toString())}
+                              size="sm"
+                              variant="outline"
+                              className="flex items-center space-x-1 text-red-600 hover:text-red-700"
+                            >
+                              <X className="w-3 h-3" />
+                              <span>Отозвать</span>
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            onClick={() => grantAccessToGroup(group.id.toString())}
+                            size="sm"
+                            variant="outline"
+                            className="flex items-center space-x-1"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Доступ</span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </> 
   );
 }

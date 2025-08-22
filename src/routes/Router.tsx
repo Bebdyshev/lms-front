@@ -21,11 +21,13 @@ import SettingsPage from '../pages/SettingsPage.tsx';
 import TeacherCoursesPage from '../pages/TeacherCoursesPage.tsx';
 import CourseBuilderPage from '../pages/CourseBuilderPage.tsx';
 import CreateCourseWizard from '../pages/CreateCourseWizard.tsx';
-import TeacherCoursePage from '../pages/TeacherCoursePage.tsx';
+// TeacherCoursePage functionality moved to CourseBuilderPage
 import LessonEditPage from '../pages/LessonEditPage.tsx';
 import TeacherClassPage from '../pages/TeacherClassPage.tsx';
 import AdminDashboard from '../pages/AdminDashboard.tsx';
 import UserManagement from '../pages/UserManagement.tsx';
+import LessonPage from '../pages/LessonPage.tsx';
+import CourseProgressPage from '../pages/CourseProgressPage.tsx';
 
 export default function Router() {
   return (
@@ -178,20 +180,21 @@ export default function Router() {
           } />
 
           <Route path="/teacher/course/:courseId" element={
-            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
-              <AppLayout>
-                <TeacherCoursePage />
-              </AppLayout>
-            </ProtectedRoute>
-          } />
-
-          <Route path="/teacher/course/:courseId/builder" element={
-            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+            <ProtectedRoute>
               <AppLayout>
                 <CourseBuilderPage />
               </AppLayout>
             </ProtectedRoute>
           } />
+
+          <Route path="/teacher/course/:courseId/progress" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <CourseProgressPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
 
           <Route path="/teacher/class" element={
             <ProtectedRoute allowedRoles={['teacher', 'admin']}>
@@ -204,6 +207,12 @@ export default function Router() {
           <Route path="/teacher/course/:courseId/lesson/:lessonId/edit" element={
             <ProtectedRoute allowedRoles={['teacher', 'admin']}>
               <LessonEditPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/course/:courseId/lesson/:lessonId" element={
+            <ProtectedRoute>
+              <LessonPage />
             </ProtectedRoute>
           } />
 
