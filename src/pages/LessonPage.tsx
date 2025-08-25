@@ -9,6 +9,7 @@ import type { Lesson, Step, Course, CourseModule, StepProgress } from '../types'
 import TextLessonEditor from '../components/lesson/TextLessonEditor';
 import VideoLessonEditor from '../components/lesson/VideoLessonEditor';
 import QuizLessonEditor from '../components/lesson/QuizLessonEditor';
+import { renderTextWithLatex } from '../utils/latex';
 
 interface LessonSidebarProps {
   course: Course | null;
@@ -282,6 +283,13 @@ export default function LessonPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
+  
+  // Quiz state
+  const [quizAnswers, setQuizAnswers] = useState<Map<string, number>>(new Map());
+  const [quizState, setQuizState] = useState<'title' | 'question' | 'result' | 'completed'>('title');
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [quizData, setQuizData] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
 
   useEffect(() => {
     if (courseId && lessonId) {
@@ -377,6 +385,22 @@ export default function LessonPage() {
     }
   }, [currentStepIndex, currentStep, stepsProgress]);
 
+  // Initialize quiz when quiz step is loaded
+  useEffect(() => {
+    if (currentStep?.content_type === 'quiz') {
+      try {
+        const parsedQuizData = JSON.parse(currentStep.content_text || '{}');
+        setQuizData(parsedQuizData);
+        setQuestions(parsedQuizData.questions || []);
+        setQuizState('title');
+        setCurrentQuestionIndex(0);
+        setQuizAnswers(new Map());
+      } catch (error) {
+        console.error('Failed to parse quiz data:', error);
+      }
+    }
+  }, [currentStep]);
+
   const goToNextStep = () => {
     if (currentStepIndex < steps.length - 1) {
       // Mark current step as visited before moving to next
@@ -421,6 +445,304 @@ export default function LessonPage() {
     return step.title || `Step ${step.order_index}`;
   };
 
+  // Quiz functions
+  const startQuiz = () => {
+    setQuizState('question');
+  };
+
+  const handleQuizAnswer = (questionId: string, answerIndex: number) => {
+    setQuizAnswers(prev => new Map(prev.set(questionId, answerIndex)));
+  };
+
+  const checkAnswer = () => {
+    setQuizState('result');
+  };
+
+  const nextQuestion = () => {
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setQuizState('question');
+    } else {
+      setQuizState('completed');
+    }
+  };
+
+  const resetQuiz = () => {
+    setQuizState('title');
+    setCurrentQuestionIndex(0);
+    setQuizAnswers(new Map());
+  };
+
+  const getCurrentQuestion = () => {
+    return questions[currentQuestionIndex];
+  };
+
+  const getCurrentUserAnswer = () => {
+    const question = getCurrentQuestion();
+    return question ? quizAnswers.get(question.id) : undefined;
+  };
+
+  const isCurrentAnswerCorrect = () => {
+    const question = getCurrentQuestion();
+    const userAnswer = getCurrentUserAnswer();
+    return question && userAnswer === question.correct_answer;
+  };
+
+  const getScore = () => {
+    return Array.from(quizAnswers.entries()).filter(([questionId, answer]) => {
+      const question = questions.find(q => q.id === questionId);
+      return question && answer === question.correct_answer;
+    }).length;
+  };
+
+  const renderQuizTitleScreen = () => {
+    return (
+      <div className="max-w-2xl mx-auto text-center space-y-8">
+        <div className="bg-blue-50 p-8 rounded-lg border border-blue-200">
+          <h2 className="text-3xl font-bold text-blue-900 mb-4">{quizData?.title || 'Quiz'}</h2>
+          <div className="space-y-4 text-blue-700">
+            <p className="text-lg">{questions.length} question{questions.length !== 1 ? 's' : ''}</p>
+            {quizData?.time_limit_minutes && (
+              <p className="text-sm">Time limit: {quizData.time_limit_minutes} minutes</p>
+            )}
+            <p className="text-sm">Read each question carefully and select the best answer.</p>
+          </div>
+        </div>
+        
+        <Button 
+          onClick={startQuiz}
+          size="lg"
+          className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
+        >
+          Start Quiz
+        </Button>
+      </div>
+    );
+  };
+
+  const renderQuizQuestion = () => {
+    const question = getCurrentQuestion();
+    if (!question) return null;
+
+    const userAnswer = getCurrentUserAnswer();
+    const hasAnswered = userAnswer !== undefined;
+
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Progress indicator */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Question {currentQuestionIndex + 1} of {questions.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-32 bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+              ></div>
+            </div>
+            <span className="text-sm text-gray-600">{currentQuestionIndex + 1} / {questions.length}</span>
+          </div>
+        </div>
+
+        {/* Question */}
+        <div className="bg-white border rounded-lg p-6 shadow-sm">
+          
+          {/* Content Text for SAT questions */}
+          {question.content_text && (
+            <div className="bg-gray-50 p-4 rounded-lg mb-6 text-base text-gray-600">
+              <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.content_text) }} />
+            </div>
+          )}
+
+          <h3 className="text-lg font-semibold mb-4">{question.question_text}</h3>
+
+          {/* Options */}
+          <div className="space-y-3">
+            {question.options?.map((option: any, optionIndex: number) => {
+              const isSelected = userAnswer === optionIndex;
+              let optionClass = "flex items-center p-2 border rounded-lg cursor-pointer transition-all duration-200";
+              
+              if (isSelected) {
+                optionClass += " bg-blue-50 border-blue-300 shadow-sm";
+              } else {
+                optionClass += " hover:bg-gray-50 border-gray-200";
+              }
+              
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => handleQuizAnswer(question.id, optionIndex)}
+                  disabled={hasAnswered}
+                  className={optionClass}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
+                    isSelected ? "bg-blue-500 border-blue-500" : "border-gray-300"
+                  }`}>
+                    {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                  </div>
+                  <span className="font-medium mr-3 text-lg">{option.letter}.</span>
+                  <span className="text-left text-lg">{option.text}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Action button */}
+        <div className="flex justify-center">
+          <Button
+            onClick={checkAnswer}
+            disabled={!hasAnswered}
+            size="lg"
+            className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
+          >
+            Check Answer
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuizResult = () => {
+    const question = getCurrentQuestion();
+    if (!question) return null;
+
+    const userAnswer = getCurrentUserAnswer();
+    const isCorrect = isCurrentAnswerCorrect();
+
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Progress indicator */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Question {currentQuestionIndex + 1} of {questions.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-32 bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+              ></div>
+            </div>
+            <span className="text-sm text-gray-600">{Math.round(((currentQuestionIndex + 1) / questions.length) * 100)}%</span>
+          </div>
+        </div>
+
+        {/* Result */}
+        <div className={`border rounded-lg p-6 ${isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className="flex items-center gap-3 mb-4">
+            {isCorrect ? (
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            ) : (
+              <div className="w-8 h-8 text-red-600">✗</div>
+            )}
+            <h3 className={`text-xl font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
+              {isCorrect ? 'Correct!' : 'Incorrect'}
+            </h3>
+          </div>
+          
+          <p className="text-gray-700 mb-4">{question.question_text}</p>
+          
+          {/* Options with correct/incorrect highlighting */}
+          <div className="space-y-2">
+            {question.options?.map((option: any, optionIndex: number) => {
+              const isSelected = userAnswer === optionIndex;
+              const isCorrectOption = optionIndex === question.correct_answer;
+              let optionClass = "flex items-center p-3 border rounded-lg";
+              
+              if (isCorrectOption) {
+                optionClass += " bg-green-100 border-green-300";
+              } else if (isSelected && !isCorrect) {
+                optionClass += " bg-red-100 border-red-300";
+              } else {
+                optionClass += " bg-gray-50 border-gray-200";
+              }
+              
+              return (
+                <div key={option.id} className={optionClass}>
+                  <div className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${
+                    isCorrectOption 
+                      ? "bg-green-500 border-green-500" 
+                      : isSelected && !isCorrect
+                      ? "bg-red-500 border-red-500"
+                      : "border-gray-300"
+                  }`}>
+                    {isCorrectOption && <CheckCircle className="w-3 h-3 text-white" />}
+                    {isSelected && !isCorrect && <div className="w-2 h-2 bg-white rounded-full" />}
+                  </div>
+                  <span className="font-medium mr-2">{option.letter}.</span>
+                  <span className="text-left">{option.text}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Explanation */}
+          {question.explanation && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <h5 className="font-semibold text-blue-900 mb-2">Explanation:</h5>
+              <p className="text-blue-800">{question.explanation}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Action button */}
+        <div className="flex justify-center">
+          <Button
+            onClick={nextQuestion}
+            size="lg"
+            className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
+          >
+            {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuizCompleted = () => {
+    const score = getScore();
+    const percentage = Math.round((score / questions.length) * 100);
+    
+    return (
+      <div className="max-w-2xl mx-auto text-center space-y-8">
+        <div className="bg-blue-50 p-8 rounded-lg border border-blue-200">
+          <h2 className="text-3xl font-bold text-blue-900 mb-4">Quiz Completed!</h2>
+          
+          <div className="space-y-4">
+            <div className="text-6xl font-bold text-blue-600">{percentage}%</div>
+            <p className="text-xl text-blue-700">
+              You got {score} out of {questions.length} questions correct
+            </p>
+            
+            <div className="flex justify-center gap-4 text-sm text-blue-600">
+              <span>Score: {score}/{questions.length}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex justify-center gap-4">
+          <Button 
+            onClick={resetQuiz}
+            variant="outline"
+            size="lg"
+            className="px-8 py-3"
+          >
+            Retake Quiz
+          </Button>
+          <Button 
+            onClick={goToNextStep}
+            size="lg"
+            className="bg-blue-600 hover:bg-blue-700 px-8 py-3"
+          >
+            Continue to Next Step
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const renderStepContent = () => {
     if (!currentStep) return null;
 
@@ -428,7 +750,7 @@ export default function LessonPage() {
       case 'text':
         return (
           <div className="prose max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: currentStep.content_text || '' }} />
+            <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text || '') }} />
           </div>
         );
       
@@ -446,32 +768,24 @@ export default function LessonPage() {
             )}
             {currentStep.content_text && (
               <div className="prose max-w-none">
-                <div dangerouslySetInnerHTML={{ __html: currentStep.content_text }} />
+                <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text) }} />
               </div>
             )}
           </div>
         );
       
       case 'quiz':
-        try {
-          const quizData = JSON.parse(currentStep.content_text || '{}');
-          return (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">{quizData.title || 'Quiz'}</h3>
-              <p className="text-sm text-gray-600">
-                {quizData.questions?.length || 0} questions
-                {quizData.time_limit_minutes && ` • ${quizData.time_limit_minutes} minutes`}
-              </p>
-              <Button 
-                onClick={() => navigate(`/quiz/${currentStep.id}`)}
-                className="w-full"
-              >
-                Start Quiz
-              </Button>
-            </div>
-          );
-        } catch {
-          return <div>Invalid quiz data</div>;
+        switch (quizState) {
+          case 'title':
+            return renderQuizTitleScreen();
+          case 'question':
+            return renderQuizQuestion();
+          case 'result':
+            return renderQuizResult();
+          case 'completed':
+            return renderQuizCompleted();
+          default:
+            return <div>Loading quiz...</div>;
         }
       
       default:

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import Card from '../components/Card';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Progress } from '../components/ui/progress';
 import Skeleton from '../components/Skeleton.tsx';
 import apiClient from "../services/api";
 import type { Course } from '../types';
+import { BookOpen, Target, CheckCircle, Play } from 'lucide-react';
 
 interface CourseCard {
   id: string;
@@ -29,6 +32,12 @@ export default function CoursesPage() {
     loadCourses();
   }, []);
 
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 80) return 'text-green-600';
+    if (percentage >= 50) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
   const loadCourses = async () => {
     try {
       setLoading(true);
@@ -36,18 +45,18 @@ export default function CoursesPage() {
       
       let coursesData: CourseCard[];
       if (user?.role === 'student') {
-        // For students, get their enrolled courses
-        const enrolledCourses = await apiClient.getMyCourses();
+        // For students, get their progress overview with detailed course data
+        const progressOverview = await apiClient.getStudentProgressOverview();
         // Transform the data to match Card component expectations
-        coursesData = enrolledCourses.map((course: any) => ({
-          id: course.course_id,
+        coursesData = progressOverview.courses.map((course: any) => ({
+          id: course.course_id.toString(),
           title: course.course_title,
           teacher: course.teacher_name,
-          image: (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + course.cover_image_url,
+          image: course.cover_image_url ? (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + course.cover_image_url : undefined,
           progress: course.completion_percentage,
-          status: course.status,
-          modules: course.total_modules,
-          description: `${course.total_modules} modules`
+          status: course.completion_percentage === 100 ? 'completed' : course.completion_percentage > 0 ? 'in_progress' : 'not_started',
+          modules: course.total_lessons, // Using lessons as modules for display
+          description: `${course.total_lessons} lessons, ${course.total_steps} steps`
         }));
       } else {
         // For teachers/admins, get all courses they have access to
@@ -98,12 +107,13 @@ export default function CoursesPage() {
         <div className="bg-red-50 border border-red-200 rounded p-4">
           <h3 className="font-semibold text-red-800">Error loading courses</h3>
           <p className="text-red-600">{error}</p>
-          <button 
+          <Button 
             onClick={loadCourses}
-            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            variant="destructive"
+            className="mt-2"
           >
             Retry
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -114,12 +124,12 @@ export default function CoursesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold">Courses</h2>
         {user?.role === 'teacher' && (
-          <button 
+          <Button 
             onClick={() => navigate('/teacher/courses')}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+            className="px-4 py-2"
           >
             Manage Courses
-          </button>
+          </Button>
         )}
       </div>
 
@@ -133,16 +143,109 @@ export default function CoursesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map(course => (
-            <Card
-              key={course.id}
-              title={course.title}
-              description={course.description}
-              image={course.image}
-              teacher={course.teacher}
-              duration={course.duration}
-              actionText={user?.role === 'student' ? 'Continue Learning' : 'View Course'}
-              onAction={() => navigate(`/course/${course.id}`)}
-            />
+            <Card key={course.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+              {/* Course Image */}
+              {course.image ? (
+                <div className="relative h-48 bg-gray-200">
+                  <img
+                    src={course.image}
+                    alt={course.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.parentElement!.style.display = 'none';
+                    }}
+                  />
+                  {/* Progress Overlay for students */}
+                  {user?.role === 'student' && course.progress !== undefined && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                      <div className="flex items-center justify-between text-white">
+                        <span className="text-sm font-medium">Progress</span>
+                        <span className="text-sm font-bold">{course.progress}%</span>
+                      </div>
+                      <Progress 
+                        value={course.progress} 
+                        className="h-1 mt-2"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="relative h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-80" />
+                    <div className="text-sm font-medium opacity-90">{course.title}</div>
+                  </div>
+                  {/* Progress Overlay for students */}
+                  {user?.role === 'student' && course.progress !== undefined && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                      <div className="flex items-center justify-between text-white">
+                        <span className="text-sm font-medium">Progress</span>
+                        <span className="text-sm font-bold">{course.progress}%</span>
+                      </div>
+                      <Progress 
+                        value={course.progress} 
+                        className="h-1 mt-2"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg truncate">{course.title}</CardTitle>
+                <CardDescription className="text-sm">
+                  Teacher: {course.teacher}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Progress Bar - Only show if no image and student */}
+                {!course.image && user?.role === 'student' && course.progress !== undefined && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Course progress</span>
+                      <span className={`font-medium ${getProgressColor(course.progress)}`}>
+                        {course.progress}%
+                      </span>
+                    </div>
+                    <Progress 
+                      value={course.progress} 
+                      className="h-2"
+                    />
+                  </div>
+                )}
+                {/* Course Info */}
+                <div className="text-sm text-gray-600">
+                  {course.description}
+                </div>
+                {/* Action Button */}
+                <Button 
+                  onClick={() => navigate(`/course/${course.id}`)}
+                  className="w-full"
+                  variant={user?.role === 'student' && course.progress === 100 ? "outline" : "default"}
+                >
+                  {user?.role === 'student' ? (
+                    course.progress === 100 ? (
+                      <>
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Course completed
+                      </>
+                    ) : (
+                      <>
+                        <Target className="w-4 h-4 mr-2" />
+                        Continue learning
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 mr-2" />
+                      View course
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

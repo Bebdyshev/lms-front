@@ -158,7 +158,7 @@ export default function StudentDashboard({
                     {course.cover_image_url ? (
                       <div className="relative h-48 bg-gray-200">
                         <img
-                          src={course.cover_image_url}
+                          src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + course.cover_image_url}
                           alt={course.course_title}
                           className="w-full h-full object-cover"
                           onError={(e) => {

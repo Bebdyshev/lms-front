@@ -619,16 +619,6 @@ class LMSApiClient {
     }
   }
 
-  // Course Enrollment
-  async enrollInCourse(courseId: string): Promise<any> {
-    try {
-      const response = await this.api.post(`/courses/${courseId}/enroll`);
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to enroll in course');
-    }
-  }
-
   async autoEnrollStudents(courseId: string): Promise<any> {
     try {
       const response = await this.api.post(`/courses/${courseId}/auto-enroll-students`);
@@ -657,15 +647,6 @@ class LMSApiClient {
     }
   }
 
-  async getCourseGroups(courseId: string): Promise<any> {
-    try {
-      const response = await this.api.get(`/courses/${courseId}/groups`);
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to get course groups');
-    }
-  }
-
   async getCourseGroupAccessStatus(courseId: string): Promise<any> {
     try {
       const response = await this.api.get(`/courses/${courseId}/group-access-status`);
@@ -676,7 +657,7 @@ class LMSApiClient {
   }
 
   // Groups
-  async getGroups(): Promise<any> {
+  async getAllGroups(): Promise<any> {
     try {
       const response = await this.api.get('/groups');
       return response.data;
@@ -700,17 +681,19 @@ class LMSApiClient {
 
   async getAssignment(assignmentId: string): Promise<any> {
     try {
+      console.log('Fetching assignment with ID:', assignmentId);
       const response = await this.api.get(`/assignments/${assignmentId}`);
+      console.log('Assignment response:', response.data);
       return response.data;
     } catch (error) {
+      console.error('getAssignment error:', error);
       throw new Error('Failed to load assignment');
     }
   }
 
-  async createAssignment(assignmentData: any, lessonId?: string): Promise<any> {
+  async createAssignment(assignmentData: any): Promise<any> {
     try {
-      const params = lessonId ? { lesson_id: lessonId } : {};
-      const response = await this.api.post('/assignments/', assignmentData, { params });
+      const response = await this.api.post('/assignments/', assignmentData);
       return response.data;
     } catch (error) {
       throw new Error('Failed to create assignment');
@@ -742,6 +725,27 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       throw new Error('Failed to load my submissions');
+    }
+  }
+
+  async getAssignmentSubmissions(assignmentId: string) {
+    try {
+      const response = await this.api.get(`/assignments/${assignmentId}/submissions`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load assignment submissions');
+    }
+  }
+
+  async gradeSubmission(assignmentId: string, submissionId: string, score: number, feedback?: string) {
+    try {
+      const response = await this.api.put(`/assignments/${assignmentId}/submissions/${submissionId}/grade`, {
+        score,
+        feedback
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to grade submission');
     }
   }
 
@@ -796,6 +800,19 @@ class LMSApiClient {
 
   getFileUrl(fileType: string, filename: string): string {
     return `${API_BASE_URL}/media/files/${fileType}/${filename}`;
+  }
+
+  async uploadFile(formData: FormData, courseId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/media/courses/${courseId}/thumbnail`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload file');
+    }
   }
 
   // =============================================================================
@@ -864,7 +881,7 @@ class LMSApiClient {
     }
   }
 
-  fetchThreads = async () => {
+  async fetchThreads() {
     try {
       const response = await this.api.get('/messages/conversations');
       return response.data;
@@ -874,10 +891,10 @@ class LMSApiClient {
     }
   }
 
-  fetchMessages = async (threadId: string): Promise<any[]> => {
+  async fetchMessages(partnerId: string): Promise<any[]> {
     try {
       const response = await this.api.get('/messages', {
-        params: { with_user_id: threadId }
+        params: { with_user_id: partnerId }
       });
       return response.data;
     } catch (error) {
@@ -886,15 +903,37 @@ class LMSApiClient {
     }
   }
 
-  sendMessage = async (toUserId: string, content: string): Promise<any> => {
+  async sendMessage(toUserId: string, content: string): Promise<any> {
     try {
       const response = await this.api.post('/messages', {
-        to_user_id: toUserId,
+        to_user_id: parseInt(toUserId),
         content: content
       });
       return response.data;
     } catch (error) {
       throw new Error('Failed to send message');
+    }
+  }
+
+  async getAvailableContacts(roleFilter?: string) {
+    try {
+      console.log('🌐 API: Getting available contacts...');
+      const params = roleFilter ? { role_filter: roleFilter } : {};
+      console.log('🌐 API: Request params:', params);
+      const response = await this.api.get('/messages/available-contacts', { params });
+      console.log('🌐 API: Response received:', response.data);
+      return response.data.available_contacts || [];
+    } catch (error) {
+      console.error('❌ API: Failed to load available contacts:', error);
+      return [];
+    }
+  }
+
+  async markMessageAsRead(messageId: number) {
+    try {
+      await this.api.put(`/messages/${messageId}/read`);
+    } catch (error) {
+      console.warn('Failed to mark message as read:', error);
     }
   }
 
@@ -940,26 +979,25 @@ class LMSApiClient {
 
   getPendingSubmissions = async () => {
     try {
-      // Get assignments and their submissions
-      const assignments = await this.getAssignments();
-      const submissions = [];
-      
-      for (const assignment of assignments) {
-        const assignmentSubmissions = await this.api.get(`/assignments/${assignment.id}/submissions`);
-        submissions.push(...assignmentSubmissions.data.filter((s: any) => !s.is_graded));
-      }
-      
-      return submissions;
+      const response = await this.api.get('/dashboard/teacher/pending-submissions');
+      return response.data.pending_submissions || [];
     } catch (error) {
       console.warn('Failed to load pending submissions:', error);
       return [];
     }
   }
 
-  gradeSubmission = async (_submissionId: string, _score: number, _feedback: string): Promise<any> => {
-    console.warn('gradeSubmission needs to be implemented in the backend');
-    return { success: true };
+  getRecentSubmissions = async (limit: number = 10) => {
+    try {
+      const response = await this.api.get(`/dashboard/teacher/recent-submissions?limit=${limit}`);
+      return response.data.recent_submissions || [];
+    } catch (error) {
+      console.warn('Failed to load recent submissions:', error);
+      return [];
+    }
   }
+
+
 
   allowResubmission = async (_submissionId: string): Promise<any> => {
     console.warn('allowResubmission needs to be implemented in the backend');
@@ -1028,17 +1066,27 @@ class LMSApiClient {
     }
   }
 
-  getAssignmentStatusForStudent = (_assignmentId: string): string => {
-    console.warn('getAssignmentStatusForStudent needs to be properly implemented');
-    return 'not-started'; // Default status
+  async getAssignmentStatusForStudent(assignmentId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/assignments/${assignmentId}/status`);
+      return response.data;
+    } catch (error) {
+      console.error('getAssignmentStatusForStudent error:', error);
+      // Return default status if API call fails
+      return {
+        status: 'not_started',
+        attempts_left: 1,
+        late: false
+      };
+    }
   }
 
-  fetchAssignmentsByLecture = async (lectureId: string): Promise<any[]> => {
+  async getAssignmentStudentProgress(assignmentId: string): Promise<any> {
     try {
-      return await this.getAssignments({ lesson_id: lectureId });
+      const response = await this.api.get(`/assignments/${assignmentId}/student-progress`);
+      return response.data;
     } catch (error) {
-      console.warn('Failed to load assignments by lecture:', error);
-      return [];
+      throw new Error('Failed to load assignment student progress');
     }
   }
 
@@ -1357,42 +1405,6 @@ class LMSApiClient {
     }
   }
 
-  // Step management
-  async getLessonSteps(lessonId: string): Promise<Step[]> {
-    try {
-      const response = await this.api.get(`/courses/lessons/${lessonId}/steps`);
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to get lesson steps');
-    }
-  }
-
-  async createStep(lessonId: string, stepData: any): Promise<Step> {
-    try {
-      const response = await this.api.post(`/courses/lessons/${lessonId}/steps`, stepData);
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to create step');
-    }
-  }
-
-  async updateStep(stepId: string, stepData: any): Promise<Step> {
-    try {
-      const response = await this.api.put(`/courses/steps/${stepId}`, stepData);
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to update step');
-    }
-  }
-
-  async deleteStep(stepId: string): Promise<void> {
-    try {
-      await this.api.delete(`/courses/steps/${stepId}`);
-    } catch (error) {
-      throw new Error('Failed to delete step');
-    }
-  }
-
   // Step progress tracking
   async markStepVisited(stepId: string, timeSpent: number = 0): Promise<StepProgress> {
     try {
@@ -1450,6 +1462,8 @@ class LMSApiClient {
       throw new Error('Failed to get student progress overview');
     }
   }
+
+
 }
 
 // =============================================================================
@@ -1457,108 +1471,103 @@ class LMSApiClient {
 // =============================================================================
 
 const apiClient = new LMSApiClient();
-export default apiClient;
 
 // Also export individual methods for easier migration
-export const {
-  login,
-  logout,
-  getCurrentUser,
-  updateProfile,
-  isAuthenticated,
-  getCurrentUserSync,
-  getDashboardStats,
-  getMyCourses,
-  getCourses,
-  getCourse,
-  createCourse,
-  updateCourse,
-  deleteCourse,
-  getCourseModules,
-  createModule,
-  updateModule,
-  deleteModule,
-  getModuleLessons,
-  getLesson,
-  createLesson,
-  updateLesson,
-  deleteLesson,
-  getLessonSteps,
-  createStep,
-  getStep,
-  updateStep,
-  deleteStep,
-  fetchLesson,
-  getAssignments,
-  getAssignment,
-  submitAssignment,
-  getMySubmissions,
-  // File upload
-  uploadAssignmentFile,
-  uploadSubmissionFile,
-  downloadFile,
-  getFileUrl,
-  getCourseProgress,
-  getMyProgress,
-  markLessonComplete,
-  getLessonMaterials,
-  // Messages
-  getUnreadMessageCount,
-  fetchThreads,
-  fetchMessages,
-  sendMessage,
-  // Quizzes (mock)
-  fetchQuizzes,
-  fetchQuizById,
-  getQuizAttemptsLeft,
-  submitQuiz,
-  // Teacher functions (mock)
-  getPendingSubmissions,
-  gradeSubmission,
-  allowResubmission,
-  // Legacy support
-  fetchModules,
-  fetchLectures,
-  fetchLecturesByModule,
-  createLecture,
-  deleteLecture,
-  updateLecture,
-  getAssignmentStatusForStudent,
-  fetchAssignmentsByLecture,
-  // Legacy exports
-  fetchCourses,
-  fetchCourseById,
-  fetchModulesByCourse,
-  fetchLectureById,
-  markLectureComplete,
-  isLectureCompleted,
-  // Group management
-  getGroups,
-  getTeacherGroups,
-  getCourseGroups,
-  grantCourseAccessToGroup,
-  revokeCourseAccessFromGroup,
-  getCourseGroupAccessStatus,
-  // Admin management
-  getAdminDashboard,
-  getUsers,
-  updateUser,
-  deactivateUser,
-  assignUserToGroup,
-  bulkAssignUsersToGroup,
-  createGroup,
-  updateGroup,
-  deleteGroup,
-  assignTeacherToGroup,
-  getGroupStudents,
-  getStudentProgress,
-  createUser,
-  resetUserPassword,
-  // Step management
-  markStepVisited,
-  getStepProgress,
-  getLessonStepsProgress,
-  getCourseStudentsStepsProgress,
-  getStudentProgressOverview,
-  getStudentProgressOverviewById
-} = apiClient;
+// Экспортируем экземпляр API клиента
+export default apiClient;
+
+// Экспортируем отдельные методы, привязанные к контексту
+export const login = apiClient.login.bind(apiClient);
+export const logout = apiClient.logout.bind(apiClient);
+export const getCurrentUser = apiClient.getCurrentUser.bind(apiClient);
+export const updateProfile = apiClient.updateProfile.bind(apiClient);
+export const isAuthenticated = apiClient.isAuthenticated.bind(apiClient);
+export const getCurrentUserSync = apiClient.getCurrentUserSync.bind(apiClient);
+export const getDashboardStats = apiClient.getDashboardStats.bind(apiClient);
+export const getMyCourses = apiClient.getMyCourses.bind(apiClient);
+export const getCourses = apiClient.getCourses.bind(apiClient);
+export const getCourse = apiClient.getCourse.bind(apiClient);
+export const createCourse = apiClient.createCourse.bind(apiClient);
+export const updateCourse = apiClient.updateCourse.bind(apiClient);
+export const deleteCourse = apiClient.deleteCourse.bind(apiClient);
+export const getCourseModules = apiClient.getCourseModules.bind(apiClient);
+export const createModule = apiClient.createModule.bind(apiClient);
+export const updateModule = apiClient.updateModule.bind(apiClient);
+export const deleteModule = apiClient.deleteModule.bind(apiClient);
+export const getModuleLessons = apiClient.getModuleLessons.bind(apiClient);
+export const getLesson = apiClient.getLesson.bind(apiClient);
+export const createLesson = apiClient.createLesson.bind(apiClient);
+export const updateLesson = apiClient.updateLesson.bind(apiClient);
+export const deleteLesson = apiClient.deleteLesson.bind(apiClient);
+export const getLessonSteps = apiClient.getLessonSteps.bind(apiClient);
+export const createStep = apiClient.createStep.bind(apiClient);
+export const getStep = apiClient.getStep.bind(apiClient);
+export const updateStep = apiClient.updateStep.bind(apiClient);
+export const deleteStep = apiClient.deleteStep.bind(apiClient);
+export const fetchLesson = apiClient.fetchLesson.bind(apiClient);
+export const getAssignments = apiClient.getAssignments.bind(apiClient);
+export const getAssignment = apiClient.getAssignment.bind(apiClient);
+export const submitAssignment = apiClient.submitAssignment.bind(apiClient);
+export const getMySubmissions = apiClient.getMySubmissions.bind(apiClient);
+export const uploadAssignmentFile = apiClient.uploadAssignmentFile.bind(apiClient);
+export const uploadSubmissionFile = apiClient.uploadSubmissionFile.bind(apiClient);
+export const downloadFile = apiClient.downloadFile.bind(apiClient);
+export const getFileUrl = apiClient.getFileUrl.bind(apiClient);
+export const getCourseProgress = apiClient.getCourseProgress.bind(apiClient);
+export const getMyProgress = apiClient.getMyProgress.bind(apiClient);
+export const markLessonComplete = apiClient.markLessonComplete.bind(apiClient);
+export const getUnreadMessageCount = apiClient.getUnreadMessageCount.bind(apiClient);
+export const fetchThreads = apiClient.fetchThreads.bind(apiClient);
+export const fetchMessages = apiClient.fetchMessages.bind(apiClient);
+export const sendMessage = apiClient.sendMessage.bind(apiClient);
+export const getAvailableContacts = apiClient.getAvailableContacts.bind(apiClient);
+export const markMessageAsRead = apiClient.markMessageAsRead.bind(apiClient);
+export const fetchQuizzes = apiClient.fetchQuizzes.bind(apiClient);
+export const fetchQuizById = apiClient.fetchQuizById.bind(apiClient);
+export const getQuizAttemptsLeft = apiClient.getQuizAttemptsLeft.bind(apiClient);
+export const submitQuiz = apiClient.submitQuiz.bind(apiClient);
+export const getPendingSubmissions = apiClient.getPendingSubmissions.bind(apiClient);
+export const gradeSubmission = apiClient.gradeSubmission.bind(apiClient);
+export const allowResubmission = apiClient.allowResubmission.bind(apiClient);
+export const fetchModules = apiClient.fetchModules.bind(apiClient);
+export const fetchLectures = apiClient.fetchLectures.bind(apiClient);
+export const fetchLecturesByModule = apiClient.fetchLecturesByModule.bind(apiClient);
+export const createLecture = apiClient.createLecture.bind(apiClient);
+export const deleteLecture = apiClient.deleteLecture.bind(apiClient);
+export const updateLecture = apiClient.updateLecture.bind(apiClient);
+export const getAssignmentStatusForStudent = apiClient.getAssignmentStatusForStudent.bind(apiClient);
+export const getAssignmentStudentProgress = apiClient.getAssignmentStudentProgress.bind(apiClient);
+export const fetchCourses = apiClient.fetchCourses.bind(apiClient);
+export const fetchCourseById = apiClient.fetchCourseById.bind(apiClient);
+export const fetchModulesByCourse = apiClient.fetchModulesByCourse.bind(apiClient);
+export const fetchLectureById = apiClient.fetchLectureById.bind(apiClient);
+export const markLectureComplete = apiClient.markLectureComplete.bind(apiClient);
+export const isLectureCompleted = apiClient.isLectureCompleted.bind(apiClient);
+export const getAllGroups = apiClient.getAllGroups.bind(apiClient);
+export const getGroups = apiClient.getGroups.bind(apiClient);
+export const getTeacherGroups = apiClient.getTeacherGroups.bind(apiClient);
+export const getCourseGroups = apiClient.getCourseGroups.bind(apiClient);
+export const grantCourseAccessToGroup = apiClient.grantCourseAccessToGroup.bind(apiClient);
+export const revokeCourseAccessFromGroup = apiClient.revokeCourseAccessFromGroup.bind(apiClient);
+export const getCourseGroupAccessStatus = apiClient.getCourseGroupAccessStatus.bind(apiClient);
+export const getAdminDashboard = apiClient.getAdminDashboard.bind(apiClient);
+export const getUsers = apiClient.getUsers.bind(apiClient);
+export const updateUser = apiClient.updateUser.bind(apiClient);
+export const deactivateUser = apiClient.deactivateUser.bind(apiClient);
+export const assignUserToGroup = apiClient.assignUserToGroup.bind(apiClient);
+export const bulkAssignUsersToGroup = apiClient.bulkAssignUsersToGroup.bind(apiClient);
+export const createGroup = apiClient.createGroup.bind(apiClient);
+export const updateGroup = apiClient.updateGroup.bind(apiClient);
+export const deleteGroup = apiClient.deleteGroup.bind(apiClient);
+export const assignTeacherToGroup = apiClient.assignTeacherToGroup.bind(apiClient);
+export const getGroupStudents = apiClient.getGroupStudents.bind(apiClient);
+export const getStudentProgress = apiClient.getStudentProgress.bind(apiClient);
+export const createUser = apiClient.createUser.bind(apiClient);
+export const resetUserPassword = apiClient.resetUserPassword.bind(apiClient);
+export const markStepVisited = apiClient.markStepVisited.bind(apiClient);
+export const getStepProgress = apiClient.getStepProgress.bind(apiClient);
+export const getLessonStepsProgress = apiClient.getLessonStepsProgress.bind(apiClient);
+export const getCourseStudentsStepsProgress = apiClient.getCourseStudentsStepsProgress.bind(apiClient);
+export const getStudentProgressOverview = apiClient.getStudentProgressOverview.bind(apiClient);
+export const getStudentProgressOverviewById = apiClient.getStudentProgressOverviewById.bind(apiClient);
+export const uploadFile = apiClient.uploadFile.bind(apiClient);

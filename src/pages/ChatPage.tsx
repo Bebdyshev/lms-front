@@ -1,88 +1,375 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
-import { fetchThreads, fetchMessages, sendMessage } from "../services/api";
-import type { MessageThread, Message } from '../types';
+import { fetchThreads, fetchMessages, sendMessage, getAvailableContacts, markMessageAsRead, isAuthenticated } from "../services/api";
+import type { MessageThread, Message, AvailableContact } from '../types';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 
 export default function ChatPage() {
   const [threads, setThreads] = useState<MessageThread[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [msgs, setMsgs] = useState<Message[]>([]);
+  const [activePartnerId, setActivePartnerId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState<string>('');
+  const [availableContacts, setAvailableContacts] = useState<AvailableContact[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showNewChatDialog, setShowNewChatDialog] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Загрузка списка разговоров
   useEffect(() => {
-    fetchThreads().then((t: MessageThread[]) => {
-      setThreads(t);
-      setActiveId(t[0]?.id || null);
-    });
+    loadThreads();
   }, []);
 
+  // Загрузка сообщений при смене активного партнера
   useEffect(() => {
-    if (!activeId) return;
-    const load = () => fetchMessages(activeId).then(setMsgs);
-    load();
+    if (!activePartnerId) return;
+    
+    const loadMessages = async () => {
+      const msgs = await fetchMessages(activePartnerId.toString());
+      // Переворачиваем порядок сообщений, так как бэкенд возвращает их в обратном порядке
+      setMessages(msgs.reverse());
+      
+      // Отмечаем сообщения как прочитанные
+      msgs.forEach(msg => {
+        if (!msg.is_read && msg.from_user_id !== activePartnerId) {
+          markMessageAsRead(msg.id);
+        }
+      });
+    };
+
+    loadMessages();
+    
+    // Автообновление каждые 8 секунд
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(load, 8000);
+    pollRef.current = setInterval(loadMessages, 8000);
+    
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [activeId]);
+  }, [activePartnerId]);
 
-  const onSend = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!text.trim() || !activeId) return;
-    await sendMessage(activeId, text.trim());
-    setText('');
-    const updated = await fetchMessages(activeId);
-    setMsgs(updated);
+  // Автообновление списка разговоров
+  useEffect(() => {
+    const interval = setInterval(loadThreads, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Автоскролл к последнему сообщению
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const loadThreads = async () => {
+    try {
+      const threadsData = await fetchThreads();
+      setThreads(threadsData);
+      
+      // Если нет активного партнера, выбираем первый
+      if (!activePartnerId && threadsData.length > 0) {
+        setActivePartnerId(threadsData[0].partner_id);
+      }
+    } catch (error) {
+      console.error('Failed to load threads:', error);
+    }
   };
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [msgs]);
+  const loadAvailableContacts = async () => {
+    try {
+      console.log('🔄 Loading available contacts...');
+      console.log('🔐 Is authenticated:', isAuthenticated());
+      const contacts = await getAvailableContacts();
+      console.log('✅ Available contacts loaded:', contacts);
+      setAvailableContacts(contacts);
+    } catch (error) {
+      console.error('❌ Failed to load contacts:', error);
+    }
+  };
+
+  const handleSendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!text.trim() || !activePartnerId) return;
+    
+    setIsLoading(true);
+    try {
+      await sendMessage(activePartnerId.toString(), text.trim());
+      setText('');
+      
+      // Обновляем сообщения
+      const updatedMessages = await fetchMessages(activePartnerId.toString());
+      setMessages(updatedMessages.reverse());
+      
+      // Обновляем список разговоров
+      await loadThreads();
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startNewChat = async (contact: AvailableContact) => {
+    setActivePartnerId(contact.user_id);
+    setShowNewChatDialog(false);
+    
+    // Загружаем сообщения с этим контактом
+    const msgs = await fetchMessages(contact.user_id.toString());
+    setMessages(msgs.reverse());
+    
+    // Обновляем список разговоров, чтобы новый чат появился в списке
+    await loadThreads();
+  };
+
+  const getActivePartner = () => {
+    // Сначала ищем в существующих тредах
+    const existingPartner = threads.find(t => t.partner_id === activePartnerId);
+    if (existingPartner) return existingPartner;
+    
+    // Если не найден в тредах, ищем в доступных контактах
+    return availableContacts.find(c => c.user_id === activePartnerId);
+  };
+
+  const getActivePartnerName = () => {
+    const partner = getActivePartner();
+    if (!partner) return 'Select chat';
+    
+    // Для MessageThread
+    if ('partner_name' in partner) {
+      return partner.partner_name;
+    }
+    
+    // Для AvailableContact
+    if ('name' in partner) {
+      return partner.name;
+    }
+    
+    return 'Unknown user';
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 24) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (diffInHours < 48) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
 
   return (
-    <div className="grid grid-cols-12 gap-6" style={{ height: 'calc(100vh - 160px)' }}>
-      <aside className="col-span-4 bg-white rounded-xl shadow overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b font-semibold">Chats</div>
-        <div className="flex-1 overflow-y-auto">
-          {threads.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActiveId(t.id)}
-              className={`w-full text-left px-4 py-3 border-b hover:bg-gray-50 ${activeId === t.id ? 'bg-gray-100' : ''}`}
-            >
-              <div className="font-medium">{t.title}</div>
-              <div className="text-xs text-gray-500">Updated {new Date(t.updated_at).toLocaleString()}</div>
-            </button>
-          ))}
-        </div>
-      </aside>
-
-      <section className="col-span-8 bg-white rounded-xl shadow flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b font-semibold">Conversation</div>
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-          {msgs.map(m => (
-            <div key={m.id} className="max-w-[70%]">
-              <div className={`px-3 py-2 rounded-xl text-sm ${m.sender_id === (localStorage.getItem('sid')||'demo') ? 'bg-blue-600 text-white ml-auto' : 'bg-white border'}`}
-                   style={{ width: 'fit-content' }}>
-                {m.content}
+    <div className="grid grid-cols-12 gap-6 h-[calc(100vh-160px)]">
+      {/* Список разговоров */}
+      <Card className="col-span-4 flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <CardTitle className="text-lg font-semibold">Chats</CardTitle>
+          <Dialog open={showNewChatDialog} onOpenChange={(open) => {
+            setShowNewChatDialog(open);
+            if (open) {
+              loadAvailableContacts();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="sm"
+              >
+                New Chat
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Select Contact</DialogTitle>
+              </DialogHeader>
+              <div className="max-h-96 overflow-y-auto space-y-2">
+                {availableContacts.map(contact => (
+                  <div
+                    key={contact.user_id}
+                    className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                    onClick={() => startNewChat(contact)}
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={contact.avatar_url} />
+                      <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{contact.name}</p>
+                      <p className="text-xs text-gray-500 capitalize">{contact.role}</p>
+                    </div>
+                  </div>
+                ))}
+                {availableContacts.length === 0 && (
+                  <p className="text-center text-gray-500 py-4">No available contacts</p>
+                )}
               </div>
-              <div className="text-[10px] text-gray-500 mt-1">{new Date(m.created_at).toLocaleString()}</div>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        
+        <CardContent className="flex-1 overflow-y-auto p-0">
+          {/* Показываем активный чат, даже если его нет в списке разговоров */}
+          {activePartnerId && !threads.find(t => t.partner_id === activePartnerId) && (
+            <div className="space-y-1">
+              <div
+                className="flex items-center space-x-3 p-3 cursor-pointer hover:bg-gray-50 bg-blue-50 border-r-2 border-blue-500"
+              >
+                <div className="relative">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={availableContacts.find(c => c.user_id === activePartnerId)?.avatar_url} />
+                    <AvatarFallback>
+                      {getInitials(availableContacts.find(c => c.user_id === activePartnerId)?.name || '')}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium truncate">
+                      {availableContacts.find(c => c.user_id === activePartnerId)?.name || 'Unknown'}
+                    </p>
+                    <span className="text-xs text-gray-500">New chat</span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">
+                    Start conversation
+                  </p>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-        <form onSubmit={onSend} className="p-3 border-t flex items-center gap-3">
-          <input
-            value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder="Type a message"
-            className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(e); } }}
-          />
-          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">Send</button>
-        </form>
-      </section>
+          )}
+          
+          {threads.length === 0 && !activePartnerId ? (
+            <div className="p-4 text-center text-gray-500">
+              No active chats
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {threads.map(thread => (
+                <div
+                  key={thread.partner_id}
+                  className={`flex items-center space-x-3 p-3 cursor-pointer hover:bg-gray-50 ${
+                    activePartnerId === thread.partner_id ? 'bg-blue-50 border-r-2 border-blue-500' : ''
+                  }`}
+                  onClick={() => setActivePartnerId(thread.partner_id)}
+                >
+                  <div className="relative">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={thread.partner_avatar} />
+                      <AvatarFallback>{getInitials(thread.partner_name)}</AvatarFallback>
+                    </Avatar>
+                    {thread.unread_count > 0 && (
+                      <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
+                        {thread.unread_count}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium truncate">{thread.partner_name}</p>
+                      {thread.last_message.created_at && (
+                        <span className="text-xs text-gray-500">
+                          {formatTime(thread.last_message.created_at)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">
+                      {thread.last_message.from_me ? 'You: ' : ''}{thread.last_message.content}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Область сообщений */}
+      <Card className="col-span-8 flex flex-col">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold">
+            {getActivePartnerName()}
+          </CardTitle>
+          {activePartnerId && (
+            <div className="flex items-center space-x-2 mt-2">
+              <span className="text-sm text-gray-500">
+                {availableContacts.find(c => c.user_id === activePartnerId)?.role || 'User'}
+              </span>
+            </div>
+          )}
+        </CardHeader>
+        
+        <CardContent className="flex-1 flex flex-col p-0">
+          {/* Сообщения */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            {messages.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                {activePartnerId ? 'Start conversation' : 'Select a chat to start conversation'}
+              </div>
+            ) : (
+              messages.map(message => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.from_user_id === activePartnerId ? 'justify-start' : 'justify-end'}`}
+                >
+                  <div className={`max-w-[70%] ${message.from_user_id === activePartnerId ? 'order-1' : 'order-2'}`}>
+                    <div
+                      className={`px-3 py-2 rounded-xl text-sm ${
+                        message.from_user_id === activePartnerId
+                          ? 'bg-white border shadow-sm'
+                          : 'bg-blue-600 text-white'
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {formatTime(message.created_at)}
+                      {!message.is_read && message.from_user_id !== activePartnerId && (
+                        <span className="ml-2">✓</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+          
+          {/* Форма отправки */}
+          <form onSubmit={handleSendMessage} className="p-4 border-t">
+            <div className="flex items-center space-x-2">
+              <Input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Type a message..."
+                disabled={!activePartnerId || isLoading}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e);
+                  }
+                }}
+              />
+              <Button 
+                type="submit" 
+                disabled={!text.trim() || !activePartnerId || isLoading}
+                size="sm"
+              >
+                {isLoading ? 'Sending...' : 'Send'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -11,6 +11,9 @@ import ModulePage from '../pages/ModulePage.tsx';
 import LecturePage from '../pages/LecturePage.tsx';
 import AssignmentsPage from '../pages/AssignmentsPage.tsx';
 import AssignmentPage from '../pages/AssignmentPage.tsx';
+import AssignmentBuilderPage from '../pages/AssignmentBuilderPage.tsx';
+import AssignmentGradingPage from '../pages/AssignmentGradingPage.tsx';
+import AssignmentStudentProgressPage from '../pages/AssignmentStudentProgressPage.tsx';
 import ChatPage from '../pages/ChatPage.tsx';
 import TeacherDashboard from '../pages/TeacherDashboard.tsx';
 
@@ -110,6 +113,46 @@ export default function Router() {
             <ProtectedRoute>
               <AppLayout>
                 <AssignmentPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assignment/:id/grade" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <AssignmentGradingPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assignment/:id/progress" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <AssignmentStudentProgressPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assignment/new" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <AssignmentBuilderPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assignment/new/lesson/:lessonId" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <AssignmentBuilderPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assignment/new/group/:groupId" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <AssignmentBuilderPage />
               </AppLayout>
             </ProtectedRoute>
           } />

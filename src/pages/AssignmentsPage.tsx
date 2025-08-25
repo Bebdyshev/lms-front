@@ -2,20 +2,21 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
-import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download } from 'lucide-react';
+import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download, Plus, Eye, Pencil, Award, ArrowBigUp } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 
 interface AssignmentWithStatus {
   id: number;
   title: string;
   description?: string;
-  lesson_id: number;
   group_id?: number;
+  group_name?: string;
   due_date?: string;
   created_at: string;
-  lesson_title?: string;
-  course_title?: string;
   file_url?: string;
   allowed_file_types?: string[];
+  max_score?: number;
   status?: 'not_submitted' | 'submitted' | 'graded' | 'overdue';
   score?: number;
   submitted_at?: string;
@@ -39,57 +40,61 @@ export default function AssignmentsPage() {
     try {
       setLoading(true);
       setError('');
+      console.log('Loading assignments for user:', user?.id, 'role:', user?.role);
 
-      // Get all assignments for the student
+      // Get all assignments for the user
       const assignmentData = await apiClient.getAssignments({});
+      console.log('Raw assignment data:', assignmentData);
+      
+      // Get user's submissions to check status
+      let userSubmissions: any[] = [];
+      try {
+        userSubmissions = await apiClient.getMySubmissions();
+        console.log('User submissions:', userSubmissions);
+      } catch (err) {
+        console.warn('Could not load user submissions:', err);
+      }
       
       // Enhance assignments with status information
-      const assignmentsWithStatus = await Promise.all(
-        assignmentData.map(async (assignment: any) => {
-          let status = 'not_submitted';
-          let score = undefined;
-          let submitted_at = undefined;
-          let graded_at = undefined;
-          let has_file_submission = false;
+      const assignmentsWithStatus = assignmentData.map((assignment: any) => {
+        let status = 'not_submitted';
+        let score = undefined;
+        let submitted_at = undefined;
+        let graded_at = undefined;
+        let has_file_submission = false;
 
-          try {
-            // Try to get submission status for this assignment
-            const submissions = await apiClient.getMySubmissions();
-            const mySubmission = submissions.find((sub: any) => sub.user_id === user?.id);
-            
-            if (mySubmission) {
-              if (mySubmission.graded_at) {
-                status = 'graded';
-                score = mySubmission.score;
-                graded_at = mySubmission.graded_at;
-              } else {
-                status = 'submitted';
-              }
-              submitted_at = mySubmission.submitted_at;
-              has_file_submission = !!mySubmission.file_url;
-            } else if (assignment.due_date && new Date(assignment.due_date) < new Date()) {
-              status = 'overdue';
-            }
-          } catch (err) {
-            // If we can't get submission info, just use the assignment as-is
-            console.warn('Could not load submission status for assignment', assignment.id, err);
+        // Find submission for this assignment
+        const submission = userSubmissions.find((sub: any) => sub.assignment_id === assignment.id);
+        
+        if (submission) {
+          if (submission.is_graded && submission.score !== null) {
+            status = 'graded';
+            score = submission.score;
+            graded_at = submission.graded_at;
+          } else {
+            status = 'submitted';
           }
+          submitted_at = submission.submitted_at;
+          has_file_submission = !!submission.file_url;
+        } else if (assignment.due_date && new Date(assignment.due_date) < new Date()) {
+          status = 'overdue';
+        }
 
-          return {
-            ...assignment,
-            status,
-            score,
-            submitted_at,
-            graded_at,
-            has_file_submission
-          };
-        })
-      );
+        return {
+          ...assignment,
+          status,
+          score,
+          submitted_at,
+          graded_at,
+          has_file_submission
+        };
+      });
 
+      console.log('Assignments with status:', assignmentsWithStatus);
       setAssignments(assignmentsWithStatus);
     } catch (err) {
-      setError('Failed to load assignments');
       console.error('Failed to load assignments:', err);
+      setError('Failed to load assignments');
     } finally {
       setLoading(false);
     }
@@ -131,7 +136,7 @@ export default function AssignmentsPage() {
         return (
           <span className={`${baseClasses} bg-green-100 text-green-800`}>
             <CheckCircle className="w-3 h-3 mr-1" />
-            Graded ({assignment.score}/100)
+            Graded
           </span>
         );
       case 'submitted':
@@ -189,24 +194,34 @@ export default function AssignmentsPage() {
             <h3 className="font-semibold text-red-800">Error</h3>
           </div>
           <p className="text-red-600 mt-1">{error}</p>
-          <button 
+          <Button 
             onClick={loadAssignments}
+            variant="outline"
             className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
             Try Again
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold flex items-center">
           <ClipboardList className="w-8 h-8 mr-3 text-blue-600" />
           Assignments
         </h1>
+        {user?.role === 'teacher' || user?.role === 'admin' ? (
+          <Button
+            onClick={() => navigate('/assignment/new')}
+            className="flex items-center"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Assignment
+          </Button>
+        ) : null}
       </div>
 
       {/* Filter Tabs */}
@@ -314,10 +329,10 @@ export default function AssignmentsPage() {
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="text-left px-6 py-3 font-medium">Assignment</th>
-                  <th className="text-left px-6 py-3 font-medium">Lesson</th>
+                  <th className="text-left px-6 py-3 font-medium">Group</th>
                   <th className="text-left px-6 py-3 font-medium">Due Date</th>
                   <th className="text-left px-6 py-3 font-medium">Status</th>
-                  <th className="text-left px-6 py-3 font-medium">Files</th>
+                  <th className="text-left px-6 py-3 font-medium">Grade</th>
                   <th className="text-left px-6 py-3 font-medium">Action</th>
                 </tr>
               </thead>
@@ -326,7 +341,15 @@ export default function AssignmentsPage() {
                   <tr key={assignment.id} className="border-t hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <div className="font-medium text-gray-900">{assignment.title}</div>
+                        <div 
+                          className="font-medium text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+                          onClick={() => {
+                            console.log('Navigating to assignment:', assignment.id);
+                            navigate(`/assignment/${assignment.id}`);
+                          }}
+                        >
+                          {assignment.title}
+                        </div>
                         {assignment.description && (
                           <div className="text-sm text-gray-600 mt-1 line-clamp-2">
                             {assignment.description}
@@ -335,7 +358,7 @@ export default function AssignmentsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-600">
-                      {assignment.lesson_title || `Lesson #${assignment.lesson_id}`}
+                      {assignment.group_name || `Group #${assignment.group_id}`}
                     </td>
                     <td className="px-6 py-4 text-gray-600">
                       {assignment.due_date ? (
@@ -354,34 +377,40 @@ export default function AssignmentsPage() {
                       {getStatusBadge(assignment)}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        {assignment.file_url && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                            <Download className="w-3 h-3 mr-1" />
-                            Has file
-                          </span>
-                        )}
-                        {assignment.has_file_submission && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                            <Download className="w-3 h-3 mr-1" />
-                            Submitted
-                          </span>
+                      {assignment.status === 'graded' ? (
+                        <span className="text-green-600">{assignment.score}/{assignment.max_score ?? 100}</span>
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
+                    </td>
+                   
+                    <td className="px-6 py-4">
+                      <div className="flex space-x-2">
+                        {(user?.role === 'teacher' || user?.role === 'admin') ? (
+                          <>
+                            <Button
+                              onClick={() => {
+                                console.log('Navigating to student progress:', assignment.id);
+                                navigate(`/assignment/${assignment.id}/progress`);
+                              }}
+                              variant="ghost"
+                              size="icon"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            onClick={() => {
+                              console.log('Navigating to assignment:', assignment.id);
+                              navigate(`/assignment/${assignment.id}`);
+                            }}
+                          >
+                            {assignment.status === 'graded' ? 'View' : 
+                             assignment.status === 'submitted' ? 'View' : 'Submit'}
+                          </Button>
                         )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => navigate(`/assignment/${assignment.id}`)}
-                        className={`px-3 py-1.5 rounded text-xs font-medium ${
-                          assignment.status === 'graded'
-                            ? 'bg-gray-100 text-gray-600 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                        }`}
-                        disabled={assignment.status === 'graded'}
-                      >
-                        {assignment.status === 'graded' ? 'View' : 
-                         assignment.status === 'submitted' ? 'View' : 'Submit'}
-                      </button>
                     </td>
                   </tr>
                 ))}

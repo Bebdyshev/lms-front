@@ -926,7 +926,7 @@ export default function LessonEditPage() {
       const existingSteps = await apiClient.getLessonSteps(lessonId);
 
       for (const s of existingSteps) {
-        await apiClient.deleteStep(s.id);
+        await apiClient.deleteStep(s.id.toString());
       }
 
       // Recreate current local steps with proper order_index

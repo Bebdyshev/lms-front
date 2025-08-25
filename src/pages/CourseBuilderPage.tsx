@@ -1119,6 +1119,60 @@ export default function CourseBuilderPage() {
               <CardTitle>Course Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Course Image Section */}
+              <div className="space-y-2">
+                <Label htmlFor="course-image">Course Cover Image</Label>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="w-32 h-24 bg-gray-100 rounded-lg overflow-hidden border">
+                      {(course as any).cover_image_url ? (
+                        <img 
+                          src={(course as any).cover_image_url} 
+                          alt="Course cover"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => document.getElementById('course-image-input')?.click()}
+                      className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      id="course-image-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600">
+                        {(course as any).cover_image_url ? 'Click the edit button to change the image' : 'Upload a cover image for your course'}
+                      </p>
+                      {(course as any).cover_image_url && (
+                        <button
+                          onClick={() => setCourse(prev => prev ? { ...prev, cover_image_url: '' } : prev)}
+                          className="text-sm text-red-600 hover:text-red-700"
+                        >
+                          Remove image
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="course-title">Course Title</Label>
                 <Input
@@ -1153,7 +1207,8 @@ export default function CourseBuilderPage() {
                       try {
                         await apiClient.updateCourse(courseId, {
                           title: course.title,
-                          description: (course as any).description
+                          description: (course as any).description,
+                          cover_image_url: (course as any).cover_image_url
                         });
                         setHasUnsavedChanges(false);
                       } catch (error) {
@@ -1427,6 +1482,27 @@ export default function CourseBuilderPage() {
       alert('Failed to save course. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !courseId) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await apiClient.uploadFile(formData, courseId);
+      if (response.cover_image_url) {
+        setCourse(prev => prev ? { ...prev, cover_image_url: response.cover_image_url } : null);
+        setHasUnsavedChanges(true);
+      } else {
+        alert('Failed to upload image.');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image. Please try again.');
     }
   };
 

@@ -422,6 +422,8 @@ export interface AssignmentStatus {
   status: string;
   attemptsLeft: number;
   late?: boolean;
+  score?: number;
+  feedback?: string;
 }
 
 // =============================================================================
@@ -499,24 +501,53 @@ export type ActivityType = 'lesson_completed' | 'assignment_submitted' | 'course
 // =============================================================================
 
 export interface MessageThread {
-  id: string;
-  title: string;
-  participants: User[];
-  last_message?: Message;
+  partner_id: number;
+  partner_name: string;
+  partner_role: string;
+  partner_avatar?: string;
+  last_message: {
+    content: string;
+    created_at: string | null;
+    from_me: boolean;
+  };
   unread_count: number;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface Message {
-  id: string;
-  thread_id: string;
-  sender_id: string;
-  sender?: User;
+  id: number;
+  from_user_id: number;
+  to_user_id: number;
+  sender_name?: string;
+  recipient_name?: string;
   content: string;
-  attachments?: MessageAttachment[];
-  created_at: string;
   is_read: boolean;
+  created_at: string;
+}
+
+export interface SendMessageRequest {
+  to_user_id: number;
+  content: string;
+}
+
+export interface AvailableContact {
+  user_id: number;
+  name: string;
+  role: string;
+  avatar_url?: string;
+  student_id?: string;
+}
+
+export interface Conversation {
+  partner_id: number;
+  partner_name: string;
+  partner_role: string;
+  partner_avatar?: string;
+  last_message: {
+    content: string;
+    created_at: string | null;
+    from_me: boolean;
+  };
+  unread_count: number;
 }
 
 export interface MessageAttachment {
