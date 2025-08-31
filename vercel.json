@@ -9,22 +9,13 @@
       }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/uploads/(.*)",
-      "dest": "/uploads/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
     "VITE_APP_ENV": "production"
-  },
-  "functions": {
-    "src/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
   }
 }

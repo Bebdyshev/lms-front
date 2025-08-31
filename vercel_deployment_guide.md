@@ -13,7 +13,7 @@
 Create a `.env.local` file in the frontend directory with your production backend URL:
 
 ```bash
-VITE_BACKEND_URL=https://your-windows-server-domain.com
+VITE_BACKEND_URL=http://185.129.51.146:8000
 VITE_APP_ENV=production
 VITE_APP_NAME=LMS Platform
 ```
@@ -78,7 +78,7 @@ npm run preview
 Add the following environment variables in Vercel dashboard:
 
 ```
-VITE_BACKEND_URL=https://your-windows-server-domain.com
+VITE_BACKEND_URL=http://185.129.51.146:8000
 VITE_APP_ENV=production
 VITE_APP_NAME=LMS Platform
 ```
@@ -123,6 +123,7 @@ app.add_middleware(
     allow_origins=[
         "https://your-vercel-app.vercel.app",
         "https://your-custom-domain.com",
+        "http://185.129.51.146:8000",
         "http://localhost:3000",  # Keep for development
         "http://localhost:5174",  # Keep for development
     ],
@@ -232,14 +233,14 @@ Configure in Vercel dashboard:
 
 ```bash
 # Test API connection
-curl https://your-windows-server-domain.com/health
+curl http://185.129.51.146:8000/health
 
 # Check CORS headers
 curl -H "Origin: https://your-vercel-app.vercel.app" \
      -H "Access-Control-Request-Method: POST" \
      -H "Access-Control-Request-Headers: Content-Type" \
      -X OPTIONS \
-     https://your-windows-server-domain.com/auth/login
+     http://185.129.51.146:8000/auth/login
 ```
 
 ## Performance Optimization
