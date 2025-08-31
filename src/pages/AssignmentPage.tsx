@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import apiClient from "../services/api";
+import apiClient, { debugSubmissions, debugDeleteSubmission } from "../services/api";
 import { toast } from '../components/Toast.tsx';
 import FileUpload from '../components/FileUpload';
 import { Calendar, Clock, AlertCircle, Download, Upload, Send, FileText, Award, File, CheckCircle, XCircle, MessageSquare, Star } from 'lucide-react';
@@ -37,6 +37,7 @@ export default function AssignmentPage() {
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const isFormSubmitting = useRef<boolean>(false);
 
   useEffect(() => {
     async function load() {
@@ -63,6 +64,16 @@ export default function AssignmentPage() {
   }, [id]);
 
   const isOverdue = assignment?.due_date && new Date(assignment.due_date) < new Date();
+  
+  // Debug logging
+  console.log('AssignmentPage Debug:', {
+    assignment,
+    isOverdue,
+    submitted,
+    userRole: user?.role,
+    assignmentDueDate: assignment?.due_date,
+    currentDate: new Date().toISOString()
+  });
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
@@ -74,10 +85,58 @@ export default function AssignmentPage() {
     setUploadedFileName('');
   };
 
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    // Reset form submission state when modal is closed
+    isFormSubmitting.current = false;
+    setIsSubmitting(false);
+  };
+
+  const [existingSubmissions, setExistingSubmissions] = useState<any[]>([]);
+
+  const checkExistingSubmissions = async () => {
+    if (!id) return;
+    
+    try {
+      console.log('Checking existing submissions for assignment:', id);
+      const result = await debugSubmissions(id);
+      console.log('Debug submissions result:', result);
+      
+      setExistingSubmissions(result.submissions || []);
+      
+      if (result.submissions_count > 0) {
+        toast(`Found ${result.submissions_count} existing submission(s)`, 'error');
+        console.log('Existing submissions:', result.submissions);
+      } else {
+        toast('No existing submissions found', 'success');
+      }
+    } catch (error) {
+      console.error('Failed to check submissions:', error);
+      toast('Failed to check submissions', 'error');
+    }
+  };
+
+  const deleteSubmission = async (submissionId: number) => {
+    if (!id) return;
+    
+    try {
+      console.log('Deleting submission:', submissionId);
+      await debugDeleteSubmission(id, submissionId.toString());
+      toast('Submission deleted successfully', 'success');
+      
+      // Refresh the submissions list
+      await checkExistingSubmissions();
+    } catch (error) {
+      console.error('Failed to delete submission:', error);
+      toast('Failed to delete submission', 'error');
+    }
+  };
+
   const uploadFile = async () => {
     if (!selectedFile || !id) return;
 
     try {
+      console.log('Uploading file separately from form submission');
       const result = await apiClient.uploadSubmissionFile(id, selectedFile);
       setUploadedFileUrl(result.file_url);
       setUploadedFileName(result.filename);
@@ -85,6 +144,7 @@ export default function AssignmentPage() {
       toast('File uploaded successfully', 'success');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to upload file';
+      console.error('File upload error:', error);
       toast(errorMessage, 'error');
     }
   };
@@ -93,29 +153,45 @@ export default function AssignmentPage() {
     e.preventDefault();
     if (!id) return;
     
+    // Prevent double submission
+    if (isFormSubmitting.current) {
+      console.log('Form submission already in progress, ignoring duplicate submission');
+      return;
+    }
+    
+    isFormSubmitting.current = true;
     setIsSubmitting(true);
     
     try {
-      // Upload file first if selected
+      // Determine file URL and name to use for submission
       let fileUrl = uploadedFileUrl;
       let fileName = uploadedFileName;
       
-      if (selectedFile) {
+      // Only upload file if we have a new selected file and no existing uploaded file
+      if (selectedFile && !uploadedFileUrl) {
+        console.log('Uploading new file for submission');
         const result = await apiClient.uploadSubmissionFile(id, selectedFile);
         fileUrl = result.file_url;
         fileName = result.filename;
+        setUploadedFileUrl(fileUrl);
+        setUploadedFileName(fileName);
+      } else if (selectedFile && uploadedFileUrl) {
+        // If we have both a selected file and an uploaded file, use the uploaded file
+        console.log('Using existing uploaded file for submission');
+        fileUrl = uploadedFileUrl;
+        fileName = uploadedFileName;
       }
+
+      console.log('Submitting assignment with:', { text, fileUrl, fileName });
 
       // Submit assignment
       await apiClient.submitAssignment(id, { 
-        text,
+        answers: { text },
         file_url: fileUrl,
         submitted_file_name: fileName
       });
       
       setSubmitted(true);
-      setUploadedFileUrl(fileUrl);
-      setUploadedFileName(fileName);
       setSelectedFile(null);
       setIsModalOpen(false);
       
@@ -131,9 +207,17 @@ export default function AssignmentPage() {
       toast('Assignment submitted', 'success');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      toast(errorMessage, 'error');
+      console.error('Assignment submission error:', err);
+      
+      // Handle specific error cases
+      if (err instanceof Error && err.message.includes('400')) {
+        toast('Assignment already submitted or submission failed. Please check your submission status.', 'error');
+      } else {
+        toast(errorMessage, 'error');
+      }
     } finally {
       setIsSubmitting(false);
+      isFormSubmitting.current = false;
     }
   };
 
@@ -325,8 +409,9 @@ export default function AssignmentPage() {
                   asChild
                 >
                   <a
-                    href={assignment.content.teacher_file_url}
+                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000')+  assignment.content.teacher_file_url}
                     download
+                    target="_blank"
                     className="flex items-center space-x-2"
                   >
                     <Download className="w-4 h-4" />
@@ -361,6 +446,7 @@ export default function AssignmentPage() {
                 <a
                   href={apiClient.getFileUrl('assignments', assignment.file_url.split('/').pop() || '')}
                   download
+                  target="_blank"
                   className="flex items-center space-x-2"
                 >
                   <Download className="w-4 h-4" />
@@ -394,7 +480,7 @@ export default function AssignmentPage() {
       )}
 
       {/* Submission Section */}
-      {user?.role !== 'teacher' && user?.role !== 'admin' && !submitted && (
+      {user?.role !== 'teacher' && user?.role !== 'admin' && !submitted && assignment && (
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">Submit Your Work</CardTitle>
@@ -412,18 +498,19 @@ export default function AssignmentPage() {
               <span className="font-medium">Submission received successfully</span>
             </div>
           ) : (
-            <div className="flex justify-center">
-              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogTrigger asChild>
-                  <Button 
-                    size="lg" 
-                    disabled={!!isOverdue}
-                    className="flex items-center space-x-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>{isOverdue ? 'Assignment Overdue' : 'Submit Assignment'}</span>
-                  </Button>
-                </DialogTrigger>
+            <div className="flex justify-center space-x-4">
+              <Button 
+                size="lg" 
+                variant="default"
+                onClick={() => {
+                  setIsModalOpen(true);
+                }}
+              >
+                <Upload className="w-4 h-4" />
+                Submit Assignment
+              </Button>
+              
+              <Dialog open={isModalOpen} onOpenChange={handleModalClose}>
                 <DialogContent className="sm:max-w-[600px]">
                   <DialogHeader>
                     <DialogTitle>Submit Assignment</DialogTitle>
@@ -465,14 +552,14 @@ export default function AssignmentPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setIsModalOpen(false)}
-                        disabled={isSubmitting}
+                        onClick={handleModalClose}
+                        disabled={isSubmitting || isFormSubmitting.current}
                       >
                         Cancel
                       </Button>
                       <Button 
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || isFormSubmitting.current}
                         className="flex items-center space-x-2"
                       >
                         {isSubmitting ? (

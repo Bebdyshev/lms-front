@@ -969,7 +969,7 @@ export default function CourseBuilderPage() {
                     <label className="block text-sm font-medium text-gray-700">Title</label>
                     <p className="mt-1 text-lg font-medium">{course.title}</p>
                   </div>
-                  <div>
+                                    <div>
                     <label className="block text-sm font-medium text-gray-700">Status</label>
                     <div className="mt-1 flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${
@@ -1507,6 +1507,8 @@ export default function CourseBuilderPage() {
   };
 
 
+
+
   if (!course) return <Loader size="xl" animation="spin" color="#2563eb" />
 
 
@@ -1525,6 +1527,9 @@ export default function CourseBuilderPage() {
             pendingChangesCount={pendingModules.length + pendingUpdates.length + pendingLectures.length}
             onNavigate={handleNavigate}
             activeSection={activeSection}
+            onCourseStatusChange={(isActive) => {
+              setCourse(prev => prev ? { ...prev, is_active: isActive } : null);
+            }}
           />
       </div>
 

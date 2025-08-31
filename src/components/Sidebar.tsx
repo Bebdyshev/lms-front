@@ -45,7 +45,17 @@ export default function Sidebar() {
     // Load unread messages count
     loadUnreadCount();
     const interval = setInterval(loadUnreadCount, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
+    
+    // Слушаем событие обновления счетчика
+    const handleUpdateUnreadCount = () => {
+      loadUnreadCount();
+    };
+    window.addEventListener('updateUnreadCount', handleUpdateUnreadCount);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('updateUnreadCount', handleUpdateUnreadCount);
+    };
   }, []);
 
   const loadUnreadCount = async () => {

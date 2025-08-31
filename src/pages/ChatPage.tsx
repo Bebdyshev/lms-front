@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
-import { fetchThreads, fetchMessages, sendMessage, getAvailableContacts, markMessageAsRead, isAuthenticated } from "../services/api";
+import { fetchThreads, fetchMessages, sendMessage, getAvailableContacts, markMessageAsRead, markAllMessagesAsRead, isAuthenticated } from "../services/api";
 import type { MessageThread, Message, AvailableContact } from '../types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -33,12 +33,14 @@ export default function ChatPage() {
       // Переворачиваем порядок сообщений, так как бэкенд возвращает их в обратном порядке
       setMessages(msgs.reverse());
       
-      // Отмечаем сообщения как прочитанные
-      msgs.forEach(msg => {
-        if (!msg.is_read && msg.from_user_id !== activePartnerId) {
-          markMessageAsRead(msg.id);
-        }
-      });
+      // Отмечаем все сообщения от этого партнера как прочитанные
+      await markAllMessagesAsRead(activePartnerId.toString());
+      
+      // Обновляем счетчик непрочитанных сообщений в сайдбаре
+      updateUnreadCount();
+      
+      // Обновляем список разговоров, чтобы обновить счетчики
+      await loadThreads();
     };
 
     loadMessages();
@@ -68,13 +70,17 @@ export default function ChatPage() {
       const threadsData = await fetchThreads();
       setThreads(threadsData);
       
-      // Если нет активного партнера, выбираем первый
-      if (!activePartnerId && threadsData.length > 0) {
-        setActivePartnerId(threadsData[0].partner_id);
-      }
+      // Убираем автоматический выбор первого чата
+      // Пользователь должен сам выбрать чат для чтения
     } catch (error) {
       console.error('Failed to load threads:', error);
     }
+  };
+
+  // Функция для обновления счетчика непрочитанных сообщений в сайдбаре
+  const updateUnreadCount = () => {
+    // Вызываем событие для обновления счетчика в сайдбаре
+    window.dispatchEvent(new CustomEvent('updateUnreadCount'));
   };
 
   const loadAvailableContacts = async () => {
@@ -104,6 +110,9 @@ export default function ChatPage() {
       
       // Обновляем список разговоров
       await loadThreads();
+      
+      // Обновляем счетчик непрочитанных сообщений в сайдбаре
+      updateUnreadCount();
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
@@ -119,8 +128,14 @@ export default function ChatPage() {
     const msgs = await fetchMessages(contact.user_id.toString());
     setMessages(msgs.reverse());
     
+    // Отмечаем все сообщения от этого партнера как прочитанные
+    await markAllMessagesAsRead(contact.user_id.toString());
+    
     // Обновляем список разговоров, чтобы новый чат появился в списке
     await loadThreads();
+    
+    // Обновляем счетчик непрочитанных сообщений в сайдбаре
+    updateUnreadCount();
   };
 
   const getActivePartner = () => {

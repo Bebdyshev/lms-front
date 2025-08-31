@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Check, AlertTriangle } from 'lucide-react';
+import apiClient from '../services/api';
 
 import { 
   BookOpen, 
@@ -23,6 +26,7 @@ interface CourseSidebarProps {
   pendingChangesCount?: number;
   onNavigate?: (section: 'overview' | 'description' | 'content') => void;
   activeSection?: 'overview' | 'description' | 'content';
+  onCourseStatusChange?: (isActive: boolean) => void;
 }
 
 export default function CourseSidebar({ 
@@ -34,12 +38,56 @@ export default function CourseSidebar({
   hasUnsavedChanges = false,
   pendingChangesCount = 0,
   onNavigate,
-  activeSection = 'content'
+  activeSection = 'content',
+  onCourseStatusChange
 }: CourseSidebarProps) {
 
-  const handlePublish = () => {
-    // TODO: Implement course publishing logic
-    console.log('Publishing course:', courseId);
+  const { user } = useAuth();
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
+  const [showUnpublishDialog, setShowUnpublishDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const handlePublish = async () => {
+    if (!courseId) return;
+    
+    setIsPublishing(true);
+    try {
+      await apiClient.publishCourse(courseId);
+      
+      setSuccessMessage('Course published successfully!');
+      setShowSuccessDialog(true);
+      
+      // Notify parent component about status change
+      onCourseStatusChange?.(true);
+    } catch (error) {
+      console.error('Failed to publish course:', error);
+      alert('Failed to publish course. Please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!courseId) return;
+    
+    setIsUnpublishing(true);
+    try {
+      await apiClient.unpublishCourse(courseId);
+      
+      setSuccessMessage('Course unpublished successfully!');
+      setShowSuccessDialog(true);
+      setShowUnpublishDialog(false);
+      
+      // Notify parent component about status change
+      onCourseStatusChange?.(false);
+    } catch (error) {
+      console.error('Failed to unpublish course:', error);
+      alert('Failed to unpublish course. Please try again.');
+    } finally {
+      setIsUnpublishing(false);
+    }
   };
 
   const courseNavItems = [
@@ -90,13 +138,18 @@ export default function CourseSidebar({
             </div>
           </div>
         </div>
-        <Button 
-          onClick={handlePublish}
-          variant={isActive ? 'secondary' : 'outline'}
-          className='w-full'
-        >
-          {isActive ? 'Published' : 'Publish'}
-        </Button>
+        
+        {/* Publish/Unpublish Button - Admin Only */}
+        {user?.role === 'admin' && (
+          <Button 
+            onClick={isActive ? () => setShowUnpublishDialog(true) : handlePublish}
+            variant={isActive ? 'secondary' : 'outline'}
+            className='w-full'
+            disabled={isPublishing || isUnpublishing}
+          >
+            {isPublishing ? 'Publishing...' : isUnpublishing ? 'Unpublishing...' : isActive ? 'Unpublish' : 'Publish'}
+          </Button>
+        )}
       </div>
 
       {/* Course Navigation */}
@@ -132,6 +185,57 @@ export default function CourseSidebar({
           </Button>
         </div>
       )}
+
+      {/* Unpublish Confirmation Dialog */}
+      <Dialog open={showUnpublishDialog} onOpenChange={setShowUnpublishDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Unpublish Course
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to unpublish this course? This will change the course status from "Active" to "Draft" and students will no longer be able to access it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowUnpublishDialog(false)}
+              disabled={isUnpublishing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleUnpublish}
+              disabled={isUnpublishing}
+            >
+              {isUnpublishing ? 'Unpublishing...' : 'Unpublish Course'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Dialog */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-green-500" />
+              Success
+            </DialogTitle>
+            <DialogDescription>
+              {successMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowSuccessDialog(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -378,6 +378,24 @@ class LMSApiClient {
     }
   }
 
+  async publishCourse(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/publish`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to publish course');
+    }
+  }
+
+  async unpublishCourse(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/unpublish`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to unpublish course');
+    }
+  }
+
   // =============================================================================
   // MEDIA / THUMBNAILS
   // =============================================================================
@@ -709,9 +727,9 @@ class LMSApiClient {
     }
   }
 
-  async submitAssignment(assignmentId: string, answers: any): Promise<any> {
+  async submitAssignment(assignmentId: string, submissionData: any): Promise<any> {
     try {
-      const response = await this.api.post(`/assignments/${assignmentId}/submit`, { answers });
+      const response = await this.api.post(`/assignments/${assignmentId}/submit`, submissionData);
       return response.data;
     } catch (error) {
       throw new Error('Failed to submit assignment');
@@ -734,6 +752,24 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       throw new Error('Failed to load assignment submissions');
+    }
+  }
+
+  async debugSubmissions(assignmentId: string) {
+    try {
+      const response = await this.api.get(`/assignments/${assignmentId}/debug-submissions`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to debug submissions');
+    }
+  }
+
+  async debugDeleteSubmission(assignmentId: string, submissionId: string) {
+    try {
+      const response = await this.api.delete(`/assignments/${assignmentId}/debug-delete-submission/${submissionId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to delete submission');
     }
   }
 
@@ -767,6 +803,23 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       throw new Error('Failed to upload assignment file');
+    }
+  }
+
+  async uploadTeacherFile(file: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('file_type', 'teacher_assignment');
+
+      const response = await this.api.post('/media/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload teacher file');
     }
   }
 
@@ -934,6 +987,14 @@ class LMSApiClient {
       await this.api.put(`/messages/${messageId}/read`);
     } catch (error) {
       console.warn('Failed to mark message as read:', error);
+    }
+  }
+
+  async markAllMessagesAsRead(partnerId: string) {
+    try {
+      await this.api.put(`/messages/mark-all-read/${partnerId}`);
+    } catch (error) {
+      console.warn('Failed to mark all messages as read:', error);
     }
   }
 
@@ -1489,6 +1550,8 @@ export const getCourses = apiClient.getCourses.bind(apiClient);
 export const getCourse = apiClient.getCourse.bind(apiClient);
 export const createCourse = apiClient.createCourse.bind(apiClient);
 export const updateCourse = apiClient.updateCourse.bind(apiClient);
+export const publishCourse = apiClient.publishCourse.bind(apiClient);
+export const unpublishCourse = apiClient.unpublishCourse.bind(apiClient);
 export const deleteCourse = apiClient.deleteCourse.bind(apiClient);
 export const getCourseModules = apiClient.getCourseModules.bind(apiClient);
 export const createModule = apiClient.createModule.bind(apiClient);
@@ -1509,7 +1572,11 @@ export const getAssignments = apiClient.getAssignments.bind(apiClient);
 export const getAssignment = apiClient.getAssignment.bind(apiClient);
 export const submitAssignment = apiClient.submitAssignment.bind(apiClient);
 export const getMySubmissions = apiClient.getMySubmissions.bind(apiClient);
+export const getAssignmentSubmissions = apiClient.getAssignmentSubmissions.bind(apiClient);
+export const debugSubmissions = apiClient.debugSubmissions.bind(apiClient);
+export const debugDeleteSubmission = apiClient.debugDeleteSubmission.bind(apiClient);
 export const uploadAssignmentFile = apiClient.uploadAssignmentFile.bind(apiClient);
+export const uploadTeacherFile = apiClient.uploadTeacherFile.bind(apiClient);
 export const uploadSubmissionFile = apiClient.uploadSubmissionFile.bind(apiClient);
 export const downloadFile = apiClient.downloadFile.bind(apiClient);
 export const getFileUrl = apiClient.getFileUrl.bind(apiClient);
@@ -1522,6 +1589,7 @@ export const fetchMessages = apiClient.fetchMessages.bind(apiClient);
 export const sendMessage = apiClient.sendMessage.bind(apiClient);
 export const getAvailableContacts = apiClient.getAvailableContacts.bind(apiClient);
 export const markMessageAsRead = apiClient.markMessageAsRead.bind(apiClient);
+export const markAllMessagesAsRead = apiClient.markAllMessagesAsRead.bind(apiClient);
 export const fetchQuizzes = apiClient.fetchQuizzes.bind(apiClient);
 export const fetchQuizById = apiClient.fetchQuizById.bind(apiClient);
 export const getQuizAttemptsLeft = apiClient.getQuizAttemptsLeft.bind(apiClient);

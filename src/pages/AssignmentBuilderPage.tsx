@@ -109,29 +109,45 @@ export default function AssignmentBuilderPage() {
     try {
       // Handle teacher file upload if present
       let teacherFileUrl = null;
+      let teacherFileName = null;
+      
       if (formData.content.teacher_file) {
         try {
-          const formDataFile = new FormData();
-          formDataFile.append('file', formData.content.teacher_file);
-          teacherFileUrl = await apiClient.uploadFile(formDataFile, 'assignments');
+          console.log('Uploading teacher file:', formData.content.teacher_file.name);
+          
+          // Upload the teacher file
+          const uploadResult = await apiClient.uploadTeacherFile(formData.content.teacher_file);
+          console.log('Teacher file upload result:', uploadResult);
+          
+          // Extract file URL and name from the response
+          teacherFileUrl = uploadResult.file_url || uploadResult.url;
+          teacherFileName = formData.content.teacher_file_name || formData.content.teacher_file.name;
+          
+          console.log('Teacher file URL:', teacherFileUrl);
+          console.log('Teacher file name:', teacherFileName);
+          
         } catch (fileError) {
           console.error('Failed to upload teacher file:', fileError);
-          // Continue without teacher file if upload fails
+          setError('Failed to upload teacher file. Please try again.');
+          setLoading(false);
+          return;
         }
       }
 
-      // Create assignment data without the actual file object
+      // Create assignment data with teacher file information
       const assignmentData = {
         ...formData,
         content: {
           ...formData.content,
           teacher_file_url: teacherFileUrl,
-          teacher_file_name: formData.content.teacher_file_name
+          teacher_file_name: teacherFileName
         }
       };
       
       // Remove the actual file object before sending to API
       delete assignmentData.content.teacher_file;
+      
+      console.log('Creating assignment with data:', assignmentData);
       
       await apiClient.createAssignment(assignmentData);
       
