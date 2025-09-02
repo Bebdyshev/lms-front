@@ -43,9 +43,12 @@ export function validateAndExtractYouTubeInfo(url: string): YouTubeVideoInfo {
     return { is_valid: false };
   }
 
-  // Generate various URL formats
+  // Generate various URL formats with enhanced security parameters
   const cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&fs=0&disablekb=1&iv_load_policy=3&cc_load_policy=0`;
+  
+  // Enhanced embed URL with security parameters to bypass Zen browser blocking
+  const embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&fs=0&disablekb=1&iv_load_policy=3&cc_load_policy=0&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}&enablejsapi=1&widget_referrer=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`;
+  
   const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
   return {

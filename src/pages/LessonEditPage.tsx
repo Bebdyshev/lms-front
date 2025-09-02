@@ -5,7 +5,6 @@ import type { Course, CourseModule, Lesson, LessonContentType, Assignment, Quest
 import { 
   ChevronDown, 
   ChevronUp, 
-  Lock, 
   HelpCircle, 
   Settings, 
   Save, 
@@ -16,25 +15,16 @@ import {
   Plus,
   Trash2,
   CheckCircle,
-  Clock,
   AlertCircle,
   BookOpen,
   Play,
   Edit3
 } from 'lucide-react';
-import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { isValidYouTubeUrl } from '../utils/youtube';
-import RichTextEditor from '../components/RichTextEditor';
 import VideoLessonEditor from '../components/lesson/VideoLessonEditor';
 import TextLessonEditor from '../components/lesson/TextLessonEditor';
 import QuizLessonEditor from '../components/lesson/QuizLessonEditor';
 import Loader from '../components/Loader.tsx';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
