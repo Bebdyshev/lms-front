@@ -33,7 +33,7 @@ class CookieUtils {
   static setCookie(name: string, value: string, days: number = 7): void {
     const expires = new Date();
     expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict;Secure=${window.location.protocol === 'https:'}`;
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax${window.location.protocol === 'https:' ? ';Secure' : ''}`;
   }
 
   static getCookie(name: string): string | null {
@@ -48,7 +48,7 @@ class CookieUtils {
   }
 
   static deleteCookie(name: string): void {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:01 GMT;path=/;SameSite=Strict`;
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:01 GMT;path=/;SameSite=Lax${window.location.protocol === 'https:' ? ';Secure' : ''}`;
   }
 }
 
@@ -189,9 +189,11 @@ class LMSApiClient {
               return this.api(originalRequest);
             }
           } catch (refreshError) {
-            // Refresh failed, logout user
+            // Refresh failed, logout user and avoid redirect loop on /login
             this.logout();
-            window.location.href = '/login';
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
           }
         }
 
@@ -272,8 +274,16 @@ class LMSApiClient {
     try {
       const response = await this.api.get('/auth/me');
       return response.data;
-    } catch (error) {
-      throw new Error('Failed to get current user');
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const isNetwork = !error?.response;
+      const detail = error?.response?.data?.detail;
+      const message = isNetwork
+        ? 'Network error while fetching current user'
+        : status === 401
+          ? 'Unauthorized'
+          : detail || 'Failed to get current user';
+      throw new Error(message);
     }
   }
 
