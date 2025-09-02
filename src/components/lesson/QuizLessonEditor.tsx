@@ -298,27 +298,38 @@ export default function QuizLessonEditor({
     setIsAnalyzingImage(true);
     try {
       const result = await apiClient.analyzeSatImage(file);
+      console.log('SAT analysis result:', result);
+
+      if (!result || result.success === false) {
+        const message = (result && (result.explanation || result.error)) || 'Analysis returned no data';
+        alert(`Failed to analyze image. ${message}`);
+        return;
+      }
+
       setSatAnalysisResult(result);
       
       // Convert SAT format to our Question format
+      const optionsArray = Array.isArray(result.options) ? result.options : [];
+      const correctIndex = optionsArray.findIndex((opt: any) => opt.letter === result.correct_answer);
+
       const satQuestion: Question = {
         id: Date.now().toString(),
         assignment_id: '',
-        question_text: result.question_text,
+        question_text: result.question_text || '',
         question_type: 'single_choice',
-        options: result.options?.map((opt: any, index: number) => ({
+        options: optionsArray.map((opt: any, index: number) => ({
           id: Date.now().toString() + '_' + index,
-          text: opt.text,
+          text: opt.text || '',
           is_correct: opt.letter === result.correct_answer,
           letter: opt.letter
         })) || [],
-        correct_answer: result.options?.findIndex((opt: any) => opt.letter === result.correct_answer) || 0,
+        correct_answer: correctIndex >= 0 ? correctIndex : 0,
         points: 10,
         order_index: quizQuestions.length,
-        explanation: result.explanation,
+        explanation: result.explanation || '',
         original_image_url: result.image_url,
         is_sat_question: true,
-        content_text: result.content_text
+        content_text: result.content_text || ''
       };
       
       setDraftQuestion(satQuestion);
