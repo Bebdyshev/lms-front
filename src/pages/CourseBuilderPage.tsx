@@ -1127,7 +1127,7 @@ export default function CourseBuilderPage() {
                     <div className="w-32 h-24 bg-gray-100 rounded-lg overflow-hidden border">
                       {(course as any).cover_image_url ? (
                         <img 
-                          src={(course as any).cover_image_url} 
+                          src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course as any).cover_image_url} 
                           alt="Course cover"
                           className="w-full h-full object-cover"
                         />
