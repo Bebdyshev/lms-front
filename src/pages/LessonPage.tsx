@@ -9,6 +9,7 @@ import type { Lesson, Step, Course, CourseModule, StepProgress } from '../types'
 import TextLessonEditor from '../components/lesson/TextLessonEditor';
 import VideoLessonEditor from '../components/lesson/VideoLessonEditor';
 import QuizLessonEditor from '../components/lesson/QuizLessonEditor';
+import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
 
 interface LessonSidebarProps {
@@ -759,13 +760,14 @@ export default function LessonPage() {
           <div className="space-y-4">
             {currentStep.video_url && (
               <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                <iframe
-                  src={currentStep.video_url}
+                <YouTubeVideoPlayer
+                  url={currentStep.video_url}
+                  title={currentStep.title || 'Lesson Video'}
                   className="w-full h-full"
-                  allowFullScreen
                 />
               </div>
             )}
+          
             {currentStep.content_text && (
               <div className="prose max-w-none">
                 <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text) }} />
