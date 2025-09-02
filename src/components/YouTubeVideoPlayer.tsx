@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { validateAndExtractYouTubeInfo } from '../utils/youtube';
 
 interface YouTubeVideoPlayerProps {
@@ -14,6 +14,7 @@ export default function YouTubeVideoPlayer({
   className = "",
   onError 
 }: YouTubeVideoPlayerProps) {
+  const [iframeError, setIframeError] = useState(false);
   const videoInfo = validateAndExtractYouTubeInfo(url);
 
   if (!videoInfo.is_valid || !videoInfo.video_id) {
@@ -32,6 +33,38 @@ export default function YouTubeVideoPlayer({
     );
   }
 
+  const handleIframeError = () => {
+    setIframeError(true);
+  };
+
+  const openInNewWindow = () => {
+    window.open(videoInfo.clean_url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Fallback UI for Zen browser or iframe errors
+  if (iframeError) {
+    return (
+      <div className={`bg-gray-100 rounded-lg p-4 text-center ${className}`}>
+        <div className="text-gray-500">
+          <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+          </svg>
+          <h3 className="text-lg font-medium mb-2">Видео недоступно для встраивания</h3>
+          <p className="text-sm mb-4">
+            Ваш браузер не поддерживает встраивание YouTube видео. 
+            Нажмите кнопку ниже, чтобы открыть видео в новом окне.
+          </p>
+          <button
+            onClick={openInNewWindow}
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Открыть видео на YouTube
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`bg-gray-900 rounded-lg overflow-hidden relative youtube-iframe-container ${className}`}>
       {/* Educational overlay */}
@@ -42,6 +75,8 @@ export default function YouTubeVideoPlayer({
           allowFullScreen={false}
           title={title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          onError={handleIframeError}
+          sandbox="allow-scripts allow-same-origin allow-presentation"
         />
       </div>
       
@@ -50,6 +85,17 @@ export default function YouTubeVideoPlayer({
         <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity duration-200">
           Видео воспроизводится в учебных целях
         </div>
+      </div>
+
+      {/* Fallback button for Zen browser */}
+      <div className="absolute top-2 right-2">
+        <button
+          onClick={openInNewWindow}
+          className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded hover:bg-opacity-90 transition-all duration-200 opacity-0 hover:opacity-100"
+          title="Открыть в новом окне"
+        >
+          ↗
+        </button>
       </div>
     </div>
   );
