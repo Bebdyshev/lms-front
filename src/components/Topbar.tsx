@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { useEffect, useState } from 'react';
-import { getUnreadMessageCount } from '../services/api';
+import { connectSocket } from '../services/socket';
 import { Badge } from './ui/badge';
 import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
@@ -16,21 +16,33 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
   const firstName = user?.name?.split(' ')[0] || 'User';
   
   useEffect(() => {
-    const loadUnreadCount = async () => {
-      try {
-        const data = await getUnreadMessageCount();
-        setUnreadCount(data.unread_count || 0);
-      } catch (error) {
-        console.warn('Failed to load unread count:', error);
+    if (!user) return;
+
+    // Connect to socket and load unread count
+    const socket = connectSocket();
+    
+    const loadUnreadCount = () => {
+      if (socket.connected) {
+        socket.emit('unread:count', (response: { unread_count: number }) => {
+          setUnreadCount(response.unread_count || 0);
+        });
       }
     };
 
+    // Load initial count
     loadUnreadCount();
+
+    // Listen for unread count updates
+    const handleUnreadUpdate = () => {
+      loadUnreadCount();
+    };
+
+    socket.on('unread:update', handleUnreadUpdate);
     
-    // Обновляем каждые 30 секунд
-    const interval = setInterval(loadUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      socket.off('unread:update', handleUnreadUpdate);
+    };
+  }, [user]);
   
   const handleLogout = async () => {
     try {
