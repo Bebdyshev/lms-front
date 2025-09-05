@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
-import { fetchThreads, fetchMessages, sendMessage, getAvailableContacts, markMessageAsRead, markAllMessagesAsRead, isAuthenticated } from "../services/api";
+import { isAuthenticated } from "../services/api";
 import type { MessageThread, Message, AvailableContact } from '../types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { connectSocket } from '../services/socket';
 
 export default function ChatPage() {
   const [threads, setThreads] = useState<MessageThread[]>([]);
@@ -24,30 +25,73 @@ export default function ChatPage() {
     loadThreads();
   }, []);
 
+  // Socket.IO setup
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    const socket = connectSocket();
+
+    const onMessageNew = (payload: any) => {
+      const involvesActive = payload.from_user_id === activePartnerId || payload.to_user_id === activePartnerId;
+      if (involvesActive) {
+        setMessages(prev => [...prev, payload]);
+      }
+    };
+
+    const onMessageUpdated = (payload: any) => {
+      setMessages(prev => prev.map(m => m.id === payload.id ? { ...m, is_read: payload.is_read } : m));
+    };
+
+    const onMessageBulkUpdated = (payload: any) => {
+      const ids: number[] = payload?.ids || [];
+      const is_read = !!payload?.is_read;
+      if (ids.length) setMessages(prev => prev.map(m => ids.includes(m.id) ? { ...m, is_read } : m));
+    };
+
+    const onThreadsUpdate = async () => {
+      await loadThreads();
+    };
+
+    const onUnreadUpdate = () => {
+      updateUnreadCount();
+    };
+
+    socket.on('message:new', onMessageNew);
+    socket.on('message:updated', onMessageUpdated);
+    socket.on('message:bulk-updated', onMessageBulkUpdated);
+    socket.on('threads:update', onThreadsUpdate);
+    socket.on('unread:update', onUnreadUpdate);
+
+    return () => {
+      socket.off('message:new', onMessageNew);
+      socket.off('message:updated', onMessageUpdated);
+      socket.off('message:bulk-updated', onMessageBulkUpdated);
+      socket.off('threads:update', onThreadsUpdate);
+      socket.off('unread:update', onUnreadUpdate);
+    };
+  }, [activePartnerId]);
+
   // Загрузка сообщений при смене активного партнера
   useEffect(() => {
     if (!activePartnerId) return;
     
     const loadMessages = async () => {
-      const msgs = await fetchMessages(activePartnerId.toString());
-      // Переворачиваем порядок сообщений, так как бэкенд возвращает их в обратном порядке
+      const socket = connectSocket();
+      const msgs: any[] = await new Promise((resolve) => {
+        socket.timeout(5000).emit('messages:get', { with_user_id: activePartnerId }, (err: any, res: any) => {
+          resolve(err ? [] : res || []);
+        });
+      });
       setMessages(msgs.reverse());
-      
-      // Отмечаем все сообщения от этого партнера как прочитанные
-      await markAllMessagesAsRead(activePartnerId.toString());
-      
-      // Обновляем счетчик непрочитанных сообщений в сайдбаре
+      socket.emit('message:read-all', { partner_id: activePartnerId });
       updateUnreadCount();
-      
-      // Обновляем список разговоров, чтобы обновить счетчики
       await loadThreads();
     };
 
     loadMessages();
     
-    // Автообновление каждые 8 секунд
+    // Автообновление отключено (реалтайм через сокеты)
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(loadMessages, 8000);
+    pollRef.current = null;
     
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -67,11 +111,13 @@ export default function ChatPage() {
 
   const loadThreads = async () => {
     try {
-      const threadsData = await fetchThreads();
+      const socket = connectSocket();
+      const threadsData: any[] = await new Promise((resolve) => {
+        socket.timeout(5000).emit('threads:get', (err: any, res: any) => {
+          resolve(err ? [] : res || []);
+        });
+      });
       setThreads(threadsData);
-      
-      // Убираем автоматический выбор первого чата
-      // Пользователь должен сам выбрать чат для чтения
     } catch (error) {
       console.error('Failed to load threads:', error);
     }
@@ -84,16 +130,22 @@ export default function ChatPage() {
   };
 
   const loadAvailableContacts = async () => {
-    try {
-      console.log('🔄 Loading available contacts...');
-      console.log('🔐 Is authenticated:', isAuthenticated());
-      const contacts = await getAvailableContacts();
-      console.log('✅ Available contacts loaded:', contacts);
-      setAvailableContacts(contacts);
-    } catch (error) {
-      console.error('❌ Failed to load contacts:', error);
-    }
-  };
+     try {
+       console.log('🔄 Loading available contacts...');
+       console.log('🔐 Is authenticated:', isAuthenticated());
+       const socket = connectSocket();
+       const res: any = await new Promise((resolve) => {
+         socket.timeout(5000).emit('contacts:get', {}, (ack: any) => {
+           resolve(ack || { available_contacts: [] });
+         });
+       });
+       const contacts = res.available_contacts || [];
+       console.log('✅ Available contacts loaded:', contacts);
+       setAvailableContacts(contacts);
+     } catch (error) {
+       console.error('❌ Failed to load contacts:', error);
+     }
+   };
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
@@ -101,17 +153,11 @@ export default function ChatPage() {
     
     setIsLoading(true);
     try {
-      await sendMessage(activePartnerId.toString(), text.trim());
+      const optimistic = text.trim();
       setText('');
-      
-      // Обновляем сообщения
-      const updatedMessages = await fetchMessages(activePartnerId.toString());
-      setMessages(updatedMessages.reverse());
-      
-      // Обновляем список разговоров
+      const socket = connectSocket();
+      socket.emit('message:send', { to_user_id: activePartnerId, content: optimistic });
       await loadThreads();
-      
-      // Обновляем счетчик непрочитанных сообщений в сайдбаре
       updateUnreadCount();
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -125,11 +171,16 @@ export default function ChatPage() {
     setShowNewChatDialog(false);
     
     // Загружаем сообщения с этим контактом
-    const msgs = await fetchMessages(contact.user_id.toString());
+    const socket = connectSocket();
+    const msgs: any[] = await new Promise((resolve) => {
+      socket.timeout(5000).emit('messages:get', { with_user_id: contact.user_id }, (err: any, res: any) => {
+        resolve(err ? [] : res || []);
+      });
+    });
     setMessages(msgs.reverse());
     
     // Отмечаем все сообщения от этого партнера как прочитанные
-    await markAllMessagesAsRead(contact.user_id.toString());
+    socket.emit('message:read-all', { partner_id: contact.user_id });
     
     // Обновляем список разговоров, чтобы новый чат появился в списке
     await loadThreads();

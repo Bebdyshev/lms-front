@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import apiClient from "../services/api";
+import { connectSocket, getSocket } from '../services/socket';
 import logoIco from '../assets/masteredlogo-ico.ico';
 import { 
   Home, 
@@ -42,30 +42,40 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
   
   useEffect(() => {
-    // Load unread messages count
-    loadUnreadCount();
-    const interval = setInterval(loadUnreadCount, 30000); // Check every 30 seconds
+    if (!user) return;
+
+    // Connect to socket and load unread count
+    const socket = connectSocket();
     
-    // Слушаем событие обновления счетчика
+    const loadUnreadCount = () => {
+      if (socket.connected) {
+        socket.emit('unread:count', (response: { unread_count: number }) => {
+          setUnread(response.unread_count || 0);
+        });
+      }
+    };
+
+    // Load initial count
+    loadUnreadCount();
+
+    // Listen for unread count updates
+    const handleUnreadUpdate = () => {
+      loadUnreadCount();
+    };
+
+    socket.on('unread:update', handleUnreadUpdate);
+    
+    // Слушаем событие обновления счетчика (для совместимости)
     const handleUpdateUnreadCount = () => {
       loadUnreadCount();
     };
     window.addEventListener('updateUnreadCount', handleUpdateUnreadCount);
     
     return () => {
-      clearInterval(interval);
+      socket.off('unread:update', handleUnreadUpdate);
       window.removeEventListener('updateUnreadCount', handleUpdateUnreadCount);
     };
-  }, []);
-
-  const loadUnreadCount = async () => {
-    try {
-      const response = await apiClient.getUnreadMessageCount();
-      setUnread(response.unread_count || 0);
-    } catch (error) {
-      console.error('Failed to load unread count:', error);
-    }
-  };
+  }, [user]);
 
   const handleLogout = () => {
     logout();
