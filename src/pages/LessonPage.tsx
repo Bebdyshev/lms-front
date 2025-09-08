@@ -284,6 +284,7 @@ export default function LessonPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
+  const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   // Quiz state
@@ -292,6 +293,7 @@ export default function LessonPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizData, setQuizData] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [feedChecked, setFeedChecked] = useState(false);
 
   useEffect(() => {
     if (courseId && lessonId) {
@@ -318,6 +320,17 @@ export default function LessonPage() {
       // Load modules for navigation
       const modulesData = await apiClient.getCourseModules(courseId!);
       setModules(modulesData);
+      
+      // Compute next lesson id within the course
+      try {
+        const allLessons = await apiClient.getCourseLessons(courseId!);
+        const ordered = Array.isArray(allLessons) ? allLessons : [];
+        const currentIndex = ordered.findIndex((l: any) => String(l.id) === String(lessonId));
+        const next = currentIndex >= 0 && currentIndex < ordered.length - 1 ? ordered[currentIndex + 1] : null;
+        setNextLessonId(next ? String(next.id) : null);
+      } catch (e) {
+        setNextLessonId(null);
+      }
       
       // Load steps progress
       try {
@@ -394,9 +407,15 @@ export default function LessonPage() {
         const parsedQuizData = JSON.parse(currentStep.content_text || '{}');
         setQuizData(parsedQuizData);
         setQuestions(parsedQuizData.questions || []);
-        setQuizState('title');
+        // If quiz is not the last step in lesson, start immediately with questions (feed mode)
+        if (currentStepIndex < steps.length - 1) {
+          setQuizState('question');
+        } else {
+          setQuizState('title');
+        }
         setCurrentQuestionIndex(0);
         setQuizAnswers(new Map());
+        setFeedChecked(false);
       } catch (error) {
         console.error('Failed to parse quiz data:', error);
       }
@@ -410,6 +429,8 @@ export default function LessonPage() {
         markStepAsVisited(currentStep.id.toString());
       }
       setCurrentStepIndex(currentStepIndex + 1);
+    } else if (nextLessonId) {
+      navigate(`/course/${courseId}/lesson/${nextLessonId}`);
     }
   };
 
@@ -457,15 +478,31 @@ export default function LessonPage() {
   };
 
   const checkAnswer = () => {
-    setQuizState('result');
+    const isNotLastStep = currentStepIndex < steps.length - 1;
+    if (isNotLastStep) {
+      // Feed mode: advance immediately
+      if (currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+        setQuizState('question');
+      } else {
+        goToNextStep();
+      }
+    } else {
+      setQuizState('result');
+    }
   };
 
   const nextQuestion = () => {
+    const isNotLastStep = currentStepIndex < steps.length - 1;
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setQuizState('question');
     } else {
-      setQuizState('completed');
+      if (isNotLastStep) {
+        goToNextStep();
+      } else {
+        setQuizState('completed');
+      }
     }
   };
 
@@ -495,6 +532,90 @@ export default function LessonPage() {
       const question = questions.find(q => q.id === questionId);
       return question && answer === question.correct_answer;
     }).length;
+  };
+
+  // Feed mode renderer: show all questions vertically when quiz is not the last step
+  const renderQuizFeed = () => {
+    if (!questions || questions.length === 0) return null;
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        {questions.map((q, idx) => {
+          const userAnswer = quizAnswers.get(q.id);
+          return (
+            <div key={q.id} className="bg-white border rounded-lg p-4 sm:p-6 shadow-sm">
+              {q.content_text && (
+                <div className="bg-gray-50 p-4 rounded-lg mb-4 text-base text-gray-600">
+                  <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
+                </div>
+              )}
+              <h3 className="text-base sm:text-lg font-semibold mb-3">{idx + 1}. {q.question_text}</h3>
+              <div className="space-y-2">
+                {q.options?.map((option: any, optionIndex: number) => {
+                  const isSelected = userAnswer === optionIndex;
+                  const isCorrectOption = optionIndex === q.correct_answer;
+                  let optionClass = "flex items-center p-2 border rounded-lg cursor-pointer transition-all duration-200";
+                  if (feedChecked) {
+                    if (isCorrectOption) optionClass += " bg-green-50 border-green-300";
+                    else if (isSelected) optionClass += " bg-red-50 border-red-300";
+                    else optionClass += " bg-gray-50 border-gray-200";
+                  } else {
+                    optionClass += isSelected ? " bg-blue-50 border-blue-300 shadow-sm" : " hover:bg-gray-50 border-gray-200";
+                  }
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setQuizAnswers(prev => new Map(prev.set(q.id, optionIndex)))}
+                      className={optionClass}
+                    >
+                      <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
+                        feedChecked
+                          ? isCorrectOption
+                            ? "bg-green-500 border-green-500"
+                            : isSelected
+                              ? "bg-red-500 border-red-500"
+                              : "border-gray-300"
+                          : isSelected
+                            ? "bg-blue-500 border-blue-500"
+                            : "border-gray-300"
+                      }`}>
+                        {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                      <span className="font-medium mr-3">{option.letter}.</span>
+                      <span className="text-left">{option.text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {feedChecked && (
+                <div className="mt-3 text-sm">
+                  {userAnswer === q.correct_answer ? (
+                    <span className="text-green-600">Correct</span>
+                  ) : (
+                    <span className="text-red-600">Incorrect</span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+          <Button
+            variant="outline"
+            onClick={() => setFeedChecked(true)}
+            disabled={feedChecked || questions.some(q => quizAnswers.get(q.id) === undefined)}
+          >
+            Check Answers
+          </Button>
+          <Button
+            onClick={goToNextStep}
+            className="bg-blue-600 hover:bg-blue-700"
+            disabled={!feedChecked}
+          >
+            Continue to Next Step
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   const renderQuizTitleScreen = () => {
@@ -575,7 +696,7 @@ export default function LessonPage() {
                 <button
                   key={option.id}
                   onClick={() => handleQuizAnswer(question.id, optionIndex)}
-                  disabled={hasAnswered}
+                  disabled={false}
                   className={optionClass}
                 >
                   <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
@@ -778,6 +899,12 @@ export default function LessonPage() {
         );
       
       case 'quiz':
+        {
+          const isFeedMode = currentStepIndex < steps.length - 1;
+          if (isFeedMode) {
+            return renderQuizFeed();
+          }
+        }
         switch (quizState) {
           case 'title':
             return renderQuizTitleScreen();
@@ -862,25 +989,7 @@ export default function LessonPage() {
                 <div className="h-6 w-px bg-border" />
                 
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  onClick={goToPreviousStep}
-                  disabled={currentStepIndex === 0}
-                  className="w-full sm:w-auto"
-                >
-                  <ChevronLeft className="w-4 h-4 mr-2" />
-                  Previous
-                </Button>
-                <Button
-                  onClick={goToNextStep}
-                  disabled={currentStepIndex === steps.length - 1}
-                  className="w-full sm:w-auto"
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
+              <div className="hidden" />
             </div>
           </CardHeader>
         </Card>
@@ -941,6 +1050,26 @@ export default function LessonPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Bottom step navigation */}
+            <div className="mt-6 flex flex-col sm:flex-row gap-2 sm:justify-between">
+              <Button
+                variant="outline"
+                onClick={goToPreviousStep}
+                disabled={currentStepIndex === 0}
+                className="w-full sm:w-auto"
+              >
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                Previous
+              </Button>
+              <Button
+                onClick={goToNextStep}
+                className="w-full sm:w-auto"
+              >
+                {currentStepIndex < steps.length - 1 ? 'Next' : (nextLessonId ? 'Next Lesson' : 'Next')}
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
