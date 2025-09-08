@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
-import { isAuthenticated } from "../services/api";
+import { isAuthenticated, fetchThreads, fetchMessages, getAvailableContacts, sendMessage } from "../services/api";
 import type { MessageThread, Message, AvailableContact } from '../types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -75,14 +75,12 @@ export default function ChatPage() {
     if (!activePartnerId) return;
     
     const loadMessages = async () => {
-      const socket = connectSocket();
-      const msgs: any[] = await new Promise((resolve) => {
-        socket.timeout(5000).emit('messages:get', { with_user_id: activePartnerId }, (err: any, res: any) => {
-          resolve(err ? [] : res || []);
-        });
-      });
+      const msgs: any[] = await fetchMessages(String(activePartnerId));
       setMessages(msgs.reverse());
-      socket.emit('message:read-all', { partner_id: activePartnerId });
+      const socket = connectSocket();
+      if (socket && socket.connected) {
+        socket.emit('message:read-all', { partner_id: activePartnerId });
+      }
       updateUnreadCount();
       await loadThreads();
     };
@@ -111,12 +109,7 @@ export default function ChatPage() {
 
   const loadThreads = async () => {
     try {
-      const socket = connectSocket();
-      const threadsData: any[] = await new Promise((resolve) => {
-        socket.timeout(5000).emit('threads:get', (err: any, res: any) => {
-          resolve(err ? [] : res || []);
-        });
-      });
+      const threadsData: any[] = await fetchThreads();
       setThreads(threadsData);
     } catch (error) {
       console.error('Failed to load threads:', error);
@@ -131,20 +124,7 @@ export default function ChatPage() {
 
   const loadAvailableContacts = async () => {
      try {
-       console.log('🔄 Loading available contacts...');
-       console.log('🔐 Is authenticated:', isAuthenticated());
-       const socket = connectSocket();
-       const res: any = await new Promise((resolve) => {
-         socket.timeout(5000).emit('contacts:get', {}, (err: any, ack: any) => {
-           if (err) {
-             resolve({ available_contacts: [] });
-             return;
-           }
-           resolve(ack || { available_contacts: [] });
-         });
-       });
-       const contacts = res.available_contacts || [];
-       console.log('✅ Available contacts loaded:', contacts);
+       const contacts = await getAvailableContacts();
        setAvailableContacts(contacts);
      } catch (error) {
        console.error('❌ Failed to load contacts:', error);
@@ -160,7 +140,11 @@ export default function ChatPage() {
       const optimistic = text.trim();
       setText('');
       const socket = connectSocket();
-      socket.emit('message:send', { to_user_id: activePartnerId, content: optimistic });
+      if (socket && socket.connected) {
+        socket.emit('message:send', { to_user_id: activePartnerId, content: optimistic });
+      } else {
+        await sendMessage(String(activePartnerId), optimistic);
+      }
       await loadThreads();
       updateUnreadCount();
     } catch (error) {
@@ -175,16 +159,14 @@ export default function ChatPage() {
     setShowNewChatDialog(false);
     
     // Загружаем сообщения с этим контактом
-    const socket = connectSocket();
-    const msgs: any[] = await new Promise((resolve) => {
-      socket.timeout(5000).emit('messages:get', { with_user_id: contact.user_id }, (err: any, res: any) => {
-        resolve(err ? [] : res || []);
-      });
-    });
+    const msgs: any[] = await fetchMessages(String(contact.user_id));
     setMessages(msgs.reverse());
     
     // Отмечаем все сообщения от этого партнера как прочитанные
-    socket.emit('message:read-all', { partner_id: contact.user_id });
+    const socket = connectSocket();
+    if (socket && socket.connected) {
+      socket.emit('message:read-all', { partner_id: contact.user_id });
+    }
     
     // Обновляем список разговоров, чтобы новый чат появился в списке
     await loadThreads();
