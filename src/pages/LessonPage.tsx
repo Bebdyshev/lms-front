@@ -841,7 +841,7 @@ export default function LessonPage() {
         {/* Header */}
         <Card className="border-0 rounded-none border-b">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3">
                 {/* Mobile: open lessons sidebar */}
                 <button 
@@ -862,11 +862,12 @@ export default function LessonPage() {
                 <div className="h-6 w-px bg-border" />
                 
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   variant="outline"
                   onClick={goToPreviousStep}
                   disabled={currentStepIndex === 0}
+                  className="w-full sm:w-auto"
                 >
                   <ChevronLeft className="w-4 h-4 mr-2" />
                   Previous
@@ -874,6 +875,7 @@ export default function LessonPage() {
                 <Button
                   onClick={goToNextStep}
                   disabled={currentStepIndex === steps.length - 1}
+                  className="w-full sm:w-auto"
                 >
                   Next
                   <ChevronRight className="w-4 h-4 ml-2" />
@@ -884,11 +886,11 @@ export default function LessonPage() {
         </Card>
         
         {/* Content */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
           <div className="max-w-4xl mx-auto">
             {/* Steps Navigation */}
             <div className="mb-6">
-              <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(15, 1fr)' }}>
+              <div className="grid gap-2 [grid-template-columns:repeat(6,minmax(0,1fr))] sm:[grid-template-columns:repeat(10,minmax(0,1fr))] lg:[grid-template-columns:repeat(15,minmax(0,1fr))]">
                 {steps
                   .sort((a, b) => a.order_index - b.order_index)
                   .map((step, index) => {
@@ -926,10 +928,10 @@ export default function LessonPage() {
 
             {/* Step Content */}
             <Card>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 <CardTitle className="text-lg font-bold py-4">{lesson.module_id}.{lesson.order_index} {lesson.title}</CardTitle>
                 {currentStep ? (
-                  <div className="min-h-[400px]">
+                  <div className="min-h-[300px] sm:min-h-[400px]">
                     {renderStepContent()}
                   </div>
                 ) : (
