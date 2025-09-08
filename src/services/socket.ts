@@ -1,7 +1,10 @@
 import { io, Socket } from 'socket.io-client';
 import { isAuthenticated } from './api';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const RAW_API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const API_BASE_URL = (typeof window !== 'undefined' && window.location.protocol === 'https:' && RAW_API_BASE_URL.startsWith('http://'))
+  ? RAW_API_BASE_URL.replace('http://', 'https://')
+  : RAW_API_BASE_URL;
 
 let socket: Socket | null = null;
 let lastToken: string | null = null;
