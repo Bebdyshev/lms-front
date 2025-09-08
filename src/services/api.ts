@@ -24,9 +24,16 @@ import type {
 // API Base URL - adjust for your backend
 // Force HTTPS if the app is served over HTTPS to avoid mixed-content blocking
 const RAW_API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
-const API_BASE_URL = (typeof window !== 'undefined' && window.location.protocol === 'https:' && RAW_API_BASE_URL.startsWith('http://'))
-  ? RAW_API_BASE_URL.replace('http://', 'https://')
-  : RAW_API_BASE_URL;
+let API_BASE_URL = RAW_API_BASE_URL;
+if (typeof window !== 'undefined') {
+  const isHttps = window.location.protocol === 'https:';
+  // Force https for production API host
+  if (/^http:\/\/lmsapi\.mastereducation\.kz/.test(RAW_API_BASE_URL)) {
+    API_BASE_URL = RAW_API_BASE_URL.replace('http://', 'https://');
+  } else if (isHttps && RAW_API_BASE_URL.startsWith('http://')) {
+    API_BASE_URL = RAW_API_BASE_URL.replace('http://', 'https://');
+  }
+}
 
 // =============================================================================
 // TOKEN MANAGEMENT
@@ -150,7 +157,7 @@ class LMSApiClient {
     // Create axios instance
     this.api = axios.create({
       baseURL: API_BASE_URL,
-      timeout: 10000,
+      timeout: 20000,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -960,7 +967,10 @@ class LMSApiClient {
 
   async fetchMessages(partnerId: string): Promise<any[]> {
     try {
-      const response = await this.api.get('/messages', {
+      console.log('🌐 API: Fetching messages for partner:', partnerId);
+      console.log('🌐 API: Using API base URL:', this.api);
+      // Note trailing slash to avoid 307 redirect from /messages -> /messages/
+      const response = await this.api.get('/messages/', {
         params: { with_user_id: partnerId }
       });
       return response.data;
