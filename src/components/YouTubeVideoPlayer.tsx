@@ -68,7 +68,7 @@ export default function YouTubeVideoPlayer({
   return (
     <div className={`bg-gray-900 rounded-lg overflow-hidden relative youtube-iframe-container ${className}`}>
       {/* Educational overlay */}
-      <div className="aspect-video">
+      <div className="aspect-video w-full">
         <iframe
           src={videoInfo.embed_url}
           className="w-full h-full youtube-iframe"

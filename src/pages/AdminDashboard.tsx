@@ -51,28 +51,28 @@ export default function AdminDashboard() {
   const { stats, recent_users, recent_groups, recent_courses } = dashboard;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <Shield className="w-8 h-8 mr-3 text-blue-600" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
+            <Shield className="w-7 h-7 sm:w-8 sm:h-8 mr-3 text-blue-600" />
             Admin Dashboard
           </h1>
           <p className="text-gray-600 mt-1">System overview and management</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <Button
             onClick={() => navigate('/admin/users?tab=1')}
             variant="outline"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
             Create Group
           </Button>
           <Button
             onClick={() => navigate('/admin/users')}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg w-full sm:w-auto"
           >
             <UserPlus className="w-4 h-4" />
             Add User
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div className="bg-white rounded-lg border p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Recent Users */}
         <div className="bg-white rounded-lg border p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -255,12 +255,12 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-lg border p-6 shadow-sm">
+      <div className="bg-white rounded-lg border p-4 sm:p-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4 flex items-center">
           <Activity className="w-5 h-5 mr-2 text-blue-600" />
           Quick Actions
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <button
             onClick={() => navigate('/admin/users')}
             className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"

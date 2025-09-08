@@ -51,7 +51,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="pl-32 pr-8 pt-4 space-y-8">
+      <div className="space-y-8">
         <div>
           <Skeleton className="h-8 w-80 mb-2" />
           <Skeleton className="h-5 w-96" />
@@ -85,7 +85,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="pl-32 pr-8 pt-4">
+      <div>
         <div className="bg-red-50 border border-red-200 rounded p-4">
           <h3 className="font-semibold text-red-800">Error loading dashboard</h3>
           <p className="text-red-600">{error}</p>

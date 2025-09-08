@@ -46,8 +46,8 @@ export function connectSocket(): Socket {
     reconnectionDelay: 1000,  // Start with 1s delay
     reconnectionDelayMax: 10000,  // Max 10s delay
     timeout: 20000,  // 20s connection timeout
-    // Prefer direct WebSocket; fall back only if it fails
-    transports: ['websocket'],
+    // Prefer WebSocket, but allow fallback to polling if WS isn't available
+    transports: ['websocket', 'polling'],
     upgrade: true,
     rememberUpgrade: true,
     forceNew: true,

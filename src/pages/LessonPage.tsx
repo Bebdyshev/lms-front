@@ -284,6 +284,7 @@ export default function LessonPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   // Quiz state
   const [quizAnswers, setQuizAnswers] = useState<Map<string, number>>(new Map());
@@ -513,7 +514,7 @@ export default function LessonPage() {
         <Button 
           onClick={startQuiz}
           size="lg"
-          className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
+          className="bg-blue-600 hover:bg-blue-700 px-5 md:px-8 py-3 text-base md:text-lg"
         >
           Start Quiz
         </Button>
@@ -531,12 +532,12 @@ export default function LessonPage() {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Progress indicator */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Question {currentQuestionIndex + 1} of {questions.length}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-32 bg-gray-200 rounded-full h-2">
+            <div className="w-24 sm:w-32 bg-gray-200 rounded-full h-2">
               <div 
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
@@ -596,7 +597,7 @@ export default function LessonPage() {
             onClick={checkAnswer}
             disabled={!hasAnswered}
             size="lg"
-            className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
+            className="bg-blue-600 hover:bg-blue-700 px-5 md:px-8 py-3 text-base md:text-lg"
           >
             Check Answer
           </Button>
@@ -615,12 +616,12 @@ export default function LessonPage() {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Progress indicator */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Question {currentQuestionIndex + 1} of {questions.length}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-32 bg-gray-200 rounded-full h-2">
+            <div className="w-24 sm:w-32 bg-gray-200 rounded-full h-2">
               <div 
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
@@ -693,7 +694,7 @@ export default function LessonPage() {
           <Button
             onClick={nextQuestion}
             size="lg"
-            className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg"
+            className="bg-blue-600 hover:bg-blue-700 px-5 md:px-8 py-3 text-base md:text-lg"
           >
             {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
           </Button>
@@ -728,14 +729,14 @@ export default function LessonPage() {
             onClick={resetQuiz}
             variant="outline"
             size="lg"
-            className="px-8 py-3"
+            className="px-5 md:px-8 py-3"
           >
             Retake Quiz
           </Button>
           <Button 
             onClick={goToNextStep}
             size="lg"
-            className="bg-blue-600 hover:bg-blue-700 px-8 py-3"
+            className="bg-blue-600 hover:bg-blue-700 px-5 md:px-8 py-3"
           >
             Continue to Next Step
           </Button>
@@ -825,13 +826,15 @@ export default function LessonPage() {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <LessonSidebar
-        course={course}
-        modules={modules}
-        selectedLessonId={lessonId!}
-        onLessonSelect={handleLessonSelect}
-      />
+      {/* Sidebar (desktop) */}
+      <div className="hidden lg:block">
+        <LessonSidebar
+          course={course}
+          modules={modules}
+          selectedLessonId={lessonId!}
+          onLessonSelect={handleLessonSelect}
+        />
+      </div>
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
@@ -840,6 +843,14 @@ export default function LessonPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
+                {/* Mobile: open lessons sidebar */}
+                <button 
+                  className="lg:hidden inline-flex items-center px-3 py-2 border rounded-md text-sm"
+                  onClick={() => setIsMobileSidebarOpen(true)}
+                >
+                  <ChevronRight className="w-4 h-4 mr-2" />
+                  Lessons
+                </button>
                 <Button
                   variant="ghost"
                   onClick={() => navigate('/dashboard')}
@@ -897,7 +908,7 @@ export default function LessonPage() {
                         }`}
                       >
                         <div className="h-full w-full flex flex-col items-start justify-end">
-                          <div className="absolute top-1 left-1 text-[9px] bg-white/20 rounded px-1 py-0.5">
+                          <div className="absolute top-1 left-1 text-[10px] sm:text-[11px] bg-white/20 rounded px-1 py-0.5">
                             {step.order_index}
                           </div>
                           <div className="flex items-center gap-1 opacity-90">
@@ -931,6 +942,21 @@ export default function LessonPage() {
           </div>
         </div>
       </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-40">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setIsMobileSidebarOpen(false)} />
+          <div className="absolute top-0 left-0 w-72 max-w-[85%] h-full bg-background border-r shadow-xl">
+            <LessonSidebar
+              course={course}
+              modules={modules}
+              selectedLessonId={lessonId!}
+              onLessonSelect={(id) => { handleLessonSelect(id); setIsMobileSidebarOpen(false); }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

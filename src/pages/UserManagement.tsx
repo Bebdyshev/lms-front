@@ -648,34 +648,35 @@ export default function UserManagement() {
   const totalPages = Math.ceil(totalUsers / pageSize);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <Users className="w-8 h-8 mr-3 text-blue-600" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
+            <Users className="w-7 h-7 sm:w-8 sm:h-8 mr-3 text-blue-600" />
             User Management
           </h1>
           <p className="text-gray-600 mt-1">Manage system users and permissions</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <Button
             onClick={() => navigate('/admin/dashboard')}
             variant="outline"
+            className="w-full sm:w-auto"
           >
             Back to Dashboard
           </Button>
           <Button
             onClick={() => setShowCreateGroupModal(true)}
             variant="outline"
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
             Create Group
           </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full sm:w-auto"
           >
             <UserPlus className="w-4 h-4" />
             Add User
