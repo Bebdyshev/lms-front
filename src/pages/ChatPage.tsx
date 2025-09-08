@@ -135,7 +135,11 @@ export default function ChatPage() {
        console.log('🔐 Is authenticated:', isAuthenticated());
        const socket = connectSocket();
        const res: any = await new Promise((resolve) => {
-         socket.timeout(5000).emit('contacts:get', {}, (ack: any) => {
+         socket.timeout(5000).emit('contacts:get', {}, (err: any, ack: any) => {
+           if (err) {
+             resolve({ available_contacts: [] });
+             return;
+           }
            resolve(ack || { available_contacts: [] });
          });
        });
@@ -234,9 +238,9 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="grid grid-cols-12 gap-6 h-[calc(100vh-160px)]">
+    <div className="grid grid-cols-12 gap-6 h-[calc(100vh-160px)] min-h-0">
       {/* Список разговоров */}
-      <Card className="col-span-4 flex flex-col">
+      <Card className="col-span-4 flex flex-col min-h-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="text-lg font-semibold">Chats</CardTitle>
           <Dialog open={showNewChatDialog} onOpenChange={(open) => {
@@ -360,7 +364,7 @@ export default function ChatPage() {
       </Card>
 
       {/* Область сообщений */}
-      <Card className="col-span-8 flex flex-col">
+      <Card className="col-span-8 flex flex-col min-h-0">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg font-semibold">
             {getActivePartnerName()}
@@ -374,7 +378,7 @@ export default function ChatPage() {
           )}
         </CardHeader>
         
-        <CardContent className="flex-1 flex flex-col p-0">
+        <CardContent className="flex-1 flex flex-col p-0 min-h-0">
           {/* Сообщения */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
             {messages.length === 0 ? (

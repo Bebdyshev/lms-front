@@ -4,6 +4,7 @@ import { isAuthenticated } from './api';
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 let socket: Socket | null = null;
+let lastToken: string | null = null;
 
 // Access token is stored in cookies by TokenManager. We forward it via extraHeaders.
 function getAccessTokenFromCookie(): string | null {
@@ -17,18 +18,72 @@ function getAccessTokenFromCookie(): string | null {
 }
 
 export function connectSocket(): Socket {
-  if (socket && socket.connected) return socket;
   const token = getAccessTokenFromCookie();
+
+  // If an existing socket has a different token, rebuild the connection
+  if (socket) {
+    const currentAuthToken = (socket as any)?.auth?.token ?? null;
+    if (currentAuthToken !== token) {
+      try { socket.disconnect(); } catch {}
+      socket = null;
+    } else if (socket.connected) {
+      return socket;
+    }
+  }
+
   socket = io(API_BASE_URL, {
     path: '/ws/socket.io',
     withCredentials: true,
     // Browsers cannot send custom headers over WS; use auth payload
     auth: token ? { token } : undefined,
     autoConnect: isAuthenticated(),
+    // Optimized reconnection settings for better stability
     reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelayMax: 5000,
+    reconnectionAttempts: 5,  // Limited attempts instead of Infinity
+    reconnectionDelay: 1000,  // Start with 1s delay
+    reconnectionDelayMax: 10000,  // Max 10s delay
+    timeout: 20000,  // 20s connection timeout
+    // Transport preferences
+    transports: ['polling', 'websocket'],
+    upgrade: true,
+    rememberUpgrade: true,
   });
+
+  lastToken = token;
+
+  // Add connection event listeners for debugging
+  socket.on('connect', () => {
+    console.log('🔗 Socket.IO connected:', socket?.id);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('🔌 Socket.IO disconnected:', reason);
+  });
+
+  socket.on('connect_error', (error) => {
+    console.error('❌ Socket.IO connection error:', error);
+  });
+
+  socket.on('reconnect', (attemptNumber) => {
+    console.log('🔄 Socket.IO reconnected after', attemptNumber, 'attempts');
+  });
+
+  socket.on('reconnect_attempt', (attemptNumber) => {
+    // Refresh auth token before each reconnect attempt
+    const freshToken = getAccessTokenFromCookie();
+    (socket as any).auth = freshToken ? { token: freshToken } : undefined;
+    lastToken = freshToken;
+    console.log('🔄 Socket.IO reconnection attempt:', attemptNumber);
+  });
+
+  socket.on('reconnect_error', (error) => {
+    console.error('❌ Socket.IO reconnection error:', error);
+  });
+
+  socket.on('reconnect_failed', () => {
+    console.error('❌ Socket.IO reconnection failed');
+  });
+
   return socket;
 }
 
@@ -40,6 +95,20 @@ export function disconnectSocket(): void {
   if (socket) {
     socket.disconnect();
     socket = null;
+  }
+}
+
+// Call this after login/logout to force the socket to pick up a new token
+export function refreshSocketAuth(): void {
+  const current = getAccessTokenFromCookie();
+  if (!socket) {
+    if (isAuthenticated()) connectSocket();
+    return;
+  }
+  if (current !== lastToken) {
+    try { socket.disconnect(); } catch {}
+    socket = null;
+    connectSocket();
   }
 }
 
