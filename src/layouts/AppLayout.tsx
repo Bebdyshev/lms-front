@@ -14,7 +14,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <SidebarDesktop />
       <main className="flex-1 bg-gray-50 min-h-screen lg:pl-64 overflow-x-hidden">
         <Topbar onOpenSidebar={() => setMobileOpen(true)} />
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {children}
         </div>
         <ToastContainer />

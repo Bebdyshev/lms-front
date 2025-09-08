@@ -64,22 +64,22 @@ export default function StudentDashboard({
   };
 
   return (
-    <div className="pl-32 pr-8 pt-4 space-y-8">
+    <div className="space-y-8">
       <Card className="border-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-        <CardHeader className="p-6">
-          <CardTitle className="text-3xl">Welcome back, {firstName}!</CardTitle>
-          <CardDescription className="text-white/80 text-base">
+        <CardHeader className="p-5 sm:p-6">
+          <CardTitle className="text-2xl sm:text-3xl">Welcome back, {firstName}!</CardTitle>
+          <CardDescription className="text-white/80 text-sm sm:text-base">
             Continue your learning journey with Master Education
           </CardDescription>
         </CardHeader>
-        <CardFooter className="p-6 pt-0">
+        <CardFooter className="p-5 sm:p-6 pt-0">
           <Button onClick={onGoToAllCourses} variant="secondary">
             Go to courses
           </Button>
         </CardFooter>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-2">
         <Card>
           <CardContent className="p-6 flex items-center gap-4">
             <div className="rounded-md bg-blue-100 text-blue-700 p-3">
@@ -133,7 +133,7 @@ export default function StudentDashboard({
       </div>
 
       <Tabs defaultValue="courses" className="mt-4">
-        <TabsList>
+        <TabsList className="flex flex-wrap gap-2">
           <TabsTrigger value="courses">Courses</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
@@ -151,7 +151,7 @@ export default function StudentDashboard({
           ) : progressData?.courses && progressData.courses.length > 0 ? (
             <div className="space-y-6">
               {/* Course Progress Details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {progressData.courses.map((course) => (
                   <Card key={course.course_id} className="hover:shadow-lg transition-shadow overflow-hidden">
                     {/* Course Image */}

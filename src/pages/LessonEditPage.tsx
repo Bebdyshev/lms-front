@@ -131,7 +131,7 @@ const QuizTabContent = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="quiz-title">Quiz Title</Label>
               <Input
@@ -217,7 +217,7 @@ const QuizTabContent = ({
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor={`type-${questionIndex}`}>Question Type</Label>
                       <Select
@@ -1183,7 +1183,7 @@ export default function LessonEditPage() {
                       }`}
                     >
                                               <div className="h-full w-full flex flex-col items-start justify-end">
-                          <div className="absolute top-1 left-1 text-[9px] bg-white/20 rounded px-1 py-0.5">
+                          <div className="absolute top-1 left-1 text-[10px] sm:text-[11px] bg-white/20 rounded px-1 py-0.5">
                             {step.order_index}
                           </div>
                           <div className="flex items-center gap-1 opacity-90">

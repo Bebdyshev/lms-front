@@ -86,7 +86,7 @@ export default function CoursesPage() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-40" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="card p-6">
               <Skeleton className="h-40 mb-4" />
@@ -103,7 +103,7 @@ export default function CoursesPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h2 className="text-3xl font-bold">Courses</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold">Courses</h2>
         <div className="bg-red-50 border border-red-200 rounded p-4">
           <h3 className="font-semibold text-red-800">Error loading courses</h3>
           <p className="text-red-600">{error}</p>
@@ -121,12 +121,12 @@ export default function CoursesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold">Courses</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h2 className="text-2xl sm:text-3xl font-bold">Courses</h2>
         {user?.role === 'teacher' && (
           <Button 
             onClick={() => navigate('/teacher/courses')}
-            className="px-4 py-2"
+            className="px-4 py-2 w-full sm:w-auto"
           >
             Manage Courses
           </Button>
@@ -141,7 +141,7 @@ export default function CoursesPage() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {courses.map(course => (
             <Card key={course.id} className="hover:shadow-lg transition-shadow overflow-hidden">
               {/* Course Image */}
