@@ -971,6 +971,8 @@ class LMSApiClient {
   }
 
   async sendMessage(toUserId: string, content: string): Promise<any> {
+    console.log('🌐 API: Sending message to user:', toUserId);
+    console.log('🌐 API: Content:', content);
     try {
       const response = await this.api.post('/messages', {
         to_user_id: parseInt(toUserId),
@@ -983,6 +985,8 @@ class LMSApiClient {
   }
 
   async getAvailableContacts(roleFilter?: string) {
+    console.log('🌐 API: Getting available contacts...');
+    console.log('🌐 API: Role filter:', roleFilter);
     try {
       console.log('🌐 API: Getting available contacts...');
       const params = roleFilter ? { role_filter: roleFilter } : {};
