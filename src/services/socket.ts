@@ -46,10 +46,11 @@ export function connectSocket(): Socket {
     reconnectionDelay: 1000,  // Start with 1s delay
     reconnectionDelayMax: 10000,  // Max 10s delay
     timeout: 20000,  // 20s connection timeout
-    // Transport preferences
-    transports: ['polling', 'websocket'],
+    // Prefer direct WebSocket; fall back only if it fails
+    transports: ['websocket'],
     upgrade: true,
     rememberUpgrade: true,
+    forceNew: true,
   });
 
   lastToken = token;
