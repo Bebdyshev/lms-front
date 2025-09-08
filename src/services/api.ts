@@ -984,7 +984,8 @@ class LMSApiClient {
     console.log('🌐 API: Sending message to user:', toUserId);
     console.log('🌐 API: Content:', content);
     try {
-      const response = await this.api.post('/messages', {
+      // Note trailing slash to avoid 307 redirect on FastAPI router
+      const response = await this.api.post('/messages/', {
         to_user_id: parseInt(toUserId),
         content: content
       });
