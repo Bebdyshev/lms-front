@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DailyStreakInfo } from '../types';
 import { getDailyStreak } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { ShineBorder } from './magicui/shine-border';
 
 const StreakIcon: React.FC = () => {
   const { user } = useAuth();
@@ -39,15 +40,30 @@ const StreakIcon: React.FC = () => {
   const getStreakColor = () => {
     switch (streakData.streak_status) {
       case 'active':
-        return 'bg-orange-500 text-white';
+        return 'bg-white text-orange-500';
       case 'at_risk':
-        return 'bg-yellow-500 text-white';
+        return 'bg-white text-yellow-500';
       case 'broken':
-        return 'bg-gray-400 text-white';
+        return 'bg-white text-gray-400';
       case 'not_started':
-        return 'bg-gray-300 text-gray-600';
+        return 'bg-white text-gray-400';
       default:
-        return 'bg-gray-300 text-gray-600';
+        return 'bg-white text-gray-400';
+    }
+  };
+
+  const getShineColor = () => {
+    switch (streakData.streak_status) {
+      case 'active':
+        return ['#f97316', '#fb923c']; // orange gradient
+      case 'at_risk':
+        return ['#eab308', '#facc15', '#fde047']; // yellow gradient
+      case 'broken':
+        return ['#9ca3af', '#d1d5db', '#f3f4f6']; // gray gradient
+      case 'not_started':
+        return ['#d1d5db', '#e5e7eb', '#f9fafb']; // light gray gradient
+      default:
+        return ['#d1d5db', '#e5e7eb', '#f9fafb'];
     }
   };
 
@@ -84,10 +100,13 @@ const StreakIcon: React.FC = () => {
   return (
     <div className="relative group">
       <div 
-        className={`w-10 h-10 rounded-lg border flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 ${getStreakColor()}`}
+        className={`relative overflow-hidden w-10 h-10 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 ${getStreakColor()}`}
         title={getTooltipText()}
       >
-        <span className="text-sm font-bold">
+        <ShineBorder
+          shineColor={getShineColor()}
+        />
+        <span className="relative z-10 text-sm font-bold">
           {streakData.daily_streak > 0 ? streakData.daily_streak : getStreakIcon()}
         </span>
       </div>

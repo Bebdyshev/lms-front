@@ -2,6 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Shine border animation */
+@keyframes shine {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  to {
+    background-position: 0% 0%;
+  }
+}
+
+.animate-shine {
+  animation: shine var(--duration, 14s) infinite linear;
+}
+
+/* Force shine animation */
+.motion-safe\\:animate-shine {
+  animation: shine var(--duration, 14s) infinite linear;
+}
+
 /* LaTeX формулы стили */
 .katex {
   font-size: 1.1em;
@@ -136,17 +158,17 @@
   .dashed-button {
     @apply border-2 border-dashed border-gray-300 rounded-lg transition-all duration-200 hover:border-gray-400 hover:bg-gray-50;
   }
-  
+
   /* Input component styles */
   .input {
     @apply flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm;
   }
-  
+
   /* Select component styles */
   .select-trigger {
     @apply flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1;
   }
-  
+
   .select-content {
     @apply relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-select-content-transform-origin];
   }
@@ -157,15 +179,15 @@
   .animate-logo-spin {
     animation: logo-spin 1s linear infinite;
   }
-  
+
   .animate-logo-pulse {
     animation: logo-pulse 2s ease-in-out infinite;
   }
-  
+
   .animate-logo-spin-pulse {
     animation: logo-spin 1s linear infinite, logo-pulse 2s ease-in-out infinite;
   }
-  
+
   @keyframes logo-spin {
     from {
       transform: rotate(0deg);
@@ -174,7 +196,7 @@
       transform: rotate(360deg);
     }
   }
-  
+
   @keyframes logo-pulse {
     0%, 100% {
       opacity: 1;
@@ -185,7 +207,7 @@
       transform: scale(1.05);
     }
   }
-  
+
   /* YouTube iframe restrictions */
   .youtube-iframe {
     pointer-events: auto !important;
@@ -194,11 +216,11 @@
     -moz-user-select: none !important;
     -ms-user-select: none !important;
   }
-  
+
   .youtube-iframe:focus {
     outline: none !important;
   }
-  
+
   /* Prevent context menu on YouTube iframes */
   .youtube-iframe-container {
     -webkit-user-select: none;
@@ -206,45 +228,45 @@
     -ms-user-select: none;
     user-select: none;
   }
-  
+
   /* Custom scrollbar styles */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: #d1d5db #f3f4f6;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: #f3f4f6;
     border-radius: 3px;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #d1d5db;
     border-radius: 3px;
     transition: background-color 0.2s ease;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
   }
-  
+
   /* Rich Text Editor Styles */
   .rich-text-editor {
     border-radius: 0.5rem;
     overflow: hidden;
   }
-  
+
   .rich-text-editor .ql-toolbar {
     background-color: #f9fafb;
     border: 1px solid #e5e7eb;
     border-bottom: none;
     border-radius: 0.5rem 0.5rem 0 0;
   }
-  
+
   .rich-text-editor .ql-container {
     border: 1px solid #e5e7eb;
     border-top: none;
@@ -252,7 +274,7 @@
     font-size: 14px;
     line-height: 1.6;
   }
-  
+
   .rich-text-editor .ql-editor {
     min-height: 200px;
     max-height: 800px;
@@ -261,17 +283,17 @@
     transition: height 0.2s ease-in-out;
     overflow-y: auto;
   }
-  
+
   .rich-text-editor .ql-editor:focus {
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   }
-  
+
   .rich-text-editor .ql-editor p {
     margin-bottom: 0.5rem;
   }
-  
+
   .rich-text-editor .ql-editor h1,
   .rich-text-editor .ql-editor h2,
   .rich-text-editor .ql-editor h3,
@@ -282,7 +304,7 @@
     margin-bottom: 0.5rem;
     font-weight: 600;
   }
-  
+
   .rich-text-editor .ql-editor blockquote {
     border-left: 4px solid #e5e7eb;
     padding-left: 1rem;
@@ -290,7 +312,7 @@
     font-style: italic;
     color: #6b7280;
   }
-  
+
   .rich-text-editor .ql-editor code {
     background-color: #f3f4f6;
     padding: 0.125rem 0.25rem;
@@ -298,7 +320,7 @@
     font-family: 'Courier New', monospace;
     font-size: 0.875rem;
   }
-  
+
   .rich-text-editor .ql-editor pre {
     background-color: #f3f4f6;
   }
@@ -345,26 +367,26 @@
     background-size: 30px 30px;
     z-index: 1;
   }
-  
+
   .rich-text-editor .ql-editor ul,
   .rich-text-editor .ql-editor ol {
     padding-left: 1.5rem;
     margin: 0.5rem 0;
   }
-  
+
   .rich-text-editor .ql-editor li {
     margin-bottom: 0.25rem;
   }
-  
+
   .rich-text-editor .ql-editor a {
     color: #3b82f6;
     text-decoration: underline;
   }
-  
+
   .rich-text-editor .ql-editor a:hover {
     color: #2563eb;
   }
-  
+
   .rich-text-editor .ql-editor img {
     max-width: 100%;
     height: auto;
@@ -427,9 +449,10 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
+  .theme {
+    --animate-shine: shine var(--duration) infinite linear;
+  }
 }
-
-
 
 @layer base {
   * {
@@ -437,5 +460,19 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@theme inline {
+  @keyframes shine {
+  0% {
+    background-position: 0% 0%;
+    }
+  50% {
+    background-position: 100% 100%;
+    }
+  to {
+    background-position: 0% 0%;
+    }
   }
 }
