@@ -29,7 +29,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 
 interface LessonSidebarProps {
   course: Course | null;
@@ -202,7 +203,29 @@ const QuizTabContent = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Question Type</Label>
-                      <div className="px-3 py-2 border border-input rounded-md bg-muted text-sm">Single Choice (fixed)</div>
+                      <Select
+                        value={question.question_type}
+                        onValueChange={(val) => {
+                          const q: any = { ...question };
+                          if (val === 'single_choice') {
+                            q.question_type = 'single_choice';
+                            q.correct_answer = typeof q.correct_answer === 'number' ? q.correct_answer : 0;
+                          } else if (val === 'fill_blank') {
+                            q.question_type = 'fill_blank';
+                            q.correct_answer = '';
+                          }
+                          updateQuestion(questionIndex, 'question_type', q.question_type);
+                          updateQuestion(questionIndex, 'correct_answer' as any, q.correct_answer);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select question type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single_choice">Single choice</SelectItem>
+                          <SelectItem value="fill_blank">Fill in the blank</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`points-${questionIndex}`}>Points</Label>
@@ -216,31 +239,43 @@ const QuizTabContent = ({
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Options (4)</Label>
+                  {question.question_type !== 'fill_blank' ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Options (4)</Label>
+                      </div>
+                      <div className="space-y-2">
+                        {question.options?.slice(0, 4).map((option, optionIndex) => (
+                          <div key={optionIndex} className="flex items-center gap-3 p-3 border rounded-lg">
+                            <input
+                              type="radio"
+                              name={`correct-${questionIndex}`}
+                              checked={question.correct_answer === optionIndex}
+                              onChange={() => updateQuestion(questionIndex, 'correct_answer' as any, optionIndex as any)}
+                              className="text-primary focus:ring-primary"
+                            />
+                            <Input
+                              type="text"
+                              value={option.text}
+                              onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)}
+                              className="flex-1"
+                              placeholder={`Option ${optionIndex + 1}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                  ) : (
                     <div className="space-y-2">
-                      {question.options?.slice(0, 4).map((option, optionIndex) => (
-                        <div key={optionIndex} className="flex items-center gap-3 p-3 border rounded-lg">
-                          <input
-                            type="radio"
-                            name={`correct-${questionIndex}`}
-                            checked={question.correct_answer === optionIndex}
-                            onChange={() => updateQuestion(questionIndex, 'correct_answer' as any, optionIndex as any)}
-                            className="text-primary focus:ring-primary"
-                          />
-                          <Input
-                            type="text"
-                            value={option.text}
-                            onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)}
-                            className="flex-1"
-                            placeholder={`Option ${optionIndex + 1}`}
-                          />
-                        </div>
-                      ))}
+                      <Label>Correct answer</Label>
+                      <Input
+                        type="text"
+                        value={typeof question.correct_answer === 'string' ? question.correct_answer : ''}
+                        onChange={(e) => updateQuestion(questionIndex, 'correct_answer' as any, e.target.value)}
+                        placeholder="Enter the correct text to fill in"
+                      />
                     </div>
-                  </div>
+                  )}
 
                 </CardContent>
               </Card>
@@ -525,6 +560,9 @@ export default function LessonEditPage() {
   const [stepQuizTimeLimit, setStepQuizTimeLimit] = useState<number | undefined>(undefined);
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz'>('text');
+  const [showQuizTypeDialog, setShowQuizTypeDialog] = useState(false);
+  const [pendingStepNumber, setPendingStepNumber] = useState<number | null>(null);
+  const [selectedQuizType, setSelectedQuizType] = useState<'single_choice' | 'fill_blank'>('single_choice');
 
   // Immediate auto-save function
   const immediateAutoSave = useCallback(
@@ -717,6 +755,13 @@ export default function LessonEditPage() {
     const maxOrderIndex = steps.length > 0 ? Math.max(...steps.map(s => s.order_index)) : 0;
     const stepNumber = maxOrderIndex + 1;
 
+    if (newStepType === 'quiz') {
+      setPendingStepNumber(stepNumber);
+      setShowAddStepModal(false);
+      setShowQuizTypeDialog(true);
+      return;
+    }
+
     const newLocalStep: Step = {
       id: -Date.now(),
       lesson_id: parseInt(lessonId || '0'),
@@ -739,6 +784,65 @@ export default function LessonEditPage() {
     setStepQuizTimeLimit(undefined);
     setShowAddStepModal(false);
     setNewStepType('text');
+  };
+
+  const finalizeCreateQuizStep = () => {
+    const maxOrderIndex = steps.length > 0 ? Math.max(...steps.map(s => s.order_index)) : 0;
+    const stepNumber = pendingStepNumber || maxOrderIndex + 1;
+
+    const newLocalStep: Step = {
+      id: -Date.now(),
+      lesson_id: parseInt(lessonId || '0'),
+      title: `Step ${stepNumber}`,
+      content_type: 'quiz',
+      content_text: '',
+      order_index: stepNumber,
+      created_at: new Date().toISOString(),
+    } as unknown as Step;
+
+    const updated = [...steps, newLocalStep].sort((a, b) => a.order_index - b.order_index);
+    setSteps(updated);
+    setSelectedStepId(newLocalStep.id);
+    setStepTitle(newLocalStep.title);
+    setStepContentType('quiz');
+    setStepContent('');
+    setStepVideoUrl('');
+
+    const ts = Date.now().toString();
+    const baseQuestion: Question = selectedQuizType === 'single_choice'
+      ? {
+          id: ts,
+          assignment_id: '',
+          question_text: '',
+          question_type: 'single_choice',
+          options: [
+            { id: ts + '_1', text: '', is_correct: false },
+            { id: ts + '_2', text: '', is_correct: false },
+            { id: ts + '_3', text: '', is_correct: false },
+            { id: ts + '_4', text: '', is_correct: false },
+          ],
+          correct_answer: 0,
+          points: 10,
+          order_index: 0,
+        } as unknown as Question
+      : {
+          id: ts,
+          assignment_id: '',
+          question_text: '',
+          question_type: 'fill_blank',
+          options: [],
+          correct_answer: '',
+          points: 10,
+          order_index: 0,
+        } as unknown as Question;
+
+    setStepQuizTitle('');
+    setStepQuizQuestions([baseQuestion]);
+    setStepQuizTimeLimit(undefined);
+
+    setShowQuizTypeDialog(false);
+    setPendingStepNumber(null);
+    setSelectedQuizType('single_choice');
   };
 
   const selectStep = (step: Step) => {
@@ -1139,33 +1243,37 @@ export default function LessonEditPage() {
                 {/* Next Lesson Selector */}
                 <div className="space-y-2">
                   <Label>Next lesson (optional)</Label>
-                  <select
-                    className="w-full border rounded-md px-3 py-2 bg-background"
-                    value={nextLessonId ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setNextLessonId(val === '' ? null : parseInt(val));
+                  <Select
+                    value={nextLessonId ? String(nextLessonId) : 'none'}
+                    onValueChange={(value) => {
+                      setNextLessonId(value === 'none' ? null : parseInt(value));
                     }}
                   >
-                    <option value="">None (follow default order)</option>
-                    {modules
-                      .slice()
-                      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-                      .map((m) => (
-                        <optgroup key={m.id} label={`Section ${m.order_index}: ${m.title}`}>
-                          {courseLessons
-                            .filter((l) => String(l.module_id) === String(m.id))
-                            .slice()
-                            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-                            .filter((l) => String(l.id) !== String(lessonId))
-                            .map((l) => (
-                              <option key={l.id} value={l.id}>
-                                {m.order_index}.{l.order_index} {l.title}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                  </select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="None (follow default order)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (follow default order)</SelectItem>
+                      {modules
+                        .slice()
+                        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+                        .map((m) => (
+                          <SelectGroup key={m.id}>
+                            <SelectLabel>{`Section ${m.order_index+1}: ${m.title}`}</SelectLabel>
+                            {courseLessons
+                              .filter((l) => String(l.module_id) === String(m.id))
+                              .slice()
+                              .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+                              .filter((l) => String(l.id) !== String(lessonId))
+                              .map((l) => (
+                                <SelectItem key={l.id} value={String(l.id)}>
+                                  {m.order_index+1}.{l.order_index} {l.title}
+                                </SelectItem>
+                              ))}
+                          </SelectGroup>
+                        ))}
+                    </SelectContent>
+                  </Select>
                   {nextLessonId && lesson && modules.length > 0 && (() => {
                     const currentModule = modules.find(m => String(m.id) === String(lesson.module_id));
                     const targetLesson = courseLessons.find(l => String(l.id) === String(nextLessonId));
@@ -1424,6 +1532,36 @@ export default function LessonEditPage() {
           </div>
         </div>
       )}
+
+      {/* Quiz Type Dialog */}
+      <Dialog open={showQuizTypeDialog} onOpenChange={(open) => { if (!open) setShowQuizTypeDialog(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select quiz type</DialogTitle>
+            <DialogDescription>Choose how questions should be answered.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div
+              onClick={() => setSelectedQuizType('single_choice')}
+              className={`p-4 border rounded-md cursor-pointer ${selectedQuizType === 'single_choice' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+            >
+              <div className="font-medium">Single choice</div>
+              <div className="text-sm text-muted-foreground">Students pick one correct option</div>
+            </div>
+            <div
+              onClick={() => setSelectedQuizType('fill_blank')}
+              className={`p-4 border rounded-md cursor-pointer ${selectedQuizType === 'fill_blank' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+            >
+              <div className="font-medium">Fill in the blank</div>
+              <div className="text-sm text-muted-foreground">Students type the correct text</div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setShowQuizTypeDialog(false); setPendingStepNumber(null); }}>Cancel</Button>
+            <Button onClick={finalizeCreateQuizStep}>Create quiz step</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

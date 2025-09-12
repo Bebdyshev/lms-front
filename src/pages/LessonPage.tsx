@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, BookOpen, CheckCircle, Edit3, Bookmark, Share2, MoreVertical, File, Image, Archive, Download } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -258,7 +259,9 @@ export default function LessonPage() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   // Quiz state
-  const [quizAnswers, setQuizAnswers] = useState<Map<string, number>>(new Map());
+  const [quizAnswers, setQuizAnswers] = useState<Map<string, any>>(new Map());
+  const [gapAnswers, setGapAnswers] = useState<Map<string, string[]>>(new Map());
+  const [gapOptions, setGapOptions] = useState<Map<string, string[][]>>(new Map());
   const [quizState, setQuizState] = useState<'title' | 'question' | 'result' | 'completed'>('title');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizData, setQuizData] = useState<any>(null);
@@ -382,6 +385,23 @@ export default function LessonPage() {
         const parsedQuizData = JSON.parse(currentStep.content_text || '{}');
         setQuizData(parsedQuizData);
         setQuestions(parsedQuizData.questions || []);
+        // Initialize gap answers map per question
+        const init = new Map<string, string[]>();
+        const opts = new Map<string, string[][]>();
+        (parsedQuizData.questions || []).forEach((q: any) => {
+          if (q.question_type === 'fill_blank') {
+            const text = (q.content_text || q.question_text || '').toString();
+            const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+            const perGapOptions: string[][] = gaps.map((m: any) => (m[1]||'').split(',').map((s: string) => s.trim()).filter(Boolean));
+            // shuffle each gap options
+            const shuffled = perGapOptions.map(arr => arr.map(x=>x).sort(() => Math.random() - 0.5));
+            const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+            init.set(q.id, new Array(answers.length).fill(''));
+            opts.set(q.id, shuffled);
+          }
+        });
+        setGapAnswers(init);
+        setGapOptions(opts);
         // If quiz is not the last step in lesson, start immediately with questions (feed mode)
         if (currentStepIndex < steps.length - 1) {
           setQuizState('question');
@@ -448,8 +468,8 @@ export default function LessonPage() {
     setQuizState('question');
   };
 
-  const handleQuizAnswer = (questionId: string, answerIndex: number) => {
-    setQuizAnswers(prev => new Map(prev.set(questionId, answerIndex)));
+  const handleQuizAnswer = (questionId: string, answer: any) => {
+    setQuizAnswers(prev => new Map(prev.set(questionId, answer)));
   };
 
   const checkAnswer = () => {
@@ -499,13 +519,25 @@ export default function LessonPage() {
   const isCurrentAnswerCorrect = () => {
     const question = getCurrentQuestion();
     const userAnswer = getCurrentUserAnswer();
-    return question && userAnswer === question.correct_answer;
+    if (!question) return false;
+    if (question.question_type === 'fill_blank') {
+      const correct = (question.correct_answer || '').toString().trim().toLowerCase();
+      const user = (userAnswer || '').toString().trim().toLowerCase();
+      return user.length > 0 && user === correct;
+    }
+    return userAnswer === question.correct_answer;
   };
 
   const getScore = () => {
     return Array.from(quizAnswers.entries()).filter(([questionId, answer]) => {
       const question = questions.find(q => q.id === questionId);
-      return question && answer === question.correct_answer;
+      if (!question) return false;
+      if (question.question_type === 'fill_blank') {
+        const correct = (question.correct_answer || '').toString().trim().toLowerCase();
+        const user = (answer || '').toString().trim().toLowerCase();
+        return user.length > 0 && user === correct;
+      }
+      return answer === question.correct_answer;
     }).length;
   };
 
@@ -550,98 +582,163 @@ export default function LessonPage() {
                     <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
                   </h3>
 
-                  {/* Options */}
-                  <div className="space-y-2">
-                    {q.options?.map((option: any, optionIndex: number) => {
-                      const isSelected = userAnswer === optionIndex;
-                      const isCorrectOption = optionIndex === q.correct_answer;
-                      
-                      let buttonClass = "w-full text-left p-3 rounded-lg border-2 transition-all duration-200";
-                      
-                      if (feedChecked) {
-                        if (isCorrectOption) {
-                          buttonClass += " bg-green-50 border-green-400";
-                        } else if (isSelected) {
-                          buttonClass += " bg-red-50 border-red-400";
+                  {/* Options / Fill in the blank */}
+                  {q.question_type !== 'fill_blank' ? (
+                    <div className="space-y-2">
+                      {q.options?.map((option: any, optionIndex: number) => {
+                        const isSelected = userAnswer === optionIndex;
+                        const isCorrectOption = optionIndex === q.correct_answer;
+                        
+                        let buttonClass = "w-full text-left p-3 rounded-lg border-2 transition-all duration-200";
+                        
+                        if (feedChecked) {
+                          if (isCorrectOption) {
+                            buttonClass += " bg-green-50 border-green-400";
+                          } else if (isSelected) {
+                            buttonClass += " bg-red-50 border-red-400";
+                          } else {
+                            buttonClass += " bg-gray-50 border-gray-200";
+                          }
                         } else {
-                          buttonClass += " bg-gray-50 border-gray-200";
+                          if (isSelected) {
+                            buttonClass += " bg-blue-50 border-blue-400";
+                          } else {
+                            buttonClass += " bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300";
+                          }
                         }
-                      } else {
-                        if (isSelected) {
-                          buttonClass += " bg-blue-50 border-blue-400";
-                        } else {
-                          buttonClass += " bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300";
-                        }
-                      }
-                      
-                      return (
-                        <button
-                          key={option.id}
-                          onClick={() => setQuizAnswers(prev => new Map(prev.set(q.id, optionIndex)))}
-                          disabled={feedChecked}
-                          className={buttonClass}
-                        >
-                          <div className="flex items-center space-x-3">
-                            {/* Custom Radio/Status Button */}
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                              feedChecked
-                                ? isCorrectOption
-                                  ? "bg-green-500 border-green-500"
+                        
+                        return (
+                          <button
+                            key={option.id}
+                            onClick={() => setQuizAnswers(prev => new Map(prev.set(q.id, optionIndex)))}
+                            disabled={feedChecked}
+                            className={buttonClass}
+                          >
+                            <div className="flex items-center space-x-3">
+                              {/* Custom Radio/Status Button */}
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                                feedChecked
+                                  ? isCorrectOption
+                                    ? "bg-green-500 border-green-500"
+                                    : isSelected
+                                      ? "bg-red-500 border-red-500"
+                                      : "border-gray-300 bg-white"
                                   : isSelected
-                                    ? "bg-red-500 border-red-500"
+                                    ? "bg-blue-500 border-blue-500"
                                     : "border-gray-300 bg-white"
-                                : isSelected
-                                  ? "bg-blue-500 border-blue-500"
-                                  : "border-gray-300 bg-white"
-                            }`}>
-                              {feedChecked ? (
-                                isCorrectOption ? (
-                                  <CheckCircle className="w-3 h-3 text-white" />
-                                ) : isSelected ? (
-                                  <div className="text-white text-xs font-bold">✗</div>
-                                ) : null
-                              ) : (
-                                isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>
-                              )}
+                              }`}>
+                                {feedChecked ? (
+                                  isCorrectOption ? (
+                                    <CheckCircle className="w-3 h-3 text-white" />
+                                  ) : isSelected ? (
+                                    <div className="text-white text-xs font-bold">✗</div>
+                                  ) : null
+                                ) : (
+                                  isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>
+                                )}
+                              </div>
+                              
+                              {/* Option Letter */}
+                              <span className={`text-base font-bold ${
+                                feedChecked
+                                  ? isCorrectOption ? "text-green-700" : isSelected ? "text-red-700" : "text-gray-600"
+                                  : isSelected ? "text-blue-700" : "text-gray-600"
+                              }`}>
+                                {option.letter}.
+                              </span>
+                              
+                              {/* Option Text */}
+                              <span className={`text-base flex-1 ${
+                                feedChecked
+                                  ? isCorrectOption ? "text-green-800" : isSelected ? "text-red-800" : "text-gray-700"
+                                  : isSelected ? "text-gray-900" : "text-gray-700"
+                              }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
                             </div>
-                            
-                            {/* Option Letter */}
-                            <span className={`text-base font-bold ${
-                              feedChecked
-                                ? isCorrectOption ? "text-green-700" : isSelected ? "text-red-700" : "text-gray-600"
-                                : isSelected ? "text-blue-700" : "text-gray-600"
-                            }`}>
-                              {option.letter}.
-                            </span>
-                            
-                            {/* Option Text */}
-                            <span className={`text-base flex-1 ${
-                              feedChecked
-                                ? isCorrectOption ? "text-green-800" : isSelected ? "text-red-800" : "text-gray-700"
-                                : isSelected ? "text-gray-900" : "text-gray-700"
-                            }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {(() => {
+                        const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+                        const current = gapAnswers.get(q.id) || new Array(answers.length).fill('');
+                        const parts = (q.content_text || q.question_text || '').split(/\[\[(.*?)\]\]/g);
+                        let gapIndex = 0;
+                        return (
+                          <div className="p-3 border rounded-md">
+                            <div className="text-gray-800 flex flex-wrap items-center gap-2">
+                              {parts.map((part: string, i: number) => {
+                                const isGap = i % 2 === 1;
+                                if (!isGap) {
+                                  return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                                }
+                                const idx = gapIndex++;
+                                const options = (gapOptions.get(q.id) || [])[idx] || [];
+                                return (
+                                  <Select
+                                    key={`gap-${i}`}
+                                    disabled={feedChecked}
+                                    value={current[idx] || ''}
+                                    onValueChange={(value: string) => {
+                                      const next = [...current];
+                                      next[idx] = value;
+                                      setGapAnswers(prev => new Map(prev.set(q.id, next)));
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-auto min-w-[80px] h-8 px-2 py-1 text-sm">
+                                      <SelectValue placeholder={`#${idx+1}`} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {options.map((opt, oi) => (
+                                        <SelectItem key={oi} value={opt}>{opt}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              })}
+                            </div>
+                            {feedChecked && (
+                              <div className="mt-2 text-sm">
+                                {current.every((val, idx) => (val||'').trim().toLowerCase() === (answers[idx]||'').toString().trim().toLowerCase()) ? (
+                                  <span className="text-green-700">All gaps correct</span>
+                                ) : (
+                                  <span className="text-red-700">Some answers are incorrect. Correct: {answers.join(', ')}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Result Indicator */}
-                  {feedChecked && (
-                    <div className="mt-4 flex items-center gap-2">
-                      {userAnswer === q.correct_answer ? (
-                        <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                          <CheckCircle className="w-4 h-4" />
-                          Correct!
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-800 rounded-full text-sm font-medium">
-                          <div className="w-4 h-4 text-red-600 font-bold">✗</div>
-                          Incorrect
-                        </span>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
+
+                  {/* Result Indicator */}
+                   {feedChecked && (() => {
+                     let isCorrect = false;
+                     if (q.question_type === 'fill_blank') {
+                       const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+                       const current = gapAnswers.get(q.id) || new Array(answers.length).fill('');
+                       isCorrect = current.every((val, idx) => (val||'').toString().trim().toLowerCase() === (answers[idx]||'').toString().trim().toLowerCase());
+                     } else {
+                       isCorrect = userAnswer === q.correct_answer;
+                     }
+                     return (
+                       <div className="mt-4 flex items-center gap-2">
+                         {isCorrect ? (
+                           <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                             <CheckCircle className="w-4 h-4" />
+                             Correct!
+                           </span>
+                         ) : (
+                           <span className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                             <div className="w-4 h-4 text-red-600 font-bold">✗</div>
+                             Incorrect
+                           </span>
+                         )}
+                       </div>
+                     );
+                   })()}
                 </div>
               </div>
             );
@@ -653,9 +750,21 @@ export default function LessonPage() {
           {!feedChecked ? (
             <button
               onClick={() => setFeedChecked(true)}
-              disabled={questions.some(q => quizAnswers.get(q.id) === undefined)}
+              disabled={questions.some(q => {
+                const ans = quizAnswers.get(q.id);
+                if (q.question_type === 'fill_blank') {
+                  return !ans || (ans || '').toString().trim() === '';
+                }
+                return ans === undefined;
+              })}
               className={`px-8 py-3 rounded-lg text-lg font-semibold transition-all duration-200 ${
-                questions.some(q => quizAnswers.get(q.id) === undefined)
+                questions.some(q => {
+                  const ans = quizAnswers.get(q.id);
+                  if (q.question_type === 'fill_blank') {
+                    return !ans || (ans || '').toString().trim() === '';
+                  }
+                  return ans === undefined;
+                })
                   ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg"
               }`}
@@ -717,12 +826,12 @@ export default function LessonPage() {
         </div>
         
         {/* Start Button */}
-        <button
+        <Button
           onClick={startQuiz}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
         >
           Start Quiz
-        </button>
+        </Button>
       </div>
     );
   };
@@ -732,7 +841,13 @@ export default function LessonPage() {
     if (!question) return null;
 
     const userAnswer = getCurrentUserAnswer();
-    const hasAnswered = userAnswer !== undefined;
+    const hasAnswered = question.question_type === 'fill_blank'
+      ? (() => {
+          const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
+          const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
+          return current.every(v => (v||'').toString().trim() !== '');
+        })()
+      : userAnswer !== undefined;
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
     return (
@@ -757,78 +872,129 @@ export default function LessonPage() {
         </div>
 
         {/* Question Card */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-100">
-          <div className="p-6">
-            {/* Content Text for SAT questions */}
-            {question.content_text && (
+        <div className="">
+          <div className="p-3">
+            {/* Content Text for SAT questions (skip for fill-in-the-gaps to avoid duplication) */}
+            {question.content_text && question.question_type !== 'fill_blank' && (
               <div className="bg-gray-50 p-4 rounded-lg mb-6 border-l-3 border-blue-400">
                 <div className="text-gray-700" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.content_text) }} />
               </div>
             )}
 
-            <h3 className="text-xl font-bold text-gray-900 mb-6">
-              <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
-            </h3>
+            {question.question_type !== 'fill_blank' && (
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
+              </h3>
+            )}
 
-            {/* Options */}
-            <div className="space-y-3">
-              {question.options?.map((option: any, optionIndex: number) => {
-                const isSelected = userAnswer === optionIndex;
-                
-                return (
-                  <button
-                    key={option.id}
-                    onClick={() => handleQuizAnswer(question.id, optionIndex)}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 ${
-                      isSelected 
-                        ? "bg-blue-50 border-blue-400 shadow-sm" 
-                        : "bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      {/* Radio Button */}
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+            {question.question_type === 'fill_blank' && (
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                Fill in the gaps
+              </h3>
+            )}
+
+            {/* Options or Fill in the blank */}
+            {question.question_type !== 'fill_blank' ? (
+              <div className="space-y-3">
+                {question.options?.map((option: any, optionIndex: number) => {
+                  const isSelected = userAnswer === optionIndex;
+                  
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => handleQuizAnswer(question.id, optionIndex)}
+                      className={`w-full text-left p-3 rounded-lg border-2 transition-all duration-200 ${
                         isSelected 
-                          ? "bg-blue-500 border-blue-500" 
-                          : "border-gray-300 bg-white"
-                      }`}>
-                        {isSelected && (
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                        )}
+                          ? "bg-blue-50 border-blue-400 shadow-sm" 
+                          : "bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        {/* Radio Button */}
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                          isSelected 
+                            ? "bg-blue-500 border-blue-500" 
+                            : "border-gray-300 bg-white"
+                        }`}>
+                          {isSelected && (
+                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        
+                        {/* Option Letter */}
+                        <span className={`text-sm font-bold ${
+                          isSelected ? "text-blue-700" : "text-gray-600"
+                        }`}>
+                          {option.letter}.
+                        </span>
+                        
+                        {/* Option Text */}
+                        <span className={`text-sm flex-1 ${
+                          isSelected ? "text-gray-900" : "text-gray-700"
+                        }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
                       </div>
-                      
-                      {/* Option Letter */}
-                      <span className={`text-lg font-bold ${
-                        isSelected ? "text-blue-700" : "text-gray-600"
-                      }`}>
-                        {option.letter}.
-                      </span>
-                      
-                      {/* Option Text */}
-                      <span className={`text-base flex-1 ${
-                        isSelected ? "text-gray-900" : "text-gray-700"
-                      }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-3 border rounded-md">
+                {(() => {
+                  const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
+                  const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
+                  const parts = (question.content_text || question.question_text || '').split(/\[\[(.*?)\]\]/g);
+                  let gapIndex = 0;
+                  return (
+                    <div className="text-gray-800 flex flex-wrap items-center gap-2">
+                      {parts.map((part: string, i: number) => {
+                        const isGap = i % 2 === 1;
+                        if (!isGap) {
+                          return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                        }
+                        const idx = gapIndex++;
+                        const options = (gapOptions.get(question.id) || [])[idx] || [];
+                        return (
+                          <Select
+                            key={`gapq-${i}`}
+                            value={current[idx] || ''}
+                            onValueChange={(value: string) => {
+                              const next = [...current];
+                              next[idx] = value;
+                              setGapAnswers(prev => new Map(prev.set(question.id, next)));
+                            }}
+                          >
+                            <SelectTrigger className="w-auto min-w-[80px] h-8 px-2 py-1 text-sm">
+                              <SelectValue placeholder={`#${idx+1}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {options.map((opt, oi) => (
+                                <SelectItem key={oi} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })}
                     </div>
-                  </button>
-                );
-              })}
-            </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Action Button */}
         <div className="flex justify-center">
-          <button
+          <Button
             onClick={checkAnswer}
             disabled={!hasAnswered}
             className={`px-8 py-3 rounded-lg text-lg font-semibold transition-all duration-200 ${
               hasAnswered
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg"
+                ? "btn-primary"
                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
             }`}
           >
             Check Answer
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -897,13 +1063,22 @@ export default function LessonPage() {
         {/* Question Review */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="p-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">
-              <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
-            </h3>
+            {question.question_type !== 'fill_blank' && (
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
+              </h3>
+            )}
+
+            {question.question_type === 'fill_blank' && (
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                Fill in the gaps
+              </h3>
+            )}
             
-            {/* Options Review */}
-            <div className="space-y-4">
-              {question.options?.map((option: any, optionIndex: number) => {
+            {question.question_type !== 'fill_blank' ? (
+              /* Options Review */
+              <div className="space-y-4">
+                {question.options?.map((option: any, optionIndex: number) => {
                 const isSelected = userAnswer === optionIndex;
                 const isCorrectOption = optionIndex === question.correct_answer;
                 
@@ -961,7 +1136,47 @@ export default function LessonPage() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            ) : (
+              /* Fill-in-the-gaps Review */
+              <div className="p-6 rounded-xl border-2 bg-gray-50 border-gray-200">
+                {(() => {
+                  const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
+                  const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
+                  const parts = (question.content_text || question.question_text || '').split(/\[\[(.*?)\]\]/g);
+                  let gapIndex = 0;
+                  return (
+                    <div className="text-lg leading-relaxed text-gray-800">
+                      {parts.map((part: string, i: number) => {
+                        const isGap = i % 2 === 1;
+                        if (!isGap) {
+                          return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                        }
+                        const idx = gapIndex++;
+                        const userAnswer = current[idx] || '';
+                        const correctAnswer = answers[idx] || '';
+                        const isCorrectGap = userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+                        
+                        return (
+                          <span key={`gap-review-${i}`} className={`inline-flex items-center px-3 py-1 mx-1 rounded-md font-medium ${
+                            isCorrectGap 
+                              ? 'bg-green-200 text-green-800 border-2 border-green-300' 
+                              : 'bg-red-200 text-red-800 border-2 border-red-300'
+                          }`}>
+                            {userAnswer || `[Gap ${idx+1}]`}
+                            {!isCorrectGap && (
+                              <span className="ml-2 text-sm">
+                                (Correct: <strong>{correctAnswer}</strong>)
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* Explanation */}
             {question.explanation && (
@@ -977,15 +1192,15 @@ export default function LessonPage() {
 
         {/* Continue Button */}
         <div className="flex justify-center pt-4">
-          <button
+          <Button
             onClick={nextQuestion}
-            className="group bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-12 py-4 rounded-2xl text-xl font-semibold shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
+            className="group btn-primary"
           >
             <span className="flex items-center gap-3">
               {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
               <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-300" />
             </span>
-          </button>
+          </Button>
         </div>
       </div>
     );

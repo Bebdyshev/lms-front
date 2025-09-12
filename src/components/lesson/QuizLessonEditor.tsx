@@ -32,6 +32,7 @@ export default function QuizLessonEditor({
   const [showSatImageModal, setShowSatImageModal] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [satAnalysisResult, setSatAnalysisResult] = useState<any>(null);
+  const [previewMode, setPreviewMode] = useState(false);
 
   const openAddQuestion = () => {
     const ts = Date.now().toString();
@@ -39,15 +40,15 @@ export default function QuizLessonEditor({
       id: ts,
       assignment_id: '',
       question_text: '',
-      question_type: 'multiple_choice',
+      question_type: 'single_choice',
       options: [
         { id: ts + '_1', text: '', is_correct: false, letter: 'A' },
         { id: ts + '_2', text: '', is_correct: false, letter: 'B' },
         { id: ts + '_3', text: '', is_correct: false, letter: 'C' },
         { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
       ],
-      // multiple choice supports multiple correct indices, start empty
-      correct_answer: [],
+      // default to first option for single choice
+      correct_answer: 0,
       points: 10,
       order_index: quizQuestions.length,
       is_sat_question: true,
@@ -113,16 +114,26 @@ export default function QuizLessonEditor({
     if (question.is_sat_question && !((question.content_text || '').toString().trim())) {
       errors.push('Passage text is required');
     }
-
-    const hasOptionContent = question.options?.some(opt => opt.text.trim());
-    if (hasOptionContent && (typeof question.correct_answer !== 'number' || question.correct_answer < 0)) {
-      errors.push('Please select a correct answer');
-    }
-    if (!question.options || question.options.length !== 4) {
-      errors.push('Exactly 4 options are required');
-    }
-    if (hasOptionContent && question.options?.some(opt => !opt.text.trim())) {
-      errors.push('All options must have text');
+    if (question.question_type === 'fill_blank') {
+      const answers = Array.isArray(question.correct_answer)
+        ? question.correct_answer
+        : (typeof question.correct_answer === 'string' && question.correct_answer.trim())
+          ? [question.correct_answer.trim()]
+          : [];
+      if (answers.length === 0) {
+        errors.push('Please add at least one gap [[answer]] in the passage');
+      }
+    } else {
+      const hasOptionContent = question.options?.some(opt => opt.text.trim());
+      if (hasOptionContent && (typeof question.correct_answer !== 'number' || question.correct_answer < 0)) {
+        errors.push('Please select a correct answer');
+      }
+      if (!question.options || question.options.length !== 4) {
+        errors.push('Exactly 4 options are required');
+      }
+      if (hasOptionContent && question.options?.some(opt => !opt.text.trim())) {
+        errors.push('All options must have text');
+      }
     }
     
     return { isValid: errors.length === 0, errors };
@@ -198,8 +209,21 @@ export default function QuizLessonEditor({
 
   const saveDraftQuestion = () => {
     if (!draftQuestion) return;
+    let correctAnswer: any = draftQuestion.correct_answer;
+    if (draftQuestion.question_type === 'fill_blank') {
+      // Extract answers from [[correct, wrong1, wrong2]] in content_text; take first as correct
+      const text = (draftQuestion.content_text || '').toString();
+      const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+      const corrects = gaps
+        .map(m => (m[1] || ''))
+        .map(inner => inner.split(',').map(s => s.trim()).filter(Boolean))
+        .map(tokens => tokens[0])
+        .filter(Boolean);
+      correctAnswer = corrects;
+    }
     const toSave: Question = {
       ...draftQuestion,
+      correct_answer: correctAnswer,
       order_index: quizQuestions.length,
     };
     setQuizQuestions([...quizQuestions, toSave]);
@@ -337,57 +361,84 @@ export default function QuizLessonEditor({
       {/* Questions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900">Questions</h3>
+          <h3 className="text-lg font-medium text-gray-900">{previewMode ? 'Preview' : 'Questions'}</h3>
           <div className="flex gap-2">
-            <Button onClick={() => setShowSatImageModal(true)} variant="outline">
-              Analyze SAT Image
-            </Button>
-            <Button onClick={openAddQuestion} variant="default">
-              Add Question
-            </Button>
+            {!previewMode ? (
+              <>
+                <Button onClick={() => setPreviewMode(true)} variant="outline">Preview</Button>
+                <Button onClick={() => setShowSatImageModal(true)} variant="outline">Analyze SAT Image</Button>
+                <Button onClick={openAddQuestion} variant="default">Add Question</Button>
+              </>
+            ) : (
+              <Button onClick={() => setPreviewMode(false)} variant="outline">Back to editor</Button>
+            )}
           </div>
         </div>
 
-        <div className="space-y-4">
-          {quizQuestions.map((question, questionIndex) => {
-            const validation = getQuestionValidationStatus(question);
-            return (
-            <Card key={question.id} className={validation.isValid ? '' : 'border-red-200'}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg">Question {questionIndex + 1}</CardTitle>
-                    {!validation.isValid && (
-                      <div className="text-sm text-red-600">
-                        {validation.errors.join(', ')}
-                      </div>
-                    )}
+        {!previewMode ? (
+          <div className="space-y-4">
+            {quizQuestions.map((question, questionIndex) => {
+              const validation = getQuestionValidationStatus(question);
+              return (
+              <Card key={question.id} className={validation.isValid ? '' : 'border-red-200'}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg">Question {questionIndex + 1}</CardTitle>
+                      {!validation.isValid && (
+                        <div className="text-sm text-red-600">
+                          {validation.errors.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    <Button 
+                      onClick={() => removeQuestion(questionIndex)} 
+                      variant="destructive" 
+                      size="sm"
+                    >
+                      Remove
+                    </Button>
                   </div>
-                  <Button 
-                    onClick={() => removeQuestion(questionIndex)} 
-                    variant="destructive" 
-                    size="sm"
-                  >
-                    Remove
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor={`question-${questionIndex}`}>Question Text</Label>
-                  <Input
-                    id={`question-${questionIndex}`}
-                    type="text"
-                    value={question.question_text}
-                    onChange={(e) => updateQuestion(questionIndex, 'question_text', e.target.value)}
-                    placeholder="Enter your question"
-                  />
-                </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor={`question-${questionIndex}`}>Question Text</Label>
+                    <Input
+                      id={`question-${questionIndex}`}
+                      type="text"
+                      value={question.question_text}
+                      onChange={(e) => updateQuestion(questionIndex, 'question_text', e.target.value)}
+                      placeholder="Enter your question"
+                    />
+                  </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Question Type</Label>
-                    <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">Single Choice (fixed)</div>
+                    <Select
+                      value={question.question_type}
+                      onValueChange={(val) => {
+                        const q = { ...question } as any;
+                        if (val === 'single_choice') {
+                          const firstCorrect = typeof q.correct_answer === 'number' ? q.correct_answer : 0;
+                          q.question_type = 'single_choice';
+                          q.correct_answer = firstCorrect;
+                        } else if (val === 'fill_blank') {
+                          q.question_type = 'fill_blank';
+                          q.correct_answer = '';
+                        }
+                        updateQuestion(questionIndex, 'question_type', q.question_type);
+                        updateQuestion(questionIndex, 'correct_answer' as any, q.correct_answer);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select question type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single_choice">Single choice</SelectItem>
+                        <SelectItem value="fill_blank">Fill in the blank</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
@@ -420,57 +471,139 @@ export default function QuizLessonEditor({
                   </div>
                 )}
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Options (4)</Label>
-                  </div>
-                  <div className="space-y-2">
-                    {question.options?.slice(0,4).map((option, optionIndex) => (
-                      <div key={optionIndex} className={`flex items-center gap-2 p-3 rounded-md border-2 transition-colors ${
-                        isOptionCorrect(question, optionIndex) 
-                          ? 'bg-green-50 border-green-300 shadow-sm' 
-                          : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name={`correct-${questionIndex}`}
-                            checked={isOptionCorrect(question, optionIndex)}
-                            onChange={() => updateCorrectAnswer(questionIndex, optionIndex, true)}
-                            className="text-blue-600 focus:ring-blue-500"
-                          />
-                        </div>
-                        {question.is_sat_question && option.letter && (
-                          <span className="font-bold text-blue-600 w-6 text-center">{option.letter}.</span>
-                        )}
-                        <div className="flex-1 flex flex-col gap-2">
-                          <Input
-                            type="text"
-                            value={option.text}
-                            onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)}
-                            placeholder={`Option ${optionIndex + 1}`}
-                          />
-                          {option.text.trim() && (
-                            <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border">
-                              Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
-                            </div>
+                {question.question_type !== 'fill_blank' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Options (4)</Label>
+                    </div>
+                    <div className="space-y-2">
+                      {question.options?.slice(0,4).map((option, optionIndex) => (
+                        <div key={optionIndex} className={`flex items-center gap-2 p-3 rounded-md border-2 transition-colors ${
+                          isOptionCorrect(question, optionIndex) 
+                            ? 'bg-green-50 border-green-300 shadow-sm' 
+                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`correct-${questionIndex}`}
+                              checked={isOptionCorrect(question, optionIndex)}
+                              onChange={() => updateCorrectAnswer(questionIndex, optionIndex, true)}
+                              className="text-blue-600 focus:ring-blue-500"
+                            />
+                          </div>
+                          {question.is_sat_question && option.letter && (
+                            <span className="font-bold text-blue-600 w-6 text-center">{option.letter}.</span>
+                          )}
+                          <div className="flex-1 flex flex-col gap-2">
+                            <Input
+                              type="text"
+                              value={option.text}
+                              onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)}
+                              placeholder={`Option ${optionIndex + 1}`}
+                            />
+                            {option.text.trim() && (
+                              <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border">
+                                Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
+                              </div>
+                            )}
+                          </div>
+                          {isOptionCorrect(question, optionIndex) && (
+                            <span className="text-xs text-green-700 font-medium px-2 py-1 bg-green-200 rounded-full">
+                              ✓ Correct
+                            </span>
                           )}
                         </div>
-                        {isOptionCorrect(question, optionIndex) && (
-                          <span className="text-xs text-green-700 font-medium px-2 py-1 bg-green-200 rounded-full">
-                            ✓ Correct
-                          </span>
-                        )}
-                      </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Detected gaps</Label>
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                      {(() => {
+                        const matches = Array.from(((question.content_text || '').toString().matchAll(/\[\[(.*?)\]\]/g)));
+                        if (matches.length === 0) {
+                          return <span>No gaps found. Add [[answers]] in the passage above.</span>;
+                        }
+                        return (
+                          <div className="space-y-1">
+                            {matches.map((m, i) => {
+                              const tokens = (m[1]||'').split(',').map(s => s.trim()).filter(Boolean);
+                              const correct = tokens[0];
+                              const distractors = tokens.slice(1);
+                              return (
+                                <div key={i}>#{i+1}: <b>{correct}</b>{distractors.length ? ` (others: ${distractors.join(', ')})` : ''}</div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+                
+                </CardContent>
+              </Card>
+            );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {quizQuestions.map((q, idx) => (
+              <div key={q.id} className="p-4 rounded-lg border bg-white space-y-4">
+                <div className="text-sm text-gray-500">Question {idx + 1}</div>
+                {!!q.content_text && (
+                  <div className="bg-gray-50 p-3 rounded border">
+                    <div className="text-gray-800" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
+                  </div>
+                )}
+                <div className="text-base font-semibold text-gray-900">
+                  <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
+                </div>
+                {q.question_type !== 'fill_blank' ? (
+                  <div className="space-y-2">
+                    {q.options?.slice(0,4).map((opt, oi) => (
+                      <label key={opt.id || oi} className="flex items-center gap-2 p-3 rounded-md border bg-gray-50">
+                        <input type="radio" disabled className="text-blue-600" />
+                        <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(opt.text) }} />
+                      </label>
                     ))}
                   </div>
-                </div>
-                
-              </CardContent>
-            </Card>
-          );
-          })}
-        </div>
+                ) : (
+                  <div className="p-3 rounded-md border bg-gray-50">
+                    {(() => {
+                      const text = (q.content_text || q.question_text || '').toString();
+                      const parts = text.split(/\[\[(.*?)\]\]/g);
+                      let gapIndex = 0;
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 text-gray-800">
+                          {parts.map((part, i) => {
+                            const isGap = i % 2 === 1;
+                            if (!isGap) {
+                              return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                            }
+                            const inner = (part || '').split(',').map(s => s.trim()).filter(Boolean);
+                            const options = inner;
+                            const idxGap = gapIndex++;
+                            return (
+                              <select key={`prev-gap-${i}`} className="px-2 py-1 border rounded bg-white" defaultValue="">
+                                <option value="" disabled>{`#${idxGap+1}`}</option>
+                                {options.map((o, oi) => (
+                                  <option key={oi} value={o}>{o}</option>
+                                ))}
+                              </select>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {quizQuestions.length === 0 && (
           <Card>
@@ -525,7 +658,28 @@ export default function QuizLessonEditor({
                   </div>
                   <div className="space-y-2">
                     <Label>Question Type</Label>
-                    <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">Single Choice (fixed)</div>
+                    <Select
+                      value={draftQuestion.question_type}
+                      onValueChange={(val) => {
+                        const next: any = { ...draftQuestion };
+                        if (val === 'single_choice') {
+                          next.question_type = 'single_choice';
+                          next.correct_answer = typeof draftQuestion.correct_answer === 'number' ? draftQuestion.correct_answer : 0;
+                        } else if (val === 'fill_blank') {
+                          next.question_type = 'fill_blank';
+                          next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
+                        }
+                        setDraftQuestion(next);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select question type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single_choice">Single choice</SelectItem>
+                        <SelectItem value="fill_blank">Fill in the blank</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   {draftQuestion.is_sat_question && (
                     <div className="space-y-2">
@@ -553,12 +707,12 @@ export default function QuizLessonEditor({
                       <Textarea
                         value={draftQuestion.content_text || ''}
                         onChange={(e) => applyDraftUpdate({ content_text: e.target.value })}
-                        placeholder="The full content/passage that the question is based on"
+                        placeholder="Enter passage. Use [[answer]] to mark gaps, e.g. 'The sky is [[blue]]'."
                         className="w-full p-2 border border-gray-300 rounded-md min-h-[120px] resize-y"
                       />
                       {(draftQuestion.content_text || '').trim() && (
                         <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border max-h-32 overflow-y-auto">
-                          Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.content_text || '') }} />
+                          Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex((draftQuestion.content_text || '').replace(/\[\[(.*?)\]\]/g, '<b>[$1]</b>')) }} />
                         </div>
                       )}
                     </div>
@@ -566,36 +720,69 @@ export default function QuizLessonEditor({
                 )}
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Options (4)</Label>
-                </div>
+              {draftQuestion.question_type !== 'fill_blank' ? (
                 <div className="space-y-2">
-                  {(draftQuestion.options || []).slice(0,4).map((opt, idx) => (
-                    <div key={opt.id} className="p-2 border rounded-md bg-white space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="draft-correct"
-                          checked={draftQuestion.correct_answer === idx}
-                          onChange={() => setDraftCorrect(idx, true)}
-                        />
-                        <Input
-                          value={opt.text}
-                          onChange={(e) => updateDraftOptionText(idx, e.target.value)}
-                          placeholder={`Option ${idx + 1}`}
-                          className="flex-1"
-                        />
-                      </div>
-                      {opt.text.trim() && (
-                        <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border ml-6">
-                          Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(opt.text) }} />
+                  <div className="flex items-center justify-between">
+                    <Label>Options (4)</Label>
+                  </div>
+                  <div className="space-y-2">
+                    {(draftQuestion.options || []).slice(0,4).map((opt, idx) => (
+                      <div key={opt.id} className="p-2 border rounded-md bg-white space-y-2">
+                        <div className="flex items-center gap-2">
+                          {draftQuestion.question_type === 'multiple_choice' ? (
+                            <input
+                              type="checkbox"
+                              checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
+                              onChange={(e) => setDraftCorrect(idx, e.target.checked)}
+                            />
+                          ) : (
+                            <input
+                              type="radio"
+                              name="draft-correct"
+                              checked={draftQuestion.correct_answer === idx}
+                              onChange={() => setDraftCorrect(idx, true)}
+                            />
+                          )}
+                          <Input
+                            value={opt.text}
+                            onChange={(e) => updateDraftOptionText(idx, e.target.value)}
+                            placeholder={`Option ${idx + 1}`}
+                            className="flex-1"
+                          />
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {opt.text.trim() && (
+                          <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border ml-6">
+                            Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(opt.text) }} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Gaps preview</Label>
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
+                    {(() => {
+                      const text = (draftQuestion.content_text || '').toString();
+                      const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+                      if (gaps.length === 0) return <span>No gaps yet. Add [[correct, wrong1, wrong2]] in the passage field.</span>;
+                      return (
+                        <div className="space-y-1">
+                          {gaps.map((m, i) => {
+                            const tokens = (m[1]||'').split(',').map(s => s.trim()).filter(Boolean);
+                            const correct = tokens[0];
+                            const distractors = tokens.slice(1);
+                            return (
+                              <div key={i}>#{i+1}: <b>{correct}</b>{distractors.length ? ` (others: ${distractors.join(', ')})` : ''}</div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={() => { setShowQuestionModal(false); setDraftQuestion(null); }}>Cancel</Button>
@@ -667,6 +854,7 @@ export default function QuizLessonEditor({
         </div>,
         document.body
       )}
+
     </div>
   );
 }
