@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { connectSocket, getSocket } from '../services/socket';
+import { connectSocket } from '../services/socket';
+import apiClient from '../services/api';
 import logoIco from '../assets/masteredlogo-ico.ico';
 import { 
   Home, 
@@ -12,11 +13,13 @@ import {
   Settings,
   BookMarked,
   ChevronDown,
+  ChevronRight,
   LogOut,
   Users,
   GraduationCap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { Course } from '../types';
 
 // Navigation items based on user roles
 type NavItemTuple = [to: string, label: string, Icon: LucideIcon, badge: number, roles: string[] | null];
@@ -41,6 +44,9 @@ type SidebarVariant = 'desktop' | 'mobile';
 export default function Sidebar({ variant = 'desktop' }: { variant?: SidebarVariant } = {}) {
   const [unread, setUnread] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isCoursesExpanded, setIsCoursesExpanded] = useState(false);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const { user, logout } = useAuth();
   
   useEffect(() => {
@@ -79,6 +85,28 @@ export default function Sidebar({ variant = 'desktop' }: { variant?: SidebarVari
     };
   }, [user]);
 
+  // Load courses when expanding
+  const loadCourses = async () => {
+    if (courses.length > 0) return; // Already loaded
+    
+    setIsLoadingCourses(true);
+    try {
+      const coursesData = await apiClient.getCourses();
+      setCourses(coursesData);
+    } catch (error) {
+      console.error('Failed to load courses:', error);
+    } finally {
+      setIsLoadingCourses(false);
+    }
+  };
+
+  const handleCoursesToggle = () => {
+    setIsCoursesExpanded(!isCoursesExpanded);
+    if (!isCoursesExpanded) {
+      loadCourses();
+    }
+  };
+
   const handleLogout = () => {
     logout();
   };
@@ -100,6 +128,58 @@ export default function Sidebar({ variant = 'desktop' }: { variant?: SidebarVari
         {getNavigationItems(user?.role, unread).map(([to, label, Icon, badge, roles]) => {
           // Skip items if user doesn't have required role
           if (roles && (!user?.role || !roles.includes(user.role))) return null;
+          
+          // Handle expandable My Courses
+          if ((to === '/courses' && user?.role === 'student') || (to === '/teacher/courses' && user?.role === 'teacher')) {
+            return (
+              <div key={to}>
+                {/* Main Courses Button */}
+                <button
+                  onClick={handleCoursesToggle}
+                  className="w-full flex items-center rounded-xl text-gray-700 hover:bg-gray-100 transition-colors px-5 py-3 text-base lg:px-4 lg:py-2 lg:text-sm"
+                >
+                  <Icon className="w-6 h-6 lg:w-5 lg:h-5 mr-3 opacity-70" />
+                  <span className="flex-1 text-gray-800 text-base lg:text-sm text-left">{label}</span>
+                  {badge > 0 && (
+                    <span className="ml-2 text-xs bg-red-600 text-white rounded-full px-2 py-0.5">{badge}</span>
+                  )}
+                  <ChevronRight className={`w-4 h-4 ml-2 transition-transform ${isCoursesExpanded ? 'rotate-90' : ''}`} />
+                </button>
+                
+                {/* Expanded Courses List */}
+                {isCoursesExpanded && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {isLoadingCourses ? (
+                      <div className="px-4 py-2 text-sm text-gray-500">Loading courses...</div>
+                    ) : courses.length === 0 ? (
+                      <div className="px-4 py-2 text-sm text-gray-500">No courses found</div>
+                    ) : (
+                      courses.slice(0, 5).map((course) => (
+                        <NavLink
+                          key={course.id}
+                          to={user?.role === 'teacher' ? `/teacher/course/${course.id}` : `/course/${course.id}`}
+                          className={({ isActive }) =>
+                            `flex items-center rounded-lg text-gray-600 hover:bg-gray-100 transition-colors px-3 py-2 text-sm ${isActive ? 'bg-blue-50 text-blue-700 border-l-2 border-blue-500' : ''}`
+                          }
+                        >
+                          <div className="w-2 h-2 bg-blue-400 rounded-full mr-3 flex-shrink-0"></div>
+                          <span className="truncate">{course.title}</span>
+                        </NavLink>
+                      ))
+                    )}
+                    {courses.length > 5 && (
+                      <NavLink
+                        to={user?.role === 'teacher' ? '/teacher/courses' : '/courses'}
+                        className="flex items-center rounded-lg text-blue-600 hover:bg-blue-50 transition-colors px-3 py-2 text-sm font-medium"
+                      >
+                        <span>View all courses ({courses.length})</span>
+                      </NavLink>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
           
           return (
             <NavLink

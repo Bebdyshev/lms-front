@@ -42,6 +42,15 @@ export interface RefreshTokenRequest {
 // STEP TYPES
 // =============================================================================
 
+export interface StepAttachment {
+  id: number;
+  filename: string;
+  file_url: string;
+  file_type: string;
+  file_size: number;
+  uploaded_at: string;
+}
+
 export interface Step {
   id: number;
   lesson_id: number;
@@ -49,6 +58,7 @@ export interface Step {
   content_type: 'text' | 'video_text' | 'quiz';
   video_url?: string;
   content_text?: string;
+  attachments?: string; // JSON string of StepAttachment[]
   order_index: number;
   created_at: string;
 }
@@ -269,6 +279,7 @@ export interface Lesson {
   is_completed?: boolean; // For student view
   steps?: Step[];
   total_steps?: number;
+  next_lesson_id?: number | null;
 }
 
 // Legacy lesson interface for backward compatibility (will be removed)

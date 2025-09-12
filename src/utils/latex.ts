@@ -61,12 +61,61 @@ export function renderLatex(latex: string, displayMode: boolean = false): string
 }
 
 /**
+ * Автоматически оборачивает LaTeX команды в $ делимитеры
+ */
+export function autoWrapLatex(text: string): string {
+  // Паттерны LaTeX команд, которые должны быть в математическом режиме
+  const latexPatterns = [
+    /\\frac\{[^}]*\}\{[^}]*\}/g,  // \frac{a}{b}
+    /\\sqrt(?:\[[^\]]*\])?\{[^}]*\}/g,  // \sqrt{x} or \sqrt[n]{x}
+    /\\(?:sin|cos|tan|log|ln|exp|lim|sum|int|prod)\b/g,  // математические функции
+    /\\(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|omega|Gamma|Delta|Theta|Lambda|Pi|Sigma|Phi|Omega)\b/g,  // греческие буквы
+    /\\(?:pm|mp|times|div|cdot|approx|neq|leq|geq|infty)\b/g,  // операторы
+  ];
+  
+  let result = text;
+  
+  // Обрабатываем каждый паттерн
+  for (const pattern of latexPatterns) {
+    const matches = [...result.matchAll(pattern)];
+    
+    // Обрабатываем совпадения в обратном порядке, чтобы не сбить индексы
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const match = matches[i];
+      const matchText = match[0];
+      const matchStart = match.index!;
+      const matchEnd = matchStart + matchText.length;
+      
+      // Проверяем, не находится ли уже внутри $ $
+      const beforeMatch = result.substring(0, matchStart);
+      const afterMatch = result.substring(matchEnd);
+      
+      // Считаем количество $ до совпадения
+      const dollarsBefore = (beforeMatch.match(/\$/g) || []).length;
+      
+      // Если нечетное количество $, то мы уже внутри формулы
+      if (dollarsBefore % 2 === 1) {
+        continue;
+      }
+      
+      // Заменяем совпадение на обернутую версию
+      result = result.substring(0, matchStart) + `$${matchText}$` + result.substring(matchEnd);
+    }
+  }
+  
+  return result;
+}
+
+/**
  * Преобразует текст с LaTeX формулами в HTML
  */
 export function renderTextWithLatex(text: string): string {
-  const matches = findLatexFormulas(text);
+  // Сначала автоматически оборачиваем LaTeX команды
+  const wrappedText = autoWrapLatex(text);
+  
+  const matches = findLatexFormulas(wrappedText);
   if (matches.length === 0) {
-    return text;
+    return wrappedText;
   }
   
   let result = '';
@@ -74,7 +123,7 @@ export function renderTextWithLatex(text: string): string {
   
   for (const match of matches) {
     // Добавляем текст до формулы
-    result += text.slice(lastIndex, match.start);
+    result += wrappedText.slice(lastIndex, match.start);
     
     // Рендерим формулу
     const rendered = renderLatex(match.latex, match.type === 'block');
@@ -84,7 +133,7 @@ export function renderTextWithLatex(text: string): string {
   }
   
   // Добавляем оставшийся текст
-  result += text.slice(lastIndex);
+  result += wrappedText.slice(lastIndex);
   
   return result;
 }

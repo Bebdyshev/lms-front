@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -12,13 +12,13 @@ import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import CourseSidebar from '../components/CourseSidebar.tsx';
 import type { Course, CourseModule, Lesson, LessonContentType, Group, CourseGroupAccess } from '../types';
-import { ChevronDown, ChevronUp, MoreVertical, GripVertical, FileText, Video, HelpCircle, Users, Save, Check, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreVertical, GripVertical, FileText, Video, HelpCircle, Users, Save, Check, X, Eye } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Loader from '../components/Loader.tsx';
-import Modal from '../components/Modal.tsx';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import ConfirmDialog from '../components/ConfirmDialog.tsx';
 
 interface SelectedModule {
@@ -208,6 +208,7 @@ const DraggableModule = ({
 export default function CourseBuilderPage() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   
   const [course, setCourse] = useState<Course | null>(null);
@@ -312,6 +313,21 @@ export default function CourseBuilderPage() {
     
     loadCourseData();
   }, [courseId]);
+
+  // Sync active section with ?tab= query param
+  useEffect(() => {
+    const tab = (searchParams.get('tab') || '').toLowerCase();
+    if (tab === 'overview' || tab === 'description' || tab === 'content') {
+      setActiveSection(tab as 'overview' | 'description' | 'content');
+    } else {
+      // ensure URL has a default tab param without adding a new history entry
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', 'overview');
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -899,6 +915,12 @@ export default function CourseBuilderPage() {
 
   const handleNavigate = (section: 'overview' | 'description' | 'content') => {
     setActiveSection(section);
+    // keep URL in sync when navigated programmatically
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', section);
+      return next;
+    }, { replace: true });
   };
 
   const loadCourseGroups = async () => {
@@ -1408,15 +1430,15 @@ export default function CourseBuilderPage() {
       const result = await apiClient.grantGroupAccess(course.id.toString(), groupId);
       
       if (result.status === 'granted') {
-        alert('Доступ предоставлен группе!');
+        alert('Access granted to the group.');
       } else if (result.status === 'already_granted') {
-        alert('Группа уже имеет доступ к курсу');
+        alert('This group already has access to the course.');
       }
       
       loadGroups(); // Reload to update status
     } catch (error) {
       console.error('Failed to grant access:', error);
-      alert('Не удалось предоставить доступ группе');
+      alert('Failed to grant access to the group.');
     }
   };
 
@@ -1425,11 +1447,11 @@ export default function CourseBuilderPage() {
     
     try {
       await apiClient.revokeGroupAccess(course.id.toString(), groupId);
-      alert('Доступ отозван у группы');
+      alert('Access revoked from the group.');
       loadGroups(); // Reload to update status
     } catch (error) {
       console.error('Failed to revoke access:', error);
-      alert('Не удалось отозвать доступ у группы');
+      alert('Failed to revoke access from the group.');
     }
   };
 
@@ -1454,13 +1476,13 @@ export default function CourseBuilderPage() {
     
     let message = '';
     if (grantedCount > 0) {
-      message += `Доступ предоставлен ${grantedCount} группам. `;
+      message += `Access granted to ${grantedCount} group(s). `;
     }
     if (alreadyGrantedCount > 0) {
-      message += `${alreadyGrantedCount} групп уже имели доступ.`;
+      message += `${alreadyGrantedCount} group(s) already had access.`;
     }
     
-    alert(message || 'Операция завершена');
+    alert(message || 'Operation completed.');
     loadGroups(); // Reload to update status
   };
 
@@ -1542,12 +1564,20 @@ export default function CourseBuilderPage() {
             </div>
             <div className="flex items-center space-x-3">
               <Button
-                onClick={handleAutoEnrollStudents}
+                onClick={() => navigate(`/course/${courseId}`)}
                 variant="outline"
                 className="flex items-center space-x-2"
               >
+                <Eye className="w-4 h-4" />
+                <span>Preview Course</span>
+              </Button>
+              <Button
+                onClick={handleAutoEnrollStudents}
+                variant="default"
+                className="flex items-center space-x-2"
+              >
                 <Users className="w-4 h-4" />
-                <span>Grant access to groups</span>
+                <span>Grant access</span>
               </Button>
             </div>
           </div>
@@ -1558,11 +1588,41 @@ export default function CourseBuilderPage() {
       </div>
 
       {/* Modals and Dialogs */}
-      <Modal
+      <Dialog
         open={modForm.open}
-        title={modForm.id ? 'Edit module' : 'New module'}
-        onClose={() => setModForm({ open: false, title: '', description: '' })}
-        onSubmit={async () => {
+        onOpenChange={(open) => { if (!open) setModForm({ open: false, title: '', description: '' }); }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{modForm.id ? 'Edit module' : 'New module'}</DialogTitle>
+            <DialogDescription>
+              {modForm.id ? 'Update the module details below.' : 'Create a new module for your course.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Module title</label>
+              <input 
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                value={modForm.title} 
+                onChange={e => setModForm(f => ({ ...f, title: e.target.value }))} 
+                placeholder="Enter module title"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Description (optional)</label>
+              <textarea 
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                value={modForm.description || ''} 
+                onChange={e => setModForm(f => ({ ...f, description: e.target.value }))} 
+                placeholder="Module description"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModForm({ open: false, title: '', description: '' })}>Cancel</Button>
+            <Button onClick={async () => {
           if (!modForm.title.trim()) return;
           
           if (modForm.id) {
@@ -1589,39 +1649,55 @@ export default function CourseBuilderPage() {
           
           setModForm({ open: false, title: '', description: '' });
           setHasUnsavedChanges(true);
-        }}
-        submitText="Save"
-        cancelText="Cancel"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Module title</label>
-            <input 
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              value={modForm.title} 
-              onChange={e => setModForm(f => ({ ...f, title: e.target.value }))} 
-              placeholder="Enter module title"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Description (optional)</label>
-            <textarea 
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              value={modForm.description || ''} 
-              onChange={e => setModForm(f => ({ ...f, description: e.target.value }))} 
-              placeholder="Module description"
-              rows={3}
-            />
-          </div>
-        </div>
-      </Modal>
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       
-      <Modal
-        open={lecForm.open}
-        title="Edit lesson"
-        onClose={() => setLecForm({ open: false, title: '', type: 'text', videoUrl: '' })}
-        onSubmit={async () => {
+      <Dialog open={lecForm.open} onOpenChange={(open) => { if (!open) setLecForm({ open: false, title: '', type: 'text', videoUrl: '' }); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit lesson</DialogTitle>
+            <DialogDescription>Update the lesson details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Lesson title</label>
+              <input 
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                value={lecForm.title} 
+                onChange={e => setLecForm(f => ({ ...f, title: e.target.value }))} 
+                placeholder="Enter lesson title"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Lesson type</label>
+              <select 
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                value={lecForm.type} 
+                onChange={(e) => setLecForm(f => ({ ...f, type: (e.target as HTMLSelectElement).value as any }))}
+              >
+                <option value="text">Text</option>
+                <option value="video">Video</option>
+                <option value="quiz">Quiz</option>
+              </select>
+            </div>
+            {lecForm.type === 'video' && (
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Video URL</label>
+                <input 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  value={lecForm.videoUrl || ''} 
+                  onChange={e => setLecForm(f => ({ ...f, videoUrl: e.target.value }))} 
+                  placeholder="https://..." 
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLecForm({ open: false, title: '', type: 'text', videoUrl: '' })}>Cancel</Button>
+            <Button onClick={async () => {
           if (!lecForm.title.trim() || !selected?.module || !lecForm.id) return;
           
           // Update lesson
@@ -1649,45 +1725,10 @@ export default function CourseBuilderPage() {
           if (!courseId) return;
           const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
           setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
-        }}
-        submitText="Save"
-        cancelText="Cancel"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Lesson title</label>
-            <input 
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              value={lecForm.title} 
-              onChange={e => setLecForm(f => ({ ...f, title: e.target.value }))} 
-              placeholder="Enter lesson title"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Lesson type</label>
-            <select 
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              value={lecForm.type} 
-              onChange={(e) => setLecForm(f => ({ ...f, type: e.target.value as LessonContentType }))}
-            >
-              <option value="text">Text</option>
-              <option value="video">Video</option>
-              <option value="quiz">Quiz</option>
-            </select>
-          </div>
-          {lecForm.type === 'video' && (
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Video URL</label>
-              <input 
-                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                value={lecForm.videoUrl || ''} 
-                onChange={e => setLecForm(f => ({ ...f, videoUrl: e.target.value }))} 
-                placeholder="https://..." 
-              />
-            </div>
-          )}
-        </div>
-      </Modal>
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={confirm.open}
@@ -1698,18 +1739,15 @@ export default function CourseBuilderPage() {
       />
 
       {/* Group Management Modal */}
-      <Modal
-        open={showGroupManagementModal}
-        title="Управление доступом к курсу"
-        onClose={() => setShowGroupManagementModal(false)}
-        onSubmit={() => setShowGroupManagementModal(false)}
-        submitText="Закрыть"
-        cancelText=""
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600 mb-4">
-            Выберите группы, которым хотите предоставить доступ к курсу. Все студенты в выбранных группах автоматически получат доступ к курсу.
-          </p>
+      <Dialog open={showGroupManagementModal} onOpenChange={setShowGroupManagementModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Course Access</DialogTitle>
+            <DialogDescription>
+              Select the groups you want to grant access to this course. All students in the selected groups will automatically receive access.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
           
           {isLoadingGroups ? (
             <div className="flex justify-center py-8">
@@ -1717,15 +1755,15 @@ export default function CourseBuilderPage() {
             </div>
           ) : availableGroups.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">У вас пока нет групп</p>
+              <p className="text-gray-500 mb-4">You don't have any groups yet.</p>
               <Button onClick={() => navigate('/groups')} variant="outline">
-                Создать группу
+                Create a group
               </Button>
             </div>
           ) : (
             <>
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-medium">Ваши группы ({availableGroups.length})</h3>
+                <h3 className="font-medium">Your groups ({availableGroups.length})</h3>
                 <Button 
                   onClick={grantAccessToAllGroups}
                   variant="outline"
@@ -1733,7 +1771,7 @@ export default function CourseBuilderPage() {
                   className="flex items-center space-x-2"
                 >
                   <Check className="w-4 h-4" />
-                  <span>Предоставить всем</span>
+                  <span>Grant to all</span>
                 </Button>
               </div>
               
@@ -1748,14 +1786,14 @@ export default function CourseBuilderPage() {
                       <div>
                         <h4 className="font-medium">{group.name}</h4>
                         <p className="text-sm text-gray-500">
-                          {group.student_count || 0} студентов
+                          {group.student_count || 0} students
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
                         {hasAccess ? (
                           <>
                             <Badge variant="secondary" className="text-green-600 bg-green-50">
-                              Доступ есть
+                              Access granted
                             </Badge>
                             <Button
                               onClick={() => revokeAccessFromGroup(group.id.toString())}
@@ -1764,7 +1802,7 @@ export default function CourseBuilderPage() {
                               className="flex items-center space-x-1 text-red-600 hover:text-red-700"
                             >
                               <X className="w-3 h-3" />
-                              <span>Отозвать</span>
+                              <span>Revoke</span>
                             </Button>
                           </>
                         ) : (
@@ -1775,7 +1813,7 @@ export default function CourseBuilderPage() {
                             className="flex items-center space-x-1"
                           >
                             <Check className="w-3 h-3" />
-                            <span>Доступ</span>
+                            <span>Grant</span>
                           </Button>
                         )}
                       </div>
@@ -1785,8 +1823,12 @@ export default function CourseBuilderPage() {
               </div>
             </>
           )}
-        </div>
-      </Modal>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGroupManagementModal(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </> 
   );
 }
