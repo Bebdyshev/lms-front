@@ -4,6 +4,7 @@ import { connectSocket } from '../services/socket';
 import { Badge } from './ui/badge';
 import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
+import StreakIcon from './StreakIcon';
 
 interface TopbarProps {
   onOpenSidebar: () => void;
@@ -62,6 +63,9 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
         )}
       </div>
       <div className="flex items-center gap-3">
+        {/* Daily Streak */}
+        <StreakIcon />
+        
         {/* Индикатор сообщений */}
         <Link to="/chat" className="relative">
           <button className="w-10 h-10 sm:w-10 sm:h-10 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-50">

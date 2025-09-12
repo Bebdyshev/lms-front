@@ -13,6 +13,9 @@ export interface User {
   curator_name?: string;
   group_id?: number; // ID группы, в которой состоит студент
   is_active?: boolean;
+  daily_streak?: number; // Current daily streak count
+  last_activity_date?: string; // Last date when student was active
+  total_study_time_minutes?: number; // Total study time in minutes
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +122,8 @@ export interface StudentProgressOverview {
   completed_steps: number;
   overall_completion_percentage: number;
   total_time_spent_minutes: number;
+  daily_streak?: number; // Current daily streak count
+  last_activity_date?: string; // Last date when student was active
   courses: StudentCourseProgress[];
 }
 
@@ -134,6 +139,16 @@ export interface StudentCourseProgress {
   completion_percentage: number;
   time_spent_minutes: number;
   last_accessed?: string;
+}
+
+export interface DailyStreakInfo {
+  student_id: number;
+  student_name: string;
+  daily_streak: number;
+  last_activity_date?: string;
+  streak_status: 'not_started' | 'active' | 'at_risk' | 'broken';
+  is_active_today: boolean;
+  total_study_time_minutes: number;
 }
 
 // =============================================================================

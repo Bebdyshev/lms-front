@@ -45,6 +45,7 @@ export default function StudentDashboard({
     }
   };
 
+
   const coursesCount = progressData?.total_courses ?? stats?.courses_count ?? 0;
   const totalStudyHours = progressData 
     ? Math.round((progressData.total_time_spent_minutes / 60) * 10) / 10
@@ -130,6 +131,7 @@ export default function StudentDashboard({
             </div>
           </CardContent>
         </Card>
+
       </div>
 
       <Tabs defaultValue="courses" className="mt-4">

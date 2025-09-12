@@ -18,7 +18,8 @@ import type {
   Step,
   StepProgress,
   CourseStepsProgress,
-  StudentProgressOverview
+  StudentProgressOverview,
+  DailyStreakInfo
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -1584,6 +1585,15 @@ class LMSApiClient {
     }
   }
 
+  async getDailyStreak(): Promise<DailyStreakInfo> {
+    try {
+      const response = await this.api.get('/progress/my-streak');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get daily streak info');
+    }
+  }
+
 
 }
 
@@ -1700,4 +1710,5 @@ export const getLessonStepsProgress = apiClient.getLessonStepsProgress.bind(apiC
 export const getCourseStudentsStepsProgress = apiClient.getCourseStudentsStepsProgress.bind(apiClient);
 export const getStudentProgressOverview = apiClient.getStudentProgressOverview.bind(apiClient);
 export const getStudentProgressOverviewById = apiClient.getStudentProgressOverviewById.bind(apiClient);
+export const getDailyStreak = apiClient.getDailyStreak.bind(apiClient);
 export const uploadFile = apiClient.uploadFile.bind(apiClient);
