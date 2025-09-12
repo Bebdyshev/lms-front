@@ -57,16 +57,19 @@ const QuizTabContent = ({
   setQuizTimeLimit
 }: QuizTabContentProps) => {
   const addQuestion = () => {
+    const ts = Date.now().toString();
     const newQuestion: Question = {
-      id: Date.now().toString(),
+      id: ts,
       assignment_id: '',
       question_text: '',
       question_type: 'single_choice',
       options: [
-        { id: Date.now().toString() + '_1', text: '', is_correct: false },
-        { id: Date.now().toString() + '_2', text: '', is_correct: false }
+        { id: ts + '_1', text: '', is_correct: false },
+        { id: ts + '_2', text: '', is_correct: false },
+        { id: ts + '_3', text: '', is_correct: false },
+        { id: ts + '_4', text: '', is_correct: false }
       ],
-      correct_answer: '',
+      correct_answer: 0,
       points: 10,
       order_index: quizQuestions.length
     };
@@ -83,27 +86,7 @@ const QuizTabContent = ({
     setQuizQuestions(quizQuestions.filter((_, i) => i !== index));
   };
 
-  const addOption = (questionIndex: number) => {
-    const updatedQuestions = [...quizQuestions];
-    const question = updatedQuestions[questionIndex];
-    if (question.options) {
-      question.options.push({
-        id: Date.now().toString(),
-        text: '',
-        is_correct: false
-      });
-      setQuizQuestions(updatedQuestions);
-    }
-  };
-
-  const removeOption = (questionIndex: number, optionIndex: number) => {
-    const updatedQuestions = [...quizQuestions];
-    const question = updatedQuestions[questionIndex];
-    if (question.options && question.options.length > 2) {
-      question.options.splice(optionIndex, 1);
-      setQuizQuestions(updatedQuestions);
-    }
-  };
+  // Fixed 4-option model: no add/remove of options
 
   const updateOption = (questionIndex: number, optionIndex: number, value: string) => {
     const updatedQuestions = [...quizQuestions];
@@ -216,25 +199,11 @@ const QuizTabContent = ({
                       placeholder="Enter your question"
                     />
                   </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor={`type-${questionIndex}`}>Question Type</Label>
-                      <Select
-                        value={question.question_type}
-                        onValueChange={(value) => updateQuestion(questionIndex, 'question_type', value)}
-                      >
-                        <SelectTrigger id={`type-${questionIndex}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="single_choice">Single Choice</SelectItem>
-                          <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
-                          <SelectItem value="fill_blank">Fill in the Blank</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Question Type</Label>
+                      <div className="px-3 py-2 border border-input rounded-md bg-muted text-sm">Single Choice (fixed)</div>
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor={`points-${questionIndex}`}>Points</Label>
                       <Input
@@ -247,79 +216,32 @@ const QuizTabContent = ({
                     </div>
                   </div>
 
-                  {(question.question_type === 'single_choice' || question.question_type === 'multiple_choice') && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label>Options</Label>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addOption(questionIndex)}
-                          className="flex items-center gap-1"
-                        >
-                          <Plus className="w-3 h-3" />
-                          Add Option
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        {question.options?.map((option, optionIndex) => (
-                          <div key={optionIndex} className="flex items-center gap-3 p-3 border rounded-lg">
-                            <input
-                              type={question.question_type === 'single_choice' ? 'radio' : 'checkbox'}
-                              name={`correct-${questionIndex}`}
-                              checked={
-                                question.question_type === 'single_choice'
-                                  ? question.correct_answer === optionIndex.toString()
-                                  : Array.isArray(question.correct_answer) && question.correct_answer.includes(optionIndex.toString())
-                              }
-                              onChange={(e) => {
-                                if (question.question_type === 'single_choice') {
-                                  updateQuestion(questionIndex, 'correct_answer', optionIndex.toString());
-                                } else {
-                                  const currentAnswers = Array.isArray(question.correct_answer) ? question.correct_answer : [];
-                                  const newAnswers = e.target.checked
-                                    ? [...currentAnswers, optionIndex.toString()]
-                                    : currentAnswers.filter(a => a !== optionIndex.toString());
-                                  updateQuestion(questionIndex, 'correct_answer', newAnswers);
-                                }
-                              }}
-                              className="text-primary focus:ring-primary"
-                            />
-                            <Input
-                              type="text"
-                              value={option.text}
-                              onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)}
-                              className="flex-1"
-                              placeholder={`Option ${optionIndex + 1}`}
-                            />
-                            {question.options && question.options.length > 2 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => removeOption(questionIndex, optionIndex)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Options (4)</Label>
                     </div>
-                  )}
-
-                  {question.question_type === 'fill_blank' && (
                     <div className="space-y-2">
-                      <Label htmlFor={`answer-${questionIndex}`}>Correct Answer</Label>
-                      <Input
-                        id={`answer-${questionIndex}`}
-                        type="text"
-                        value={question.correct_answer || ''}
-                        onChange={(e) => updateQuestion(questionIndex, 'correct_answer', e.target.value)}
-                        placeholder="Enter the correct answer"
-                      />
+                      {question.options?.slice(0, 4).map((option, optionIndex) => (
+                        <div key={optionIndex} className="flex items-center gap-3 p-3 border rounded-lg">
+                          <input
+                            type="radio"
+                            name={`correct-${questionIndex}`}
+                            checked={question.correct_answer === optionIndex}
+                            onChange={() => updateQuestion(questionIndex, 'correct_answer' as any, optionIndex as any)}
+                            className="text-primary focus:ring-primary"
+                          />
+                          <Input
+                            type="text"
+                            value={option.text}
+                            onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)}
+                            className="flex-1"
+                            placeholder={`Option ${optionIndex + 1}`}
+                          />
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+
                 </CardContent>
               </Card>
             ))}
@@ -563,6 +485,8 @@ export default function LessonEditPage() {
   const [hasCheckedDraft, setHasCheckedDraft] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [isFixingOrder, setIsFixingOrder] = useState(false);
+  const [nextLessonId, setNextLessonId] = useState<number | null>(null);
+  const [courseLessons, setCourseLessons] = useState<Lesson[]>([]);
 
   // New tab state
   const [selectedTab, setSelectedTab] = useState<'video' | 'text' | 'quiz'>('video');
@@ -583,6 +507,21 @@ export default function LessonEditPage() {
   const [stepVideoUrl, setStepVideoUrl] = useState('');
   const [stepQuizTitle, setStepQuizTitle] = useState('');
   const [stepQuizQuestions, setStepQuizQuestions] = useState<Question[]>([]);
+  
+  // Temporary files for new steps
+  const [tempFiles, setTempFiles] = useState<Map<number, File[]>>(new Map());
+  
+  // Handle temporary files for new steps
+  const handleTempFilesChange = (stepId: number, files: File[]) => {
+    const newTempFiles = new Map(tempFiles);
+    if (files.length > 0) {
+      newTempFiles.set(stepId, files);
+    } else {
+      newTempFiles.delete(stepId);
+    }
+    setTempFiles(newTempFiles);
+  };
+  
   const [stepQuizTimeLimit, setStepQuizTimeLimit] = useState<number | undefined>(undefined);
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz'>('text');
@@ -678,12 +617,20 @@ export default function LessonEditPage() {
       const modulesData = await apiClient.getCourseModules(courseId);
       setModules(modulesData);
       console.log('Loaded modules:', modulesData);
+      // Load all lessons of the course for selector
+      try {
+        const allLessons = await apiClient.getCourseLessons(courseId);
+        setCourseLessons(allLessons);
+      } catch (e) {
+        setCourseLessons([]);
+      }
       
       // Load lesson with steps
       const lessonData = await apiClient.getLesson(lessonId);
       
       setLesson(lessonData);
       setLessonTitle(lessonData.title);
+      setNextLessonId((lessonData as any).next_lesson_id ?? null);
       
       // Load steps for this lesson
       const stepsData = await apiClient.getLessonSteps(lessonId);
@@ -841,6 +788,7 @@ export default function LessonEditPage() {
       const updated: Partial<Step> = {
         title: stepTitle,
         content_type: stepContentType,
+        attachments: s.attachments, // Preserve existing attachments
       };
       if (stepContentType === 'text') {
         updated.content_text = stepContent;
@@ -884,6 +832,7 @@ export default function LessonEditPage() {
           const updated: Partial<Step> = {
             title: stepTitle,
             content_type: stepContentType,
+            attachments: s.attachments, // Preserve existing attachments
           };
           if (stepContentType === 'text') {
             updated.content_text = stepContent;
@@ -906,7 +855,8 @@ export default function LessonEditPage() {
 
       const lessonUpdateData = {
         title: lessonTitle,
-        order_index: lesson?.order_index || 0
+        order_index: lesson?.order_index || 0,
+        next_lesson_id: nextLessonId ?? null
       };
       
       const updatedLesson = await apiClient.updateLesson(lessonId, lessonUpdateData);
@@ -921,15 +871,36 @@ export default function LessonEditPage() {
 
       // Recreate current local steps with proper order_index
       const orderedLocal = [...mergedSteps].sort((a, b) => a.order_index - b.order_index);
+      const createdStepIds: number[] = [];
+      
       for (const s of orderedLocal) {
         const payload: Partial<Step> = {
           title: s.title,
           content_type: s.content_type,
           order_index: s.order_index,
           content_text: s.content_text || '',
-          video_url: s.video_url || ''
+          video_url: s.video_url || '',
+          attachments: s.attachments || undefined
         };
-        await apiClient.createStep(lessonId, payload);
+        const createdStep = await apiClient.createStep(lessonId, payload);
+        createdStepIds.push(createdStep.id);
+        
+        // Upload temporary files for this step if any exist
+        const tempFilesForStep = tempFiles.get(s.id);
+        
+        if (tempFilesForStep && tempFilesForStep.length > 0) {
+          for (const file of tempFilesForStep) {
+            try {
+              await apiClient.uploadStepAttachment(createdStep.id.toString(), file);
+            } catch (error) {
+              console.error(`Failed to upload file ${file.name} for step ${createdStep.id}:`, error);
+            }
+          }
+          // Clear temporary files after successful upload
+          const newTempFiles = new Map(tempFiles);
+          newTempFiles.delete(s.id);
+          setTempFiles(newTempFiles);
+        }
       }
 
       // Reload fresh steps from server and sync selection by order_index
@@ -953,6 +924,11 @@ export default function LessonEditPage() {
         setModules(updatedModules);
       }
       
+      // Refresh to sync next lesson value
+      const refreshedLesson = await apiClient.getLesson(lessonId);
+      setLesson(refreshedLesson);
+      setNextLessonId((refreshedLesson as any).next_lesson_id ?? null);
+
       clearLocalStorage(lessonId);
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
@@ -1160,6 +1136,46 @@ export default function LessonEditPage() {
                     placeholder="Enter lesson title"
                   />
                 </div>
+                {/* Next Lesson Selector */}
+                <div className="space-y-2">
+                  <Label>Next lesson (optional)</Label>
+                  <select
+                    className="w-full border rounded-md px-3 py-2 bg-background"
+                    value={nextLessonId ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNextLessonId(val === '' ? null : parseInt(val));
+                    }}
+                  >
+                    <option value="">None (follow default order)</option>
+                    {modules
+                      .slice()
+                      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+                      .map((m) => (
+                        <optgroup key={m.id} label={`Section ${m.order_index}: ${m.title}`}>
+                          {courseLessons
+                            .filter((l) => String(l.module_id) === String(m.id))
+                            .slice()
+                            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+                            .filter((l) => String(l.id) !== String(lessonId))
+                            .map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {m.order_index}.{l.order_index} {l.title}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
+                  </select>
+                  {nextLessonId && lesson && modules.length > 0 && (() => {
+                    const currentModule = modules.find(m => String(m.id) === String(lesson.module_id));
+                    const targetLesson = courseLessons.find(l => String(l.id) === String(nextLessonId));
+                    const targetModuleId = targetLesson?.module_id;
+                    if (currentModule && targetLesson && String(targetModuleId) !== String(currentModule.id)) {
+                      return <div className="text-xs text-amber-600">Warning: selected next lesson is in another section (module).</div>;
+                    }
+                    return null;
+                  })()}
+                </div>
               </CardContent>
             </Card>
 
@@ -1224,6 +1240,18 @@ export default function LessonEditPage() {
                         <TextLessonEditor
                           content={stepContent}
                           onContentChange={setStepContent}
+                          stepId={selectedStepId && selectedStepId > 0 ? selectedStepId : undefined}
+                          attachments={steps.find(s => s.id === selectedStepId)?.attachments}
+                          onAttachmentsChange={(attachments) => {
+                            // Update the current step's attachments in the steps array
+                            const updatedSteps = steps.map(s => 
+                              s.id === selectedStepId 
+                                ? { ...s, attachments }
+                                : s
+                            );
+                            setSteps(updatedSteps);
+                          }}
+                          onTempFilesChange={selectedStepId && selectedStepId < 0 ? (files) => handleTempFilesChange(selectedStepId, files) : undefined}
                         />
                       </div>
                     )}
@@ -1237,6 +1265,18 @@ export default function LessonEditPage() {
                           onClearUrl={() => setStepVideoUrl('')}
                           content={stepContent}
                           onContentChange={setStepContent}
+                          stepId={selectedStepId && selectedStepId > 0 ? selectedStepId : undefined}
+                          attachments={steps.find(s => s.id === selectedStepId)?.attachments}
+                          onAttachmentsChange={(attachments) => {
+                            // Update the current step's attachments in the steps array
+                            const updatedSteps = steps.map(s => 
+                              s.id === selectedStepId 
+                                ? { ...s, attachments }
+                                : s
+                            );
+                            setSteps(updatedSteps);
+                          }}
+                          onTempFilesChange={selectedStepId && selectedStepId < 0 ? (files) => handleTempFilesChange(selectedStepId, files) : undefined}
                         />
                       </div>
                     )}

@@ -641,6 +641,36 @@ class LMSApiClient {
     }
   }
 
+  async uploadStepAttachment(stepId: string, file: File): Promise<{
+    attachment_id: number;
+    filename: string;
+    file_url: string;
+    file_type: string;
+    file_size: number;
+  }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await this.api.post(`/media/steps/${stepId}/attachments`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload step attachment');
+    }
+  }
+
+  async deleteStepAttachment(stepId: string, attachmentId: number): Promise<void> {
+    try {
+      await this.api.delete(`/media/steps/${stepId}/attachments/${attachmentId}`);
+    } catch (error) {
+      throw new Error('Failed to delete step attachment');
+    }
+  }
+
   // SAT Image Analysis
   async analyzeSatImage(imageFile: File): Promise<any> {
     try {
@@ -888,6 +918,7 @@ class LMSApiClient {
       throw new Error('Failed to upload file');
     }
   }
+
 
   // =============================================================================
   // PROGRESS
@@ -1596,6 +1627,8 @@ export const createStep = apiClient.createStep.bind(apiClient);
 export const getStep = apiClient.getStep.bind(apiClient);
 export const updateStep = apiClient.updateStep.bind(apiClient);
 export const deleteStep = apiClient.deleteStep.bind(apiClient);
+export const uploadStepAttachment = apiClient.uploadStepAttachment.bind(apiClient);
+export const deleteStepAttachment = apiClient.deleteStepAttachment.bind(apiClient);
 export const fetchLesson = apiClient.fetchLesson.bind(apiClient);
 export const getAssignments = apiClient.getAssignments.bind(apiClient);
 export const getAssignment = apiClient.getAssignment.bind(apiClient);

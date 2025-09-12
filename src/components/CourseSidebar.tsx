@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -43,6 +43,8 @@ export default function CourseSidebar({
 }: CourseSidebarProps) {
 
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
   const [showUnpublishDialog, setShowUnpublishDialog] = useState(false);
@@ -158,7 +160,12 @@ export default function CourseSidebar({
           {courseNavItems.map((item) => (
             <button
               key={item.section}
-              onClick={() => onNavigate?.(item.section)}
+              onClick={() => {
+                // Update URL query param while preserving current path
+                const basePath = location.pathname;
+                navigate(`${basePath}?tab=${item.section}`);
+                onNavigate?.(item.section);
+              }}
               className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full ${
                 activeSection === item.section
                   ? 'bg-blue-50 text-blue-700' 
