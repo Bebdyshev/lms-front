@@ -17,6 +17,7 @@ import {
   LogOut,
   Users,
   GraduationCap,
+  Calendar,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Course } from '../types';
@@ -26,12 +27,14 @@ type NavItemTuple = [to: string, label: string, Icon: LucideIcon, badge: number,
 function getNavigationItems(_userRole: string | undefined, unreadCount: number): NavItemTuple[] {
   const allItems: NavItemTuple[] = [
     ['/dashboard', 'Dashboard', Home, 0, null],
+    ['/calendar', 'Calendar', Calendar, 0, null],
     ['/courses', 'My Courses', BookOpen, 0, ['student']],
     ['/assignments', 'My assignments', ClipboardList, 0, ['student']],
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher']],
     ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher']],
     ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin']],
     ['/admin/users', 'Manage Users', Users, 0, ['admin']],
+    ['/admin/events', 'Manage Events', Calendar, 0, ['admin']],
     ['/assignments', 'Assignments', ClipboardList, 0, ['teacher']],
     ['/chat', 'Chat', MessageCircle, unreadCount, null],
   ];

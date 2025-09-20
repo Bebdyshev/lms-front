@@ -19,7 +19,11 @@ import type {
   StepProgress,
   CourseStepsProgress,
   StudentProgressOverview,
-  DailyStreakInfo
+  DailyStreakInfo,
+  Event,
+  CreateEventRequest,
+  UpdateEventRequest,
+  EventType
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -729,7 +733,7 @@ class LMSApiClient {
   // Groups
   async getAllGroups(): Promise<any> {
     try {
-      const response = await this.api.get('/groups');
+      const response = await this.api.get('/admin/groups');
       return response.data;
     } catch (error) {
       throw new Error('Failed to get groups');
@@ -1594,6 +1598,127 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // EVENT METHODS - Schedule and Events Management
+  // =============================================================================
+
+  // Admin methods for event management
+  async getAllEvents(params?: {
+    skip?: number;
+    limit?: number;
+    event_type?: EventType;
+    group_id?: number;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<Event[]> {
+    try {
+      const response = await this.api.get('/admin/events', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load events');
+    }
+  }
+
+  async createEvent(eventData: CreateEventRequest): Promise<Event> {
+    try {
+      const response = await this.api.post('/admin/events', eventData);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to create event');
+    }
+  }
+
+  async updateEvent(eventId: number, eventData: UpdateEventRequest): Promise<Event> {
+    try {
+      const response = await this.api.put(`/admin/events/${eventId}`, eventData);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to update event');
+    }
+  }
+
+  async deleteEvent(eventId: number): Promise<void> {
+    try {
+      await this.api.delete(`/admin/events/${eventId}`);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to delete event');
+    }
+  }
+
+  async createBulkEvents(eventsData: CreateEventRequest[]): Promise<Event[]> {
+    try {
+      const response = await this.api.post('/admin/events/bulk', eventsData);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to create bulk events');
+    }
+  }
+
+  // User methods for viewing events
+  async getMyEvents(params?: {
+    skip?: number;
+    limit?: number;
+    event_type?: EventType;
+    start_date?: string;
+    end_date?: string;
+    upcoming_only?: boolean;
+  }): Promise<Event[]> {
+    try {
+      const response = await this.api.get('/events/my', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load my events');
+    }
+  }
+
+  async getCalendarEvents(year: number, month: number): Promise<Event[]> {
+    try {
+      const response = await this.api.get('/events/calendar', {
+        params: { year, month }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load calendar events');
+    }
+  }
+
+  async getUpcomingEvents(params?: {
+    limit?: number;
+    days_ahead?: number;
+  }): Promise<Event[]> {
+    try {
+      const response = await this.api.get('/events/upcoming', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load upcoming events');
+    }
+  }
+
+  async getEventDetails(eventId: number): Promise<Event> {
+    try {
+      const response = await this.api.get(`/events/${eventId}`);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to load event details');
+    }
+  }
+
+  async registerForEvent(eventId: number): Promise<void> {
+    try {
+      await this.api.post(`/events/${eventId}/register`);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to register for event');
+    }
+  }
+
+  async unregisterFromEvent(eventId: number): Promise<void> {
+    try {
+      await this.api.delete(`/events/${eventId}/register`);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to unregister from event');
+    }
+  }
+
 
 }
 
@@ -1712,3 +1837,14 @@ export const getStudentProgressOverview = apiClient.getStudentProgressOverview.b
 export const getStudentProgressOverviewById = apiClient.getStudentProgressOverviewById.bind(apiClient);
 export const getDailyStreak = apiClient.getDailyStreak.bind(apiClient);
 export const uploadFile = apiClient.uploadFile.bind(apiClient);
+export const getAllEvents = apiClient.getAllEvents.bind(apiClient);
+export const createEvent = apiClient.createEvent.bind(apiClient);
+export const updateEvent = apiClient.updateEvent.bind(apiClient);
+export const deleteEvent = apiClient.deleteEvent.bind(apiClient);
+export const createBulkEvents = apiClient.createBulkEvents.bind(apiClient);
+export const getMyEvents = apiClient.getMyEvents.bind(apiClient);
+export const getCalendarEvents = apiClient.getCalendarEvents.bind(apiClient);
+export const getUpcomingEvents = apiClient.getUpcomingEvents.bind(apiClient);
+export const getEventDetails = apiClient.getEventDetails.bind(apiClient);
+export const registerForEvent = apiClient.registerForEvent.bind(apiClient);
+export const unregisterFromEvent = apiClient.unregisterFromEvent.bind(apiClient);

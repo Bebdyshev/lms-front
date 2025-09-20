@@ -31,6 +31,10 @@ import AdminDashboard from '../pages/AdminDashboard.tsx';
 import UserManagement from '../pages/UserManagement.tsx';
 import LessonPage from '../pages/LessonPage.tsx';
 import CourseProgressPage from '../pages/CourseProgressPage.tsx';
+import EventManagement from '../pages/EventManagement.tsx';
+import CreateEvent from '../pages/CreateEvent.tsx';
+import EditEvent from '../pages/EditEvent.tsx';
+import Calendar from '../pages/Calendar.tsx';
 
 export default function Router() {
   return (
@@ -288,6 +292,34 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['admin']}>
               <AppLayout>
                 <TeacherCoursesPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/events" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AppLayout>
+                <EventManagement />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/events/create" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <CreateEvent />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/events/:eventId/edit" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <EditEvent />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/calendar" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Calendar />
               </AppLayout>
             </ProtectedRoute>
           } />
