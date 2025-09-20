@@ -707,3 +707,109 @@ export interface NavigationItem {
   roles?: UserRole[];
   children?: NavigationItem[];
 }
+
+// =============================================================================
+// EVENT TYPES - Schedule and Events Management
+// =============================================================================
+
+export interface Event {
+  id: number;
+  title: string;
+  description?: string;
+  event_type: EventType;
+  start_datetime: string;
+  end_datetime: string;
+  location?: string;
+  is_online: boolean;
+  meeting_url?: string;
+  created_by: number;
+  creator_name?: string;
+  is_active: boolean;
+  is_recurring: boolean;
+  recurrence_pattern?: string;
+  recurrence_end_date?: string;
+  max_participants?: number;
+  participant_count: number;
+  groups?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type EventType = 'class' | 'weekly_test' | 'webinar';
+
+export interface CreateEventRequest {
+  title: string;
+  description?: string;
+  event_type: EventType;
+  start_datetime: string;
+  end_datetime: string;
+  location?: string;
+  is_online: boolean;
+  meeting_url?: string;
+  is_recurring: boolean;
+  recurrence_pattern?: string;
+  recurrence_end_date?: string;
+  max_participants?: number;
+  group_ids: number[];
+}
+
+export interface UpdateEventRequest {
+  title?: string;
+  description?: string;
+  event_type?: EventType;
+  start_datetime?: string;
+  end_datetime?: string;
+  location?: string;
+  is_online?: boolean;
+  meeting_url?: string;
+  is_active?: boolean;
+  is_recurring?: boolean;
+  recurrence_pattern?: string;
+  recurrence_end_date?: string;
+  max_participants?: number;
+  group_ids?: number[];
+}
+
+export interface EventGroup {
+  id: number;
+  event_id: number;
+  group_id: number;
+  group_name?: string;
+  created_at: string;
+}
+
+export interface EventParticipant {
+  id: number;
+  event_id: number;
+  user_id: number;
+  user_name?: string;
+  registration_status: 'registered' | 'attended' | 'missed';
+  registered_at: string;
+  attended_at?: string;
+}
+
+export interface CalendarDay {
+  date: Date;
+  events: Event[];
+  isCurrentMonth: boolean;
+  isToday: boolean;
+}
+
+export interface CalendarMonth {
+  year: number;
+  month: number;
+  days: CalendarDay[];
+  events: Event[];
+}
+
+export const EVENT_TYPE_LABELS: Record<EventType, string> = {
+  class: 'Class',
+  weekly_test: 'Weekly Test',
+  webinar: 'Webinar'
+};
+
+export const EVENT_TYPE_COLORS: Record<EventType, string> = {
+  class: 'bg-blue-100 text-blue-800 border-blue-200',
+  weekly_test: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  webinar: 'bg-red-100 text-red-800 border-red-200'
+};
