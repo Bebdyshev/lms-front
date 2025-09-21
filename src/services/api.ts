@@ -335,10 +335,10 @@ class LMSApiClient {
 
   async getMyCourses(): Promise<Course[]> {
     try {
-      const response = await this.api.get('/dashboard/my-courses');
+      const response = await this.api.get('/courses/my-courses');
       return response.data;
     } catch (error) {
-      throw new Error('Failed to load courses');
+      throw new Error('Failed to load my courses');
     }
   }
 

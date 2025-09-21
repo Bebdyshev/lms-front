@@ -40,6 +40,39 @@ export default function StudentDashboard({
       setProgressData(data);
     } catch (error) {
       console.error('Failed to load progress data:', error);
+      // Fallback: try to load basic course list if progress overview fails
+      try {
+        const basicCourses = await apiClient.getMyCourses();
+        if (basicCourses.length > 0) {
+          // Create minimal progress data structure from basic courses
+          const fallbackData: StudentProgressOverview = {
+            student_id: 0, // Will be filled by backend
+            student_name: '', // Will be filled by backend
+            total_courses: basicCourses.length,
+            total_lessons: 0,
+            total_steps: 0,
+            completed_lessons: 0,
+            completed_steps: 0,
+            overall_completion_percentage: 0,
+            total_time_spent_minutes: 0,
+            courses: basicCourses.map(course => ({
+              course_id: parseInt(course.id.toString()),
+              course_title: course.title,
+              teacher_name: course.teacher_name || 'Unknown',
+              cover_image_url: course.coverImageUrl,
+              completion_percentage: 0,
+              total_lessons: 0,
+              completed_lessons: 0,
+              total_steps: 0,
+              completed_steps: 0,
+              time_spent_minutes: 0
+            }))
+          };
+          setProgressData(fallbackData);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback course loading also failed:', fallbackError);
+      }
     } finally {
       setIsLoadingProgress(false);
     }

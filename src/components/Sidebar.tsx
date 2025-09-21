@@ -94,7 +94,10 @@ export default function Sidebar({ variant = 'desktop' }: { variant?: SidebarVari
     
     setIsLoadingCourses(true);
     try {
-      const coursesData = await apiClient.getCourses();
+      // Use dedicated my-courses endpoint for students, general endpoint for others
+      const coursesData = user?.role === 'student' 
+        ? await apiClient.getMyCourses()
+        : await apiClient.getCourses();
       setCourses(coursesData);
     } catch (error) {
       console.error('Failed to load courses:', error);
