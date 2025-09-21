@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -122,7 +122,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
       <div className="p-6 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course?.cover_image_url || course?.coverImageUrl || '')} alt={course?.title} className="w-10 h-10 rounded-lg" />
+            <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course?.coverImageUrl || '')} alt={course?.title} className="w-10 h-10 rounded-lg" />
           </div>
           <div className="min-w-0">
             <h2 className="font-semibold truncate">{course?.title || 'Course'}</h2>
@@ -246,6 +246,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
 export default function LessonPage() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
@@ -273,6 +274,22 @@ export default function LessonPage() {
       loadData();
     }
   }, [courseId, lessonId]);
+
+  // Sync URL step parameter with currentStepIndex
+  useEffect(() => {
+    if (steps.length > 0) {
+      const stepParam = searchParams.get('step');
+      const stepNumber = stepParam ? parseInt(stepParam, 10) : 1;
+      
+      // Validate step number (1-based in URL, convert to 0-based for state)
+      const validStepNumber = Math.max(1, Math.min(stepNumber, steps.length));
+      const stepIndex = validStepNumber - 1;
+      
+      if (stepIndex !== currentStepIndex) {
+        setCurrentStepIndex(stepIndex);
+      }
+    }
+  }, [searchParams, steps.length, currentStepIndex]);
 
   const loadData = async () => {
     try {
@@ -419,11 +436,7 @@ export default function LessonPage() {
 
   const goToNextStep = () => {
     if (currentStepIndex < steps.length - 1) {
-      // Mark current step as visited before moving to next
-      if (currentStep) {
-        markStepAsVisited(currentStep.id.toString());
-      }
-      setCurrentStepIndex(currentStepIndex + 1);
+      goToStep(currentStepIndex + 1);
     } else if (nextLessonId) {
       navigate(`/course/${courseId}/lesson/${nextLessonId}`);
     }
@@ -431,11 +444,7 @@ export default function LessonPage() {
 
   const goToPreviousStep = () => {
     if (currentStepIndex > 0) {
-      // Mark current step as visited before moving to previous
-      if (currentStep) {
-        markStepAsVisited(currentStep.id.toString());
-      }
-      setCurrentStepIndex(currentStepIndex - 1);
+      goToStep(currentStepIndex - 1);
     }
   };
 
@@ -445,6 +454,11 @@ export default function LessonPage() {
       markStepAsVisited(currentStep.id.toString());
     }
     setCurrentStepIndex(index);
+    
+    // Update URL with step parameter (1-based)
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('step', (index + 1).toString());
+    setSearchParams(newSearchParams);
   };
 
   const getStepIcon = (step: Step) => {
