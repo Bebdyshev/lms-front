@@ -3,17 +3,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Progress } from "../components/ui/progress";
-import CourseCard from "../components/CourseCard";
-import type { Course, DashboardStats, RecentActivity, StudentProgressOverview } from "../types";
-import { Clock, BookOpen, LineChart, CheckCircle, Target, TrendingUp } from "lucide-react";
+import type { DashboardStats, StudentProgressOverview } from "../types";
+import { Clock, BookOpen, LineChart, CheckCircle, Target } from "lucide-react";
 import { useEffect, useState } from "react";
 import apiClient from "../services/api";
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 interface StudentDashboardProps {
   firstName: string;
   stats: DashboardStats;
-  recentCourses: Course[];
-  recentActivity?: RecentActivity[] | any[];
   onContinueCourse: (id: string) => void;
   onGoToAllCourses: () => void;
 }
@@ -21,8 +19,6 @@ interface StudentDashboardProps {
 export default function StudentDashboard({
   firstName,
   stats,
-  recentCourses,
-  recentActivity = [],
   onContinueCourse,
   onGoToAllCourses,
 }: StudentDashboardProps) {
@@ -91,11 +87,6 @@ export default function StudentDashboard({
     return 'text-red-600';
   };
 
-  const getProgressBarColor = (percentage: number) => {
-    if (percentage >= 80) return 'bg-green-500';
-    if (percentage >= 50) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
 
   return (
     <div className="space-y-8">
@@ -149,18 +140,54 @@ export default function StudentDashboard({
         </Card>
 
         <Card>
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="rounded-md bg-emerald-100 text-emerald-700 p-3">
-              <LineChart className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="text-3xl font-bold">{overallProgress}%</div>
-              <div className="text-muted-foreground text-sm">Average progress</div>
-              {progressData && (
-                <div className="text-xs text-emerald-600 mt-1">
-                  {progressData.completed_steps}/{progressData.total_steps} steps completed
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-md bg-emerald-100 text-emerald-700 p-3">
+                  <LineChart className="h-6 w-6" />
                 </div>
-              )}
+                <div>
+                  <div className="text-muted-foreground text-sm">Progress Overview</div>
+                  {progressData && (
+                    <div className="text-xs text-emerald-600 mt-1">
+                      {progressData.completed_steps}/{progressData.total_steps} steps completed
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Circular Progress Chart */}
+            <div className="flex items-center justify-center">
+              <div className="relative w-32 h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Completed', value: overallProgress },
+                        { name: 'Remaining', value: 100 - overallProgress }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={35}
+                      outerRadius={55}
+                      startAngle={90}
+                      endAngle={-270}
+                      dataKey="value"
+                    >
+                      <Cell fill="#10b981" />
+                      <Cell fill="#e5e7eb" />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center text */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-emerald-600">{overallProgress}%</div>
+                    <div className="text-xs text-muted-foreground">Complete</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
