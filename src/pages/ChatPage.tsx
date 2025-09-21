@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
-import { isAuthenticated, fetchThreads, fetchMessages, getAvailableContacts, sendMessage } from "../services/api";
-import type { MessageThread, Message, AvailableContact } from '../types';
+import { isAuthenticated, fetchThreads, fetchMessages, getAvailableContacts, sendMessage, getCurrentUser } from "../services/api";
+import type { MessageThread, Message, AvailableContact, User } from '../types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -15,15 +15,27 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState<string>('');
   const [availableContacts, setAvailableContacts] = useState<AvailableContact[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const pollRef = useRef<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Загрузка списка разговоров
+  // Загрузка пользователя и списка разговоров
   useEffect(() => {
+    loadCurrentUser();
     loadThreads();
   }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Failed to load current user:', error);
+    }
+  };
 
   // Socket.IO setup
   useEffect(() => {
@@ -124,7 +136,10 @@ export default function ChatPage() {
 
   const loadAvailableContacts = async () => {
      try {
+       console.log('🔍 Loading available contacts...');
+       console.log('👤 Current user:', currentUser);
        const contacts = await getAvailableContacts();
+       console.log('📞 Available contacts:', contacts);
        setAvailableContacts(contacts);
      } catch (error) {
        console.error('❌ Failed to load contacts:', error);
@@ -219,12 +234,51 @@ export default function ChatPage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  // Группировка контактов по ролям для студентов
+  const getGroupedContacts = () => {
+    if (currentUser?.role !== 'student') {
+      return { all: availableContacts };
+    }
+
+    const filtered = availableContacts.filter(contact => 
+      contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contact.role.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    return {
+      teachers: filtered.filter(contact => contact.role === 'teacher'),
+      admins: filtered.filter(contact => contact.role === 'admin'),
+      curators: filtered.filter(contact => contact.role === 'curator'),
+      other: filtered.filter(contact => !['teacher', 'admin', 'curator'].includes(contact.role))
+    };
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'teacher': return 'Teachers';
+      case 'admin': return 'Administrators';
+      case 'curator': return 'Curators';
+      default: return 'Others';
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'teacher': return '';
+      case 'admin': return '';
+      case 'curator': return '';
+      default: return '';
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-[calc(100vh-160px)] min-h-0">
       {/* Список разговоров */}
       <Card className="lg:col-span-4 flex flex-col min-h-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="text-lg font-semibold">Chats</CardTitle>
+          <CardTitle className="text-lg font-semibold">
+            {currentUser?.role === 'student' ? 'Messages' : 'Chats'}
+          </CardTitle>
           <Dialog open={showNewChatDialog} onOpenChange={(open) => {
             setShowNewChatDialog(open);
             if (open) {
@@ -236,15 +290,141 @@ export default function ChatPage() {
                 variant="outline" 
                 size="sm"
               >
-                New Chat
+                {currentUser?.role === 'student' ? 'Contact' : 'New Chat'}
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Select Contact</DialogTitle>
+                <DialogTitle>
+                  {currentUser?.role === 'student' ? 'Contact Teachers & Admins' : 'Select Contact'}
+                </DialogTitle>
               </DialogHeader>
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {availableContacts.map(contact => (
+              
+              {/* Search for contacts */}
+              <div className="mb-4 space-y-2">
+                <Input
+                  placeholder="Search contacts..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
+              
+              </div>
+
+              <div className="max-h-96 overflow-y-auto space-y-4">
+                {currentUser?.role === 'student' ? (
+                  // Grouped view for students
+                  (() => {
+                    const grouped = getGroupedContacts();
+                    return (
+                      <>
+                        {/* Teachers Section */}
+                        {grouped.teachers && grouped.teachers.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                              {getRoleIcon('teacher')} {getRoleDisplayName('teacher')}
+                            </h4>
+                            <div className="space-y-1">
+                              {grouped.teachers.map(contact => (
+                                <div
+                                  key={contact.user_id}
+                                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                  onClick={() => startNewChat(contact)}
+                                >
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={contact.avatar_url} />
+                                    <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{contact.name}</p>
+                                    <p className="text-xs text-gray-500">Course Teacher</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Curators Section */}
+                        {grouped.curators && grouped.curators.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                              {getRoleIcon('curator')} {getRoleDisplayName('curator')}
+                            </h4>
+                            <div className="space-y-1">
+                              {grouped.curators.map(contact => (
+                                <div
+                                  key={contact.user_id}
+                                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                  onClick={() => startNewChat(contact)}
+                                >
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={contact.avatar_url} />
+                                    <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{contact.name}</p>
+                                    <p className="text-xs text-gray-500">Group Curator</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Admins Section */}
+                        {grouped.admins && grouped.admins.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                              {getRoleIcon('admin')} {getRoleDisplayName('admin')}
+                            </h4>
+                            <div className="space-y-1">
+                              {grouped.admins.map(contact => (
+                                <div
+                                  key={contact.user_id}
+                                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                  onClick={() => startNewChat(contact)}
+                                >
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={contact.avatar_url} />
+                                    <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{contact.name}</p>
+                                    <p className="text-xs text-gray-500">Administrator</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {availableContacts.length === 0 && (
+                          <div className="text-center text-gray-500 py-8">
+                            <p className="text-sm mb-2">No contacts available</p>
+                            <div className="text-xs space-y-1 bg-blue-50 p-3 rounded-lg border">
+                              <p className="font-medium text-blue-800">To see your contacts, you need:</p>
+                              <ul className="text-blue-700 space-y-1">
+                                <li>• Be enrolled in courses</li>
+                                <li>• Be assigned to a student group</li>
+                                <li>• Have active course teachers</li>
+                              </ul>
+                              <p className="text-blue-600 mt-2">Contact your administrator if you don't see any teachers.</p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
+                ) : (
+                  // Simple list for non-students
+                  <>
+                    {availableContacts
+                      .filter(contact => 
+                        contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        contact.role.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map(contact => (
                   <div
                     key={contact.user_id}
                     className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
@@ -262,6 +442,8 @@ export default function ChatPage() {
                 ))}
                 {availableContacts.length === 0 && (
                   <p className="text-center text-gray-500 py-4">No available contacts</p>
+                    )}
+                  </>
                 )}
               </div>
             </DialogContent>
@@ -301,7 +483,10 @@ export default function ChatPage() {
           
           {threads.length === 0 && !activePartnerId ? (
             <div className="p-4 text-center text-gray-500">
-              No active chats
+              <p className="text-sm">No active conversations</p>
+              {currentUser?.role === 'student' && (
+                <p className="text-xs mt-2">Click "Contact" to message your teachers or administrators</p>
+              )}
             </div>
           ) : (
             <div className="space-y-1">
@@ -365,7 +550,15 @@ export default function ChatPage() {
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-gray-50">
             {messages.length === 0 ? (
               <div className="text-center text-gray-500 py-8">
-                {activePartnerId ? 'Start conversation' : 'Select a chat to start conversation'}
+                {activePartnerId ? (
+                  currentUser?.role === 'student' ? 
+                    'Start your conversation' : 
+                    'Start conversation'
+                ) : (
+                  currentUser?.role === 'student' ? 
+                    'Select a conversation or click "Contact" to reach teachers & admins' : 
+                    'Select a chat to start conversation'
+                )}
               </div>
             ) : (
               messages.map(message => (
