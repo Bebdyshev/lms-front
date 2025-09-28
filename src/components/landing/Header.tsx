@@ -95,23 +95,26 @@ export function Header() {
               </div>
               <div className="flex w-full flex-col space-y-2 sm:flex-row sm:gap-2 sm:space-y-0 md:w-fit items-center">
                 <Button
+                  asChild
                   variant="outline"
                   size="sm"
                   className={cn(isScrolled && 'lg:hidden')}
                 >
-                  Sign In
+                  <a href="/login">Sign In</a>
                 </Button>
                 <Button
+                  asChild
                   size="sm"
                   className={cn('bg-primary text-primary-foreground', isScrolled && 'lg:hidden')}
                 >
-                  Start Learning
+                  <a href="/login">Start Learning</a>
                 </Button>
                 <Button
+                  asChild
                   size="sm"
                   className={cn('bg-primary text-primary-foreground', isScrolled ? 'lg:inline-flex' : 'hidden')}
                 >
-                  Get Started
+                  <a href="/login">Get Started</a>
                 </Button>
               </div>
             </div>
