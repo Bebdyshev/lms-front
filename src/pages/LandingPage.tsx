@@ -1,6 +1,7 @@
 import React from 'react'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import Header from '../components/landing/Header';
 import HeroSection from '../components/landing/HeroSection';
+import TestimonialsSection from '../components/landing/TestimonialsSection';
 import FeaturesSection from '../components/landing/FeaturesSection';
 import AboutSection from '../components/landing/AboutSection';
 import AudienceSection from '../components/landing/AudienceSection';
@@ -14,6 +15,7 @@ export default function LandingPage() {
       <Header />
       <main>
         <HeroSection />
+        <TestimonialsSection />
         <AboutSection />
         <FeaturesSection />
         <BenefitsSection />

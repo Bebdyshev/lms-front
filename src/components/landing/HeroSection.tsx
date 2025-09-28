@@ -1,8 +1,97 @@
+import React, { useState, useEffect } from "react";
 import { ArrowRight, Play } from "lucide-react";
 import { Button } from "../ui/button";
 import LogoIcon from '../../assets/masteredlogo-ico.ico';
 
 export function HeroSection() {
+  const [counts, setCounts] = useState({
+    students: 0,
+    teachers: 0,
+    courses: 0,
+    satisfaction: 0
+  });
+
+  // Typing animation state
+  const staticPrefix = "It's time to";
+  const phrases = [
+    " \n 1600 the SAT",
+    " \n8.5 IELTS",
+    " get into \nyour dream uni",
+  ];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [typed, setTyped] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const targetCounts = {
+    students: 1102,
+    teachers: 51,
+    courses: 5,
+    satisfaction: 95
+  };
+
+  useEffect(() => {
+    const duration = 2000; // 2 seconds
+    const steps = 60; // 60 steps for smooth animation
+    const stepDuration = duration / steps;
+
+    const animateCount = (key: keyof typeof targetCounts) => {
+      const target = targetCounts[key];
+      const increment = target / steps;
+      let current = 0;
+
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+          current = target;
+          clearInterval(timer);
+        }
+        setCounts(prev => ({ ...prev, [key]: Math.floor(current) }));
+      }, stepDuration);
+    };
+
+    // Start animation after a small delay
+    const timeout = setTimeout(() => {
+      Object.keys(targetCounts).forEach(key => {
+        animateCount(key as keyof typeof targetCounts);
+      });
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
+  // Typing effect (types only the variable part, keeps static prefix)
+  useEffect(() => {
+    const current = phrases[activeIndex];
+
+    // Typing speed configs (ms)
+    const typeSpeed = 50;
+    const deleteSpeed = 28;
+    const holdAfterType = 2000; // pause after full phrase
+    const holdBetween = 200;    // pause before next phrase starts
+
+    if (!isDeleting && typed.length < current.length) {
+      const t = setTimeout(() => setTyped(current.slice(0, typed.length + 1)), typeSpeed);
+      return () => clearTimeout(t);
+    }
+
+    if (!isDeleting && typed.length === current.length) {
+      const hold = setTimeout(() => setIsDeleting(true), holdAfterType);
+      return () => clearTimeout(hold);
+    }
+
+    if (isDeleting && typed.length > 0) {
+      const t = setTimeout(() => setTyped(current.slice(0, typed.length - 1)), deleteSpeed);
+      return () => clearTimeout(t);
+    }
+
+    if (isDeleting && typed.length === 0) {
+      const next = setTimeout(() => {
+        setIsDeleting(false);
+        setActiveIndex((prev) => (prev + 1) % phrases.length);
+      }, holdBetween);
+      return () => clearTimeout(next);
+    }
+  }, [typed, isDeleting, activeIndex, phrases]);
   return (
     <section className="relative pt-24 pb-20 lg:pt-32 lg:pb-32 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5" />
@@ -14,41 +103,43 @@ export function HeroSection() {
             Modern Educational Platform
           </div>
 
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-balance mb-6">
-            Complete Platform for <span className="text-primary">Online Learning</span>
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-balance mb-6 leading-tight">
+            <span className="block min-h-[6rem] md:min-h-[8rem] lg:min-h-[9rem] whitespace-pre-line">
+              {staticPrefix}
+              <span className="text-primary">{typed}</span>
+            </span>
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground text-balance mb-10 max-w-2xl mx-auto leading-relaxed">
-            Master Education is a modern LMS system for creating, managing and conducting online courses. Securely
-            create, deploy and scale the best educational solutions.
+            Fast, secure, and built for real results.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
             <Button size="lg" className="text-base px-8">
-              Start Learning
+              Get Consultation
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button variant="outline" size="lg" className="text-base px-8 bg-transparent">
               <Play className="mr-2 h-4 w-4" />
-              Watch Demo
+              Start Learning
             </Button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-12 border-t border-border">
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">1000+</div>
+              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">{counts.students.toLocaleString()}+</div>
               <div className="text-sm text-muted-foreground">Active Students</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">50+</div>
+              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">{counts.teachers}+</div>
               <div className="text-sm text-muted-foreground">Teachers</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">200+</div>
+              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">{counts.courses}+</div>
               <div className="text-sm text-muted-foreground">Courses</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">95%</div>
+              <div className="text-2xl md:text-3xl font-bold text-primary mb-2">{counts.satisfaction}%</div>
               <div className="text-sm text-muted-foreground">Satisfaction</div>
             </div>
           </div>

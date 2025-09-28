@@ -1,4 +1,5 @@
-import { GraduationCap, Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin } from "lucide-react";
+import LogoIcon from '../../assets/masteredlogo-ico.ico';
 
 export function Footer() {
   return (
@@ -7,7 +8,7 @@ export function Footer() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <GraduationCap className="h-6 w-6 text-primary" />
+              <img src={LogoIcon} alt="Master Education" className="h-10 w-10 text-primary" />
               <span className="text-lg font-bold">Master Education</span>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
@@ -49,7 +50,7 @@ export function Footer() {
             <div className="space-y-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-2"><Mail className="h-4 w-4" /><span>info@mastereducation.kz</span></div>
               <div className="flex items-center gap-2"><Phone className="h-4 w-4" /><span>+7 (777) 123-45-67</span></div>
-              <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /><span>Almaty, Kazakhstan</span></div>
+              <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /><span>Astana, Kazakhstan</span></div>
             </div>
           </div>
         </div>
