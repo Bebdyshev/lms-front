@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import Input from '../components/Input.tsx';
-import Button from '../components/Button.tsx';
+import { SignInPage, Testimonial } from '../components/SignInPage.tsx';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -16,10 +13,14 @@ export default function LoginPage() {
 
   const from = location.state?.from?.pathname || '/dashboard';
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
 
     try {
       const result = await login(email, password);
@@ -36,42 +37,39 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = () => {
+    // TODO: Implement Google OAuth
+    console.log("Continue with Google clicked");
+  };
+  
+  const handleResetPassword = () => {
+    // TODO: Implement password reset
+    console.log("Reset Password clicked");
+  };
+
+  const handleCreateAccount = () => {
+    // TODO: Implement account creation or redirect to registration
+    console.log("Create Account clicked");
+  };
+
+  const handleBackToHome = () => {
+    navigate('/');
+  };
+
   return (
-    <div>
-      <h2 className="text-2xl font-semibold text-center mb-6">
-        Sign In to LMS Platform
-      </h2>
-      
-      {error && (
-        <div className="mb-4 p-3 text-sm text-red-700 bg-red-100 border border-red-300 rounded">
-          {error}
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit}>
-        <Input
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-          required
-          disabled={loading}
-        />
-        <Input
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-          required
-          disabled={loading}
-        />
-        <p className="text-xs text-gray-600 mb-4">
-          If you don't know your credentials, please contact your administrator.
-        </p>
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? 'Signing In...' : 'Sign In'}
-        </Button>
-      </form>
+    <div className="bg-background text-foreground">
+      <SignInPage
+        title={<span className="font-light text-foreground tracking-tighter">Welcome to LMS</span>}
+        description="Access your account and continue your learning journey with us"
+        heroImageSrc="https://images.unsplash.com/photo-1642615835477-d303d7dc9ee9?w=2160&q=80"
+        onSignIn={handleSignIn}
+        onGoogleSignIn={handleGoogleSignIn}
+        onResetPassword={handleResetPassword}
+        onCreateAccount={handleCreateAccount}
+        onBackToHome={handleBackToHome}
+        error={error}
+        loading={loading}
+      />
     </div>
   );
 }
