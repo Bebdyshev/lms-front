@@ -419,8 +419,10 @@ export default function LessonPage() {
         });
         setGapAnswers(init);
         setGapOptions(opts);
-        // If quiz is not the last step in lesson, start immediately with questions (feed mode)
-        if (currentStepIndex < steps.length - 1) {
+        
+        // Use display_mode from quiz data to determine quiz behavior
+        const displayMode = parsedQuizData.display_mode || 'one_by_one';
+        if (displayMode === 'all_at_once') {
           setQuizState('question');
         } else {
           setQuizState('title');
@@ -1389,8 +1391,9 @@ export default function LessonPage() {
       
       case 'quiz':
         {
-          const isFeedMode = currentStepIndex < steps.length - 1;
-          if (isFeedMode) {
+          // Check display mode from quiz data
+          const displayMode = quizData?.display_mode || 'one_by_one';
+          if (displayMode === 'all_at_once') {
             return renderQuizFeed();
           }
         }

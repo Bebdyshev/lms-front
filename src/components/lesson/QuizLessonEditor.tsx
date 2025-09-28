@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Question } from '../../types';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import apiClient from '../../services/api';
-import { Textarea } from '../ui/textarea';
 import { renderTextWithLatex } from '../../utils/latex';
+import RichTextEditor from '../RichTextEditor';
 
 export interface QuizLessonEditorProps {
   quizTitle: string;
@@ -17,6 +18,8 @@ export interface QuizLessonEditorProps {
   setQuizQuestions: (questions: Question[]) => void;
   quizTimeLimit?: number;
   setQuizTimeLimit: (limit: number | undefined) => void;
+  quizDisplayMode?: 'one_by_one' | 'all_at_once';
+  setQuizDisplayMode?: (mode: 'one_by_one' | 'all_at_once') => void;
 }
 
 export default function QuizLessonEditor({
@@ -26,13 +29,15 @@ export default function QuizLessonEditor({
   setQuizQuestions,
   quizTimeLimit,
   setQuizTimeLimit,
+  quizDisplayMode = 'one_by_one',
+  setQuizDisplayMode,
 }: QuizLessonEditorProps) {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [draftQuestion, setDraftQuestion] = useState<Question | null>(null);
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [showSatImageModal, setShowSatImageModal] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
-  const [satAnalysisResult, setSatAnalysisResult] = useState<any>(null);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const openAddQuestion = () => {
     const ts = Date.now().toString();
@@ -49,12 +54,20 @@ export default function QuizLessonEditor({
       ],
       // default to first option for single choice
       correct_answer: 0,
-      points: 10,
+      points: 1,
       order_index: quizQuestions.length,
       is_sat_question: true,
       content_text: ''
     };
     setDraftQuestion(base);
+    setEditingQuestionIndex(null);
+    setShowQuestionModal(true);
+  };
+
+  const openEditQuestion = (questionIndex: number) => {
+    const question = quizQuestions[questionIndex];
+    setDraftQuestion({ ...question });
+    setEditingQuestionIndex(questionIndex);
     setShowQuestionModal(true);
   };
 
@@ -63,38 +76,6 @@ export default function QuizLessonEditor({
     setDraftQuestion({ ...draftQuestion, ...patch });
   };
 
-  const updateQuestion = (index: number, field: keyof Question, value: any) => {
-    const updatedQuestions = [...quizQuestions];
-    const question = updatedQuestions[index];
-
-    updatedQuestions[index] = { ...question, [field]: value };
-    setQuizQuestions(updatedQuestions);
-  };
-
-  const updateCorrectAnswer = (questionIndex: number, optionIndex: number, isCorrect: boolean) => {
-    const updatedQuestions = [...quizQuestions];
-    const question = updatedQuestions[questionIndex];
-
-    if (question.question_type === 'single_choice') {
-      if (isCorrect) question.correct_answer = optionIndex;
-    } else if (question.question_type === 'multiple_choice') {
-      const current = Array.isArray(question.correct_answer) ? [...question.correct_answer] : [];
-      const exists = current.includes(optionIndex);
-      const next = isCorrect
-        ? (exists ? current : [...current, optionIndex])
-        : current.filter((i) => i !== optionIndex);
-      question.correct_answer = next;
-    }
-
-    setQuizQuestions(updatedQuestions);
-  };
-
-  const isOptionCorrect = (question: Question, optionIndex: number): boolean => {
-    if (question.question_type === 'single_choice') {
-      return question.correct_answer === optionIndex;
-    }
-    return Array.isArray(question.correct_answer) && question.correct_answer.includes(optionIndex);
-  };
 
   const validateQuestion = (question: Question): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
@@ -147,23 +128,6 @@ export default function QuizLessonEditor({
     setQuizQuestions(quizQuestions.filter((_, i) => i !== index));
   };
 
-  // Fixed 4 options model - no add/remove
-
-  const updateOption = (questionIndex: number, optionIndex: number, value: string) => {
-    const updatedQuestions = [...quizQuestions];
-    const question = updatedQuestions[questionIndex];
-    if (question.options) {
-      question.options[optionIndex] = {
-        ...question.options[optionIndex],
-        text: value
-      };
-      
-      // Don't change correct answers when updating option text
-      // The correct answer logic now works with indices, not text
-      
-      setQuizQuestions(updatedQuestions);
-    }
-  };
 
   const updateDraftOptionText = (idx: number, text: string) => {
     if (!draftQuestion || !draftQuestion.options) return;
@@ -172,27 +136,6 @@ export default function QuizLessonEditor({
     applyDraftUpdate({ options });
   };
 
-  const addDraftOption = () => {
-    if (!draftQuestion) return;
-    const options = draftQuestion.options ? [...draftQuestion.options] : [];
-    options.push({ id: Date.now().toString(), text: '', is_correct: false });
-    applyDraftUpdate({ options });
-  };
-
-  const removeDraftOption = (idx: number) => {
-    if (!draftQuestion || !draftQuestion.options) return;
-    const options = draftQuestion.options.filter((_, i) => i !== idx);
-    // Adjust correct_answer indices if needed
-    let correct = draftQuestion.correct_answer;
-    if (draftQuestion.question_type === 'single_choice' && typeof correct === 'number') {
-      if (correct === idx) correct = 0;
-      else if (correct > idx) correct = correct - 1;
-    } else if (draftQuestion.question_type === 'multiple_choice' && Array.isArray(correct)) {
-      correct = correct.filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i));
-      if (correct.length === 0) correct = [0];
-    }
-    applyDraftUpdate({ options, correct_answer: correct });
-  };
 
   const setDraftCorrect = (idx: number, checked: boolean) => {
     if (!draftQuestion) return;
@@ -224,11 +167,22 @@ export default function QuizLessonEditor({
     const toSave: Question = {
       ...draftQuestion,
       correct_answer: correctAnswer,
-      order_index: quizQuestions.length,
+      order_index: editingQuestionIndex !== null ? draftQuestion.order_index : quizQuestions.length,
     };
+    
+    if (editingQuestionIndex !== null) {
+      // Update existing question
+      const updatedQuestions = [...quizQuestions];
+      updatedQuestions[editingQuestionIndex] = toSave;
+      setQuizQuestions(updatedQuestions);
+    } else {
+      // Add new question
     setQuizQuestions([...quizQuestions, toSave]);
+    }
+    
     setShowQuestionModal(false);
     setDraftQuestion(null);
+    setEditingQuestionIndex(null);
   };
 
   const analyzeImageFile = React.useCallback(async (file: File) => {
@@ -243,7 +197,6 @@ export default function QuizLessonEditor({
         return;
       }
 
-      setSatAnalysisResult(result);
       
       // Convert SAT format to our Question format
       const optionsArray = Array.isArray(result.options) ? result.options : [];
@@ -261,7 +214,7 @@ export default function QuizLessonEditor({
           letter: opt.letter
         })) || [],
         correct_answer: correctIndex >= 0 ? correctIndex : 0,
-        points: 10,
+        points: 1,
         order_index: quizQuestions.length,
         explanation: result.explanation || '',
         original_image_url: result.image_url,
@@ -270,6 +223,7 @@ export default function QuizLessonEditor({
       };
       
       setDraftQuestion(satQuestion);
+      setEditingQuestionIndex(null);
       setShowSatImageModal(false);
       setShowQuestionModal(true);
     } catch (error) {
@@ -335,7 +289,7 @@ export default function QuizLessonEditor({
             id="max-score"
             type="number"
             value={quizQuestions.length}
-            onChange={(e) => {
+            onChange={() => {
               // This should probably be calculated automatically, not set manually
               // For now, just ignore the input
             }}
@@ -358,201 +312,93 @@ export default function QuizLessonEditor({
         />
       </div>
 
+      {setQuizDisplayMode && (
+        <div className="space-y-2">
+          <Label>Display Mode</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div 
+              className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                quizDisplayMode === 'one_by_one' 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setQuizDisplayMode('one_by_one')}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-500 rounded-full flex items-center justify-center">
+                  {quizDisplayMode === 'one_by_one' && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                </div>
+                <div>
+                  <div className="font-medium text-sm">One by One</div>
+                  <div className="text-xs text-gray-500">Show questions sequentially</div>
+                </div>
+              </div>
+            </div>
+            
+            <div 
+              className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                quizDisplayMode === 'all_at_once' 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setQuizDisplayMode('all_at_once')}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-500 rounded-full flex items-center justify-center">
+                  {quizDisplayMode === 'all_at_once' && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                </div>
+                <div>
+                  <div className="font-medium text-sm">All at Once</div>
+                  <div className="text-xs text-gray-500">Show all questions together</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Questions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900">{previewMode ? 'Preview' : 'Questions'}</h3>
+          <h3 className="text-lg font-medium text-gray-900">Questions</h3>
           <div className="flex gap-2">
-            {!previewMode ? (
-              <>
-                <Button onClick={() => setPreviewMode(true)} variant="outline">Preview</Button>
                 <Button onClick={() => setShowSatImageModal(true)} variant="outline">Analyze SAT Image</Button>
                 <Button onClick={openAddQuestion} variant="default">Add Question</Button>
-              </>
-            ) : (
-              <Button onClick={() => setPreviewMode(false)} variant="outline">Back to editor</Button>
-            )}
           </div>
         </div>
 
-        {!previewMode ? (
-          <div className="space-y-4">
-            {quizQuestions.map((question, questionIndex) => {
-              const validation = getQuestionValidationStatus(question);
+        <div className="space-y-8">
+          {quizQuestions.map((q, idx) => {
+            const validation = getQuestionValidationStatus(q);
               return (
-              <Card key={question.id} className={validation.isValid ? '' : 'border-red-200'}>
-                <CardHeader>
+              <div key={q.id} className={`p-4 rounded-lg border bg-white space-y-4 ${!validation.isValid ? 'border-red-200' : ''}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-lg">Question {questionIndex + 1}</CardTitle>
+                    <div className="text-sm text-gray-500">Question {idx + 1}</div>
                       {!validation.isValid && (
                         <div className="text-sm text-red-600">
                           {validation.errors.join(', ')}
                         </div>
                       )}
                     </div>
+                  <div className="flex gap-2">
                     <Button 
-                      onClick={() => removeQuestion(questionIndex)} 
+                      onClick={() => openEditQuestion(idx)} 
+                      variant="outline" 
+                      size="sm"
+                    >
+                      Edit
+                    </Button>
+                    <Button 
+                      onClick={() => removeQuestion(idx)} 
                       variant="destructive" 
                       size="sm"
                     >
                       Remove
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`question-${questionIndex}`}>Question Text</Label>
-                    <Input
-                      id={`question-${questionIndex}`}
-                      type="text"
-                      value={question.question_text}
-                      onChange={(e) => updateQuestion(questionIndex, 'question_text', e.target.value)}
-                      placeholder="Enter your question"
-                    />
-                  </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Question Type</Label>
-                    <Select
-                      value={question.question_type}
-                      onValueChange={(val) => {
-                        const q = { ...question } as any;
-                        if (val === 'single_choice') {
-                          const firstCorrect = typeof q.correct_answer === 'number' ? q.correct_answer : 0;
-                          q.question_type = 'single_choice';
-                          q.correct_answer = firstCorrect;
-                        } else if (val === 'fill_blank') {
-                          q.question_type = 'fill_blank';
-                          q.correct_answer = '';
-                        }
-                        updateQuestion(questionIndex, 'question_type', q.question_type);
-                        updateQuestion(questionIndex, 'correct_answer' as any, q.correct_answer);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select question type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="single_choice">Single choice</SelectItem>
-                        <SelectItem value="fill_blank">Fill in the blank</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`points-${questionIndex}`}>Points</Label>
-                    <Input
-                      id={`points-${questionIndex}`}
-                      type="number"
-                      value={question.points}
-                      onChange={(e) => updateQuestion(questionIndex, 'points', parseInt(e.target.value) || 0)}
-                      min="1"
-                    />
-                  </div>
                 </div>
-
-                {question.is_sat_question && question.explanation && (
-                  <div className="space-y-2">
-                    <Label>Explanation</Label>
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <div className="text-sm text-blue-800" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.explanation) }} />
-                    </div>
-                  </div>
-                )}
-
-                {question.is_sat_question && question.content_text && (
-                  <div className="space-y-2">
-                    <Label>Content</Label>
-                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
-                      <div className="text-sm text-gray-800 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.content_text) }} />
-                    </div>
-                  </div>
-                )}
-
-                {question.question_type !== 'fill_blank' ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Options (4)</Label>
-                    </div>
-                    <div className="space-y-2">
-                      {question.options?.slice(0,4).map((option, optionIndex) => (
-                        <div key={optionIndex} className={`flex items-center gap-2 p-3 rounded-md border-2 transition-colors ${
-                          isOptionCorrect(question, optionIndex) 
-                            ? 'bg-green-50 border-green-300 shadow-sm' 
-                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name={`correct-${questionIndex}`}
-                              checked={isOptionCorrect(question, optionIndex)}
-                              onChange={() => updateCorrectAnswer(questionIndex, optionIndex, true)}
-                              className="text-blue-600 focus:ring-blue-500"
-                            />
-                          </div>
-                          {question.is_sat_question && option.letter && (
-                            <span className="font-bold text-blue-600 w-6 text-center">{option.letter}.</span>
-                          )}
-                          <div className="flex-1 flex flex-col gap-2">
-                            <Input
-                              type="text"
-                              value={option.text}
-                              onChange={(e) => updateOption(questionIndex, optionIndex, e.target.value)}
-                              placeholder={`Option ${optionIndex + 1}`}
-                            />
-                            {option.text.trim() && (
-                              <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border">
-                                Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
-                              </div>
-                            )}
-                          </div>
-                          {isOptionCorrect(question, optionIndex) && (
-                            <span className="text-xs text-green-700 font-medium px-2 py-1 bg-green-200 rounded-full">
-                              ✓ Correct
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label>Detected gaps</Label>
-                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                      {(() => {
-                        const matches = Array.from(((question.content_text || '').toString().matchAll(/\[\[(.*?)\]\]/g)));
-                        if (matches.length === 0) {
-                          return <span>No gaps found. Add [[answers]] in the passage above.</span>;
-                        }
-                        return (
-                          <div className="space-y-1">
-                            {matches.map((m, i) => {
-                              const tokens = (m[1]||'').split(',').map(s => s.trim()).filter(Boolean);
-                              const correct = tokens[0];
-                              const distractors = tokens.slice(1);
-                              return (
-                                <div key={i}>#{i+1}: <b>{correct}</b>{distractors.length ? ` (others: ${distractors.join(', ')})` : ''}</div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
                 
-                </CardContent>
-              </Card>
-            );
-            })}
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {quizQuestions.map((q, idx) => (
-              <div key={q.id} className="p-4 rounded-lg border bg-white space-y-4">
-                <div className="text-sm text-gray-500">Question {idx + 1}</div>
                 {!!q.content_text && (
                   <div className="bg-gray-50 p-3 rounded border">
                     <div className="text-gray-800" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
@@ -601,9 +447,9 @@ export default function QuizLessonEditor({
                   </div>
                 )}
               </div>
-            ))}
+            );
+          })}
           </div>
-        )}
 
         {quizQuestions.length === 0 && (
           <Card>
@@ -620,25 +466,79 @@ export default function QuizLessonEditor({
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative z-[1001] flex items-center justify-center min-h-screen">
             <div 
-              className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl"
+              className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl"
               onKeyDown={(e) => e.stopPropagation()}
               onKeyUp={(e) => e.stopPropagation()}
               onKeyPress={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Add Question</h3>
+                <h3 className="text-lg font-semibold">
+                  {editingQuestionIndex !== null ? 'Edit Question' : 'Add Question'}
+                </h3>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowHelpModal(true)}
+                  className="text-blue-600 hover:text-blue-700"
+                >
+                  Help
+                </Button>
               </div>
 
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left side - Passage and Explanation */}
+                {draftQuestion.is_sat_question && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Content:</Label>
+                      <Tabs defaultValue="passage" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="passage">Passage</TabsTrigger>
+                          <TabsTrigger value="explanation">Explanation</TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="passage" className="space-y-2">
+                          <RichTextEditor
+                            value={draftQuestion.content_text || ''}
+                            onChange={(value) => applyDraftUpdate({ content_text: value })}
+                            placeholder="Enter passage. Use [[answer]] to mark gaps, e.g. 'The sky is [[blue]]'."
+                            className="min-h-[200px]"
+                          />
+                          {(draftQuestion.content_text || '').trim() && (
+                            <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border max-h-32 overflow-y-auto">
+                              Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex((draftQuestion.content_text || '').replace(/\[\[(.*?)\]\]/g, '<b>[$1]</b>')) }} />
+                            </div>
+                          )}
+                        </TabsContent>
+                        
+                        <TabsContent value="explanation" className="space-y-2">
+                          <RichTextEditor
+                            value={draftQuestion.explanation || ''}
+                            onChange={(value) => applyDraftUpdate({ explanation: value })}
+                            placeholder="Explanation for the correct answer (supports rich text formatting and LaTeX)"
+                            className="min-h-[200px]"
+                          />
+                          {(draftQuestion.explanation || '').trim() && (
+                            <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border max-h-32 overflow-y-auto">
+                              Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.explanation || '') }} />
+                            </div>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  </div>
+                )}
+
+                {/* Right side - Question settings and options */}
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Question Text</Label>
                     <div className="space-y-2">
                       <Input
                         value={draftQuestion.question_text}
                         onChange={(e) => applyDraftUpdate({ question_text: e.target.value })}
-                        autoFocus
                         placeholder="Enter your question"
+                        autoFocus
                       />
                       {draftQuestion.question_text.trim() && (
                         <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border">
@@ -647,6 +547,8 @@ export default function QuizLessonEditor({
                       )}
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Points</Label>
                     <Input
@@ -681,43 +583,6 @@ export default function QuizLessonEditor({
                       </SelectContent>
                     </Select>
                   </div>
-                  {draftQuestion.is_sat_question && (
-                    <div className="space-y-2">
-                      <Label>Explanation</Label>
-                      <div className="space-y-2">
-                        <Input
-                          value={draftQuestion.explanation || ''}
-                          onChange={(e) => applyDraftUpdate({ explanation: e.target.value })}
-                          placeholder="Explanation for the correct answer"
-                        />
-                        {(draftQuestion.explanation || '').trim() && (
-                          <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border">
-                            Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.explanation || '') }} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {draftQuestion.is_sat_question && (
-                  <div className="space-y-2">
-                    <Label>Passage:</Label>
-                    <div className="space-y-2">
-                      <Textarea
-                        value={draftQuestion.content_text || ''}
-                        onChange={(e) => applyDraftUpdate({ content_text: e.target.value })}
-                        placeholder="Enter passage. Use [[answer]] to mark gaps, e.g. 'The sky is [[blue]]'."
-                        className="w-full p-2 border border-gray-300 rounded-md min-h-[120px] resize-y"
-                      />
-                      {(draftQuestion.content_text || '').trim() && (
-                        <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border max-h-32 overflow-y-auto">
-                          Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex((draftQuestion.content_text || '').replace(/\[\[(.*?)\]\]/g, '<b>[$1]</b>')) }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
 
               {draftQuestion.question_type !== 'fill_blank' ? (
@@ -746,7 +611,7 @@ export default function QuizLessonEditor({
                           <Input
                             value={opt.text}
                             onChange={(e) => updateDraftOptionText(idx, e.target.value)}
-                            placeholder={`Option ${idx + 1}`}
+                                placeholder={`Option ${idx + 1}`}
                             className="flex-1"
                           />
                         </div>
@@ -783,10 +648,14 @@ export default function QuizLessonEditor({
                   </div>
                 </div>
               )}
+                </div>
+              </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <Button variant="outline" onClick={() => { setShowQuestionModal(false); setDraftQuestion(null); }}>Cancel</Button>
-                <Button onClick={saveDraftQuestion} className="bg-blue-600 hover:bg-blue-700">Save Question</Button>
+                <Button variant="outline" onClick={() => { setShowQuestionModal(false); setDraftQuestion(null); setEditingQuestionIndex(null); }}>Cancel</Button>
+                <Button onClick={saveDraftQuestion} className="bg-blue-600 hover:bg-blue-700">
+                  {editingQuestionIndex !== null ? 'Update Question' : 'Save Question'}
+                </Button>
               </div>
             </div>
           </div>
@@ -848,6 +717,115 @@ export default function QuizLessonEditor({
                     <p className="text-sm text-gray-600 mt-2">Analyzing image with AI...</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Help Modal */}
+      {showHelpModal && createPortal(
+        <div className="fixed inset-0 z-[1000]">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative z-[1001] flex items-center justify-center min-h-screen">
+            <div 
+              className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6 space-y-4 shadow-xl"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Formatting Help</h3>
+                <Button variant="outline" onClick={() => setShowHelpModal(false)}>Close</Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Text Formatting in Input Fields</h4>
+                  <p className="text-sm text-gray-600">
+                    You can use simple markdown formatting in Question Text and Options fields:
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                      <code className="text-sm font-mono bg-white px-2 py-1 rounded border">_text_</code>
+                      <span className="text-sm">→</span>
+                      <em className="text-sm">italic text</em>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                      <code className="text-sm font-mono bg-white px-2 py-1 rounded border">**text**</code>
+                      <span className="text-sm">→</span>
+                      <strong className="text-sm">bold text</strong>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                      <code className="text-sm font-mono bg-white px-2 py-1 rounded border">__text__</code>
+                      <span className="text-sm">→</span>
+                      <u className="text-sm">underlined text</u>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                      <code className="text-sm font-mono bg-white px-2 py-1 rounded border">~~text~~</code>
+                      <span className="text-sm">→</span>
+                      <del className="text-sm">strikethrough text</del>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                      <code className="text-sm font-mono bg-white px-2 py-1 rounded border">`text`</code>
+                      <span className="text-sm">→</span>
+                      <code className="text-sm bg-gray-200 px-1 rounded">code text</code>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">LaTeX Formulas</h4>
+                  <p className="text-sm text-gray-600">
+                    For mathematical expressions, use LaTeX syntax:
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                      <code className="text-sm font-mono bg-white px-2 py-1 rounded border">$x^2$</code>
+                      <span className="text-sm">→</span>
+                      <span className="text-sm">x² (inline formula)</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                      <code className="text-sm font-mono bg-white px-2 py-1 rounded border">$$\frac{"{a}"}{"{b}"}$$</code>
+                      <span className="text-sm">→</span>
+                      <span className="text-sm">a/b (block formula)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Rich Text Editor</h4>
+                  <p className="text-sm text-gray-600">
+                    For Passage and Explanation fields, use the rich text editor with full formatting toolbar including:
+                  </p>
+                  <ul className="text-sm text-gray-600 list-disc list-inside space-y-1">
+                    <li>Bold, italic, underline, strikethrough</li>
+                    <li>Colors and background colors</li>
+                    <li>Lists (ordered and bullet)</li>
+                    <li>Links and images</li>
+                    <li>LaTeX formulas with visual editor</li>
+                  </ul>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Fill in the Blank Questions</h4>
+                  <p className="text-sm text-gray-600">
+                    For fill-in-the-blank questions, use double brackets in the passage:
+                  </p>
+                  <div className="p-3 bg-blue-50 rounded border">
+                    <code className="text-sm font-mono">
+                      The sky is [[blue, azure, cyan]] and the grass is [[green, emerald]].
+                    </code>
+                    <p className="text-xs text-gray-600 mt-1">
+                      First option is correct, others are distractors
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
