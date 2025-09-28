@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext.tsx';
 import ProtectedRoute from '../components/ProtectedRoute.tsx';
-import AuthLayout from '../layouts/AuthLayout.tsx';
 import AppLayout from '../layouts/AppLayout.tsx';
 import LoginPage from '../pages/LoginPage.tsx';
 import DashboardPage from '../pages/DashboardPage.tsx';
@@ -50,9 +49,7 @@ export default function Router() {
           {/* Auth Routes */}
           <Route path="/login" element={
             <ProtectedRoute requireAuth={false}>
-              <AuthLayout>
                 <LoginPage />
-              </AuthLayout>
             </ProtectedRoute>
           } />
 
