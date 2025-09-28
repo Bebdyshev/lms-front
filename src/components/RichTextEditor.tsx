@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { mathSymbols, insertLatexFormula } from '../utils/latex';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,21 +8,10 @@ import {
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+  DialogTitle
 } from './ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { 
-  Calculator, 
-  Plus, 
-  X, 
-  Hash, 
-  Code, 
-  Type 
-} from 'lucide-react';
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
-import katex from 'katex';
 
 // Функция для рендеринга контента с LaTeX
 const renderContentWithLatex = (content: string) => {
@@ -305,8 +293,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       [{ 'align': [] }],
       [{ 'list': 'ordered'}, { 'list': 'bullet' }],
       [{ 'indent': '-1'}, { 'indent': '+1' }],
-      ['blockquote', 'code-block'],
-      ['link', 'image'],
+      ['link'],
       ['clean']
     ],
     clipboard: {
@@ -322,15 +309,14 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     'align',
     'list', 'bullet',
     'indent',
-    'blockquote', 'code-block',
-    'link', 'image',
+    'link', 
     'clean'
   ];
 
   return (
     <div className={`rich-text-editor ${className}`}>
           <Dialog open={showLatexDialog} onOpenChange={setShowLatexDialog}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-4xl">
               <DialogHeader>
                 <DialogTitle>Insert LaTeX Formula</DialogTitle>
               </DialogHeader>

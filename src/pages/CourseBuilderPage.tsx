@@ -5,14 +5,12 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Label } from '../components/ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import CourseSidebar from '../components/CourseSidebar.tsx';
-import type { Course, CourseModule, Lesson, LessonContentType, Group, CourseGroupAccess } from '../types';
-import { ChevronDown, ChevronUp, MoreVertical, GripVertical, FileText, Video, HelpCircle, Users, Save, Check, X, Eye } from 'lucide-react';
+import type { Course, CourseModule, Lesson, LessonContentType, Group } from '../types';
+import { ChevronDown, ChevronUp, MoreVertical, GripVertical, FileText, Video, HelpCircle, Users, Check, X, Eye } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -223,17 +221,14 @@ export default function CourseBuilderPage() {
   const [inlineModuleData, setInlineModuleData] = useState({ title: '', description: '' });
   const [pendingModules, setPendingModules] = useState<any[]>([]);
   const [pendingUpdates, setPendingUpdates] = useState<any[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<number | string | null>(null);
-  const [showInlineLessonForm, setShowInlineLessonForm] = useState(false);
-  const [inlineLessonData, setInlineLessonData] = useState({ title: '', type: 'text' as LessonContentType });
   const [moduleLectures, setModuleLectures] = useState<Map<number, Lesson[]>>(new Map());
   const [moduleOrder, setModuleOrder] = useState<Array<number | string>>([]);
   const [activeSection, setActiveSection] = useState<'overview' | 'description' | 'content'>('overview');
   const [showInlineLectureForm, setShowInlineLectureForm] = useState<string | null>(null);
   const [inlineLectureData, setInlineLectureData] = useState({ title: '', type: 'text' as LessonContentType, videoUrl: '' });
   const [pendingLectures, setPendingLectures] = useState<any[]>([]);
-  const [courseGroups, setCourseGroups] = useState<CourseGroupAccess[]>([]);
+  const [isCreatingLesson, setIsCreatingLesson] = useState(false);
   const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [showGroupManagementModal, setShowGroupManagementModal] = useState(false);
@@ -396,10 +391,6 @@ export default function CourseBuilderPage() {
 
   // New course creation handled in CreateCourseWizard
 
-  const onSelectModule = async (m: CourseModule) => {
-    const lectures = moduleLectures.get(m.id) || [];
-    setSelected({ module: m, lectures });
-  };
 
   const onAddModule = () => {
     // Show inline form for creating new module
@@ -434,47 +425,10 @@ export default function CourseBuilderPage() {
     setInlineModuleData({ title: '', description: '' });
   };
 
-  const handleSaveInlineLesson = async () => {
-    if (!inlineLessonData.title.trim() || !selected?.module) return;
-    
-    try {
-      // Get current lectures to determine the next order_index
-      const currentLectures = moduleLectures.get(selected.module.id) || [];
-      const nextOrderIndex = currentLectures.length;
-      
-      console.log(`Creating lesson with order_index: ${nextOrderIndex}`);
-      
-      const payload: any = { 
-        title: inlineLessonData.title.trim(), 
-        content_type: inlineLessonData.type,
-        order_index: 0
-      };
-      
-      if (!courseId) return;
-      await apiClient.createLesson(courseId, selected.module.id, payload);
-      
-      // Refresh lectures for the current module
-      const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
-      setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
-      
-      // Reset form
-      setInlineLessonData({ title: '', type: 'text' });
-      setShowInlineLessonForm(false);
-      setHasUnsavedChanges(true);
-    } catch (error) {
-      console.error('Failed to create lesson:', error);
-    }
-  };
-
-  const handleCancelInlineLesson = () => {
-    setShowInlineLessonForm(false);
-    setInlineLessonData({ title: '', type: 'text' });
-  };
 
   const handleSaveAllChanges = async () => {
     if (!courseId) return;
     
-    setIsSaving(true);
     try {
       // Save all pending modules with proper order_index
       for (let i = 0; i < pendingModules.length; i++) {
@@ -510,24 +464,7 @@ export default function CourseBuilderPage() {
         }
       }
       
-      // Save all pending lectures
-      for (const lecture of pendingLectures) {
-        // Create lesson first
-        const lessonPayload = { 
-          title: lecture.title
-        };
-        const createdLesson = await apiClient.createLesson(courseId, lecture.module_id, lessonPayload);
-        
-        // Create step with content
-        const stepPayload = {
-          title: lecture.title,
-          content_type: lecture.content_type === 'video' ? 'video_text' : lecture.content_type,
-          video_url: lecture.content_type === 'video' ? lecture.video_url : undefined,
-          content_text: lecture.content_type === 'text' ? lecture.content_text : undefined,
-          order_index: 1
-        };
-        await apiClient.createStep(createdLesson.id, stepPayload);
-      }
+      // Pending lectures are now created immediately, so no need to process them here
       
       // Clear pending changes
       setPendingModules([]);
@@ -554,8 +491,6 @@ export default function CourseBuilderPage() {
       
     } catch (error) {
       console.error('Failed to save changes:', error);
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -655,14 +590,17 @@ export default function CourseBuilderPage() {
           
           {/* Pending Lectures */}
           {pendingLectures.filter(l => l && l.module_id === moduleId).map((l: any, lecIndex: number) => (
-            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-blue-50 rounded-md border border-blue-200 mb-2">
+            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-green-50 rounded-md border border-green-200 mb-2 animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-blue-200 rounded-md">
+                <div className="flex items-center justify-center w-8 h-8 bg-green-200 rounded-md">
                   {getLessonTypeIcon(getLessonType(l))}
                 </div>
                 <div className="flex-1">
                   <div className="font-medium text-gray-900 text-sm">{l?.title || "Untitled"}</div>
-                  <div className="text-xs text-blue-600">Pending</div>
+                  <div className="text-xs text-green-600 flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    Created - will be saved
+                  </div>
                 </div>
               </div>
               <button 
@@ -676,7 +614,7 @@ export default function CourseBuilderPage() {
 
           {/* Inline Lecture Creation Form */}
           {showInlineLectureForm === String(moduleId) && (
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4">
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4 animate-in slide-in-from-top-2 duration-200">
               <div className="space-y-3">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center justify-center w-10 h-10 bg-blue-200 rounded-lg">
@@ -693,18 +631,36 @@ export default function CourseBuilderPage() {
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && inlineLectureData.title.trim()) {
-                          handleSaveInlineLecture(String(moduleId));
-                        }
-                      }}
-                      onBlur={() => {
-                        if (inlineLectureData.title.trim()) {
-                          handleSaveInlineLecture(String(moduleId));
+                          e.preventDefault();
+                          handleCreateInlineLecture(String(moduleId));
+                        } else if (e.key === 'Escape') {
+                          handleCancelInlineLecture();
                         }
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       autoFocus
                     />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleCreateInlineLecture(String(moduleId))}
+                      disabled={!inlineLectureData.title.trim() || isCreatingLesson}
+                      className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCreatingLesson ? 'Creating...' : 'Create'}
+                    </button>
+                    <button
+                      onClick={handleCancelInlineLecture}
+                      className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                <div className="text-xs text-blue-600 flex items-center gap-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  Press Enter to add lesson or Escape to cancel
+                  {isCreatingLesson && <span className="ml-2 text-orange-600">Creating...</span>}
                 </div>
               </div>
             </div>
@@ -729,14 +685,17 @@ export default function CourseBuilderPage() {
         <div className="text-center py-6">
           {/* Pending Lectures */}
           {pendingLectures.filter(l => l && l.module_id === moduleId).map((l: any, lecIndex: number) => (
-            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-blue-50 rounded-md border border-blue-200 mb-2">
+            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-green-50 rounded-md border border-green-200 mb-2 animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-blue-200 rounded-md">
+                <div className="flex items-center justify-center w-8 h-8 bg-green-200 rounded-md">
                   {getLessonTypeIcon(getLessonType(l))}
                 </div>
                 <div className="flex-1">
                   <div className="font-medium text-gray-900 text-sm">{l?.title || "Untitled"}</div>
-                  <div className="text-xs text-blue-600">Pending</div>
+                  <div className="text-xs text-green-600 flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    Created - will be saved
+                  </div>
                 </div>
               </div>
               <button 
@@ -750,7 +709,7 @@ export default function CourseBuilderPage() {
 
           {/* Inline Lecture Creation Form */}
           {showInlineLectureForm === String(moduleId) && (
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4">
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4 animate-in slide-in-from-top-2 duration-200">
               <div className="space-y-3">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center justify-center w-10 h-10 bg-blue-200 rounded-lg">
@@ -767,18 +726,36 @@ export default function CourseBuilderPage() {
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && inlineLectureData.title.trim()) {
-                          handleSaveInlineLecture(String(moduleId));
-                        }
-                      }}
-                      onBlur={() => {
-                        if (inlineLectureData.title.trim()) {
-                          handleSaveInlineLecture(String(moduleId));
+                          e.preventDefault();
+                          handleCreateInlineLecture(String(moduleId));
+                        } else if (e.key === 'Escape') {
+                          handleCancelInlineLecture();
                         }
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       autoFocus
                     />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleCreateInlineLecture(String(moduleId))}
+                      disabled={!inlineLectureData.title.trim() || isCreatingLesson}
+                      className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCreatingLesson ? 'Creating...' : 'Create'}
+                    </button>
+                    <button
+                      onClick={handleCancelInlineLecture}
+                      className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                <div className="text-xs text-blue-600 flex items-center gap-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  Press Enter to add lesson or Escape to cancel
+                  {isCreatingLesson && <span className="ml-2 text-orange-600">Creating...</span>}
                 </div>
               </div>
             </div>
@@ -840,22 +817,46 @@ export default function CourseBuilderPage() {
     setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
   };
 
-  const handleSaveInlineLecture = (moduleId: string) => {
-    if (!inlineLectureData.title.trim()) return;
+
+  const handleCreateInlineLecture = async (moduleId: string) => {
+    if (!inlineLectureData.title.trim() || !courseId || isCreatingLesson) return;
     
-    const newLecture = {
-      id: `temp-lecture-${Date.now()}`,
-      title: inlineLectureData.title.trim(),
-      content_type: inlineLectureData.type,
-      video_url: inlineLectureData.videoUrl,
-      module_id: moduleId,
-      isPending: true
-    };
-    
-    setPendingLectures(prev => [...prev, newLecture]);
-    setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
-    setShowInlineLectureForm(null);
-    setHasUnsavedChanges(true);
+    setIsCreatingLesson(true);
+    try {
+      // Create lesson immediately on server
+      const payload: any = { 
+        title: inlineLectureData.title.trim(), 
+        content_type: inlineLectureData.type,
+        order_index: 0
+      };
+      
+      const createdLesson = await apiClient.createLesson(courseId, Number(moduleId), payload);
+      
+      // Create step with content
+      const stepPayload = {
+        title: inlineLectureData.title.trim(),
+        content_type: inlineLectureData.type === 'video' ? 'video_text' : inlineLectureData.type,
+        video_url: inlineLectureData.type === 'video' ? inlineLectureData.videoUrl : undefined,
+        content_text: inlineLectureData.type === 'text' ? '' : undefined,
+        order_index: 1
+      };
+      await apiClient.createStep(createdLesson.id, stepPayload);
+      
+      // Refresh lectures for the current module
+      const lectures = await apiClient.getModuleLessons(courseId, Number(moduleId));
+      setModuleLectures(prev => new Map(prev).set(Number(moduleId), lectures));
+      
+      // Clear form and keep it open
+      setInlineLectureData({ title: '', type: 'text', videoUrl: '' });
+      setHasUnsavedChanges(true);
+      
+      // Show immediate feedback by expanding the module
+      setExpandedModules(prev => new Set(prev).add(Number(moduleId)));
+    } catch (error) {
+      console.error('Failed to create lesson:', error);
+    } finally {
+      setIsCreatingLesson(false);
+    }
   };
 
   const handleCancelInlineLecture = () => {
@@ -906,10 +907,22 @@ export default function CourseBuilderPage() {
       setHasUnsavedChanges(pendingLectures.length > 1 || pendingUpdates.length > 0);
     } else {
       // It's an existing lecture - delete immediately
-      if (!selected?.module || !courseId) return;
-      await apiClient.deleteLecture(id);
-      const lectures = await apiClient.getModuleLessons(courseId, selected.module.id);
-      setModuleLectures(prev => new Map(prev).set(selected.module.id, lectures));
+      if (!courseId) return;
+      
+      // Find which module this lecture belongs to
+      let moduleId: number | null = null;
+      for (const [mid, lectures] of moduleLectures.entries()) {
+        if (lectures.some(l => l.id === id)) {
+          moduleId = mid;
+          break;
+        }
+      }
+      
+      if (moduleId) {
+        await apiClient.deleteLecture(id);
+        const lectures = await apiClient.getModuleLessons(courseId, moduleId);
+        setModuleLectures(prev => new Map(prev).set(moduleId, lectures));
+      }
     }
   }});
 
@@ -928,13 +941,9 @@ export default function CourseBuilderPage() {
     
     try {
       setIsLoadingGroups(true);
-      const [groups, courseGroupsData] = await Promise.all([
-        apiClient.getGroups(),
-        apiClient.getCourseGroups(courseId)
-      ]);
+      const groups = await apiClient.getGroups();
       
       setAvailableGroups(groups);
-      setCourseGroups(courseGroupsData);
     } catch (error) {
       console.error('Failed to load groups:', error);
     } finally {
@@ -942,27 +951,6 @@ export default function CourseBuilderPage() {
     }
   };
 
-  const handleGrantAccessToGroup = async (groupId: number) => {
-    if (!courseId) return;
-    
-    try {
-      await apiClient.grantCourseAccessToGroup(courseId, groupId);
-      await loadCourseGroups(); // Reload groups
-    } catch (error) {
-      console.error('Failed to grant access:', error);
-    }
-  };
-
-  const handleRevokeAccessFromGroup = async (groupId: number) => {
-    if (!courseId) return;
-    
-    try {
-      await apiClient.revokeCourseAccessFromGroup(courseId, groupId);
-      await loadCourseGroups(); // Reload groups
-    } catch (error) {
-      console.error('Failed to revoke access:', error);
-    }
-  };
 
   const renderOverviewSection = () => {
     const totalLessons = Array.from(moduleLectures.values()).reduce((total, lectures) => total + lectures.length, 0);
@@ -1486,26 +1474,6 @@ export default function CourseBuilderPage() {
     loadGroups(); // Reload to update status
   };
 
-  const handleSaveCourse = async () => {
-    if (!course?.id) return;
-    
-    setIsSaving(true);
-    try {
-      // Save course changes if any
-      await apiClient.updateCourse(course.id.toString(), {
-        title: course.title,
-        description: course.description || '',
-        estimated_duration_minutes: course.estimatedDurationMinutes || 0
-      });
-      
-      alert('Course saved successfully!');
-    } catch (error) {
-      console.error('Failed to save course:', error);
-      alert('Failed to save course. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

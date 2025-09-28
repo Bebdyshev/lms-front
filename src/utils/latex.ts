@@ -107,11 +107,33 @@ export function autoWrapLatex(text: string): string {
 }
 
 /**
+ * Преобразует markdown форматирование в HTML
+ */
+export function renderMarkdown(text: string): string {
+  return text
+    // Жирный текст: **text** -> <strong>text</strong>
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Курсив: _text_ -> <em>text</em>
+    .replace(/\_(.*?)\_/g, '<em>$1</em>')
+    // Альтернативный курсив: *text* -> <em>text</em> (только если не часть **text**)
+    .replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>')
+    // Подчеркивание: __text__ -> <u>text</u>
+    .replace(/\_\_([^_]+?)\_\_/g, '<u>$1</u>')
+    // Зачеркивание: ~~text~~ -> <del>text</del>
+    .replace(/~~(.*?)~~/g, '<del>$1</del>')
+    // Код: `text` -> <code>text</code>
+    .replace(/`([^`]+?)`/g, '<code>$1</code>');
+}
+
+/**
  * Преобразует текст с LaTeX формулами в HTML
  */
 export function renderTextWithLatex(text: string): string {
-  // Сначала автоматически оборачиваем LaTeX команды
-  const wrappedText = autoWrapLatex(text);
+  // Сначала обрабатываем markdown форматирование
+  const markdownText = renderMarkdown(text);
+  
+  // Затем автоматически оборачиваем LaTeX команды
+  const wrappedText = autoWrapLatex(markdownText);
   
   const matches = findLatexFormulas(wrappedText);
   if (matches.length === 0) {

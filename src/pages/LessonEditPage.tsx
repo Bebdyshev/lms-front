@@ -47,6 +47,8 @@ interface QuizTabContentProps {
   setQuizQuestions: (questions: Question[]) => void;
   quizTimeLimit: number | undefined;
   setQuizTimeLimit: (limit: number | undefined) => void;
+  quizDisplayMode: 'one_by_one' | 'all_at_once';
+  setQuizDisplayMode: (mode: 'one_by_one' | 'all_at_once') => void;
 }
 
 const QuizTabContent = ({
@@ -55,7 +57,9 @@ const QuizTabContent = ({
   quizQuestions,
   setQuizQuestions,
   quizTimeLimit,
-  setQuizTimeLimit
+  setQuizTimeLimit,
+  quizDisplayMode,
+  setQuizDisplayMode
 }: QuizTabContentProps) => {
   const addQuestion = () => {
     const ts = Date.now().toString();
@@ -144,6 +148,49 @@ const QuizTabContent = ({
               min="1"
               placeholder="Leave empty for no time limit"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Display Mode</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div 
+                className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                  quizDisplayMode === 'one_by_one' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setQuizDisplayMode('one_by_one')}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-blue-500 rounded-full flex items-center justify-center">
+                    {quizDisplayMode === 'one_by_one' && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">One by One</div>
+                    <div className="text-xs text-gray-500">Show questions sequentially</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div 
+                className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                  quizDisplayMode === 'all_at_once' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setQuizDisplayMode('all_at_once')}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-blue-500 rounded-full flex items-center justify-center">
+                    {quizDisplayMode === 'all_at_once' && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">All at Once</div>
+                    <div className="text-xs text-gray-500">Show all questions together</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -531,6 +578,7 @@ export default function LessonEditPage() {
   const [quizTitle, setQuizTitle] = useState('');
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [quizTimeLimit, setQuizTimeLimit] = useState<number | undefined>(undefined);
+  const [quizDisplayMode, setQuizDisplayMode] = useState<'one_by_one' | 'all_at_once'>('one_by_one');
   const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
 
   // Steps management state
@@ -542,6 +590,7 @@ export default function LessonEditPage() {
   const [stepVideoUrl, setStepVideoUrl] = useState('');
   const [stepQuizTitle, setStepQuizTitle] = useState('');
   const [stepQuizQuestions, setStepQuizQuestions] = useState<Question[]>([]);
+  const [stepQuizDisplayMode, setStepQuizDisplayMode] = useState<'one_by_one' | 'all_at_once'>('one_by_one');
   
   // Temporary files for new steps
   const [tempFiles, setTempFiles] = useState<Map<number, File[]>>(new Map());
@@ -601,6 +650,7 @@ export default function LessonEditPage() {
               setQuizTitle(savedData.contentData.quizTitle || '');
               setQuizQuestions(savedData.contentData.quizQuestions || []);
               setQuizTimeLimit(savedData.contentData.quizTimeLimit);
+              setQuizDisplayMode(savedData.contentData.quizDisplayMode || 'one_by_one');
             }
         
         setHasUnsavedChanges(true);
@@ -623,7 +673,7 @@ export default function LessonEditPage() {
         contentData = { lessonContent };
       } else if (contentType === 'quiz' && (quizTitle || quizQuestions.length > 0)) {
         hasContent = true;
-        contentData = { quizTitle, quizQuestions, quizTimeLimit };
+        contentData = { quizTitle, quizQuestions, quizTimeLimit, quizDisplayMode };
       }
       
       if (lessonTitle || hasContent) {
@@ -687,6 +737,7 @@ export default function LessonEditPage() {
             setQuizTitle(quizData.title || lessonData.title);
             setQuizQuestions(quizData.questions || []);
             setQuizTimeLimit(quizData.time_limit_minutes);
+            setQuizDisplayMode(quizData.display_mode || 'one_by_one');
           } catch (e) {
             console.error('Failed to parse quiz data:', e);
           }
@@ -712,6 +763,7 @@ export default function LessonEditPage() {
             setStepQuizTitle(quizData.title || '');
             setStepQuizQuestions(quizData.questions || []);
             setStepQuizTimeLimit(quizData.time_limit_minutes);
+            setStepQuizDisplayMode(quizData.display_mode || 'one_by_one');
           } catch (e) {
             console.error('Failed to parse quiz data:', e);
           }
@@ -858,6 +910,7 @@ export default function LessonEditPage() {
         setStepQuizTitle(quizData.title || '');
         setStepQuizQuestions(quizData.questions || []);
         setStepQuizTimeLimit(quizData.time_limit_minutes);
+        setStepQuizDisplayMode(quizData.display_mode || 'one_by_one');
       } catch (e) {
         console.error('Failed to parse quiz data:', e);
       }
@@ -865,6 +918,7 @@ export default function LessonEditPage() {
       setStepQuizTitle('');
       setStepQuizQuestions([]);
       setStepQuizTimeLimit(undefined);
+      setStepQuizDisplayMode('one_by_one');
     }
   };
 
@@ -904,7 +958,8 @@ export default function LessonEditPage() {
         updated.content_text = JSON.stringify({
           title: stepQuizTitle,
           questions: stepQuizQuestions,
-          time_limit_minutes: stepQuizTimeLimit
+          time_limit_minutes: stepQuizTimeLimit,
+          display_mode: stepQuizDisplayMode
         });
         updated.video_url = '';
       }
@@ -948,7 +1003,8 @@ export default function LessonEditPage() {
             updated.content_text = JSON.stringify({
               title: stepQuizTitle,
               questions: stepQuizQuestions,
-              time_limit_minutes: stepQuizTimeLimit
+              time_limit_minutes: stepQuizTimeLimit,
+              display_mode: stepQuizDisplayMode
             });
             updated.video_url = '';
           }
@@ -1232,7 +1288,7 @@ export default function LessonEditPage() {
                       if (lessonId && !isLoading) {
                         const contentData = contentType === 'video' ? { videoUrl } : 
                                           contentType === 'text' ? { lessonContent } : 
-                                          contentType === 'quiz' ? { quizTitle, quizQuestions, quizTimeLimit } : {};
+                                          contentType === 'quiz' ? { quizTitle, quizQuestions, quizTimeLimit, quizDisplayMode } : {};
                         immediateAutoSave(lessonId, e.target.value, contentData, contentType);
                       }
                     }}
@@ -1398,6 +1454,8 @@ export default function LessonEditPage() {
                           setQuizQuestions={setStepQuizQuestions}
                           quizTimeLimit={stepQuizTimeLimit}
                           setQuizTimeLimit={setStepQuizTimeLimit}
+                          quizDisplayMode={stepQuizDisplayMode}
+                          setQuizDisplayMode={setStepQuizDisplayMode}
                         />
                       </div>
                     )}
