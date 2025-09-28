@@ -35,12 +35,18 @@ import EventManagement from '../pages/EventManagement.tsx';
 import CreateEvent from '../pages/CreateEvent.tsx';
 import EditEvent from '../pages/EditEvent.tsx';
 import Calendar from '../pages/Calendar.tsx';
+import LandingPage from '../pages/LandingPage.tsx';
 
 export default function Router() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={
+            <ProtectedRoute requireAuth={false}>
+              <LandingPage />
+            </ProtectedRoute>
+          } />
           {/* Auth Routes */}
           <Route path="/login" element={
             <ProtectedRoute requireAuth={false}>
