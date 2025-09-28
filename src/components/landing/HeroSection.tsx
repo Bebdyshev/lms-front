@@ -115,13 +115,17 @@ export function HeroSection() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <Button size="lg" className="text-base px-8">
-              Get Consultation
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button asChild size="lg" className="text-base px-8">
+              <a href="/login">
+                Get Consultation
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </a>
             </Button>
-            <Button variant="outline" size="lg" className="text-base px-8 bg-transparent">
-              <Play className="mr-2 h-4 w-4" />
-              Start Learning
+            <Button asChild variant="outline" size="lg" className="text-base px-8 bg-transparent">
+              <a href="/login">
+                <Play className="mr-2 h-4 w-4" />
+                Start Learning
+              </a>
             </Button>
           </div>
 
