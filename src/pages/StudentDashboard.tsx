@@ -469,10 +469,22 @@ export default function StudentDashboard({
         {/* Right Column - Main Content */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="courses" className="w-full">
-        <TabsList className="flex flex-wrap gap-2">
-          <TabsTrigger value="courses">Courses</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-        </TabsList>
+            <TabsList className="grid w-full grid-cols-2 h-12 bg-gray-100">
+              <TabsTrigger 
+                value="courses" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              >
+                <BookOpen className="h-4 w-4" />
+                Courses
+              </TabsTrigger>
+              <TabsTrigger 
+                value="activity" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              >
+                <LineChart className="h-4 w-4" />
+                Activity
+              </TabsTrigger>
+            </TabsList>
 
         <TabsContent value="courses" className="mt-4">
           {isLoadingProgress ? (
