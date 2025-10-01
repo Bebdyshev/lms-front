@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, BookOpen, CheckCircle, Edit3, Bookmark, Share2, MoreVertical, File, Image, Archive, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
-import TextLessonEditor from '../components/lesson/TextLessonEditor';
-import VideoLessonEditor from '../components/lesson/VideoLessonEditor';
-import QuizLessonEditor from '../components/lesson/QuizLessonEditor';
 import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
 
@@ -84,7 +81,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
       try {
         const progressMap = new Map<string, StepProgress[]>();
         
-        for (const [moduleId, lessons] of moduleLectures.entries()) {
+        for (const [, lessons] of moduleLectures.entries()) {
           for (const lesson of lessons) {
             try {
               const progress = await apiClient.getLessonStepsProgress(lesson.id.toString());
@@ -258,6 +255,8 @@ export default function LessonPage() {
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<Map<string, number>>(new Map());
+  const [quizCompleted, setQuizCompleted] = useState<Map<string, boolean>>(new Map());
   
   // Quiz state
   const [quizAnswers, setQuizAnswers] = useState<Map<string, any>>(new Map());
@@ -385,6 +384,29 @@ export default function LessonPage() {
 
   const currentStep = steps[currentStepIndex];
 
+  // Check if step is completed based on content type
+  const isStepCompleted = (step: Step): boolean => {
+    const stepProgress = stepsProgress.find(p => p.step_id === step.id);
+    if (!stepProgress) return false;
+
+    switch (step.content_type) {
+      case 'video_text':
+        // Video step is completed if video is watched 90%+ and step is marked as completed
+        const videoProgressValue = videoProgress.get(step.id.toString()) || 0;
+        return stepProgress.status === 'completed' && videoProgressValue >= 0.9;
+      
+      case 'quiz':
+        // Quiz step is completed if quiz is completed and step is marked as completed
+        const isQuizCompleted = quizCompleted.get(step.id.toString()) || false;
+        return stepProgress.status === 'completed' && isQuizCompleted;
+      
+      case 'text':
+      default:
+        // Text step is completed if it's marked as completed
+        return stepProgress.status === 'completed';
+    }
+  };
+
   // Mark current step as visited when it changes
   useEffect(() => {
     if (currentStep && stepsProgress.length > 0) {
@@ -436,7 +458,47 @@ export default function LessonPage() {
     }
   }, [currentStep]);
 
+  // Check if user can proceed to next step
+  const canProceedToNext = (): boolean => {
+    if (!currentStep) return false;
+    
+    const stepId = currentStep.id.toString();
+    
+    if (currentStep.content_type === 'video_text') {
+      // For video steps, check if video is watched 90%+
+      const progress = videoProgress.get(stepId) || 0;
+      return progress >= 90;
+    } else if (currentStep.content_type === 'quiz') {
+      // For quiz steps, check if quiz is completed
+      return quizCompleted.get(stepId) || false;
+    }
+    
+    // For other step types, allow proceeding
+    return true;
+  };
+
   const goToNextStep = () => {
+    // Check if current step is completed
+    if (currentStep && !canProceedToNext()) {
+      let message = '';
+      
+      switch (currentStep.content_type) {
+        case 'video_text':
+          const videoProgressValue = videoProgress.get(currentStep.id.toString()) || 0;
+          const progressPercent = Math.round(videoProgressValue);
+          message = `Пожалуйста, досмотрите видео до конца (просмотрено ${progressPercent}%, требуется 90%+) перед переходом к следующему шагу.`;
+          break;
+        case 'quiz':
+          message = 'Пожалуйста, завершите квиз перед переходом к следующему шагу.';
+          break;
+        default:
+          message = 'Пожалуйста, завершите текущий шаг перед переходом к следующему.';
+      }
+      
+      alert(message);
+      return;
+    }
+
     if (currentStepIndex < steps.length - 1) {
       goToStep(currentStepIndex + 1);
     } else if (nextLessonId) {
@@ -475,9 +537,6 @@ export default function LessonPage() {
     }
   };
 
-  const getStepTitle = (step: Step) => {
-    return step.title || `Step ${step.order_index}`;
-  };
 
   // Quiz functions
   const startQuiz = () => {
@@ -489,18 +548,8 @@ export default function LessonPage() {
   };
 
   const checkAnswer = () => {
-    const isNotLastStep = currentStepIndex < steps.length - 1;
-    if (isNotLastStep) {
-      // Feed mode: advance immediately
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-        setQuizState('question');
-      } else {
-        goToNextStep();
-      }
-    } else {
-      setQuizState('result');
-    }
+    // Always show result first, regardless of step position
+    setQuizState('result');
   };
 
   const nextQuestion = () => {
@@ -510,9 +559,20 @@ export default function LessonPage() {
       setQuizState('question');
     } else {
       if (isNotLastStep) {
-        goToNextStep();
+        // Mark quiz as completed and step as completed before going to next step
+        if (currentStep) {
+          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+          markStepAsVisited(currentStep.id.toString());
+        }
+        // Go directly to next step without checking canProceedToNext()
+        goToStep(currentStepIndex + 1);
       } else {
         setQuizState('completed');
+        // Mark quiz as completed and step as completed when quiz is finished
+        if (currentStep) {
+          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+          markStepAsVisited(currentStep.id.toString());
+        }
       }
     }
   };
@@ -521,6 +581,10 @@ export default function LessonPage() {
     setQuizState('title');
     setCurrentQuestionIndex(0);
     setQuizAnswers(new Map());
+    // Reset quiz completion status for current step
+    if (currentStep) {
+      setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), false)));
+    }
   };
 
   const getCurrentQuestion = () => {
@@ -789,7 +853,14 @@ export default function LessonPage() {
             </button>
           ) : (
             <button
-              onClick={goToNextStep}
+              onClick={() => {
+                // Mark quiz as completed and step as completed before going to next step
+                if (currentStep) {
+                  setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+                  markStepAsVisited(currentStep.id.toString());
+                }
+                goToNextStep();
+              }}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200"
             >
               Continue to Next Step
@@ -1274,7 +1345,19 @@ export default function LessonPage() {
           </button>
           
           <button
-            onClick={goToNextStep}
+            onClick={() => {
+              // Mark quiz as completed and step as completed before going to next step
+              if (currentStep) {
+                setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+                markStepAsVisited(currentStep.id.toString());
+              }
+              // Go directly to next step without checking canProceedToNext()
+              if (currentStepIndex < steps.length - 1) {
+                goToStep(currentStepIndex + 1);
+              } else if (nextLessonId) {
+                navigate(`/course/${courseId}/lesson/${nextLessonId}`);
+              }
+            }}
             className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all duration-200"
           >
             Continue
@@ -1284,31 +1367,6 @@ export default function LessonPage() {
     );
   };
 
-  const getFileIcon = (fileType: string) => {
-    switch (fileType.toLowerCase()) {
-      case 'pdf':
-        return <FileText className="w-5 h-5 text-red-500" />;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'webp':
-        return <Image className="w-5 h-5 text-blue-500" />;
-      case 'zip':
-      case 'rar':
-        return <Archive className="w-5 h-5 text-yellow-500" />;
-      default:
-        return <File className="w-5 h-5 text-gray-500" />;
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
 
   const renderAttachments = (attachmentsJson?: string) => {
     if (!attachmentsJson) return null;
@@ -1375,7 +1433,39 @@ export default function LessonPage() {
                   url={currentStep.video_url}
                   title={currentStep.title || 'Lesson Video'}
                   className="w-full h-full"
+                  onProgress={(progress) => {
+                    setVideoProgress(prev => new Map(prev.set(currentStep.id.toString(), progress)));
+                    
+                    // Auto-complete video step when 90%+ is watched
+                    if (progress >= 0.9) {
+                      const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
+                      if (!stepProgress || stepProgress.status !== 'completed') {
+                        markStepAsVisited(currentStep.id.toString());
+                      }
+                    }
+                  }}
                 />
+              </div>
+            )}
+            
+            {/* Video Progress Indicator */}
+            {currentStep && currentStep.video_url && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-800">Прогресс просмотра видео</span>
+                  <span className="text-sm text-blue-600">
+                    {Math.round((videoProgress.get(currentStep.id.toString()) || 0) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(videoProgress.get(currentStep.id.toString()) || 0) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-blue-600 mt-2">
+                  Для перехода к следующему шагу необходимо просмотреть видео на 90% или более
+                </p>
               </div>
             )}
           
@@ -1397,18 +1487,47 @@ export default function LessonPage() {
             return renderQuizFeed();
           }
         }
-        switch (quizState) {
-          case 'title':
-            return renderQuizTitleScreen();
-          case 'question':
-            return renderQuizQuestion();
-          case 'result':
-            return renderQuizResult();
-          case 'completed':
-            return renderQuizCompleted();
-          default:
-            return <div>Loading quiz...</div>;
-        }
+        const quizContent = (() => {
+          switch (quizState) {
+            case 'title':
+              return renderQuizTitleScreen();
+            case 'question':
+              return renderQuizQuestion();
+            case 'result':
+              return renderQuizResult();
+            case 'completed':
+              return renderQuizCompleted();
+            default:
+              return <div>Loading quiz...</div>;
+          }
+        })();
+
+        return (
+          <div>
+            {quizContent}
+            
+            {/* Quiz Progress Indicator */}
+            {currentStep && (
+              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-green-800">Статус квиза</span>
+                  <span className="text-sm text-green-600">
+                    {quizCompleted.get(currentStep.id.toString()) ? 'Завершен' : 'Не завершен'}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${quizCompleted.get(currentStep.id.toString()) ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <p className="text-xs text-green-600">
+                    {quizCompleted.get(currentStep.id.toString()) 
+                      ? 'Квиз завершен. Можно переходить к следующему шагу.'
+                      : 'Для перехода к следующему шагу необходимо завершить квиз.'
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
       
       default:
         return <div>Unsupported content type</div>;
@@ -1495,8 +1614,7 @@ export default function LessonPage() {
                 {steps
                   .sort((a, b) => a.order_index - b.order_index)
                   .map((step, index) => {
-                    const stepProgress = stepsProgress.find(p => p.step_id === step.id);
-                    const isCompleted = stepProgress?.status === 'completed';
+                    const isCompleted = isStepCompleted(step);
                     
                     return (
                       <button
@@ -1570,10 +1688,21 @@ export default function LessonPage() {
                 <span>Step {currentStep?.order_index ?? currentStepIndex + 1} of {steps.length}</span>
                 <span className="hidden sm:inline">•</span>
                 <span>Lesson {lesson.module_id}.{lesson.order_index}</span>
+                {currentStep && !isStepCompleted(currentStep) && (
+                  <>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="text-orange-600 font-medium">
+                      {currentStep.content_type === 'video_text' ? 'Видео не завершено' : 
+                       currentStep.content_type === 'quiz' ? 'Квиз не завершен' : 
+                       'Шаг не завершен'}
+                    </span>
+                  </>
+                )}
               </div>
               <Button
                 onClick={goToNextStep}
                 className="w-full sm:w-auto"
+                disabled={!canProceedToNext()}
               >
                 {currentStepIndex < steps.length - 1 ? 'Next' : (nextLessonId ? 'Next Lesson' : 'Next')}
                 <ChevronRight className="w-4 h-4 ml-2" />
