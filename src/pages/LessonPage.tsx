@@ -122,7 +122,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
       <div className="p-6 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course?.coverImageUrl || '')} alt={course?.title} className="w-10 h-10 rounded-lg" />
+            <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course?.cover_image_url || '')} alt={course?.title} className="w-10 h-10 rounded-lg" />
           </div>
           <div className="min-w-0">
             <h2 className="font-semibold truncate">{course?.title || 'Course'}</h2>

@@ -367,7 +367,7 @@ export default function StudentDashboard({
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  Current Tasks
+                  Todo list
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox 
@@ -379,7 +379,7 @@ export default function StudentDashboard({
                     htmlFor="show-completed" 
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    Show completed
+                    Show completed tasks
                   </label>
                 </div>
               </CardTitle>
