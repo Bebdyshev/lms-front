@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { validateAndExtractYouTubeInfo } from '../utils/youtube';
 
 interface YouTubeVideoPlayerProps {
@@ -6,15 +6,19 @@ interface YouTubeVideoPlayerProps {
   title?: string;
   className?: string;
   onError?: (error: string) => void;
+  onProgress?: (progress: number) => void;
 }
 
 export default function YouTubeVideoPlayer({ 
   url, 
   title = "YouTube Video", 
   className = "",
-  onError 
+  onError,
+  onProgress 
 }: YouTubeVideoPlayerProps) {
   const [iframeError, setIframeError] = useState(false);
+  const [player, setPlayer] = useState<any>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const videoInfo = validateAndExtractYouTubeInfo(url);
 
   if (!videoInfo.is_valid || !videoInfo.video_id) {
@@ -40,6 +44,72 @@ export default function YouTubeVideoPlayer({
   const openInNewWindow = () => {
     window.open(videoInfo.clean_url, '_blank', 'noopener,noreferrer');
   };
+
+  // Initialize YouTube Player API
+  useEffect(() => {
+    if (!videoInfo.is_valid || !videoInfo.video_id) return;
+
+    const loadYouTubeAPI = () => {
+      if (window.YT && window.YT.Player) {
+        initializePlayer();
+      } else {
+        // Load YouTube API if not already loaded
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+
+        window.onYouTubeIframeAPIReady = () => {
+          initializePlayer();
+        };
+      }
+    };
+
+    const initializePlayer = () => {
+      if (iframeRef.current && window.YT) {
+        const ytPlayer = new window.YT.Player(iframeRef.current, {
+          events: {
+            onReady: (event: any) => {
+              setPlayer(event.target);
+            },
+            onStateChange: (event: any) => {
+              // Track progress when video is playing
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                const interval = setInterval(() => {
+                  if (event.target && event.target.getCurrentTime && event.target.getDuration) {
+                    const currentTime = event.target.getCurrentTime();
+                    const duration = event.target.getDuration();
+                    if (duration > 0) {
+                      const progress = (currentTime / duration) * 100;
+                      onProgress?.(progress);
+                    }
+                  }
+                }, 1000);
+
+                // Clear interval when video stops
+                const checkState = () => {
+                  if (event.target.getPlayerState() !== window.YT.PlayerState.PLAYING) {
+                    clearInterval(interval);
+                  } else {
+                    setTimeout(checkState, 1000);
+                  }
+                };
+                checkState();
+              }
+            }
+          }
+        });
+      }
+    };
+
+    loadYouTubeAPI();
+
+    return () => {
+      if (player) {
+        player.destroy();
+      }
+    };
+  }, [videoInfo.video_id, onProgress]);
 
   // Fallback UI for Zen browser or iframe errors
   if (iframeError) {
@@ -70,6 +140,7 @@ export default function YouTubeVideoPlayer({
       {/* Educational overlay */}
       <div className="aspect-video w-full">
         <iframe
+          ref={iframeRef}
           src={videoInfo.embed_url}
           className="w-full h-full youtube-iframe"
           allowFullScreen={false}
