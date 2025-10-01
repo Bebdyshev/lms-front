@@ -3,8 +3,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Progress } from "../components/ui/progress";
-import type { DashboardStats, StudentProgressOverview } from "../types";
-import { Clock, BookOpen, LineChart, CheckCircle, Target } from "lucide-react";
+import { Badge } from "../components/ui/badge";
+import { Checkbox } from "../components/ui/checkbox";
+import type { DashboardStats, StudentProgressOverview, Assignment, Event, AssignmentSubmission } from "../types";
+import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap } from "lucide-react";
 import { useEffect, useState } from "react";
 import apiClient from "../services/api";
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -24,9 +26,17 @@ export default function StudentDashboard({
 }: StudentDashboardProps) {
   const [progressData, setProgressData] = useState<StudentProgressOverview | null>(null);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
+  
+  // Todo list state
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [submissions, setSubmissions] = useState<AssignmentSubmission[]>([]);
+  const [isLoadingTodo, setIsLoadingTodo] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     loadProgressData();
+    loadTodoData();
   }, []);
 
   const loadProgressData = async () => {
@@ -74,6 +84,27 @@ export default function StudentDashboard({
     }
   };
 
+  const loadTodoData = async () => {
+    try {
+      setIsLoadingTodo(true);
+      
+      // Load assignments, events, and submissions in parallel
+      const [assignmentsData, eventsData, submissionsData] = await Promise.all([
+        apiClient.getAssignments({ is_active: true }),
+        apiClient.getMyEvents({ upcoming_only: true, limit: 10 }),
+        apiClient.getMySubmissions()
+      ]);
+      
+      setAssignments(assignmentsData || []);
+      setEvents(eventsData || []);
+      setSubmissions(submissionsData || []);
+    } catch (error) {
+      console.error('Failed to load todo data:', error);
+    } finally {
+      setIsLoadingTodo(false);
+    }
+  };
+
 
   const coursesCount = progressData?.total_courses ?? stats?.courses_count ?? 0;
   const totalStudyHours = progressData 
@@ -86,6 +117,154 @@ export default function StudentDashboard({
     if (percentage >= 50) return 'text-yellow-600';
     return 'text-red-600';
   };
+
+  // Helper functions for todo list
+  const getAssignmentStatus = (assignment: Assignment) => {
+    const submission = submissions.find(sub => sub.assignment_id === assignment.id);
+    if (submission) {
+      if (submission.is_graded) {
+        return { status: 'graded', color: 'bg-green-100 text-green-800', icon: CheckCircle };
+      } else {
+        return { status: 'submitted', color: 'bg-blue-100 text-blue-800', icon: FileText };
+      }
+    }
+    
+    const now = new Date();
+    const dueDate = assignment.due_date ? new Date(assignment.due_date) : null;
+    
+    if (dueDate && dueDate < now) {
+      return { status: 'overdue', color: 'bg-red-100 text-red-800', icon: AlertCircle };
+    } else if (dueDate && (dueDate.getTime() - now.getTime()) < 24 * 60 * 60 * 1000) {
+      return { status: 'due_soon', color: 'bg-yellow-100 text-yellow-800', icon: Clock };
+    } else {
+      return { status: 'pending', color: 'bg-gray-100 text-gray-800', icon: FileText };
+    }
+  };
+
+  const getEventIcon = (eventType: string) => {
+    switch (eventType) {
+      case 'class': return GraduationCap;
+      case 'webinar': return Video;
+      case 'weekly_test': return FileText;
+      default: return Calendar;
+    }
+  };
+
+  const getEventColor = (eventType: string) => {
+    switch (eventType) {
+      case 'class': return 'bg-blue-100 text-blue-800';
+      case 'webinar': return 'bg-purple-100 text-purple-800';
+      case 'weekly_test': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric'
+    });
+  };
+
+  // Get current and relevant assignments (due soon or recent)
+  const relevantAssignments = assignments
+    .filter(assignment => {
+      if (!assignment.due_date) return false;
+      const dueDate = new Date(assignment.due_date);
+      const now = new Date();
+      const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      
+      // If showing completed, include all assignments
+      if (showCompleted) {
+        // Show assignments due within 3 days or recent assignments
+        if (dueDate <= threeDaysFromNow) return true;
+        const createdDate = new Date(assignment.created_at);
+        if (createdDate >= sevenDaysAgo) return true;
+        return false;
+      }
+      
+      // Don't show overdue assignments
+      if (dueDate < now) return false;
+      
+      // Show assignments due within 3 days
+      if (dueDate <= threeDaysFromNow) return true;
+      
+      // Show recent assignments (created in last 7 days)
+      const createdDate = new Date(assignment.created_at);
+      if (createdDate >= sevenDaysAgo) return true;
+      
+      return false;
+    })
+    .sort((a, b) => {
+      if (!a.due_date || !b.due_date) return 0;
+      const aDate = new Date(a.due_date);
+      const bDate = new Date(b.due_date);
+      const now = new Date();
+      
+      // If showing completed, prioritize current tasks first
+      if (showCompleted) {
+        const aOverdue = aDate < now;
+        const bOverdue = bDate < now;
+        if (aOverdue && !bOverdue) return 1; // Current tasks first
+        if (!aOverdue && bOverdue) return -1;
+      }
+      
+      // Sort by date (earliest first)
+      return aDate.getTime() - bDate.getTime();
+    });
+
+  // Get relevant events (today, tomorrow, this week)
+  const relevantEvents = events
+    .filter(event => {
+      const startDate = new Date(event.start_datetime);
+      const now = new Date();
+      const endOfToday = new Date(now);
+      endOfToday.setHours(23, 59, 59, 999);
+      const endOfWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      
+      // If showing completed, include past events too
+      if (showCompleted) {
+        return startDate <= endOfWeek;
+      }
+      
+      // Show events starting today or later
+      return startDate >= now && startDate <= endOfWeek;
+    })
+    .sort((a, b) => {
+      const aDate = new Date(a.start_datetime);
+      const bDate = new Date(b.start_datetime);
+      const now = new Date();
+      
+      // If showing completed, prioritize current events first
+      if (showCompleted) {
+        const aPast = aDate < now;
+        const bPast = bDate < now;
+        if (aPast && !bPast) return 1; // Current events first
+        if (!aPast && bPast) return -1;
+      }
+      
+      // Prioritize events today
+      const aToday = aDate.toDateString() === now.toDateString();
+      const bToday = bDate.toDateString() === now.toDateString();
+      if (aToday && !bToday) return -1;
+      if (!aToday && bToday) return 1;
+      
+      // Then sort by date
+      return aDate.getTime() - bDate.getTime();
+    });
+
 
 
   return (
@@ -181,7 +360,115 @@ export default function StudentDashboard({
 
       </div>
 
-      <Tabs defaultValue="courses" className="mt-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
+        <div className="lg:col-span-1 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Current Tasks
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="show-completed" 
+                    checked={showCompleted}
+                    onCheckedChange={(checked) => setShowCompleted(checked as boolean)}
+                  />
+                  <label 
+                    htmlFor="show-completed" 
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Show completed
+                  </label>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingTodo ? (
+                <div className="text-center py-4 text-gray-500">Loading deadlines...</div>
+              ) : (
+                <div className="max-h-[19.5rem] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400">
+                  {/* Combined assignments and events */}
+                  {(() => {
+                    const allDeadlines = [
+                      ...relevantAssignments.map(assignment => ({
+                        id: `assignment-${assignment.id}`,
+                        title: assignment.title,
+                        date: assignment.due_date,
+                        type: 'assignment' as const,
+                        status: getAssignmentStatus(assignment),
+                        description: assignment.description
+                      })),
+                      ...relevantEvents.map(event => ({
+                        id: `event-${event.id}`,
+                        title: event.title,
+                        date: event.start_datetime,
+                        type: 'event' as const,
+                        eventType: event.event_type,
+                        description: event.description,
+                        isOnline: event.is_online,
+                        location: event.location
+                      }))
+                    ].filter(deadline => deadline.date) // Filter out items without dates
+                    .sort((a, b) => {
+                      const aDate = new Date(a.date!);
+                      const bDate = new Date(b.date!);
+                      
+                      // Sort by date (earliest first)
+                      return aDate.getTime() - bDate.getTime();
+                    });
+
+                    return allDeadlines.length > 0 ? (
+                      allDeadlines.map((deadline) => (
+                        <div key={deadline.id} className="flex items-center gap-3 p-2 border rounded-lg hover:bg-gray-50">
+                          {deadline.type === 'assignment' ? (
+                            <>
+                              <deadline.status.icon className="h-4 w-4 text-gray-500" />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{deadline.title}</div>
+                                <div className="text-xs text-gray-500">
+                                  Due {formatDate(deadline.date!)}
+                                </div>
+                              </div>
+                              <Badge className={`text-xs ${deadline.status.color}`}>
+                                {deadline.status.status.replace('_', ' ')}
+                              </Badge>
+                            </>
+                          ) : (
+                            <>
+                              {(() => {
+                                const EventIcon = getEventIcon(deadline.eventType);
+                                return <EventIcon className="h-4 w-4 text-gray-500" />;
+                              })()}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{deadline.title}</div>
+                                <div className="text-xs text-gray-500">
+                                  {formatDateTime(deadline.date!)}
+                                </div>
+                              </div>
+                              <Badge className={`text-xs ${getEventColor(deadline.eventType)}`}>
+                                {deadline.eventType.replace('_', ' ')}
+                              </Badge>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-4 text-gray-500 text-sm">
+                        No current tasks
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column - Main Content */}
+        <div className="lg:col-span-2">
+          <Tabs defaultValue="courses" className="w-full">
         <TabsList className="flex flex-wrap gap-2">
           <TabsTrigger value="courses">Courses</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -391,6 +678,8 @@ export default function StudentDashboard({
           )}
         </TabsContent>
       </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
