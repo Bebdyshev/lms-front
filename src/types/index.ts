@@ -163,7 +163,7 @@ export interface Course {
   teacher?: User;
   teacher_name?: string; // Added to match backend response
   image?: string;
-  coverImageUrl?: string;
+  cover_image_url?: string;
   estimatedDurationMinutes?: number;
   isActive?: boolean;
   created_at: string;
