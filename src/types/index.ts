@@ -72,7 +72,8 @@ export interface StepProgress {
   course_id: number;
   lesson_id: number;
   step_id: number;
-  status: 'not_started' | 'completed';
+  status: 'not_started' | 'in_progress' | 'completed';
+  started_at?: string;
   visited_at?: string;
   completed_at?: string;
   time_spent_minutes: number;

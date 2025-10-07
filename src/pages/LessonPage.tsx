@@ -343,9 +343,48 @@ export default function LessonPage() {
     }
   };
 
-  const markStepAsVisited = async (stepId: string) => {
+  const markStepAsStarted = async (stepId: string) => {
     try {
-      await apiClient.markStepVisited(stepId, 1); // 1 minute spent
+      await apiClient.markStepStarted(stepId);
+      
+      // Update local progress state
+      setStepsProgress(prev => {
+        const updated = [...prev];
+        const existingIndex = updated.findIndex(p => p.step_id === parseInt(stepId));
+        
+        if (existingIndex >= 0) {
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            status: 'in_progress',
+            started_at: new Date().toISOString(),
+            visited_at: new Date().toISOString()
+          };
+        } else {
+          // Create new progress entry
+          updated.push({
+            id: Date.now(), // temporary ID
+            user_id: 0, // will be set by backend
+            course_id: 0, // will be set by backend
+            lesson_id: 0, // will be set by backend
+            step_id: parseInt(stepId),
+            status: 'in_progress',
+            started_at: new Date().toISOString(),
+            visited_at: new Date().toISOString(),
+            completed_at: null,
+            time_spent_minutes: 0
+          });
+        }
+        
+        return updated;
+      });
+    } catch (error) {
+      console.error('Failed to mark step as started:', error);
+    }
+  };
+
+  const markStepAsVisited = async (stepId: string, timeSpent: number = 1) => {
+    try {
+      await apiClient.markStepVisited(stepId, timeSpent);
       
       // Update local progress state
       setStepsProgress(prev => {
@@ -358,7 +397,7 @@ export default function LessonPage() {
             status: 'completed',
             visited_at: new Date().toISOString(),
             completed_at: new Date().toISOString(),
-            time_spent_minutes: updated[existingIndex].time_spent_minutes + 1
+            time_spent_minutes: updated[existingIndex].time_spent_minutes + timeSpent
           };
         } else {
           // Create new progress record
@@ -407,12 +446,12 @@ export default function LessonPage() {
     }
   };
 
-  // Mark current step as visited when it changes
+  // Mark current step as started when it changes
   useEffect(() => {
     if (currentStep && stepsProgress.length > 0) {
       const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
       if (!stepProgress || stepProgress.status === 'not_started') {
-        markStepAsVisited(currentStep.id.toString());
+        markStepAsStarted(currentStep.id.toString());
       }
     }
   }, [currentStepIndex, currentStep, stepsProgress]);
@@ -515,7 +554,7 @@ export default function LessonPage() {
   const goToStep = (index: number) => {
     // Mark current step as visited before moving to another step
     if (currentStep) {
-      markStepAsVisited(currentStep.id.toString());
+      markStepAsVisited(currentStep.id.toString(), 2); // 2 minutes for step completion
     }
     setCurrentStepIndex(index);
     
@@ -562,7 +601,7 @@ export default function LessonPage() {
         // Mark quiz as completed and step as completed before going to next step
         if (currentStep) {
           setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-          markStepAsVisited(currentStep.id.toString());
+          markStepAsVisited(currentStep.id.toString(), 3); // 3 minutes for quiz completion
         }
         // Go directly to next step without checking canProceedToNext()
         goToStep(currentStepIndex + 1);
@@ -571,7 +610,7 @@ export default function LessonPage() {
         // Mark quiz as completed and step as completed when quiz is finished
         if (currentStep) {
           setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-          markStepAsVisited(currentStep.id.toString());
+          markStepAsVisited(currentStep.id.toString(), 3); // 3 minutes for quiz completion
         }
       }
     }
@@ -857,7 +896,7 @@ export default function LessonPage() {
                 // Mark quiz as completed and step as completed before going to next step
                 if (currentStep) {
                   setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-                  markStepAsVisited(currentStep.id.toString());
+                  markStepAsVisited(currentStep.id.toString(), 4); // 4 minutes for quiz completion
                 }
                 goToNextStep();
               }}
@@ -1349,7 +1388,7 @@ export default function LessonPage() {
               // Mark quiz as completed and step as completed before going to next step
               if (currentStep) {
                 setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-                markStepAsVisited(currentStep.id.toString());
+                markStepAsVisited(currentStep.id.toString(), 5); // 5 minutes for quiz completion
               }
               // Go directly to next step without checking canProceedToNext()
               if (currentStepIndex < steps.length - 1) {
@@ -1440,7 +1479,9 @@ export default function LessonPage() {
                     if (progress >= 0.9) {
                       const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
                       if (!stepProgress || stepProgress.status !== 'completed') {
-                        markStepAsVisited(currentStep.id.toString());
+                        // Calculate time spent based on video duration and progress
+                        const timeSpent = Math.ceil(progress * 10); // Estimate time spent in minutes
+                        markStepAsVisited(currentStep.id.toString(), timeSpent);
                       }
                     }
                   }}

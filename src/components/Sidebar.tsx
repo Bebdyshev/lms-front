@@ -18,6 +18,7 @@ import {
   Users,
   GraduationCap,
   Calendar,
+  BarChart3,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Course } from '../types';
@@ -32,6 +33,7 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number):
     ['/assignments', 'My assignments', ClipboardList, 0, ['student']],
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher']],
     ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher']],
+    ['/analytics', 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin']],
     ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin']],
     ['/admin/users', 'Manage Users', Users, 0, ['admin']],
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin']],
