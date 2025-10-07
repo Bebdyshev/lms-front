@@ -466,8 +466,8 @@ export default function LessonPage() {
     
     if (currentStep.content_type === 'video_text') {
       // For video steps, check if video is watched 90%+
-      const progress = videoProgress.get(stepId) || 0;
-      return progress >= 90;
+      const progress = videoProgress.get(stepId) || 0; // progress is a fraction [0..1]
+      return progress >= 0.9;
     } else if (currentStep.content_type === 'quiz') {
       // For quiz steps, check if quiz is completed
       return quizCompleted.get(stepId) || false;
@@ -484,8 +484,8 @@ export default function LessonPage() {
       
       switch (currentStep.content_type) {
         case 'video_text':
-          const videoProgressValue = videoProgress.get(currentStep.id.toString()) || 0;
-          const progressPercent = Math.round(videoProgressValue);
+          const videoProgressValue = videoProgress.get(currentStep.id.toString()) || 0; // fraction [0..1]
+          const progressPercent = Math.round(videoProgressValue * 100);
           message = `Пожалуйста, досмотрите видео до конца (просмотрено ${progressPercent}%, требуется 90%+) перед переходом к следующему шагу.`;
           break;
         case 'quiz':
