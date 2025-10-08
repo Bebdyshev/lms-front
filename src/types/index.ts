@@ -58,7 +58,7 @@ export interface Step {
   id: number;
   lesson_id: number;
   title: string;
-  content_type: 'text' | 'video_text' | 'quiz';
+  content_type: 'text' | 'video_text' | 'quiz' | 'flashcard';
   video_url?: string;
   content_text?: string;
   attachments?: string; // JSON string of StepAttachment[]
@@ -333,7 +333,7 @@ export interface Question {
   id: string;
   assignment_id: string;
   question_text: string;
-  question_type: 'single_choice' | 'multiple_choice' | 'fill_blank';
+  question_type: 'single_choice' | 'multiple_choice' | 'fill_blank' | 'long_text' | 'media_question';
   options?: QuestionOption[];
   correct_answer: any; // Use any to avoid complex type issues
   points: number;
@@ -343,6 +343,11 @@ export interface Question {
   original_image_url?: string; // URL of the original SAT image
   is_sat_question?: boolean; // Flag to identify SAT questions
   content_text?: string; // The full content/passage that the question is based on
+  // New fields for enhanced question types
+  media_url?: string; // For PDF/image attachments
+  media_type?: 'pdf' | 'image'; // Type of media attachment
+  expected_length?: number; // For long text questions (character count)
+  keywords?: string[]; // For auto-grading long text answers
 }
 
 export interface QuizData {
@@ -350,6 +355,30 @@ export interface QuizData {
   questions: Question[];
   time_limit_minutes?: number;
   max_score?: number;
+}
+
+// =============================================================================
+// FLASHCARD TYPES
+// =============================================================================
+
+export interface FlashcardItem {
+  id: string;
+  front_text: string;
+  back_text: string;
+  front_image_url?: string;
+  back_image_url?: string;
+  difficulty: 'easy' | 'normal' | 'hard';
+  tags?: string[];
+  order_index: number;
+}
+
+export interface FlashcardSet {
+  title: string;
+  description?: string;
+  cards: FlashcardItem[];
+  study_mode: 'sequential' | 'random' | 'spaced_repetition';
+  auto_flip: boolean;
+  show_progress: boolean;
 }
 
 export interface LessonMaterial {

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import apiClient from '../../services/api';
 import { renderTextWithLatex } from '../../utils/latex';
 import RichTextEditor from '../RichTextEditor';
+import { Upload, FileText, Image } from 'lucide-react';
 
 export interface QuizLessonEditorProps {
   quizTitle: string;
@@ -38,6 +39,7 @@ export default function QuizLessonEditor({
   const [showSatImageModal, setShowSatImageModal] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   const openAddQuestion = () => {
     const ts = Date.now().toString();
@@ -104,7 +106,13 @@ export default function QuizLessonEditor({
       if (answers.length === 0) {
         errors.push('Please add at least one gap [[answer]] in the passage');
       }
+    } else if (question.question_type === 'long_text') {
+      // Long text questions don't need options validation
+      if (!question.correct_answer && question.correct_answer !== '') {
+        // For long text, we just need some placeholder for correct_answer
+      }
     } else {
+      // For single_choice, multiple_choice, media_question - require options
       const hasOptionContent = question.options?.some(opt => opt.text.trim());
       if (hasOptionContent && (typeof question.correct_answer !== 'number' || question.correct_answer < 0)) {
         errors.push('Please select a correct answer');
@@ -184,6 +192,36 @@ export default function QuizLessonEditor({
     setDraftQuestion(null);
     setEditingQuestionIndex(null);
   };
+
+  const uploadQuestionMedia = React.useCallback(async (file: File) => {
+    setIsUploadingMedia(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('file_type', 'question_media');
+
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}/media/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload media');
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error uploading media:', error);
+      alert('Failed to upload media. Please try again.');
+      return null;
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  }, []);
 
   const analyzeImageFile = React.useCallback(async (file: File) => {
     setIsAnalyzingImage(true);
@@ -565,11 +603,39 @@ export default function QuizLessonEditor({
                       onValueChange={(val) => {
                         const next: any = { ...draftQuestion };
                         if (val === 'single_choice') {
-                          next.question_type = 'single_choice';
+                          next.question_type = val;
                           next.correct_answer = typeof draftQuestion.correct_answer === 'number' ? draftQuestion.correct_answer : 0;
+                          // Ensure options exist for single choice
+                          if (!next.options || next.options.length === 0) {
+                            const ts = Date.now().toString();
+                            next.options = [
+                              { id: ts + '_1', text: '', is_correct: false, letter: 'A' },
+                              { id: ts + '_2', text: '', is_correct: false, letter: 'B' },
+                              { id: ts + '_3', text: '', is_correct: false, letter: 'C' },
+                              { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
+                            ];
+                          }
+                        } else if (val === 'media_question') {
+                          next.question_type = val;
+                          next.correct_answer = typeof draftQuestion.correct_answer === 'number' ? draftQuestion.correct_answer : 0;
+                          // Ensure options exist for media question
+                          if (!next.options || next.options.length === 0) {
+                            const ts = Date.now().toString();
+                            next.options = [
+                              { id: ts + '_1', text: '', is_correct: false, letter: 'A' },
+                              { id: ts + '_2', text: '', is_correct: false, letter: 'B' },
+                              { id: ts + '_3', text: '', is_correct: false, letter: 'C' },
+                              { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
+                            ];
+                          }
                         } else if (val === 'fill_blank') {
                           next.question_type = 'fill_blank';
                           next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
+                          next.options = undefined; // Clear options for fill_blank
+                        } else if (val === 'long_text') {
+                          next.question_type = 'long_text';
+                          next.correct_answer = '';
+                          next.options = undefined; // Clear options for long_text
                         }
                         setDraftQuestion(next);
                       }}
@@ -580,12 +646,116 @@ export default function QuizLessonEditor({
                       <SelectContent>
                         <SelectItem value="single_choice">Single choice</SelectItem>
                         <SelectItem value="fill_blank">Fill in the blank</SelectItem>
+                        <SelectItem value="long_text">Long text answer</SelectItem>
+                        <SelectItem value="media_question">Media-based question</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
               </div>
 
-              {draftQuestion.question_type !== 'fill_blank' ? (
+              {/* Media Upload for Media Questions */}
+              {draftQuestion.question_type === 'media_question' && (
+                <div className="space-y-2">
+                  <Label>Media Attachment</Label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    {draftQuestion.media_url ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          {draftQuestion.media_type === 'pdf' ? (
+                            <FileText className="w-5 h-5 text-red-600" />
+                          ) : (
+                            <Image className="w-5 h-5 text-blue-600" />
+                          )}
+                          <span className="text-sm font-medium">Media attached</span>
+                        </div>
+                        {draftQuestion.media_type === 'image' && (
+                          <img 
+                            src={draftQuestion.media_url} 
+                            alt="Question media" 
+                            className="max-w-xs max-h-48 object-contain rounded"
+                          />
+                        )}
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => applyDraftUpdate({ media_url: undefined, media_type: undefined })}
+                        >
+                          Remove Media
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                        <div className="text-sm text-gray-600 mb-2">
+                          Upload PDF or image for this question
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const result = await uploadQuestionMedia(file);
+                              if (result) {
+                                const mediaType = file.type.startsWith('image/') ? 'image' : 'pdf';
+                                applyDraftUpdate({ 
+                                  media_url: result.file_url, 
+                                  media_type: mediaType 
+                                });
+                              }
+                            }
+                          }}
+                          className="hidden"
+                          id="media-upload"
+                        />
+                        <label htmlFor="media-upload" className="cursor-pointer">
+                          <Button variant="outline" size="sm" disabled={isUploadingMedia}>
+                            {isUploadingMedia ? 'Uploading...' : 'Choose File'}
+                          </Button>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Long Text Answer Configuration */}
+              {draftQuestion.question_type === 'long_text' && (
+                <div className="space-y-2">
+                  <Label>Answer Configuration</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="expected-length">Expected Length (characters)</Label>
+                      <Input
+                        id="expected-length"
+                        type="number"
+                        value={draftQuestion.expected_length || ''}
+                        onChange={(e) => applyDraftUpdate({ expected_length: parseInt(e.target.value) || undefined })}
+                        placeholder="e.g. 500"
+                        min="1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="keywords">Keywords (comma-separated)</Label>
+                      <Input
+                        id="keywords"
+                        type="text"
+                        value={draftQuestion.keywords?.join(', ') || ''}
+                        onChange={(e) => {
+                          const keywords = e.target.value.split(',').map(k => k.trim()).filter(Boolean);
+                          applyDraftUpdate({ keywords: keywords.length > 0 ? keywords : undefined });
+                        }}
+                        placeholder="keyword1, keyword2, keyword3"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Keywords help with automatic grading. Students' answers will be checked for these terms.
+                  </div>
+                </div>
+              )}
+
+              {draftQuestion.question_type !== 'fill_blank' && draftQuestion.question_type !== 'long_text' ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Options (4)</Label>
