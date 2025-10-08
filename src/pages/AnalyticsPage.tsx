@@ -365,7 +365,7 @@ export default function AnalyticsPage() {
 
   const handleViewGroup = (groupId: number) => {
     setSelectedGroup(groupId.toString());
-    // Можно добавить отдельный вид для группы или показать студентов группы
+    // Can add a separate view for the group or show group students
   };
 
   const handleViewDetailedProgress = (studentId: number) => {
@@ -856,7 +856,7 @@ export default function AnalyticsPage() {
                 setGroupStudents([]);
               }}
             >
-              ← Назад к группам
+              ← Back to Groups
             </Button>
           </div>
           <StudentsTable

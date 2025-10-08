@@ -82,11 +82,11 @@ export default function StudentDetailedProgress({
     try {
       setIsLoading(true);
       
-      // Загружаем детальный прогресс
+      // Load detailed progress
       const progressData = await getStudentDetailedProgress(studentId.toString(), courseId?.toString());
       setDetailedProgress(progressData);
       
-      // Загружаем путь обучения если есть courseId
+      // Load learning path if courseId exists
       if (courseId) {
         const pathData = await getStudentLearningPath(studentId.toString(), courseId.toString());
         setLearningPath(pathData);
@@ -110,24 +110,24 @@ export default function StudentDetailedProgress({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'completed': return <Badge variant="default">Завершен</Badge>;
-      case 'in_progress': return <Badge variant="secondary">В процессе</Badge>;
-      case 'not_started': return <Badge variant="outline">Не начат</Badge>;
+      case 'completed': return <Badge variant="default">Completed</Badge>;
+      case 'in_progress': return <Badge variant="secondary">In Progress</Badge>;
+      case 'not_started': return <Badge variant="outline">Not Started</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   const formatDateTime = (dateString: string | null) => {
-    if (!dateString) return 'Не указано';
+    if (!dateString) return 'Not specified';
     const date = new Date(dateString);
-    return date.toLocaleString('ru-RU');
+    return date.toLocaleString('en-US');
   };
 
   const formatDuration = (minutes: number) => {
-    if (minutes < 60) return `${minutes} мин`;
+    if (minutes < 60) return `${minutes} min`;
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return `${hours}ч ${mins}м`;
+    return `${hours}h ${mins}m`;
   };
 
   if (isLoading) {
@@ -136,7 +136,7 @@ export default function StudentDetailedProgress({
         <CardContent className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Загрузка детального прогресса...</p>
+            <p>Loading detailed progress...</p>
           </div>
         </CardContent>
       </Card>
@@ -147,7 +147,7 @@ export default function StudentDetailedProgress({
     return (
       <Card className="w-full max-w-6xl mx-auto">
         <CardContent className="flex items-center justify-center h-64">
-          <p>Данные о прогрессе не найдены</p>
+          <p>Progress data not found</p>
         </CardContent>
       </Card>
     );
@@ -155,14 +155,14 @@ export default function StudentDetailedProgress({
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
-      {/* Заголовок */}
+      {/* Header */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
-                Детальный прогресс студента
+                Detailed Student Progress
               </CardTitle>
               <div className="mt-2 space-y-1">
                 <p className="text-lg font-medium">{detailedProgress.student_info.name}</p>
@@ -171,21 +171,21 @@ export default function StudentDetailedProgress({
             </div>
             {onClose && (
               <Button variant="outline" onClick={onClose}>
-                Закрыть
+                Close
               </Button>
             )}
           </div>
         </CardHeader>
       </Card>
 
-      {/* Общая статистика */}
+      {/* Overall Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
               <CheckCircle className="h-8 w-8 text-green-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-muted-foreground">Завершено шагов</p>
+                <p className="text-sm font-medium text-muted-foreground">Completed Steps</p>
                 <p className="text-2xl font-bold">
                   {detailedProgress.summary.completed_steps}/{detailedProgress.summary.total_steps}
                 </p>
@@ -199,7 +199,7 @@ export default function StudentDetailedProgress({
             <div className="flex items-center">
               <TrendingUp className="h-8 w-8 text-blue-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-muted-foreground">Прогресс</p>
+                <p className="text-sm font-medium text-muted-foreground">Progress</p>
                 <p className="text-2xl font-bold">{Math.round(detailedProgress.summary.completion_percentage)}%</p>
               </div>
             </div>
@@ -211,7 +211,7 @@ export default function StudentDetailedProgress({
             <div className="flex items-center">
               <Clock className="h-8 w-8 text-purple-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-muted-foreground">Время обучения</p>
+                <p className="text-sm font-medium text-muted-foreground">Study Time</p>
                 <p className="text-2xl font-bold">{formatDuration(detailedProgress.summary.total_study_time_minutes)}</p>
               </div>
             </div>
@@ -223,20 +223,20 @@ export default function StudentDetailedProgress({
             <div className="flex items-center">
               <Calendar className="h-8 w-8 text-orange-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-muted-foreground">Период обучения</p>
-                <p className="text-2xl font-bold">{detailedProgress.summary.study_period_days} дн.</p>
+                <p className="text-sm font-medium text-muted-foreground">Study Period</p>
+                <p className="text-2xl font-bold">{detailedProgress.summary.study_period_days} days</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Табы с детальной информацией */}
+      {/* Detailed Information Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Обзор по курсам</TabsTrigger>
-          <TabsTrigger value="timeline" disabled={!learningPath}>Хронология</TabsTrigger>
-          <TabsTrigger value="activity">Активность</TabsTrigger>
+          <TabsTrigger value="overview">Course Overview</TabsTrigger>
+          <TabsTrigger value="timeline" disabled={!learningPath}>Timeline</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -275,7 +275,7 @@ export default function StudentDetailedProgress({
                                 <div>
                                   <p className="font-medium">{step.step_title}</p>
                                   <p className="text-sm text-muted-foreground">
-                                    Тип: {step.content_type} • Время: {step.progress.time_spent_minutes} мин
+                                    Type: {step.content_type} • Time: {step.progress.time_spent_minutes} min
                                   </p>
                                 </div>
                               </div>
@@ -283,10 +283,10 @@ export default function StudentDetailedProgress({
                                 {getStatusBadge(step.progress.status)}
                                 <p className="text-xs text-muted-foreground mt-1">
                                   {step.progress.status === 'completed' 
-                                    ? `Завершен: ${formatDateTime(step.progress.completed_at)}`
+                                    ? `Completed: ${formatDateTime(step.progress.completed_at)}`
                                     : step.progress.started_at 
-                                      ? `Начат: ${formatDateTime(step.progress.started_at)}`
-                                      : 'Не начат'
+                                      ? `Started: ${formatDateTime(step.progress.started_at)}`
+                                      : 'Not started'
                                   }
                                 </p>
                               </div>
@@ -308,10 +308,10 @@ export default function StudentDetailedProgress({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="w-5 h-5" />
-                  Хронология обучения
+                  Learning Timeline
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Порядок прохождения шагов во времени
+                  Chronological order of step completion
                 </p>
               </CardHeader>
               <CardContent>
@@ -340,20 +340,20 @@ export default function StudentDetailedProgress({
                         
                         <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Начато:</span>
+                            <span className="text-muted-foreground">Started:</span>
                             <p>{formatDateTime(step.progress_info.started_at || step.progress_info.visited_at)}</p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Завершено:</span>
+                            <span className="text-muted-foreground">Completed:</span>
                             <p>{formatDateTime(step.progress_info.completed_at)}</p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Время:</span>
-                            <p>{step.progress_info.time_spent_minutes} мин</p>
+                            <span className="text-muted-foreground">Time:</span>
+                            <p>{step.progress_info.time_spent_minutes} min</p>
                           </div>
                           {step.progress_info.time_since_previous_step_minutes && (
                             <div>
-                              <span className="text-muted-foreground">Пауза:</span>
+                              <span className="text-muted-foreground">Break:</span>
                               <p>{formatDuration(step.progress_info.time_since_previous_step_minutes)}</p>
                             </div>
                           )}
@@ -370,8 +370,8 @@ export default function StudentDetailedProgress({
         <TabsContent value="activity" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Активность по дням</CardTitle>
-              <p className="text-sm text-muted-foreground">Последние 30 дней</p>
+              <CardTitle>Daily Activity</CardTitle>
+              <p className="text-sm text-muted-foreground">Last 30 days</p>
             </CardHeader>
             <CardContent>
               {detailedProgress.daily_activity.length > 0 ? (
@@ -379,9 +379,9 @@ export default function StudentDetailedProgress({
                   {detailedProgress.daily_activity.map((day: any) => (
                     <div key={day.date} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
-                        <p className="font-medium">{new Date(day.date).toLocaleDateString('ru-RU')}</p>
+                        <p className="font-medium">{new Date(day.date).toLocaleDateString('en-US')}</p>
                         <p className="text-sm text-muted-foreground">
-                          {day.steps_completed} шагов завершено
+                          {day.steps_completed} steps completed
                         </p>
                       </div>
                       <div className="text-right">
@@ -396,7 +396,7 @@ export default function StudentDetailedProgress({
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground py-8">
-                  Нет активности за последние 30 дней
+                  No activity in the last 30 days
                 </p>
               )}
             </CardContent>

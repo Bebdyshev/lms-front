@@ -67,15 +67,21 @@ export default function StudentsTable({
   const [sortField, setSortField] = useState<SortField>('student_name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  // Фильтрация студентов по поисковому запросу
-  const filteredStudents = students.filter(student =>
+  // Normalize student data to ensure groups is always an array
+  const normalizedStudents = students.map(student => ({
+    ...student,
+    groups: student.groups || []
+  }));
+
+  // Filter students by search query
+  const filteredStudents = normalizedStudents.filter(student =>
     student.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.student_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.student_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.groups.some(group => group.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    (student.groups && student.groups.some(group => group.name.toLowerCase().includes(searchTerm.toLowerCase())))
   );
 
-  // Сортировка студентов
+  // Sort students
   const sortedStudents = [...filteredStudents].sort((a, b) => {
     let aValue: any = a[sortField];
     let bValue: any = b[sortField];
@@ -105,28 +111,28 @@ export default function StudentsTable({
   };
 
   const getStatusBadge = (percentage: number) => {
-    if (percentage >= 80) return <Badge variant="default">Отлично</Badge>;
-    if (percentage >= 60) return <Badge variant="secondary">Хорошо</Badge>;
-    if (percentage >= 40) return <Badge variant="outline">Удовлетворительно</Badge>;
-    return <Badge variant="destructive">Требует внимания</Badge>;
+    if (percentage >= 80) return <Badge variant="default">Excellent</Badge>;
+    if (percentage >= 60) return <Badge variant="secondary">Good</Badge>;
+    if (percentage >= 40) return <Badge variant="outline">Satisfactory</Badge>;
+    return <Badge variant="destructive">Needs Attention</Badge>;
   };
 
   const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return hours > 0 ? `${hours}ч ${mins}м` : `${mins}м`;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
   const formatLastActivity = (dateString: string | null) => {
-    if (!dateString) return 'Никогда';
+    if (!dateString) return 'Never';
     const date = new Date(dateString);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 0) return 'Сегодня';
-    if (diffDays === 1) return 'Вчера';
-    if (diffDays < 7) return `${diffDays} дн. назад`;
-    return date.toLocaleDateString('ru-RU');
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString('en-US');
   };
 
   if (isLoading) {
@@ -135,7 +141,7 @@ export default function StudentsTable({
         <CardContent className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Загрузка студентов...</p>
+            <p>Loading students...</p>
           </div>
         </CardContent>
       </Card>
@@ -149,24 +155,24 @@ export default function StudentsTable({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Студенты ({students.length})
+              Students ({students.length})
             </CardTitle>
           </div>
           <div className="flex gap-2">
             {onExportAll && (
               <Button variant="outline" onClick={onExportAll}>
                 <Download className="w-4 h-4 mr-2" />
-                Экспорт всех
+                Export All
               </Button>
             )}
           </div>
         </div>
         
-        {/* Поиск */}
+        {/* Search */}
         <div className="flex items-center space-x-2">
           <Search className="w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Поиск по имени, email, номеру студента или группе..."
+            placeholder="Search by name, email, student number or group..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
@@ -179,7 +185,7 @@ export default function StudentsTable({
           <div className="text-center py-8">
             <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
-              {searchTerm ? 'Студенты не найдены' : 'Нет доступных студентов'}
+              {searchTerm ? 'No students found' : 'No students available'}
             </p>
           </div>
         ) : (
@@ -193,27 +199,27 @@ export default function StudentsTable({
                       onClick={() => handleSort('student_name')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Студент {getSortIcon('student_name')}
+                      Student {getSortIcon('student_name')}
                     </Button>
                   </TableHead>
-                  <TableHead>Группы</TableHead>
+                  <TableHead>Groups</TableHead>
                   <TableHead>
                     <Button 
                       variant="ghost" 
                       onClick={() => handleSort('completion_percentage')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Прогресс {getSortIcon('completion_percentage')}
+                      Progress {getSortIcon('completion_percentage')}
                     </Button>
                   </TableHead>
-                  <TableHead>Курсы</TableHead>
+                  <TableHead>Courses</TableHead>
                   <TableHead>
                     <Button 
                       variant="ghost" 
                       onClick={() => handleSort('assignment_score_percentage')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Задания {getSortIcon('assignment_score_percentage')}
+                      Assignments {getSortIcon('assignment_score_percentage')}
                     </Button>
                   </TableHead>
                   <TableHead>
@@ -222,21 +228,12 @@ export default function StudentsTable({
                       onClick={() => handleSort('total_study_time_minutes')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Время {getSortIcon('total_study_time_minutes')}
+                      Time {getSortIcon('total_study_time_minutes')}
                     </Button>
                   </TableHead>
-                  <TableHead>
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleSort('daily_streak')}
-                      className="h-auto p-0 font-semibold"
-                    >
-                      Серия {getSortIcon('daily_streak')}
-                    </Button>
-                  </TableHead>
-                  <TableHead>Последняя активность</TableHead>
-                  <TableHead>Статус</TableHead>
-                  <TableHead>Действия</TableHead>
+                  <TableHead>Last Activity</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -261,7 +258,7 @@ export default function StudentsTable({
                             </Badge>
                           ))
                         ) : (
-                          <span className="text-sm text-muted-foreground">Нет группы</span>
+                          <span className="text-sm text-muted-foreground">No group</span>
                         )}
                       </div>
                     </TableCell>
@@ -273,7 +270,7 @@ export default function StudentsTable({
                           <span className="text-sm font-medium">{Math.round(student.completion_percentage)}%</span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {student.completed_steps}/{student.total_steps} шагов
+                          {student.completed_steps}/{student.total_steps} steps
                         </div>
                       </div>
                     </TableCell>
@@ -291,7 +288,7 @@ export default function StudentsTable({
                           {student.completed_assignments}/{student.total_assignments}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {Math.round(student.assignment_score_percentage)}% средний балл
+                          {Math.round(student.assignment_score_percentage)}% avg score
                         </div>
                       </div>
                     </TableCell>
@@ -300,13 +297,6 @@ export default function StudentsTable({
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm">{formatTime(student.total_study_time_minutes)}</span>
-                      </div>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm font-medium">{student.daily_streak}</span>
-                        <span className="text-xs text-muted-foreground">дн.</span>
                       </div>
                     </TableCell>
                     
@@ -320,22 +310,13 @@ export default function StudentsTable({
                     
                     <TableCell>
                       <div className="flex gap-1">
-                        {onViewStudent && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onViewStudent(student.student_id)}
-                            title="Просмотреть профиль студента"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        )}
+                      
                         {onViewDetailedProgress && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => onViewDetailedProgress(student.student_id)}
-                            title="Детальный прогресс по шагам"
+                            title="Detailed step-by-step progress"
                           >
                             <BarChart3 className="w-4 h-4" />
                           </Button>
@@ -345,7 +326,7 @@ export default function StudentsTable({
                             variant="ghost"
                             size="sm"
                             onClick={() => onExportStudent(student.student_id)}
-                            title="Экспорт отчета"
+                            title="Export report"
                           >
                             <Download className="w-4 h-4" />
                           </Button>
