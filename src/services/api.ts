@@ -1531,19 +1531,6 @@ class LMSApiClient {
     }
   }
 
-  // Step progress tracking
-  async markStepVisited(stepId: string, timeSpent: number = 0): Promise<StepProgress> {
-    try {
-      const response = await this.api.post(`/progress/step/${stepId}/visit`, {
-        step_id: parseInt(stepId),
-        time_spent_minutes: timeSpent
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('Failed to mark step visited');
-    }
-  }
-
   async getStepProgress(stepId: string): Promise<StepProgress> {
     try {
       const response = await this.api.get(`/progress/step/${stepId}`);
@@ -1719,6 +1706,197 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // ANALYTICS METHODS
+  // =============================================================================
+
+  async getDetailedStudentAnalytics(studentId: string, courseId?: string): Promise<any> {
+    try {
+      const params = courseId ? `?course_id=${courseId}` : '';
+      const response = await this.api.get(`/analytics/student/${studentId}/detailed${params}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get detailed student analytics:', error);
+      throw error;
+    }
+  }
+
+  async getCourseAnalyticsOverview(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/analytics/course/${courseId}/overview`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get course analytics overview:', error);
+      throw error;
+    }
+  }
+
+  async getVideoEngagementAnalytics(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/analytics/video-engagement/${courseId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get video engagement analytics:', error);
+      throw error;
+    }
+  }
+
+  async getQuizPerformanceAnalytics(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/analytics/quiz-performance/${courseId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get quiz performance analytics:', error);
+      throw error;
+    }
+  }
+
+  async getTeacherCourses(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/courses/teacher/my');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get teacher courses:', error);
+      throw error;
+    }
+  }
+
+  async getProgressStudents(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/progress/students');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get progress students:', error);
+      throw error;
+    }
+  }
+
+  async getAllStudentsAnalytics(): Promise<any> {
+    try {
+      const response = await this.api.get('/analytics/students/all');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get all students analytics:', error);
+      throw error;
+    }
+  }
+
+  async getGroupsAnalytics(): Promise<any> {
+    try {
+      const response = await this.api.get('/analytics/groups');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get groups analytics:', error);
+      throw error;
+    }
+  }
+
+  async getGroupStudentsAnalytics(groupId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/analytics/group/${groupId}/students`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get group students analytics:', error);
+      throw error;
+    }
+  }
+
+  async getStudentProgressHistory(studentId: string, courseId?: string, days: number = 30): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (courseId) params.append('course_id', courseId);
+      params.append('days', days.toString());
+      
+      const response = await this.api.get(`/analytics/student/${studentId}/progress-history?${params}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get student progress history:', error);
+      throw error;
+    }
+  }
+
+  async exportStudentReport(studentId: string, courseId?: string): Promise<Blob> {
+    try {
+      const params = courseId ? { course_id: courseId } : {};
+      const response = await this.api.post(`/analytics/export/student/${studentId}`, params, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to export student report:', error);
+      throw error;
+    }
+  }
+
+  async exportGroupReport(groupId: string): Promise<Blob> {
+    try {
+      const response = await this.api.post(`/analytics/export/group/${groupId}`, {}, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to export group report:', error);
+      throw error;
+    }
+  }
+
+  async exportAllStudentsReport(): Promise<Blob> {
+    try {
+      const response = await this.api.post('/analytics/export/all-students', {}, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to export all students report:', error);
+      throw error;
+    }
+  }
+
+  async getStudentDetailedProgress(studentId: string, courseId?: string): Promise<any> {
+    try {
+      const params = courseId ? { course_id: courseId } : {};
+      const response = await this.api.get(`/analytics/student/${studentId}/detailed-progress`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get student detailed progress:', error);
+      throw error;
+    }
+  }
+
+  async getStudentLearningPath(studentId: string, courseId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/analytics/student/${studentId}/learning-path`, {
+        params: { course_id: courseId }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get student learning path:', error);
+      throw error;
+    }
+  }
+
+  async markStepStarted(stepId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/progress/step/${stepId}/start`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to mark step as started:', error);
+      throw error;
+    }
+  }
+
+  async markStepVisited(stepId: string, timeSpentMinutes: number): Promise<any> {
+    try {
+      const response = await this.api.post(`/progress/step/${stepId}/visit`, {
+        step_id: parseInt(stepId),
+        time_spent_minutes: timeSpentMinutes
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to mark step as visited:', error);
+      throw error;
+    }
+  }
 
 }
 
@@ -1829,6 +2007,7 @@ export const getGroupStudents = apiClient.getGroupStudents.bind(apiClient);
 export const getStudentProgress = apiClient.getStudentProgress.bind(apiClient);
 export const createUser = apiClient.createUser.bind(apiClient);
 export const resetUserPassword = apiClient.resetUserPassword.bind(apiClient);
+export const markStepStarted = apiClient.markStepStarted.bind(apiClient);
 export const markStepVisited = apiClient.markStepVisited.bind(apiClient);
 export const getStepProgress = apiClient.getStepProgress.bind(apiClient);
 export const getLessonStepsProgress = apiClient.getLessonStepsProgress.bind(apiClient);
@@ -1848,3 +2027,18 @@ export const getUpcomingEvents = apiClient.getUpcomingEvents.bind(apiClient);
 export const getEventDetails = apiClient.getEventDetails.bind(apiClient);
 export const registerForEvent = apiClient.registerForEvent.bind(apiClient);
 export const unregisterFromEvent = apiClient.unregisterFromEvent.bind(apiClient);
+export const getDetailedStudentAnalytics = apiClient.getDetailedStudentAnalytics.bind(apiClient);
+export const getCourseAnalyticsOverview = apiClient.getCourseAnalyticsOverview.bind(apiClient);
+export const getVideoEngagementAnalytics = apiClient.getVideoEngagementAnalytics.bind(apiClient);
+export const getQuizPerformanceAnalytics = apiClient.getQuizPerformanceAnalytics.bind(apiClient);
+export const getTeacherCourses = apiClient.getTeacherCourses.bind(apiClient);
+export const getProgressStudents = apiClient.getProgressStudents.bind(apiClient);
+export const getAllStudentsAnalytics = apiClient.getAllStudentsAnalytics.bind(apiClient);
+export const getGroupsAnalytics = apiClient.getGroupsAnalytics.bind(apiClient);
+export const getGroupStudentsAnalytics = apiClient.getGroupStudentsAnalytics.bind(apiClient);
+export const getStudentProgressHistory = apiClient.getStudentProgressHistory.bind(apiClient);
+export const exportStudentReport = apiClient.exportStudentReport.bind(apiClient);
+export const exportGroupReport = apiClient.exportGroupReport.bind(apiClient);
+export const exportAllStudentsReport = apiClient.exportAllStudentsReport.bind(apiClient);
+export const getStudentDetailedProgress = apiClient.getStudentDetailedProgress.bind(apiClient);
+export const getStudentLearningPath = apiClient.getStudentLearningPath.bind(apiClient);

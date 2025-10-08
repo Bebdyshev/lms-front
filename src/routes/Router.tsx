@@ -35,6 +35,7 @@ import CreateEvent from '../pages/CreateEvent.tsx';
 import EditEvent from '../pages/EditEvent.tsx';
 import Calendar from '../pages/Calendar.tsx';
 import LandingPage from '../pages/LandingPage.tsx';
+import AnalyticsPage from '../pages/AnalyticsPage.tsx';
 
 export default function Router() {
   return (
@@ -323,6 +324,14 @@ export default function Router() {
             <ProtectedRoute>
               <AppLayout>
                 <Calendar />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/analytics" element={
+            <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin']}>
+              <AppLayout>
+                <AnalyticsPage />
               </AppLayout>
             </ProtectedRoute>
           } />
