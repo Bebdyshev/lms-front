@@ -67,12 +67,18 @@ export default function StudentsTable({
   const [sortField, setSortField] = useState<SortField>('student_name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
+  // Normalize student data to ensure groups is always an array
+  const normalizedStudents = students.map(student => ({
+    ...student,
+    groups: student.groups || []
+  }));
+
   // Фильтрация студентов по поисковому запросу
-  const filteredStudents = students.filter(student =>
+  const filteredStudents = normalizedStudents.filter(student =>
     student.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.student_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.student_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.groups.some(group => group.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    (student.groups && student.groups.some(group => group.name.toLowerCase().includes(searchTerm.toLowerCase())))
   );
 
   // Сортировка студентов
