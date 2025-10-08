@@ -343,18 +343,43 @@ export default function AnalyticsPage() {
 
   const handleExportAllStudents = async () => {
     try {
+      console.log('Starting export all students...');
+      setIsLoading(true);
+      
       const blob = await exportAllStudentsReport();
+      console.log('Blob received:', blob, 'Size:', blob.size, 'Type:', blob.type);
+      
+      if (blob.size === 0) {
+        console.error('Received empty blob!');
+        alert('Error: Received empty file from server');
+        return;
+      }
+      
+      // Create download link
       const url = window.URL.createObjectURL(blob);
+      const filename = `all_students_report_${new Date().toISOString().split('T')[0]}.pdf`;
       const a = document.createElement('a');
-      a.style.display = 'none';
       a.href = url;
-      a.download = `all_students_report_${new Date().toISOString().split('T')[0]}.pdf`;
+      a.download = filename;
+      
+      // Trigger download
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      console.log('Download triggered for:', filename);
+      alert(`Report downloaded successfully: ${filename}\n\nCheck your Downloads folder!`);
+      
     } catch (error) {
       console.error('Failed to export all students report:', error);
+      alert(`Export failed: ${error}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
