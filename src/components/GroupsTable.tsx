@@ -60,7 +60,7 @@ export default function GroupsTable({
   const [sortField, setSortField] = useState<SortField>('group_name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  // Фильтрация групп по поисковому запросу
+  // Filter groups by search query
   const filteredGroups = groups.filter(group =>
     group.group_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     group.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -68,7 +68,7 @@ export default function GroupsTable({
     group.curator_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Сортировка групп
+  // Sort groups
   const sortedGroups = [...filteredGroups].sort((a, b) => {
     let aValue: any = a[sortField];
     let bValue: any = b[sortField];
@@ -98,20 +98,20 @@ export default function GroupsTable({
   };
 
   const getPerformanceBadge = (percentage: number) => {
-    if (percentage >= 80) return <Badge variant="default">Отлично</Badge>;
-    if (percentage >= 60) return <Badge variant="secondary">Хорошо</Badge>;
-    if (percentage >= 40) return <Badge variant="outline">Удовлетворительно</Badge>;
-    return <Badge variant="destructive">Требует внимания</Badge>;
+    if (percentage >= 80) return <Badge variant="default">Excellent</Badge>;
+    if (percentage >= 60) return <Badge variant="secondary">Good</Badge>;
+    if (percentage >= 40) return <Badge variant="outline">Satisfactory</Badge>;
+    return <Badge variant="destructive">Needs Attention</Badge>;
   };
 
   const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return hours > 0 ? `${hours}ч ${mins}м` : `${mins}м`;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ru-RU');
+    return new Date(dateString).toLocaleDateString('en-US');
   };
 
   if (isLoading) {
@@ -120,7 +120,7 @@ export default function GroupsTable({
         <CardContent className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Загрузка групп...</p>
+            <p>Loading groups...</p>
           </div>
         </CardContent>
       </Card>
@@ -134,24 +134,24 @@ export default function GroupsTable({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Группы ({groups.length})
+              Groups ({groups.length})
             </CardTitle>
           </div>
           <div className="flex gap-2">
             {onExportAll && (
               <Button variant="outline" onClick={onExportAll}>
                 <Download className="w-4 h-4 mr-2" />
-                Экспорт всех
+                Export All
               </Button>
             )}
           </div>
         </div>
         
-        {/* Поиск */}
+        {/* Search */}
         <div className="flex items-center space-x-2">
           <Search className="w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Поиск по названию группы, описанию, преподавателю или куратору..."
+            placeholder="Search by group name, description, teacher or curator..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
@@ -164,7 +164,7 @@ export default function GroupsTable({
           <div className="text-center py-8">
             <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
-              {searchTerm ? 'Группы не найдены' : 'Нет доступных групп'}
+              {searchTerm ? 'No groups found' : 'No groups available'}
             </p>
           </div>
         ) : (
@@ -178,17 +178,17 @@ export default function GroupsTable({
                       onClick={() => handleSort('group_name')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Группа {getSortIcon('group_name')}
+                      Group {getSortIcon('group_name')}
                     </Button>
                   </TableHead>
-                  <TableHead>Преподаватель / Куратор</TableHead>
+                  <TableHead>Teacher / Curator</TableHead>
                   <TableHead>
                     <Button 
                       variant="ghost" 
                       onClick={() => handleSort('students_count')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Студенты {getSortIcon('students_count')}
+                      Students {getSortIcon('students_count')}
                     </Button>
                   </TableHead>
                   <TableHead>
@@ -197,7 +197,7 @@ export default function GroupsTable({
                       onClick={() => handleSort('average_completion_percentage')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Средний прогресс {getSortIcon('average_completion_percentage')}
+                      Avg Progress {getSortIcon('average_completion_percentage')}
                     </Button>
                   </TableHead>
                   <TableHead>
@@ -206,7 +206,7 @@ export default function GroupsTable({
                       onClick={() => handleSort('average_assignment_score_percentage')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Средний балл {getSortIcon('average_assignment_score_percentage')}
+                      Avg Score {getSortIcon('average_assignment_score_percentage')}
                     </Button>
                   </TableHead>
                   <TableHead>
@@ -215,12 +215,12 @@ export default function GroupsTable({
                       onClick={() => handleSort('average_study_time_minutes')}
                       className="h-auto p-0 font-semibold"
                     >
-                      Среднее время {getSortIcon('average_study_time_minutes')}
+                      Avg Time {getSortIcon('average_study_time_minutes')}
                     </Button>
                   </TableHead>
-                  <TableHead>Создана</TableHead>
-                  <TableHead>Статус</TableHead>
-                  <TableHead>Действия</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -252,7 +252,7 @@ export default function GroupsTable({
                           </div>
                         )}
                         {!group.teacher_name && !group.curator_name && (
-                          <span className="text-sm text-muted-foreground">Не назначены</span>
+                          <span className="text-sm text-muted-foreground">Not assigned</span>
                         )}
                       </div>
                     </TableCell>
@@ -301,7 +301,7 @@ export default function GroupsTable({
                             variant="ghost"
                             size="sm"
                             onClick={() => onViewGroup(group.group_id)}
-                            title="Просмотреть студентов группы"
+                            title="View group students"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -311,7 +311,7 @@ export default function GroupsTable({
                             variant="ghost"
                             size="sm"
                             onClick={() => onExportGroup(group.group_id)}
-                            title="Экспорт отчета по группе"
+                            title="Export group report"
                           >
                             <Download className="w-4 h-4" />
                           </Button>
