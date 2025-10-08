@@ -10,6 +10,7 @@ import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
 import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
+import FlashcardViewer from '../components/lesson/FlashcardViewer';
 
 interface LessonSidebarProps {
   course: Course | null;
@@ -689,6 +690,25 @@ export default function LessonPage() {
                     </span>
                   </div>
 
+                  {/* Media Attachment for Media Questions */}
+                  {q.question_type === 'media_question' && q.media_url && (
+                    <div className="mb-4">
+                      {q.media_type === 'pdf' ? (
+                        <iframe
+                          src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                          className="w-full h-64 border rounded-lg"
+                          title="Question PDF"
+                        />
+                      ) : (
+                        <img 
+                          src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
+                          alt="Question media" 
+                          className="w-full max-h-64 object-contain rounded-lg border"
+                        />
+                      )}
+                    </div>
+                  )}
+
                   {/* Content Text */}
                   {q.content_text && (
                     <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
@@ -701,8 +721,29 @@ export default function LessonPage() {
                     <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
                   </h3>
 
-                  {/* Options / Fill in the blank */}
-                  {q.question_type !== 'fill_blank' ? (
+                  {/* Answer Input Based on Question Type */}
+                  {q.question_type === 'long_text' ? (
+                    <div className="space-y-4">
+                      <textarea
+                        value={userAnswer || ''}
+                        onChange={(e) => setQuizAnswers(prev => new Map(prev.set(q.id, e.target.value)))}
+                        placeholder="Enter your detailed answer here..."
+                        className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-vertical"
+                        maxLength={q.expected_length || 1000}
+                        disabled={feedChecked}
+                      />
+                      {q.expected_length && (
+                        <div className="text-sm text-gray-500 text-right">
+                          {(userAnswer || '').length} / {q.expected_length} characters
+                        </div>
+                      )}
+                      {q.keywords && q.keywords.length > 0 && (
+                        <div className="text-sm text-gray-600">
+                          <strong>Hint:</strong> Try to include these concepts: {q.keywords.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : q.question_type === 'single_choice' || q.question_type === 'multiple_choice' || q.question_type === 'media_question' ? (
                     <div className="space-y-2">
                       {q.options?.map((option: any, optionIndex: number) => {
                         const isSelected = userAnswer === optionIndex;
@@ -973,6 +1014,8 @@ export default function LessonPage() {
           const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
           return current.every(v => (v||'').toString().trim() !== '');
         })()
+      : question.question_type === 'long_text'
+      ? (userAnswer && typeof userAnswer === 'string' && userAnswer.trim().length > 0)
       : userAnswer !== undefined;
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
@@ -1000,6 +1043,25 @@ export default function LessonPage() {
         {/* Question Card */}
         <div className="">
           <div className="p-3">
+            {/* Media Attachment for Media Questions */}
+            {question.question_type === 'media_question' && question.media_url && (
+              <div className="mb-6">
+                {question.media_type === 'pdf' ? (
+                  <iframe
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${question.media_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                    className="w-full h-96 border rounded-lg"
+                    title="Question PDF"
+                  />
+                ) : (
+                  <img 
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${question.media_url}`}
+                    alt="Question media" 
+                    className="w-full max-h-96 object-contain rounded-lg border"
+                  />
+                )}
+              </div>
+            )}
+
             {/* Content Text for SAT questions (skip for fill-in-the-gaps to avoid duplication) */}
             {question.content_text && question.question_type !== 'fill_blank' && (
               <div className="bg-gray-50 p-4 rounded-lg mb-6 border-l-3 border-blue-400">
@@ -1019,8 +1081,29 @@ export default function LessonPage() {
               </h3>
             )}
 
-            {/* Options or Fill in the blank */}
-            {question.question_type !== 'fill_blank' ? (
+
+            {/* Answer Input Based on Question Type */}
+            {question.question_type === 'long_text' ? (
+              <div className="space-y-4">
+                <textarea
+                  value={userAnswer || ''}
+                  onChange={(e) => handleQuizAnswer(question.id, e.target.value)}
+                  placeholder="Enter your detailed answer here..."
+                  className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-vertical"
+                  maxLength={question.expected_length || 1000}
+                />
+                {question.expected_length && (
+                  <div className="text-sm text-gray-500 text-right">
+                    {(userAnswer || '').length} / {question.expected_length} characters
+                  </div>
+                )}
+                {question.keywords && question.keywords.length > 0 && (
+                  <div className="text-sm text-gray-600">
+                    <strong>Hint:</strong> Try to include these concepts: {question.keywords.join(', ')}
+                  </div>
+                )}
+              </div>
+            ) : question.question_type === 'single_choice' || question.question_type === 'multiple_choice' || question.question_type === 'media_question' ? (
               <div className="space-y-3">
                 {question.options?.map((option: any, optionIndex: number) => {
                   const isSelected = userAnswer === optionIndex;
@@ -1547,28 +1630,34 @@ export default function LessonPage() {
           <div>
             {quizContent}
             
-            {/* Quiz Progress Indicator */}
-            {currentStep && (
-              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-green-800">Статус квиза</span>
-                  <span className="text-sm text-green-600">
-                    {quizCompleted.get(currentStep.id.toString()) ? 'Завершен' : 'Не завершен'}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-3 h-3 rounded-full ${quizCompleted.get(currentStep.id.toString()) ? 'bg-green-500' : 'bg-gray-300'}`} />
-                  <p className="text-xs text-green-600">
-                    {quizCompleted.get(currentStep.id.toString()) 
-                      ? 'Квиз завершен. Можно переходить к следующему шагу.'
-                      : 'Для перехода к следующему шагу необходимо завершить квиз.'
-                    }
-                  </p>
-                </div>
-              </div>
-            )}
+           
           </div>
         );
+      
+      case 'flashcard':
+        try {
+          const flashcardData = JSON.parse(currentStep.content_text || '{}');
+          return (
+            <div>
+              <FlashcardViewer
+                flashcardSet={flashcardData}
+                onComplete={() => {
+                  // Mark flashcard step as completed
+                  if (currentStep) {
+                    markStepAsVisited(currentStep.id.toString(), 5); // 5 minutes for flashcard completion
+                  }
+                }}
+                onProgress={(completed, total) => {
+                  // Optional: track flashcard progress
+                  console.log(`Flashcard progress: ${completed}/${total}`);
+                }}
+              />
+            </div>
+          );
+        } catch (error) {
+          console.error('Failed to parse flashcard data:', error);
+          return <div>Error loading flashcards</div>;
+        }
       
       default:
         return <div>Unsupported content type</div>;
@@ -1734,7 +1823,7 @@ export default function LessonPage() {
                     <span className="hidden sm:inline">•</span>
                     <span className="text-orange-600 font-medium">
                       {currentStep.content_type === 'video_text' ? 'Видео не завершено' : 
-                       currentStep.content_type === 'quiz' ? 'Квиз не завершен' : 
+                       currentStep.content_type === 'quiz' ? 'Quiz is not complete' : 
                        'Шаг не завершен'}
                     </span>
                   </>

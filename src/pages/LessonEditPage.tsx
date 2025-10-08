@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
-import type { Course, CourseModule, Lesson, LessonContentType, Assignment, Question, Step } from '../types';
+import type { Course, CourseModule, Lesson, LessonContentType, Assignment, Question, Step, FlashcardSet } from '../types';
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -24,6 +24,7 @@ import { isValidYouTubeUrl } from '../utils/youtube';
 import VideoLessonEditor from '../components/lesson/VideoLessonEditor';
 import TextLessonEditor from '../components/lesson/TextLessonEditor';
 import QuizLessonEditor from '../components/lesson/QuizLessonEditor';
+import FlashcardEditor from '../components/lesson/FlashcardEditor';
 import Loader from '../components/Loader.tsx';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -585,12 +586,22 @@ export default function LessonEditPage() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
   const [stepTitle, setStepTitle] = useState('');
-  const [stepContentType, setStepContentType] = useState<'text' | 'video_text' | 'quiz'>('text');
+  const [stepContentType, setStepContentType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard'>('text');
   const [stepContent, setStepContent] = useState('');
   const [stepVideoUrl, setStepVideoUrl] = useState('');
   const [stepQuizTitle, setStepQuizTitle] = useState('');
   const [stepQuizQuestions, setStepQuizQuestions] = useState<Question[]>([]);
   const [stepQuizDisplayMode, setStepQuizDisplayMode] = useState<'one_by_one' | 'all_at_once'>('one_by_one');
+  
+  // Flashcard state
+  const [stepFlashcardSet, setStepFlashcardSet] = useState<FlashcardSet>({
+    title: '',
+    description: '',
+    cards: [],
+    study_mode: 'sequential',
+    auto_flip: false,
+    show_progress: true
+  });
   
   // Temporary files for new steps
   const [tempFiles, setTempFiles] = useState<Map<number, File[]>>(new Map());
@@ -608,7 +619,7 @@ export default function LessonEditPage() {
   
   const [stepQuizTimeLimit, setStepQuizTimeLimit] = useState<number | undefined>(undefined);
   const [showAddStepModal, setShowAddStepModal] = useState(false);
-  const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz'>('text');
+  const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard'>('text');
   const [showQuizTypeDialog, setShowQuizTypeDialog] = useState(false);
   const [pendingStepNumber, setPendingStepNumber] = useState<number | null>(null);
   const [selectedQuizType, setSelectedQuizType] = useState<'single_choice' | 'fill_blank'>('single_choice');
@@ -920,6 +931,39 @@ export default function LessonEditPage() {
       setStepQuizTimeLimit(undefined);
       setStepQuizDisplayMode('one_by_one');
     }
+
+    if (step.content_type === 'flashcard') {
+      try {
+        const flashcardData = JSON.parse(step.content_text || '{}');
+        setStepFlashcardSet({
+          title: flashcardData.title || '',
+          description: flashcardData.description || '',
+          cards: flashcardData.cards || [],
+          study_mode: flashcardData.study_mode || 'sequential',
+          auto_flip: flashcardData.auto_flip || false,
+          show_progress: flashcardData.show_progress !== false
+        });
+      } catch (e) {
+        console.error('Failed to parse flashcard data:', e);
+        setStepFlashcardSet({
+          title: '',
+          description: '',
+          cards: [],
+          study_mode: 'sequential',
+          auto_flip: false,
+          show_progress: true
+        });
+      }
+    } else {
+      setStepFlashcardSet({
+        title: '',
+        description: '',
+        cards: [],
+        study_mode: 'sequential',
+        auto_flip: false,
+        show_progress: true
+      });
+    }
   };
 
   const deleteStep = async (stepId: number) => {
@@ -962,6 +1006,9 @@ export default function LessonEditPage() {
           display_mode: stepQuizDisplayMode
         });
         updated.video_url = '';
+      } else if (stepContentType === 'flashcard') {
+        updated.content_text = JSON.stringify(stepFlashcardSet);
+        updated.video_url = '';
       }
       return { ...s, ...updated } as Step;
     });
@@ -974,6 +1021,7 @@ export default function LessonEditPage() {
       case 'video_text': return <Video className="w-4 h-4" />;
       case 'quiz': return <QuizIcon className="w-4 h-4" />;
       case 'text': return <FileText className="w-4 h-4" />;
+      case 'flashcard': return <BookOpen className="w-4 h-4" />;
       default: return <Edit3 className="w-4 h-4" />;
     }
   };
@@ -1006,6 +1054,9 @@ export default function LessonEditPage() {
               time_limit_minutes: stepQuizTimeLimit,
               display_mode: stepQuizDisplayMode
             });
+            updated.video_url = '';
+          } else if (stepContentType === 'flashcard') {
+            updated.content_text = JSON.stringify(stepFlashcardSet);
             updated.video_url = '';
           }
           return { ...s, ...updated } as Step;
@@ -1460,6 +1511,15 @@ export default function LessonEditPage() {
                       </div>
                     )}
 
+                    {stepContentType === 'flashcard' && (
+                      <div className="space-y-3">
+                        <FlashcardEditor
+                          flashcardSet={stepFlashcardSet}
+                          setFlashcardSet={setStepFlashcardSet}
+                        />
+                      </div>
+                    )}
+
                    
                    </div>
                  </div>
@@ -1568,6 +1628,25 @@ export default function LessonEditPage() {
                   <div>
                     <h3 className="font-medium">Quiz</h3>
                     <p className="text-sm text-muted-foreground">Interactive quiz with questions</p>
+                  </div>
+                </div>
+              </div>
+
+              <div 
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                  newStepType === 'flashcard' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setNewStepType('flashcard')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <BookOpen className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium">Flashcards</h3>
+                    <p className="text-sm text-muted-foreground">Interactive flashcards for vocabulary learning</p>
                   </div>
                 </div>
               </div>
