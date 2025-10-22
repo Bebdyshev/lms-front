@@ -4,6 +4,8 @@ import apiClient from '../services/api';
 import CourseSidebar from '../components/CourseSidebar';
 import type { Course } from '../types';
 import { Save, Upload, Image as ImageIcon } from 'lucide-react';
+import { useUnsavedChangesWarning } from '../hooks/useUnsavedChangesWarning';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 
 export default function TeacherCourseDescriptionPage() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -16,6 +18,15 @@ export default function TeacherCourseDescriptionPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Unsaved changes warning
+  const { confirmLeave, cancelLeave, isBlocked } = useUnsavedChangesWarning({
+    hasUnsavedChanges,
+    message: 'You have unsaved changes in the course description. Are you sure you want to leave?',
+    onConfirmLeave: () => {
+      setHasUnsavedChanges(false);
+    }
+  });
 
   useEffect(() => {
     if (!courseId) return;
@@ -223,6 +234,15 @@ export default function TeacherCourseDescriptionPage() {
           </div>
         </div>
       </div>
+
+      {/* Unsaved Changes Warning Dialog */}
+      <UnsavedChangesDialog
+        open={isBlocked}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
+        title="Unsaved Course Description"
+        description="You have unsaved changes to the course description. Are you sure you want to leave? Your changes will be lost."
+      />
     </div>
   );
 }

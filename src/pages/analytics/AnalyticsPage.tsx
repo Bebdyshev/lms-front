@@ -30,6 +30,7 @@ import {
 import StudentsTable from '../../components/StudentsTable';
 import GroupsTable from '../../components/GroupsTable';
 import StudentDetailedProgress from '../../components/StudentDetailedProgress';
+import ExportToExcelModal from '../../components/ExportToSheetsModal';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface StudentAnalytics {
@@ -144,6 +145,7 @@ export default function AnalyticsPage() {
   const [videoAnalytics, setVideoAnalytics] = useState<any>(null);
   const [quizAnalytics, setQuizAnalytics] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Check if user has analytics access
   const hasAnalyticsAccess = user?.role && ['teacher', 'curator', 'admin'].includes(user.role);
@@ -983,21 +985,24 @@ export default function AnalyticsPage() {
           <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
           <p className="text-muted-foreground">Comprehensive learning analytics and insights</p>
         </div>
-        <Button variant="outline">
-          <Download className="w-4 h-4 mr-2" />
-          Export Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowExportModal(true)}
+            disabled={!selectedCourse}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export to Excel
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Course:</span>
-            </div>
-            <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+      <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Course:</span>
+        </div>
+        <Select value={selectedCourse} onValueChange={setSelectedCourse}>
               <SelectTrigger className="w-[300px]">
                 <SelectValue placeholder="Select a course to analyze" />
               </SelectTrigger>
@@ -1032,9 +1037,7 @@ export default function AnalyticsPage() {
                 </Select>
               </>
             )}
-          </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* View Tabs */}
       <div className="flex flex-wrap gap-1 mb-6">
@@ -1077,6 +1080,15 @@ export default function AnalyticsPage() {
           {selectedView === 'quiz' && renderQuizTab()}
         </div>
       )}
+
+      {/* Export to Excel Modal */}
+      <ExportToExcelModal
+        open={showExportModal}
+        onOpenChange={setShowExportModal}
+        courseId={selectedCourse}
+        courseName={courses.find(c => c.id.toString() === selectedCourse)?.title || ''}
+        groups={courseGroups}
+      />
     </div>
   );
 }

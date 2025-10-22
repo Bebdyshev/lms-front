@@ -1862,6 +1862,22 @@ class LMSApiClient {
     }
   }
 
+  async exportAnalyticsExcel(courseId: number, groupId?: number): Promise<Blob> {
+    try {
+      const response = await this.api.get('/analytics/export-excel', {
+        params: {
+          course_id: courseId,
+          ...(groupId && { group_id: groupId })
+        },
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to export analytics to Excel:', error);
+      throw error;
+    }
+  }
+
   async getStudentDetailedProgress(studentId: string, courseId?: string): Promise<any> {
     try {
       const params = courseId ? { course_id: courseId } : {};
@@ -2051,5 +2067,6 @@ export const getStudentProgressHistory = apiClient.getStudentProgressHistory.bin
 export const exportStudentReport = apiClient.exportStudentReport.bind(apiClient);
 export const exportGroupReport = apiClient.exportGroupReport.bind(apiClient);
 export const exportAllStudentsReport = apiClient.exportAllStudentsReport.bind(apiClient);
+export const exportAnalyticsExcel = apiClient.exportAnalyticsExcel.bind(apiClient);
 export const getStudentDetailedProgress = apiClient.getStudentDetailedProgress.bind(apiClient);
 export const getStudentLearningPath = apiClient.getStudentLearningPath.bind(apiClient);
