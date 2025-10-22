@@ -371,7 +371,7 @@ export default function LessonPage() {
             status: 'in_progress',
             started_at: new Date().toISOString(),
             visited_at: new Date().toISOString(),
-            completed_at: null,
+            completed_at: undefined,
             time_spent_minutes: 0
           });
         }
@@ -673,6 +673,37 @@ export default function LessonPage() {
           <p className="text-gray-600">Answer all questions below to continue</p>
         </div>
 
+        {/* Quiz-level Media for Audio/PDF Quizzes */}
+        {quizData?.quiz_media_url && (
+          <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">
+              {quizData.quiz_media_type === 'audio' ? 'Audio Material' : ''}
+            </h3>
+            {quizData.quiz_media_type === 'audio' ? (
+              <audio 
+                controls 
+                src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
+                className="w-full"
+              />
+            ) : quizData.quiz_media_type === 'pdf' ? (
+              <div className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="w-full h-[800px] border rounded-lg">
+                    <iframe
+                      src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                      className="w-full h-full"
+                      title="Question PDF"
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Reference this document to answer the questions below.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
+
         {/* Questions */}
         <div className="space-y-6">
           {questions.map((q, idx) => {
@@ -710,16 +741,24 @@ export default function LessonPage() {
                   )}
 
                   {/* Content Text */}
-                  {q.content_text && (
+                  {q.content_text && q.question_type !== 'text_completion' && (
                     <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                       <div className="text-gray-700" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
                     </div>
                   )}
 
                   {/* Question */}
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">
-                    <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
-                  </h3>
+                  {q.question_type !== 'text_completion' && (
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
+                    </h3>
+                  )}
+
+                  {q.question_type === 'text_completion' && (
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      Fill in the blanks:
+                    </h3>
+                  )}
 
                   {/* Answer Input Based on Question Type */}
                   {q.question_type === 'long_text' ? (
@@ -740,6 +779,90 @@ export default function LessonPage() {
                       {q.keywords && q.keywords.length > 0 && (
                         <div className="text-sm text-gray-600">
                           <strong>Hint:</strong> Try to include these concepts: {q.keywords.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : q.question_type === 'short_answer' ? (
+                    <div className="space-y-4">
+                      <input
+                        type="text"
+                        value={userAnswer || ''}
+                        onChange={(e) => setQuizAnswers(prev => new Map(prev.set(q.id, e.target.value)))}
+                        placeholder="Enter your answer..."
+                        className="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                        disabled={feedChecked}
+                      />
+                      {feedChecked && (
+                        <div className="mt-2 text-sm">
+                          {(userAnswer || '').toString().trim().toLowerCase() === (q.correct_answer || '').toString().trim().toLowerCase() ? (
+                            <span className="text-green-700">Correct answer! ✓</span>
+                          ) : (
+                            <div className="text-red-700">
+                              <div>Incorrect answer.</div>
+                              <div className="mt-1">
+                                <strong>Correct answer:</strong> {q.correct_answer}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : q.question_type === 'text_completion' ? (
+                    <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="leading-relaxed">
+                        {(() => {
+                          const text = (q.content_text || '').toString();
+                          const parts = text.split(/\[\[(.*?)\]\]/g);
+                          let gapIndex = 0;
+                          const currentAnswers = gapAnswers.get(q.id) || [];
+                          
+                          return (
+                            <div className="flex flex-wrap items-baseline gap-1">
+                              {parts.map((part: string, index: number) => {
+                                const isGap = index % 2 === 1;
+                                if (!isGap) {
+                                  return <span key={index} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                                }
+                                const currentGapIndex = gapIndex++;
+                                return (
+                                  <input
+                                    key={index}
+                                    type="text"
+                                    value={currentAnswers[currentGapIndex] || ''}
+                                    onChange={(e) => {
+                                      const newAnswers = [...currentAnswers];
+                                      newAnswers[currentGapIndex] = e.target.value;
+                                      setGapAnswers(prev => new Map(prev.set(q.id, newAnswers)));
+                                    }}
+                                    className="inline-block mx-1 px-2 py-1 border-b-2 border-blue-500 bg-transparent text-center w-[120px] focus:outline-none focus:border-blue-700"
+                                    disabled={feedChecked}
+                                  />
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      {feedChecked && (
+                        <div className="mt-3 text-sm">
+                          {(() => {
+                            const correctAnswers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+                            const userAnswers = gapAnswers.get(q.id) || [];
+                            const isCorrect = userAnswers.length === correctAnswers.length && 
+                              userAnswers.every((val, idx) => (val||'').trim().toLowerCase() === (correctAnswers[idx]||'').toString().trim().toLowerCase());
+                            
+                            if (isCorrect) {
+                              return <span className="text-green-700">All blanks correct! ✓</span>;
+                            } else {
+                              return (
+                                <div className="text-red-700">
+                                  <div className="mt-1">
+                                    <strong>Correct answers:</strong> {correctAnswers.join(', ')}
+                                  </div>
+                                </div>
+                              );
+                            }
+                          })()}
                         </div>
                       )}
                     </div>
@@ -915,12 +1038,26 @@ export default function LessonPage() {
                 if (q.question_type === 'fill_blank') {
                   return !ans || (ans || '').toString().trim() === '';
                 }
+                if (q.question_type === 'text_completion') {
+                  const gapAns = gapAnswers.get(q.id) || [];
+                  return gapAns.length === 0 || gapAns.some(v => (v||'').toString().trim() === '');
+                }
+                if (q.question_type === 'short_answer' || q.question_type === 'long_text') {
+                  return !ans || (ans || '').toString().trim() === '';
+                }
                 return ans === undefined;
               })}
               className={`px-8 py-3 rounded-lg text-lg font-semibold transition-all duration-200 ${
                 questions.some(q => {
                   const ans = quizAnswers.get(q.id);
                   if (q.question_type === 'fill_blank') {
+                    return !ans || (ans || '').toString().trim() === '';
+                  }
+                  if (q.question_type === 'text_completion') {
+                    const gapAns = gapAnswers.get(q.id) || [];
+                    return gapAns.length === 0 || gapAns.some(v => (v||'').toString().trim() === '');
+                  }
+                  if (q.question_type === 'short_answer' || q.question_type === 'long_text') {
                     return !ans || (ans || '').toString().trim() === '';
                   }
                   return ans === undefined;
@@ -1014,7 +1151,12 @@ export default function LessonPage() {
           const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
           return current.every(v => (v||'').toString().trim() !== '');
         })()
-      : question.question_type === 'long_text'
+      : question.question_type === 'text_completion'
+      ? (() => {
+          const current = gapAnswers.get(question.id) || [];
+          return current.length > 0 && current.every(v => (v||'').toString().trim() !== '');
+        })()
+      : question.question_type === 'long_text' || question.question_type === 'short_answer'
       ? (userAnswer && typeof userAnswer === 'string' && userAnswer.trim().length > 0)
       : userAnswer !== undefined;
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -1040,6 +1182,49 @@ export default function LessonPage() {
           </div>
         </div>
 
+        {/* Quiz-level Media for Audio/PDF Quizzes */}
+        {quizData?.quiz_media_url && (
+          <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">
+              {quizData.quiz_media_type === 'audio' ? '🎵 Audio Material' : (
+                <div className="space-y-2">
+                  <a 
+                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Open PDF →
+                  </a>
+                </div>
+              )}
+            </h3>
+            {quizData.quiz_media_type === 'audio' ? (
+              <audio 
+                controls 
+                src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
+                className="w-full"
+              />
+            ) : quizData.quiz_media_type === 'pdf' ? (
+              <div className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <a 
+                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Open PDF →
+                  </a>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Reference this document to answer the questions below.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
+
         {/* Question Card */}
         <div className="">
           <div className="p-3">
@@ -1062,14 +1247,14 @@ export default function LessonPage() {
               </div>
             )}
 
-            {/* Content Text for SAT questions (skip for fill-in-the-gaps to avoid duplication) */}
-            {question.content_text && question.question_type !== 'fill_blank' && (
+            {/* Content Text for SAT questions (skip for fill-in-the-gaps and text-completion to avoid duplication) */}
+            {question.content_text && question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' && (
               <div className="bg-gray-50 p-4 rounded-lg mb-6 border-l-3 border-blue-400">
                 <div className="text-gray-700" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.content_text) }} />
               </div>
             )}
 
-            {question.question_type !== 'fill_blank' && (
+            {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' && (
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
               </h3>
@@ -1081,6 +1266,11 @@ export default function LessonPage() {
               </h3>
             )}
 
+            {question.question_type === 'text_completion' && (
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                Fill in the blanks
+              </h3>
+            )}
 
             {/* Answer Input Based on Question Type */}
             {question.question_type === 'long_text' ? (
@@ -1102,6 +1292,54 @@ export default function LessonPage() {
                     <strong>Hint:</strong> Try to include these concepts: {question.keywords.join(', ')}
                   </div>
                 )}
+              </div>
+            ) : question.question_type === 'short_answer' ? (
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={userAnswer || ''}
+                  onChange={(e) => handleQuizAnswer(question.id, e.target.value)}
+                  placeholder="Enter your answer..."
+                  className="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            ) : question.question_type === 'text_completion' ? (
+              <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                <div className="text-sm text-gray-600 mb-3">Fill in the blanks:</div>
+                <div className="leading-relaxed">
+                  {(() => {
+                    const text = (question.content_text || '').toString();
+                    const parts = text.split(/\[\[(.*?)\]\]/g);
+                    let gapIndex = 0;
+                    const currentAnswers = gapAnswers.get(question.id) || [];
+                    
+                    return (
+                      <div className="flex flex-wrap items-baseline gap-1">
+                        {parts.map((part: string, index: number) => {
+                          const isGap = index % 2 === 1;
+                          if (!isGap) {
+                            return <span key={index} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                          }
+                          const currentGapIndex = gapIndex++;
+                          return (
+                            <input
+                              key={index}
+                              type="text"
+                              value={currentAnswers[currentGapIndex] || ''}
+                              onChange={(e) => {
+                                const newAnswers = [...currentAnswers];
+                                newAnswers[currentGapIndex] = e.target.value;
+                                setGapAnswers(prev => new Map(prev.set(question.id, newAnswers)));
+                              }}
+                              className="inline-block mx-1 px-2 py-1 border-b-2 border-blue-500 bg-transparent text-center min-w-[80px] focus:outline-none focus:border-blue-700"
+                              placeholder="____"
+                            />
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             ) : question.question_type === 'single_choice' || question.question_type === 'multiple_choice' || question.question_type === 'media_question' ? (
               <div className="space-y-3">
@@ -1272,7 +1510,7 @@ export default function LessonPage() {
         {/* Question Review */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="p-8">
-            {question.question_type !== 'fill_blank' && (
+            {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' && (
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
               </h3>
@@ -1283,8 +1521,14 @@ export default function LessonPage() {
                 Fill in the gaps
               </h3>
             )}
+
+            {question.question_type === 'text_completion' && (
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                Fill in the blanks
+              </h3>
+            )}
             
-            {question.question_type !== 'fill_blank' ? (
+            {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' ? (
               /* Options Review */
               <div className="space-y-4">
                 {question.options?.map((option: any, optionIndex: number) => {

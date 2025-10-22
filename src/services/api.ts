@@ -896,6 +896,28 @@ class LMSApiClient {
     }
   }
 
+  async uploadQuestionMedia(file: File): Promise<{
+    file_url: string;
+    filename: string;
+    original_filename: string;
+    file_size: number;
+  }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('file_type', 'question_media');
+
+      const response = await this.api.post('/media/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload question media file');
+    }
+  }
+
   async downloadFile(fileType: string, filename: string): Promise<Blob> {
     try {
       const response = await this.api.get(`/media/files/${fileType}/${filename}`, {
@@ -1073,8 +1095,7 @@ class LMSApiClient {
       {
         id: 1,
         title: 'Sample Quiz',
-        description: 'This is a sample quiz',
-        questions: []
+        question_media: ["pdf", "jpg", "png", "gif", "webp", "mp3", "wav", "ogg", "m4a"]  // For quiz question attachments and audio
       }
     ];
   }

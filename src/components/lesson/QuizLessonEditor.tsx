@@ -21,6 +21,12 @@ export interface QuizLessonEditorProps {
   setQuizTimeLimit: (limit: number | undefined) => void;
   quizDisplayMode?: 'one_by_one' | 'all_at_once';
   setQuizDisplayMode?: (mode: 'one_by_one' | 'all_at_once') => void;
+  quizType: 'regular' | 'audio' | 'pdf';
+  setQuizType: (type: 'regular' | 'audio' | 'pdf') => void;
+  quizMediaUrl: string;
+  setQuizMediaUrl: (url: string) => void;
+  quizMediaType: 'audio' | 'pdf' | '';
+  setQuizMediaType: (type: 'audio' | 'pdf' | '') => void;
 }
 
 export default function QuizLessonEditor({
@@ -32,6 +38,12 @@ export default function QuizLessonEditor({
   setQuizTimeLimit,
   quizDisplayMode = 'one_by_one',
   setQuizDisplayMode,
+  quizType,
+  setQuizType,
+  quizMediaUrl,
+  setQuizMediaUrl,
+  quizMediaType,
+  setQuizMediaType,
 }: QuizLessonEditorProps) {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [draftQuestion, setDraftQuestion] = useState<Question | null>(null);
@@ -106,13 +118,33 @@ export default function QuizLessonEditor({
       if (answers.length === 0) {
         errors.push('Please add at least one gap [[answer]] in the passage');
       }
+    } else if (question.question_type === 'short_answer') {
+      // Short answer questions need a correct answer
+      if (!question.correct_answer || (typeof question.correct_answer === 'string' && !question.correct_answer.trim())) {
+        errors.push('Please provide the correct answer');
+      }
+    } else if (question.question_type === 'text_completion') {
+      // Text completion questions need passage with gaps and correct answers
+      const text = (question.content_text || '').toString();
+      const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+      if (gaps.length === 0) {
+        errors.push('Please add gaps using [[answer]] format in the text');
+      }
+      const answers = Array.isArray(question.correct_answer) ? question.correct_answer : [];
+      if (answers.length !== gaps.length) {
+        errors.push('Number of answers must match number of gaps');
+      }
+      if (answers.some((answer: string) => !answer || !answer.trim())) {
+        errors.push('All gap answers must be provided');
+      }
     } else if (question.question_type === 'long_text') {
       // Long text questions don't need options validation
       if (!question.correct_answer && question.correct_answer !== '') {
         // For long text, we just need some placeholder for correct_answer
+        errors.push('Please provide sample answer or grading criteria');
       }
-    } else {
-      // For single_choice, multiple_choice, media_question - require options
+    } else if (question.question_type === 'single_choice' || question.question_type === 'multiple_choice' || question.question_type === 'media_question') {
+      // single_choice, multiple_choice, media_question - require options
       const hasOptionContent = question.options?.some(opt => opt.text.trim());
       if (hasOptionContent && (typeof question.correct_answer !== 'number' || question.correct_answer < 0)) {
         errors.push('Please select a correct answer');
@@ -196,32 +228,42 @@ export default function QuizLessonEditor({
   const uploadQuestionMedia = React.useCallback(async (file: File) => {
     setIsUploadingMedia(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('file_type', 'question_media');
-
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}/media/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload media');
-      }
-
-      const result = await response.json();
+      const result = await apiClient.uploadQuestionMedia(file);
       return result;
     } catch (error) {
       console.error('Error uploading media:', error);
-      alert('Failed to upload media. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload media. Please try again.';
+      alert(errorMessage);
       return null;
     } finally {
       setIsUploadingMedia(false);
     }
   }, []);
+
+  const uploadQuizMedia = React.useCallback(async (file: File) => {
+    setIsUploadingMedia(true);
+    try {
+      const result = await apiClient.uploadQuestionMedia(file);
+      if (result) {
+        setQuizMediaUrl(result.file_url);
+        const fileType = file.type.startsWith('audio/') ? 'audio' : 'pdf';
+        setQuizMediaType(fileType);
+        
+        // Force "all at once" for PDF quizzes
+        if (fileType === 'pdf' && setQuizDisplayMode) {
+          setQuizDisplayMode('all_at_once');
+        }
+      }
+      return result;
+    } catch (error) {
+      console.error('Error uploading quiz media:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload quiz media. Please try again.';
+      alert(errorMessage);
+      return null;
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  }, [setQuizMediaUrl, setQuizMediaType, setQuizDisplayMode]);
 
   const analyzeImageFile = React.useCallback(async (file: File) => {
     setIsAnalyzingImage(true);
@@ -338,6 +380,140 @@ export default function QuizLessonEditor({
         </div>
       </div>
 
+      {/* Quiz Type Selection */}
+      <div className="space-y-3">
+        <Label>Quiz Type</Label>
+        <div className="grid grid-cols-3 gap-3">
+          <div 
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+              quizType === 'regular' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setQuizType('regular')}
+          >
+            <div className="font-medium">Regular Quiz</div>
+            <div className="text-sm text-gray-600">Standard questions without media</div>
+          </div>
+          <div 
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+              quizType === 'audio' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setQuizType('audio')}
+          >
+            <div className="font-medium">Audio Quiz</div>
+            <div className="text-sm text-gray-600">Questions based on audio file</div>
+          </div>
+          <div 
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+              quizType === 'pdf' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setQuizType('pdf')}
+          >
+            <div className="font-medium">PDF Quiz</div>
+            <div className="text-sm text-gray-600">Questions based on PDF document</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Media Upload for Audio/PDF Quizzes */}
+      {(quizType === 'audio' || quizType === 'pdf') && (
+        <div className="space-y-3">
+          <Label>{quizType === 'audio' ? 'Audio File' : 'PDF Document'}</Label>
+          {quizMediaUrl ? (
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {quizType === 'audio' ? (
+                    <>
+                      🎵 <span className="font-medium">Audio uploaded</span>
+                    </>
+                  ) : (
+                    <>
+                      📄 <span className="font-medium">PDF uploaded</span>
+                    </>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {quizType === 'audio' && (
+                    <audio 
+                      controls 
+                      src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl}
+                      className="max-w-xs"
+                    />
+                  )}
+                  {quizType === 'pdf' && (
+                    <a 
+                      href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      View PDF →
+                    </a>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setQuizMediaUrl('');
+                      setQuizMediaType('');
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div 
+              className="text-center border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors"
+              onDrop={async (e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  const isValidType = quizType === 'audio' 
+                    ? file.type.startsWith('audio/') 
+                    : file.type === 'application/pdf';
+                  if (isValidType) {
+                    await uploadQuizMedia(file);
+                  } else {
+                    alert(`Please upload a ${quizType === 'audio' ? 'audio' : 'PDF'} file.`);
+                  }
+                }
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnter={(e) => e.preventDefault()}
+            >
+              <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+              <div className="text-sm text-gray-600 mb-2">
+                {quizType === 'audio' 
+                  ? 'Drag & drop or click to upload audio file (MP3, WAV, etc.)'
+                  : 'Drag & drop or click to upload PDF document'
+                }
+              </div>
+              <input
+                type="file"
+                accept={quizType === 'audio' ? 'audio/*' : '.pdf'}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    await uploadQuizMedia(file);
+                  }
+                }}
+                className="hidden"
+                id={`quiz-media-upload-${quizType}`}
+              />
+              <label htmlFor={`quiz-media-upload-${quizType}`} className="cursor-pointer">
+                <Button variant="outline" size="sm" disabled={isUploadingMedia} asChild>
+                  <span>
+                    {isUploadingMedia ? 'Uploading...' : `Choose ${quizType === 'audio' ? 'Audio' : 'PDF'} File`}
+                  </span>
+                </Button>
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="time-limit">Time Limit (minutes) - Optional</Label>
         <Input
@@ -355,12 +531,20 @@ export default function QuizLessonEditor({
           <Label>Display Mode</Label>
           <div className="grid grid-cols-2 gap-3">
             <div 
-              className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                quizDisplayMode === 'one_by_one' 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : 'border-gray-200 hover:border-gray-300'
+              className={`p-3 border-2 rounded-lg transition-colors ${
+                quizType === 'pdf' 
+                  ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-100' 
+                  : `cursor-pointer ${
+                      quizDisplayMode === 'one_by_one' 
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`
               }`}
-              onClick={() => setQuizDisplayMode('one_by_one')}
+              onClick={() => {
+                if (quizType !== 'pdf' && quizType !== 'audio') {
+                  setQuizDisplayMode('one_by_one');
+                }
+              }}
             >
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-blue-500 rounded-full flex items-center justify-center">
@@ -369,6 +553,7 @@ export default function QuizLessonEditor({
                 <div>
                   <div className="font-medium text-sm">One by One</div>
                   <div className="text-xs text-gray-500">Show questions sequentially</div>
+                  {quizType === 'pdf' || quizType === 'audio' && <div className="text-xs text-gray-400">(Not available for PDF and Audio quizzes)</div>}
                 </div>
               </div>
             </div>
@@ -437,11 +622,42 @@ export default function QuizLessonEditor({
                   </div>
                 </div>
                 
+                   {/* Media Preview for Media Questions */}
+                   {q.question_type === 'media_question' && q.media_url && (
+                  <div className="mb-4 flex items-center justify-center">
+                    {q.media_type === 'image' ? (
+                      <img 
+                        src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + q.media_url} 
+                        alt="Question media" 
+                        className="max-w-full max-h-64 object-contain rounded-lg border shadow-sm"
+                      />
+                    ) : q.media_type === 'pdf' ? (
+                      <div className="border rounded-lg p-4 bg-blue-50">
+                        <div className="flex items-center gap-2 text-blue-700">
+                          <FileText className="w-5 h-5" />
+                          <span className="font-medium">PDF Document</span>
+                        </div>
+                        <a 
+                          href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + q.media_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm mt-1 inline-block"
+                        >
+                          View PDF →
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+                
                 {!!q.content_text && (
                   <div className="bg-gray-50 p-3 rounded border">
                     <div className="text-gray-800" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
                   </div>
                 )}
+                
+             
+                
                 <div className="text-base font-semibold text-gray-900">
                   <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
                 </div>
@@ -538,7 +754,25 @@ export default function QuizLessonEditor({
                         <TabsContent value="passage" className="space-y-2">
                           <RichTextEditor
                             value={draftQuestion.content_text || ''}
-                            onChange={(value) => applyDraftUpdate({ content_text: value })}
+                            onChange={(value) => {
+                              console.log('RichTextEditor onChange:', value); // Debug log
+                              // For text_completion questions, extract answers and update both content and answers
+                              if (draftQuestion.question_type === 'text_completion') {
+                                const gaps = Array.from(value.matchAll(/\[\[(.*?)\]\]/g));
+                                const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
+                                console.log('Extracted answers:', answers); // Debug log
+                                
+                                // Use setTimeout to avoid potential race conditions with RichTextEditor
+                                setTimeout(() => {
+                                  applyDraftUpdate({ 
+                                    content_text: value,
+                                    correct_answer: answers 
+                                  });
+                                }, 0);
+                              } else {
+                                applyDraftUpdate({ content_text: value });
+                              }
+                            }}
                             placeholder="Enter passage. Use [[answer]] to mark gaps, e.g. 'The sky is [[blue]]'."
                             className="min-h-[200px]"
                           />
@@ -628,10 +862,24 @@ export default function QuizLessonEditor({
                               { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
                             ];
                           }
+                        } else if (val === 'short_answer') {
+                          next.question_type = 'short_answer';
+                          next.correct_answer = '';
+                          next.options = undefined; // Clear options for short_answer
                         } else if (val === 'fill_blank') {
                           next.question_type = 'fill_blank';
                           next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
                           next.options = undefined; // Clear options for fill_blank
+                        } else if (val === 'text_completion') {
+                          next.question_type = 'text_completion';
+                          next.correct_answer = [];
+                          next.options = undefined; // Clear options for text_completion
+                          // Auto-extract answers if content_text already has gaps
+                          if (next.content_text) {
+                            const gaps = Array.from(next.content_text.matchAll(/\[\[(.*?)\]\]/g));
+                            const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
+                            next.correct_answer = answers;
+                          }
                         } else if (val === 'long_text') {
                           next.question_type = 'long_text';
                           next.correct_answer = '';
@@ -645,7 +893,9 @@ export default function QuizLessonEditor({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="single_choice">Single choice</SelectItem>
+                        <SelectItem value="short_answer">Short answer</SelectItem>
                         <SelectItem value="fill_blank">Fill in the blank</SelectItem>
+                        <SelectItem value="text_completion">Text completion</SelectItem>
                         <SelectItem value="long_text">Long text answer</SelectItem>
                         <SelectItem value="media_question">Media-based question</SelectItem>
                       </SelectContent>
@@ -670,7 +920,7 @@ export default function QuizLessonEditor({
                         </div>
                         {draftQuestion.media_type === 'image' && (
                           <img 
-                            src={draftQuestion.media_url} 
+                            src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url} 
                             alt="Question media" 
                             className="max-w-xs max-h-48 object-contain rounded"
                           />
@@ -684,10 +934,28 @@ export default function QuizLessonEditor({
                         </Button>
                       </div>
                     ) : (
-                      <div className="text-center">
+                      <div 
+                        className="text-center border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors"
+                        onDrop={async (e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files?.[0];
+                          if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
+                            const result = await uploadQuestionMedia(file);
+                            if (result) {
+                              const mediaType = file.type.startsWith('image/') ? 'image' : 'pdf';
+                              applyDraftUpdate({ 
+                                media_url: result.file_url, 
+                                media_type: mediaType 
+                              });
+                            }
+                          }
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDragEnter={(e) => e.preventDefault()}
+                      >
                         <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                         <div className="text-sm text-gray-600 mb-2">
-                          Upload PDF or image for this question
+                          Drag & drop or click to upload PDF or image
                         </div>
                         <input
                           type="file"
@@ -706,16 +974,83 @@ export default function QuizLessonEditor({
                             }
                           }}
                           className="hidden"
-                          id="media-upload"
+                          id={`media-upload-${draftQuestion?.id || 'new'}`}
                         />
-                        <label htmlFor="media-upload" className="cursor-pointer">
-                          <Button variant="outline" size="sm" disabled={isUploadingMedia}>
-                            {isUploadingMedia ? 'Uploading...' : 'Choose File'}
+                        <label htmlFor={`media-upload-${draftQuestion?.id || 'new'}`} className="cursor-pointer">
+                          <Button variant="outline" size="sm" disabled={isUploadingMedia} asChild>
+                            <span>
+                              {isUploadingMedia ? 'Uploading...' : 'Choose File'}
+                            </span>
                           </Button>
                         </label>
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Short Answer Configuration */}
+              {draftQuestion.question_type === 'short_answer' && (
+                <div className="space-y-2">
+                  <Label htmlFor="correct-answer">Correct Answer</Label>
+                  <Input
+                    id="correct-answer"
+                    type="text"
+                    value={draftQuestion.correct_answer || ''}
+                    onChange={(e) => applyDraftUpdate({ correct_answer: e.target.value })}
+                    placeholder="Enter the correct answer"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Students will need to type this exact answer (case-insensitive matching)
+                  </p>
+                </div>
+              )}
+
+              {/* Text Completion Configuration */}
+              {draftQuestion.question_type === 'text_completion' && (
+                <div className="space-y-2">
+                  <Label>Gap Answers</Label>
+                  <p className="text-xs text-gray-500">
+                    Add gaps in the Passage above using [[answer]] format. Example: "The capital of France is [[Paris]]."
+                  </p>
+                  
+                  {/* Preview with detected gaps */}
+                  {draftQuestion.content_text && (
+                    <div className="space-y-2">
+                      <div className="p-3 bg-gray-50 border rounded-md text-sm">
+                        <div className="font-medium mb-2">Detected Gaps:</div>
+                        {(() => {
+                          const text = (draftQuestion.content_text || '').toString();
+                          const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+                          if (gaps.length === 0) {
+                            return <div className="text-gray-500">No gaps detected. Use [[answer]] format in the Passage above.</div>;
+                          }
+                          return gaps.map((gap, index) => (
+                            <div key={index} className="flex items-center gap-2 mb-2">
+                              <span className="text-gray-600">Gap {index + 1}:</span>
+                              <Input
+                                value={gap[1] || ''}
+                                onChange={(e) => {
+                                  const text = (draftQuestion.content_text || '').toString();
+                                  const newText = text.replace(
+                                    `[[${gap[1]}]]`, 
+                                    `[[${e.target.value}]]`
+                                  );
+                                  applyDraftUpdate({ content_text: newText });
+                                  // Update correct_answer array immediately
+                                  const updatedGaps = Array.from(newText.matchAll(/\[\[(.*?)\]\]/g));
+                                  const answers = updatedGaps.map(match => match[1].trim());
+                                  applyDraftUpdate({ correct_answer: answers });
+                                }}
+                                placeholder="Correct answer"
+                                className="w-32 text-sm"
+                              />
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -755,7 +1090,7 @@ export default function QuizLessonEditor({
                 </div>
               )}
 
-              {draftQuestion.question_type !== 'fill_blank' && draftQuestion.question_type !== 'long_text' ? (
+              {draftQuestion.question_type !== 'fill_blank' && draftQuestion.question_type !== 'long_text' && draftQuestion.question_type !== 'short_answer' && draftQuestion.question_type !== 'text_completion' ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Options (4)</Label>
