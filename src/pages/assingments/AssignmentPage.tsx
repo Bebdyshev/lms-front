@@ -1,19 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import apiClient, { debugSubmissions, debugDeleteSubmission } from "../services/api";
-import { toast } from '../components/Toast.tsx';
-import FileUpload from '../components/FileUpload';
+import apiClient, { debugSubmissions, debugDeleteSubmission } from "../../services/api.ts";
+import { toast } from '../../components/Toast.tsx';
+import FileUpload from '../../components/FileUpload.tsx';
 import { Calendar, Clock, AlertCircle, Download, Upload, Send, FileText, Award, File, CheckCircle, XCircle, MessageSquare, Star } from 'lucide-react';
-import type { Assignment, AssignmentStatus } from '../types';
-import { useAuth } from '../contexts/AuthContext';
+import type { Assignment, AssignmentStatus } from '../../types/index.ts';
+import { useAuth } from '../../contexts/AuthContext.tsx';
 import { useNavigate } from 'react-router-dom';
 
 // shadcn/ui components
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
-import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
+import { Button } from '../../components/ui/button.tsx';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card.tsx';
+import { Badge } from '../../components/ui/badge.tsx';
+import { Label } from '../../components/ui/label.tsx';
+import { Textarea } from '../../components/ui/textarea.tsx';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '../components/ui/dialog';
+} from '../../components/ui/dialog.tsx';
 
 export default function AssignmentPage() {
   const { id } = useParams<{ id: string }>();

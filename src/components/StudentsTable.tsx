@@ -159,12 +159,6 @@ export default function StudentsTable({
             </CardTitle>
           </div>
           <div className="flex gap-2">
-            {onExportAll && (
-              <Button variant="outline" onClick={onExportAll}>
-                <Download className="w-4 h-4 mr-2" />
-                Export All
-              </Button>
-            )}
           </div>
         </div>
         

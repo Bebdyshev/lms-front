@@ -32,6 +32,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
+import { useUnsavedChangesWarning } from '../hooks/useUnsavedChangesWarning';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 
 interface LessonSidebarProps {
   course: Course | null;
@@ -623,6 +625,10 @@ export default function LessonEditPage() {
   const [showQuizTypeDialog, setShowQuizTypeDialog] = useState(false);
   const [pendingStepNumber, setPendingStepNumber] = useState<number | null>(null);
   const [selectedQuizType, setSelectedQuizType] = useState<'single_choice' | 'fill_blank'>('single_choice');
+  
+  // State for step switching with unsaved changes
+  const [showStepSwitchDialog, setShowStepSwitchDialog] = useState(false);
+  const [pendingStepToSwitch, setPendingStepToSwitch] = useState<Step | null>(null);
 
   // Immediate auto-save function
   const immediateAutoSave = useCallback(
@@ -693,7 +699,14 @@ export default function LessonEditPage() {
     }
   }, [lessonId, lessonTitle, lessonContent, videoUrl, quizTitle, quizQuestions, quizTimeLimit, contentType, isLoading, immediateAutoSave]);
 
-  // Note: Removed beforeunload warning to avoid unwanted dialogs
+  // Unsaved changes warning - block navigation if there are unsaved changes
+  const { confirmLeave, cancelLeave, isBlocked } = useUnsavedChangesWarning({
+    hasUnsavedChanges,
+    message: 'You have unsaved changes in this lesson. Save this step before continuing!',
+    onConfirmLeave: () => {
+      setHasUnsavedChanges(false);
+    }
+  });
 
   const loadData = async () => {
     if (!courseId || !lessonId) return;
@@ -909,6 +922,18 @@ export default function LessonEditPage() {
   };
 
   const selectStep = (step: Step) => {
+    // Check if there are unsaved changes before switching
+    if (hasUnsavedChanges && step.id !== selectedStepId) {
+      setPendingStepToSwitch(step);
+      setShowStepSwitchDialog(true);
+      return;
+    }
+    
+    // Actually switch to the step
+    performStepSwitch(step);
+  };
+  
+  const performStepSwitch = (step: Step) => {
     setSelectedStepId(step.id);
     setStepTitle(step.title || `Step ${step.order_index || 1}`);
     setStepContentType(step.content_type);
@@ -1699,6 +1724,34 @@ export default function LessonEditPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Unsaved Changes Warning Dialog - for navigation */}
+      <UnsavedChangesDialog
+        open={isBlocked}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
+        title="Save This Step!"
+        description="You have unsaved changes in this step. Please save before moving to the next step or lesson to avoid losing your work."
+      />
+
+      {/* Step Switch Warning Dialog - for switching between steps */}
+      <UnsavedChangesDialog
+        open={showStepSwitchDialog}
+        onConfirm={() => {
+          if (pendingStepToSwitch) {
+            setHasUnsavedChanges(false);
+            performStepSwitch(pendingStepToSwitch);
+            setPendingStepToSwitch(null);
+          }
+          setShowStepSwitchDialog(false);
+        }}
+        onCancel={() => {
+          setPendingStepToSwitch(null);
+          setShowStepSwitchDialog(false);
+        }}
+        title="Save This Step!"
+        description="You have unsaved changes in this step. Please save before switching to another step to avoid losing your work."
+      />
     </div>
   );
 }

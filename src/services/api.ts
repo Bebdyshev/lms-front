@@ -1786,7 +1786,17 @@ class LMSApiClient {
       const response = await this.api.get('/analytics/groups');
       return response.data;
     } catch (error) {
-      console.error('Failed to get groups analytics:', error);
+      console.error('Failed to fetch groups analytics:', error);
+      throw error;
+    }
+  }
+
+  async getCourseGroupsAnalytics(courseId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/analytics/course/${courseId}/groups`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch course groups analytics:', error);
       throw error;
     }
   }
@@ -1848,6 +1858,22 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       console.error('Failed to export all students report:', error);
+      throw error;
+    }
+  }
+
+  async exportAnalyticsExcel(courseId: number, groupId?: number): Promise<Blob> {
+    try {
+      const response = await this.api.get('/analytics/export-excel', {
+        params: {
+          course_id: courseId,
+          ...(groupId && { group_id: groupId })
+        },
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to export analytics to Excel:', error);
       throw error;
     }
   }
@@ -2035,10 +2061,12 @@ export const getTeacherCourses = apiClient.getTeacherCourses.bind(apiClient);
 export const getProgressStudents = apiClient.getProgressStudents.bind(apiClient);
 export const getAllStudentsAnalytics = apiClient.getAllStudentsAnalytics.bind(apiClient);
 export const getGroupsAnalytics = apiClient.getGroupsAnalytics.bind(apiClient);
+export const getCourseGroupsAnalytics = apiClient.getCourseGroupsAnalytics.bind(apiClient);
 export const getGroupStudentsAnalytics = apiClient.getGroupStudentsAnalytics.bind(apiClient);
 export const getStudentProgressHistory = apiClient.getStudentProgressHistory.bind(apiClient);
 export const exportStudentReport = apiClient.exportStudentReport.bind(apiClient);
 export const exportGroupReport = apiClient.exportGroupReport.bind(apiClient);
 export const exportAllStudentsReport = apiClient.exportAllStudentsReport.bind(apiClient);
+export const exportAnalyticsExcel = apiClient.exportAnalyticsExcel.bind(apiClient);
 export const getStudentDetailedProgress = apiClient.getStudentDetailedProgress.bind(apiClient);
 export const getStudentLearningPath = apiClient.getStudentLearningPath.bind(apiClient);

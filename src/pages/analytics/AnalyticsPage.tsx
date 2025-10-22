@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Progress } from '../components/ui/progress';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Progress } from '../../components/ui/progress';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -21,16 +21,17 @@ import {
   fetchCourses,
   getAllStudentsAnalytics,
   getGroupsAnalytics,
+  getCourseGroupsAnalytics,
   getGroupStudentsAnalytics,
-  getStudentProgressHistory,
   exportStudentReport,
   exportGroupReport,
   exportAllStudentsReport
-} from '../services/api';
-import StudentsTable from '../components/StudentsTable';
-import GroupsTable from '../components/GroupsTable';
-import StudentDetailedProgress from '../components/StudentDetailedProgress';
-import { useAuth } from '../contexts/AuthContext';
+} from '../../services/api';
+import StudentsTable from '../../components/StudentsTable';
+import GroupsTable from '../../components/GroupsTable';
+import StudentDetailedProgress from '../../components/StudentDetailedProgress';
+import ExportToExcelModal from '../../components/ExportToSheetsModal';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface StudentAnalytics {
   student_info: {
@@ -137,12 +138,14 @@ export default function AnalyticsPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [courseGroups, setCourseGroups] = useState<any[]>([]);
   const [groupStudents, setGroupStudents] = useState<any[]>([]);
   const [courseOverview, setCourseOverview] = useState<CourseOverview | null>(null);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics | null>(null);
   const [videoAnalytics, setVideoAnalytics] = useState<any>(null);
   const [quizAnalytics, setQuizAnalytics] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Check if user has analytics access
   const hasAnalyticsAccess = user?.role && ['teacher', 'curator', 'admin'].includes(user.role);
@@ -157,6 +160,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (selectedCourse) {
       loadCourseOverview();
+      loadCourseGroups();
       if (selectedView === 'video') {
         loadVideoAnalytics();
       } else if (selectedView === 'quiz') {
@@ -292,6 +296,18 @@ export default function AnalyticsPage() {
     }
   };
 
+  const loadCourseGroups = async () => {
+    if (!selectedCourse) return;
+    
+    try {
+      const data = await getCourseGroupsAnalytics(selectedCourse);
+      setCourseGroups(data.groups || []);
+    } catch (error) {
+      console.error('Failed to load course groups:', error);
+      setCourseGroups([]);
+    }
+  };
+
   const loadGroupStudents = async () => {
     if (!selectedGroup) return;
     
@@ -420,7 +436,20 @@ export default function AnalyticsPage() {
   }
 
   const renderOverviewTab = () => {
-    if (!courseOverview) return <div>Select a course to view analytics</div>;
+    if (!courseOverview) {
+      return (
+        <Card className="p-12">
+          <div className="text-center">
+            <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Course Selected</h3>
+            <p className="text-muted-foreground mb-4">Please select a course from the dropdown above to view analytics</p>
+            <Badge variant="outline" className="text-sm">
+              {courses.length} courses available
+            </Badge>
+          </div>
+        </Card>
+      );
+    }
 
     const studentPerformanceData = courseOverview.student_performance.map(student => ({
       name: student.student_name.split(' ')[0],
@@ -433,9 +462,56 @@ export default function AnalyticsPage() {
       totalSteps: student.total_steps_available
     }));
 
+    // Calculate additional statistics
+    const avgStudyTimePerStudent = courseOverview.engagement.total_enrolled_students > 0
+      ? Math.round(courseOverview.engagement.total_time_spent_minutes / courseOverview.engagement.total_enrolled_students)
+      : 0;
+    
+    const studentsAbove80 = courseOverview.student_performance.filter(s => s.completion_percentage >= 80).length;
+    const studentsBelow50 = courseOverview.student_performance.filter(s => s.completion_percentage < 50).length;
+
     return (
       <div className="space-y-6">
-        {/* Course Info Cards */}
+        {/* Selected Course Info Banner */}
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen className="h-6 w-6 text-primary" />
+                  <h2 className="text-2xl font-bold">{courseOverview.course_info.title}</h2>
+                </div>
+                <p className="text-muted-foreground mb-4">
+                  👨‍🏫 Teacher: {courseOverview.course_info.teacher_name}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Badge variant="secondary" className="text-sm">
+                    📚 {courseOverview.structure.total_modules} Modules
+                  </Badge>
+                  <Badge variant="secondary" className="text-sm">
+                    📖 {courseOverview.structure.total_lessons} Lessons
+                  </Badge>
+                  <Badge variant="secondary" className="text-sm">
+                    ⚡ {courseOverview.structure.total_steps} Steps
+                  </Badge>
+                  <Badge variant="secondary" className="text-sm">
+                    👥 {courseOverview.engagement.total_enrolled_students} Students
+                  </Badge>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-2">
+                  <span className="text-3xl font-bold text-primary">
+                    {Math.round(courseOverview.engagement.average_completion_rate)}%
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">Avg Progress</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Key Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-6">
@@ -478,9 +554,51 @@ export default function AnalyticsPage() {
               <div className="flex items-center">
                 <TrendingUp className="h-8 w-8 text-orange-600" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Avg Completion</p>
-                  <p className="text-2xl font-bold">{Math.round(courseOverview.engagement.average_completion_rate)}%</p>
+                  <p className="text-sm font-medium text-muted-foreground">Completed Steps</p>
+                  <p className="text-2xl font-bold">{courseOverview.engagement.total_completed_steps}</p>
+                  <p className="text-xs text-muted-foreground">
+                    of {courseOverview.structure.total_steps * courseOverview.engagement.total_enrolled_students} total
+                  </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Additional Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Avg Time Per Student</p>
+                  <p className="text-xl font-bold">{Math.floor(avgStudyTimePerStudent / 60)}h {avgStudyTimePerStudent % 60}m</p>
+                </div>
+                <Clock className="h-8 w-8 text-blue-500/20" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Excellent Students (≥80%)</p>
+                  <p className="text-xl font-bold text-green-600">{studentsAbove80}</p>
+                </div>
+                <Award className="h-8 w-8 text-green-500/20" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Need Attention (&lt;50%)</p>
+                  <p className="text-xl font-bold text-red-600">{studentsBelow50}</p>
+                </div>
+                <AlertCircle className="h-8 w-8 text-red-500/20" />
               </div>
             </CardContent>
           </Card>
@@ -543,72 +661,27 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Student Performance Table */}
+        {/* Groups Performance Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Detailed Student Performance</CardTitle>
-            <p className="text-sm text-muted-foreground">Click on any student row to view comprehensive step-by-step analytics</p>
+            <CardTitle>Groups Performance in This Course</CardTitle>
+            <p className="text-sm text-muted-foreground">Analytics by groups for this specific course</p>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Student</th>
-                    <th className="text-left p-2">Progress</th>
-                    <th className="text-left p-2">Assignments</th>
-                    <th className="text-left p-2">Study Time</th>
-                    <th className="text-left p-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {courseOverview.student_performance.map((student) => (
-                    <tr 
-                      key={student.student_id} 
-                      className="border-b hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => handleViewDetailedProgress(student.student_id)}
-                      title="Click to view detailed analytics"
-                    >
-                      <td className="p-2">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-semibold">
-                            {student.student_name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div>
-                            <div className="font-medium">{student.student_name}</div>
-                            <div className="text-xs text-muted-foreground">Click for details</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="flex items-center space-x-2">
-                          <Progress value={student.completion_percentage} className="w-20" />
-                          <span className="text-sm">{Math.round(student.completion_percentage)}%</span>
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="text-sm">
-                          {student.completed_assignments}/{student.total_assignments}
-                          <div className="text-muted-foreground">
-                            {Math.round(student.assignment_score_percentage)}% avg
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="text-sm">
-                          {Math.round(student.time_spent_minutes / 60)}h {student.time_spent_minutes % 60}m
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <Badge variant={student.completion_percentage > 80 ? "default" : student.completion_percentage > 50 ? "secondary" : "destructive"}>
-                          {student.completion_percentage > 80 ? "Excellent" : student.completion_percentage > 50 ? "Good" : "Needs Help"}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {courseGroups.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No groups with progress in this course yet</p>
+              </div>
+            ) : (
+              <GroupsTable
+                groups={courseGroups}
+                isLoading={false}
+                onViewGroup={handleViewGroup}
+                onExportGroup={handleExportGroup}
+                onExportAll={handleExportAllStudents}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -912,41 +985,58 @@ export default function AnalyticsPage() {
           <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
           <p className="text-muted-foreground">Comprehensive learning analytics and insights</p>
         </div>
-        <Button variant="outline">
-          <Download className="w-4 h-4 mr-2" />
-          Export Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowExportModal(true)}
+            disabled={!selectedCourse}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export to Excel
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Course:</span>
+        </div>
         <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Select Course" />
-          </SelectTrigger>
-          <SelectContent>
-            {courses.map((course) => (
-              <SelectItem key={course.id} value={course.id.toString()}>
-                {course.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue placeholder="Select a course to analyze" />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((course) => (
+                  <SelectItem key={course.id} value={course.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      <span>{course.title}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        {selectedView === 'student' && (
-          <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select Student" />
-            </SelectTrigger>
-            <SelectContent>
-              {students.map((student) => (
-                <SelectItem key={student.student_id} value={student.student_id.toString()}>
-                  {student.student_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+            {selectedView === 'student' && (
+              <>
+                <div className="flex items-center gap-2 ml-4">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Student:</span>
+                </div>
+                <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                  <SelectTrigger className="w-[250px]">
+                    <SelectValue placeholder="Select a student" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {students.map((student) => (
+                      <SelectItem key={student.student_id} value={student.student_id.toString()}>
+                        {student.student_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
       </div>
 
       {/* View Tabs */}
@@ -990,6 +1080,15 @@ export default function AnalyticsPage() {
           {selectedView === 'quiz' && renderQuizTab()}
         </div>
       )}
+
+      {/* Export to Excel Modal */}
+      <ExportToExcelModal
+        open={showExportModal}
+        onOpenChange={setShowExportModal}
+        courseId={selectedCourse}
+        courseName={courses.find(c => c.id.toString() === selectedCourse)?.title || ''}
+        groups={courseGroups}
+      />
     </div>
   );
 }

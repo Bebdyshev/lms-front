@@ -18,6 +18,8 @@ import { CSS } from '@dnd-kit/utilities';
 import Loader from '../components/Loader.tsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import ConfirmDialog from '../components/ConfirmDialog.tsx';
+import { useUnsavedChangesWarning } from '../hooks/useUnsavedChangesWarning';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 
 interface SelectedModule {
   module: CourseModule;
@@ -245,6 +247,15 @@ export default function CourseBuilderPage() {
   // Legacy state from old inline create form removed
 
   const isNewCourse = !courseId || courseId === 'new';
+
+  // Unsaved changes warning
+  const { confirmLeave, cancelLeave, isBlocked } = useUnsavedChangesWarning({
+    hasUnsavedChanges,
+    message: 'You have unsaved changes in this course. Are you sure you want to leave?',
+    onConfirmLeave: () => {
+      setHasUnsavedChanges(false);
+    }
+  });
 
   // Create unified display modules array
   const getDisplayModules = () => {
@@ -1797,6 +1808,15 @@ export default function CourseBuilderPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Unsaved Changes Warning Dialog */}
+      <UnsavedChangesDialog
+        open={isBlocked}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
+        title="⚠️ Save Course Changes!"
+        description="You have unsaved changes in this course (modules, lessons, or reordering). Please save your changes before leaving to avoid losing your work."
+      />
     </> 
   );
 }

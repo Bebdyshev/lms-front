@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import { User, Mail, Shield, Calendar, Clock, Save } from 'lucide-react';
+import { useUnsavedChangesWarning } from '../hooks/useUnsavedChangesWarning';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -9,6 +11,19 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string>('');
+
+  // Track if name was changed
+  const hasUnsavedChanges = user ? name !== user.name && name.trim() !== '' : false;
+
+  // Unsaved changes warning
+  const { confirmLeave, cancelLeave, isBlocked } = useUnsavedChangesWarning({
+    hasUnsavedChanges,
+    message: 'You have unsaved changes to your profile. Are you sure you want to leave?',
+    onConfirmLeave: () => {
+      // Reset name to original value
+      if (user) setName(user.name || '');
+    }
+  });
 
   useEffect(() => {
     if (user) {
@@ -185,6 +200,15 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Unsaved Changes Warning Dialog */}
+      <UnsavedChangesDialog
+        open={isBlocked}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
+        title="Unsaved Profile Changes"
+        description="You have unsaved changes to your profile. Are you sure you want to leave? Your changes will be lost."
+      />
     </div>
   );
 }
