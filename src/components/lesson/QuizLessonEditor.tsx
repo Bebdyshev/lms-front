@@ -529,11 +529,6 @@ export default function QuizLessonEditor({
       {setQuizDisplayMode && (
         <div className="space-y-2">
           <Label>Display Mode</Label>
-          {quizType === 'pdf' && (
-            <div className="text-sm text-orange-600 bg-orange-50 p-2 rounded border">
-              ⚠️ PDF quizzes must use "All at Once" mode so students can reference the document while answering.
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-3">
             <div 
               className={`p-3 border-2 rounded-lg transition-colors ${
@@ -546,7 +541,7 @@ export default function QuizLessonEditor({
                     }`
               }`}
               onClick={() => {
-                if (quizType !== 'pdf') {
+                if (quizType !== 'pdf' && quizType !== 'audio') {
                   setQuizDisplayMode('one_by_one');
                 }
               }}
@@ -558,7 +553,7 @@ export default function QuizLessonEditor({
                 <div>
                   <div className="font-medium text-sm">One by One</div>
                   <div className="text-xs text-gray-500">Show questions sequentially</div>
-                  {quizType === 'pdf' && <div className="text-xs text-gray-400">(Not available for PDF quizzes)</div>}
+                  {quizType === 'pdf' || quizType === 'audio' && <div className="text-xs text-gray-400">(Not available for PDF and Audio quizzes)</div>}
                 </div>
               </div>
             </div>
@@ -759,7 +754,25 @@ export default function QuizLessonEditor({
                         <TabsContent value="passage" className="space-y-2">
                           <RichTextEditor
                             value={draftQuestion.content_text || ''}
-                            onChange={(value) => applyDraftUpdate({ content_text: value })}
+                            onChange={(value) => {
+                              console.log('RichTextEditor onChange:', value); // Debug log
+                              // For text_completion questions, extract answers and update both content and answers
+                              if (draftQuestion.question_type === 'text_completion') {
+                                const gaps = Array.from(value.matchAll(/\[\[(.*?)\]\]/g));
+                                const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
+                                console.log('Extracted answers:', answers); // Debug log
+                                
+                                // Use setTimeout to avoid potential race conditions with RichTextEditor
+                                setTimeout(() => {
+                                  applyDraftUpdate({ 
+                                    content_text: value,
+                                    correct_answer: answers 
+                                  });
+                                }, 0);
+                              } else {
+                                applyDraftUpdate({ content_text: value });
+                              }
+                            }}
                             placeholder="Enter passage. Use [[answer]] to mark gaps, e.g. 'The sky is [[blue]]'."
                             className="min-h-[200px]"
                           />
@@ -861,6 +874,12 @@ export default function QuizLessonEditor({
                           next.question_type = 'text_completion';
                           next.correct_answer = [];
                           next.options = undefined; // Clear options for text_completion
+                          // Auto-extract answers if content_text already has gaps
+                          if (next.content_text) {
+                            const gaps = Array.from(next.content_text.matchAll(/\[\[(.*?)\]\]/g));
+                            const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
+                            next.correct_answer = answers;
+                          }
                         } else if (val === 'long_text') {
                           next.question_type = 'long_text';
                           next.correct_answer = '';
@@ -989,36 +1008,22 @@ export default function QuizLessonEditor({
 
               {/* Text Completion Configuration */}
               {draftQuestion.question_type === 'text_completion' && (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="completion-text">Text with Gaps</Label>
-                    <RichTextEditor
-                      value={draftQuestion.content_text || ''}
-                      onChange={(value) => {
-                        applyDraftUpdate({ content_text: value });
-                        // Extract answers from [[answer]] patterns and update correct_answer
-                        const gaps = Array.from(value.matchAll(/\[\[(.*?)\]\]/g));
-                        const answers = gaps.map(match => match[1].trim());
-                        applyDraftUpdate({ correct_answer: answers });
-                      }}
-                      placeholder="Enter your text with gaps. Use [[correct answer]] to create fillable gaps. Example: The capital of France is [[Paris]]."
-                    />
-                    <p className="text-xs text-gray-500 mt-2">
-                      Use [[answer]] format to create gaps. Example: "The capital of France is [[Paris]] and the capital of Italy is [[Rome]]."
-                    </p>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Gap Answers</Label>
+                  <p className="text-xs text-gray-500">
+                    Add gaps in the Passage above using [[answer]] format. Example: "The capital of France is [[Paris]]."
+                  </p>
                   
                   {/* Preview with detected gaps */}
                   {draftQuestion.content_text && (
                     <div className="space-y-2">
-                      <Label>Preview & Answers</Label>
                       <div className="p-3 bg-gray-50 border rounded-md text-sm">
                         <div className="font-medium mb-2">Detected Gaps:</div>
                         {(() => {
                           const text = (draftQuestion.content_text || '').toString();
                           const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
                           if (gaps.length === 0) {
-                            return <div className="text-gray-500">No gaps detected. Use [[answer]] format.</div>;
+                            return <div className="text-gray-500">No gaps detected. Use [[answer]] format in the Passage above.</div>;
                           }
                           return gaps.map((gap, index) => (
                             <div key={index} className="flex items-center gap-2 mb-2">
@@ -1032,7 +1037,7 @@ export default function QuizLessonEditor({
                                     `[[${e.target.value}]]`
                                   );
                                   applyDraftUpdate({ content_text: newText });
-                                  // Update correct_answer array
+                                  // Update correct_answer array immediately
                                   const updatedGaps = Array.from(newText.matchAll(/\[\[(.*?)\]\]/g));
                                   const answers = updatedGaps.map(match => match[1].trim());
                                   applyDraftUpdate({ correct_answer: answers });
