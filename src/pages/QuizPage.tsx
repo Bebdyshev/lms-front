@@ -64,6 +64,37 @@ export default function QuizPage() {
           <div key={q.id} className="bg-white rounded-2xl shadow-card p-5">
             <div className="text-sm text-gray-500">Question {idx+1}</div>
             <div className="font-medium mb-3">{q.body}</div>
+            
+            {/* Media attachment for media questions */}
+            {(q as any).media_url && (
+              <div className="mb-4">
+                {(q as any).media_type === 'image' ? (
+                  <img 
+                    src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (q as any).media_url} 
+                    alt="Question media" 
+                    className="max-w-full max-h-96 object-contain rounded-lg border shadow-sm"
+                  />
+                ) : (q as any).media_type === 'pdf' ? (
+                  <div className="border rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      <span className="font-medium">PDF Document</span>
+                    </div>
+                    <a 
+                      href={(q as any).media_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 text-sm mt-1 inline-block"
+                    >
+                      View PDF →
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            )}
+            
             {q.type === 'single' && (
               <div className="space-y-2">
                 {q.options?.map((opt, i) => (

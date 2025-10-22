@@ -196,27 +196,12 @@ export default function QuizLessonEditor({
   const uploadQuestionMedia = React.useCallback(async (file: File) => {
     setIsUploadingMedia(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('file_type', 'question_media');
-
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}/media/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload media');
-      }
-
-      const result = await response.json();
+      const result = await apiClient.uploadQuestionMedia(file);
       return result;
     } catch (error) {
       console.error('Error uploading media:', error);
-      alert('Failed to upload media. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload media. Please try again.';
+      alert(errorMessage);
       return null;
     } finally {
       setIsUploadingMedia(false);
@@ -437,11 +422,42 @@ export default function QuizLessonEditor({
                   </div>
                 </div>
                 
+                   {/* Media Preview for Media Questions */}
+                   {q.question_type === 'media_question' && q.media_url && (
+                  <div className="mb-4 flex items-center justify-center">
+                    {q.media_type === 'image' ? (
+                      <img 
+                        src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + q.media_url} 
+                        alt="Question media" 
+                        className="max-w-full max-h-64 object-contain rounded-lg border shadow-sm"
+                      />
+                    ) : q.media_type === 'pdf' ? (
+                      <div className="border rounded-lg p-4 bg-blue-50">
+                        <div className="flex items-center gap-2 text-blue-700">
+                          <FileText className="w-5 h-5" />
+                          <span className="font-medium">PDF Document</span>
+                        </div>
+                        <a 
+                          href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + q.media_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm mt-1 inline-block"
+                        >
+                          View PDF →
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+                
                 {!!q.content_text && (
                   <div className="bg-gray-50 p-3 rounded border">
                     <div className="text-gray-800" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
                   </div>
                 )}
+                
+             
+                
                 <div className="text-base font-semibold text-gray-900">
                   <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
                 </div>
@@ -670,7 +686,7 @@ export default function QuizLessonEditor({
                         </div>
                         {draftQuestion.media_type === 'image' && (
                           <img 
-                            src={draftQuestion.media_url} 
+                            src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url} 
                             alt="Question media" 
                             className="max-w-xs max-h-48 object-contain rounded"
                           />
@@ -684,10 +700,28 @@ export default function QuizLessonEditor({
                         </Button>
                       </div>
                     ) : (
-                      <div className="text-center">
+                      <div 
+                        className="text-center border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors"
+                        onDrop={async (e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files?.[0];
+                          if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
+                            const result = await uploadQuestionMedia(file);
+                            if (result) {
+                              const mediaType = file.type.startsWith('image/') ? 'image' : 'pdf';
+                              applyDraftUpdate({ 
+                                media_url: result.file_url, 
+                                media_type: mediaType 
+                              });
+                            }
+                          }
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDragEnter={(e) => e.preventDefault()}
+                      >
                         <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                         <div className="text-sm text-gray-600 mb-2">
-                          Upload PDF or image for this question
+                          Drag & drop or click to upload PDF or image
                         </div>
                         <input
                           type="file"
@@ -706,11 +740,13 @@ export default function QuizLessonEditor({
                             }
                           }}
                           className="hidden"
-                          id="media-upload"
+                          id={`media-upload-${draftQuestion?.id || 'new'}`}
                         />
-                        <label htmlFor="media-upload" className="cursor-pointer">
-                          <Button variant="outline" size="sm" disabled={isUploadingMedia}>
-                            {isUploadingMedia ? 'Uploading...' : 'Choose File'}
+                        <label htmlFor={`media-upload-${draftQuestion?.id || 'new'}`} className="cursor-pointer">
+                          <Button variant="outline" size="sm" disabled={isUploadingMedia} asChild>
+                            <span>
+                              {isUploadingMedia ? 'Uploading...' : 'Choose File'}
+                            </span>
                           </Button>
                         </label>
                       </div>

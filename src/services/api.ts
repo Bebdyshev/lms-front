@@ -896,6 +896,28 @@ class LMSApiClient {
     }
   }
 
+  async uploadQuestionMedia(file: File): Promise<{
+    file_url: string;
+    filename: string;
+    original_filename: string;
+    file_size: number;
+  }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('file_type', 'question_media');
+
+      const response = await this.api.post('/media/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to upload question media file');
+    }
+  }
+
   async downloadFile(fileType: string, filename: string): Promise<Blob> {
     try {
       const response = await this.api.get(`/media/files/${fileType}/${filename}`, {
