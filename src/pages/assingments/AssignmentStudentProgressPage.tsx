@@ -1,6 +1,6 @@
   import { useEffect, useState } from 'react';
   import { useParams, useNavigate, Link } from 'react-router-dom';
-  import apiClient from '../services/api';
+  import apiClient from '../../services/api';
   import { 
     Users, 
     Clock, 
@@ -14,14 +14,14 @@
     Pencil,
     Download
   } from 'lucide-react';
-  import { Button } from '../components/ui/button';
-  import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-  import { Badge } from '../components/ui/badge';
-  import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-  import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-  import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-  import { Input } from '../components/ui/input';
-  import { Textarea } from '../components/ui/textarea';
+  import { Button } from '../../components/ui/button';
+  import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+  import { Badge } from '../../components/ui/badge';
+  import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+  import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+  import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+  import { Input } from '../../components/ui/input';
+  import { Textarea } from '../../components/ui/textarea';
 
   // Import API_BASE_URL from api service
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';

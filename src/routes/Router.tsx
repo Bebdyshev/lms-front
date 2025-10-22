@@ -8,11 +8,11 @@ import CoursesPage from '../pages/CoursesPage.tsx';
 import CourseOverviewPage from '../pages/CourseOverviewPage.tsx';
 import ModulePage from '../pages/ModulePage.tsx';
 import LecturePage from '../pages/LecturePage.tsx';
-import AssignmentsPage from '../pages/AssignmentsPage.tsx';
-import AssignmentPage from '../pages/AssignmentPage.tsx';
-import AssignmentBuilderPage from '../pages/AssignmentBuilderPage.tsx';
-import AssignmentGradingPage from '../pages/AssignmentGradingPage.tsx';
-import AssignmentStudentProgressPage from '../pages/AssignmentStudentProgressPage.tsx';
+import AssignmentsPage from '../pages/assingments/AssignmentsPage.tsx';
+import AssignmentPage from '../pages/assingments/AssignmentPage.tsx';
+import AssignmentBuilderPage from '../pages/assingments/AssignmentBuilderPage.tsx';
+import AssignmentGradingPage from '../pages/assingments/AssignmentGradingPage.tsx';
+import AssignmentStudentProgressPage from '../pages/assingments/AssignmentStudentProgressPage.tsx';
 import ChatPage from '../pages/ChatPage.tsx';
 import TeacherDashboard from '../pages/TeacherDashboard.tsx';
 
@@ -26,7 +26,7 @@ import CreateCourseWizard from '../pages/CreateCourseWizard.tsx';
 // TeacherCoursePage functionality moved to CourseBuilderPage
 import LessonEditPage from '../pages/LessonEditPage.tsx';
 import TeacherClassPage from '../pages/TeacherClassPage.tsx';
-import AdminDashboard from '../pages/AdminDashboard.tsx';
+import AdminDashboard from '../pages/admin/AdminDashboard.tsx';
 import UserManagement from '../pages/UserManagement.tsx';
 import LessonPage from '../pages/LessonPage.tsx';
 import CourseProgressPage from '../pages/CourseProgressPage.tsx';
@@ -35,7 +35,7 @@ import CreateEvent from '../pages/CreateEvent.tsx';
 import EditEvent from '../pages/EditEvent.tsx';
 import Calendar from '../pages/Calendar.tsx';
 import LandingPage from '../pages/LandingPage.tsx';
-import AnalyticsPage from '../pages/AnalyticsPage.tsx';
+import AnalyticsPage from '../pages/analytics/AnalyticsPage.tsx';
 
 export default function Router() {
   return (

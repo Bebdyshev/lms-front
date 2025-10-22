@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext.tsx';
 // import CourseCard from '../components/CourseCard';
 import StudentDashboard from './StudentDashboard';
 import TeacherDashboard from './TeacherDashboard.tsx';
-import AdminDashboard from './AdminDashboard.tsx';
+import AdminDashboard from './admin/AdminDashboard.tsx';
 import apiClient from "../services/api";
 import Skeleton from '../components/Skeleton.tsx';
 import type { DashboardStats, Course, User } from '../types';

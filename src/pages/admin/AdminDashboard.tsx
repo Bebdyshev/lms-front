@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../services/api';
-import type { AdminDashboard as AdminDashboardType } from '../types';
+import apiClient from '../../services/api';
+import type { AdminDashboard as AdminDashboardType } from '../../types';
 import { 
   Users, 
   BookOpen, 
@@ -16,8 +16,8 @@ import {
   Activity,
   BarChart3
 } from 'lucide-react';
-import Loader from '../components/Loader';
-import { Button } from '../components/ui/button';
+import Loader from '../../components/Loader';
+import { Button } from '../../components/ui/button';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();

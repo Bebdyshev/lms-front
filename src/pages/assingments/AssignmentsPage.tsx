@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../services/api';
+import apiClient from '../../services/api';
 import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download, Plus, Eye, Pencil, Award, ArrowBigUp } from 'lucide-react';
-import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 
 interface AssignmentWithStatus {
   id: number;
