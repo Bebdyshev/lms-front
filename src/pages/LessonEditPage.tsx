@@ -126,11 +126,11 @@ const QuizTabContent = ({
             <div className="space-y-2">
               <Label htmlFor="quiz-title">Quiz Title</Label>
               <Input
-                id="quiz-title"
                 type="text"
-                value={quizTitle}
-                onChange={(e) => setQuizTitle(e.target.value)}
-                placeholder="Enter quiz title"
+                value={stepTitle}
+                onChange={(e) => handleStepTitleChange(e.target.value)}
+                placeholder="Step title"
+                className="text-sm"
               />
             </div>
             <div className="space-y-2">
@@ -524,12 +524,6 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                                         Currently editing
                                       </span>
                                     )}
-                                    {lecture.steps && lecture.steps.length > 0 && (
-                                      <span className="text-xs text-green-600 flex items-center gap-1">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                        Has content
-                                      </span>
-                                    )}
                                   </div>
                                 </div>
                                 {isSelected && (
@@ -622,13 +616,11 @@ export default function LessonEditPage() {
   const [stepQuizTimeLimit, setStepQuizTimeLimit] = useState<number | undefined>(undefined);
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard'>('text');
-  const [showQuizTypeDialog, setShowQuizTypeDialog] = useState(false);
-  const [pendingStepNumber, setPendingStepNumber] = useState<number | null>(null);
-  const [selectedQuizType, setSelectedQuizType] = useState<'single_choice' | 'fill_blank'>('single_choice');
   
   // State for step switching with unsaved changes
   const [showStepSwitchDialog, setShowStepSwitchDialog] = useState(false);
   const [pendingStepToSwitch, setPendingStepToSwitch] = useState<Step | null>(null);
+  const [isLoadingStep, setIsLoadingStep] = useState(false);
 
   // Immediate auto-save function
   const immediateAutoSave = useCallback(
@@ -670,7 +662,8 @@ export default function LessonEditPage() {
               setQuizDisplayMode(savedData.contentData.quizDisplayMode || 'one_by_one');
             }
         
-        setHasUnsavedChanges(true);
+        // Don't mark as unsaved - we just loaded the data
+        // setHasUnsavedChanges(true); // REMOVED
       }
       setHasCheckedDraft(true);
     }
@@ -698,6 +691,44 @@ export default function LessonEditPage() {
       }
     }
   }, [lessonId, lessonTitle, lessonContent, videoUrl, quizTitle, quizQuestions, quizTimeLimit, contentType, isLoading, immediateAutoSave]);
+  
+  // Handler to mark as unsaved when user actually changes something
+  const markAsUnsaved = () => {
+    if (!isLoading && !isSaving && !isLoadingStep && hasCheckedDraft) {
+      setHasUnsavedChanges(true);
+    }
+  };
+  
+  // Wrapped setters that mark as unsaved only on user input
+  const handleStepTitleChange = (value: string) => {
+    setStepTitle(value);
+    markAsUnsaved();
+  };
+  
+  const handleStepContentChange = (value: string) => {
+    setStepContent(value);
+    markAsUnsaved();
+  };
+  
+  const handleStepVideoUrlChange = (value: string) => {
+    setStepVideoUrl(value);
+    markAsUnsaved();
+  };
+  
+  const handleStepQuizTitleChange = (value: string) => {
+    setStepQuizTitle(value);
+    markAsUnsaved();
+  };
+  
+  const handleStepQuizQuestionsChange = (value: Question[]) => {
+    setStepQuizQuestions(value);
+    markAsUnsaved();
+  };
+  
+  const handleStepFlashcardSetChange = (value: FlashcardSet) => {
+    setStepFlashcardSet(value);
+    markAsUnsaved();
+  };
 
   // Unsaved changes warning - block navigation if there are unsaved changes
   const { confirmLeave, cancelLeave, isBlocked } = useUnsavedChangesWarning({
@@ -775,6 +806,7 @@ export default function LessonEditPage() {
         }
         
         // Select first step by default
+        setIsLoadingStep(true);
         setSelectedStepId(firstStep.id);
         setStepTitle(firstStep.title || 'Step 1');
         setStepContentType(firstStep.content_type);
@@ -792,6 +824,9 @@ export default function LessonEditPage() {
             console.error('Failed to parse quiz data:', e);
           }
         }
+        
+        // Reset loading flag after initial load
+        setTimeout(() => setIsLoadingStep(false), 0);
       } else {
         // No steps yet, create a default step (local only)
         const localDefaultStep: Step = {
@@ -805,10 +840,12 @@ export default function LessonEditPage() {
           created_at: new Date().toISOString(),
         } as unknown as Step;
         setSteps([localDefaultStep]);
+        setIsLoadingStep(true);
         setSelectedStepId(localDefaultStep.id);
         setStepTitle(localDefaultStep.title);
         setStepContentType(localDefaultStep.content_type);
         setStepContent(localDefaultStep.content_text || '');
+        setTimeout(() => setIsLoadingStep(false), 0);
          
         // Default to text
         setSelectedTab('text');
@@ -831,13 +868,6 @@ export default function LessonEditPage() {
     const maxOrderIndex = steps.length > 0 ? Math.max(...steps.map(s => s.order_index)) : 0;
     const stepNumber = maxOrderIndex + 1;
 
-    if (newStepType === 'quiz') {
-      setPendingStepNumber(stepNumber);
-      setShowAddStepModal(false);
-      setShowQuizTypeDialog(true);
-      return;
-    }
-
     const newLocalStep: Step = {
       id: -Date.now(),
       lesson_id: parseInt(lessonId || '0'),
@@ -855,71 +885,39 @@ export default function LessonEditPage() {
     setStepContentType(newLocalStep.content_type);
     setStepContent('');
     setStepVideoUrl('');
-    setStepQuizTitle('');
-    setStepQuizQuestions([]);
-    setStepQuizTimeLimit(undefined);
+    
+    // Initialize quiz with default question if it's a quiz step
+    if (newStepType === 'quiz') {
+      const ts = Date.now().toString();
+      const baseQuestion: Question = {
+        id: ts,
+        assignment_id: '',
+        question_text: '',
+        question_type: 'single_choice',
+        options: [
+          { text: '', is_correct: false },
+          { text: '', is_correct: false }
+        ],
+        correct_answers: [],
+        explanation: '',
+        media_files: [],
+        difficulty: 1,
+        order_index: 0,
+      } as unknown as Question;
+      
+      setStepQuizTitle('');
+      setStepQuizQuestions([baseQuestion]);
+      setStepQuizTimeLimit(undefined);
+    } else {
+      setStepQuizTitle('');
+      setStepQuizQuestions([]);
+      setStepQuizTimeLimit(undefined);
+    }
+    
     setShowAddStepModal(false);
     setNewStepType('text');
   };
 
-  const finalizeCreateQuizStep = () => {
-    const maxOrderIndex = steps.length > 0 ? Math.max(...steps.map(s => s.order_index)) : 0;
-    const stepNumber = pendingStepNumber || maxOrderIndex + 1;
-
-    const newLocalStep: Step = {
-      id: -Date.now(),
-      lesson_id: parseInt(lessonId || '0'),
-      title: `Step ${stepNumber}`,
-      content_type: 'quiz',
-      content_text: '',
-      order_index: stepNumber,
-      created_at: new Date().toISOString(),
-    } as unknown as Step;
-
-    const updated = [...steps, newLocalStep].sort((a, b) => a.order_index - b.order_index);
-    setSteps(updated);
-    setSelectedStepId(newLocalStep.id);
-    setStepTitle(newLocalStep.title);
-    setStepContentType('quiz');
-    setStepContent('');
-    setStepVideoUrl('');
-
-    const ts = Date.now().toString();
-    const baseQuestion: Question = selectedQuizType === 'single_choice'
-      ? {
-          id: ts,
-          assignment_id: '',
-          question_text: '',
-          question_type: 'single_choice',
-          options: [
-            { id: ts + '_1', text: '', is_correct: false },
-            { id: ts + '_2', text: '', is_correct: false },
-            { id: ts + '_3', text: '', is_correct: false },
-            { id: ts + '_4', text: '', is_correct: false },
-          ],
-          correct_answer: 0,
-          points: 10,
-          order_index: 0,
-        } as unknown as Question
-      : {
-          id: ts,
-          assignment_id: '',
-          question_text: '',
-          question_type: 'fill_blank',
-          options: [],
-          correct_answer: '',
-          points: 10,
-          order_index: 0,
-        } as unknown as Question;
-
-    setStepQuizTitle('');
-    setStepQuizQuestions([baseQuestion]);
-    setStepQuizTimeLimit(undefined);
-
-    setShowQuizTypeDialog(false);
-    setPendingStepNumber(null);
-    setSelectedQuizType('single_choice');
-  };
 
   const selectStep = (step: Step) => {
     // Check if there are unsaved changes before switching
@@ -934,6 +932,8 @@ export default function LessonEditPage() {
   };
   
   const performStepSwitch = (step: Step) => {
+    setIsLoadingStep(true); // Prevent marking as unsaved during load
+    
     setSelectedStepId(step.id);
     setStepTitle(step.title || `Step ${step.order_index || 1}`);
     setStepContentType(step.content_type);
@@ -989,6 +989,9 @@ export default function LessonEditPage() {
         show_progress: true
       });
     }
+    
+    // Reset loading flag after state updates
+    setTimeout(() => setIsLoadingStep(false), 0);
   };
 
   const deleteStep = async (stepId: number) => {
@@ -1142,6 +1145,7 @@ export default function LessonEditPage() {
       // Reload fresh steps from server and sync selection by order_index
       const freshSteps = await apiClient.getLessonSteps(lessonId);
       setSteps(freshSteps);
+      setIsLoadingStep(true); // Prevent marking as unsaved during reload after save
       if (selectedStepId) {
         const prevOrder = orderedLocal.find(s => s.id === selectedStepId)?.order_index || 1;
         const match = freshSteps.find(s => s.order_index === prevOrder) || freshSteps[0];
@@ -1151,6 +1155,38 @@ export default function LessonEditPage() {
           setStepContentType(match.content_type as any);
           setStepContent(match.content_text || '');
           setStepVideoUrl(match.video_url || '');
+          
+          // Load quiz data if it's a quiz step
+          if (match.content_type === 'quiz') {
+            try {
+              const quizData = JSON.parse(match.content_text || '{}');
+              setStepQuizTitle(quizData.title || '');
+              setStepQuizQuestions(quizData.questions || []);
+              setStepQuizTimeLimit(quizData.time_limit_minutes);
+              setStepQuizDisplayMode(quizData.display_mode || 'one_by_one');
+            } catch (e) {
+              console.error('Failed to parse quiz data:', e);
+            }
+          }
+          
+          // Load flashcard data if it's a flashcard step
+          if (match.content_type === 'flashcard') {
+            try {
+              const flashcardData = JSON.parse(match.content_text || '{}');
+              setStepFlashcardSet({
+                title: flashcardData.title || '',
+                description: flashcardData.description || '',
+                cards: flashcardData.cards || [],
+                study_mode: flashcardData.study_mode || 'sequential',
+                auto_flip: flashcardData.auto_flip || false,
+                show_progress: flashcardData.show_progress !== false
+              });
+            } catch (e) {
+              console.error('Failed to parse flashcard data:', e);
+            }
+          }
+          
+          setTimeout(() => setIsLoadingStep(false), 0);
         }
       }
 
@@ -1166,6 +1202,7 @@ export default function LessonEditPage() {
       setNextLessonId((refreshedLesson as any).next_lesson_id ?? null);
 
       clearLocalStorage(lessonId);
+      setHasUnsavedChanges(false); // Clear unsaved flag after successful save
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
     } catch (error) {
@@ -1224,7 +1261,8 @@ export default function LessonEditPage() {
       localStorage.setItem(timestampKey, timestamp.toString());
       
       setAutoSaveStatus('saved');
-      setHasUnsavedChanges(true);
+      // Don't set hasUnsavedChanges here - it's set by user input changes
+      // setHasUnsavedChanges(true); // REMOVED - this was causing false positives
     } catch (error) {
       console.error('Failed to save to localStorage:', error);
       setAutoSaveStatus('unsaved');
@@ -1479,7 +1517,7 @@ export default function LessonEditPage() {
                       <div className="space-y-3">
                         <TextLessonEditor
                           content={stepContent}
-                          onContentChange={setStepContent}
+                          onContentChange={handleStepContentChange}
                           stepId={selectedStepId && selectedStepId > 0 ? selectedStepId : undefined}
                           attachments={steps.find(s => s.id === selectedStepId)?.attachments}
                           onAttachmentsChange={(attachments) => {
@@ -1490,6 +1528,7 @@ export default function LessonEditPage() {
                                 : s
                             );
                             setSteps(updatedSteps);
+                            markAsUnsaved();
                           }}
                           onTempFilesChange={selectedStepId && selectedStepId < 0 ? (files) => handleTempFilesChange(selectedStepId, files) : undefined}
                         />
@@ -1501,10 +1540,10 @@ export default function LessonEditPage() {
                     <VideoLessonEditor
                           lessonTitle={stepTitle || lessonTitle}
                           videoUrl={stepVideoUrl}
-                          onVideoUrlChange={setStepVideoUrl}
-                          onClearUrl={() => setStepVideoUrl('')}
+                          onVideoUrlChange={handleStepVideoUrlChange}
+                          onClearUrl={() => handleStepVideoUrlChange('')}
                           content={stepContent}
-                          onContentChange={setStepContent}
+                          onContentChange={handleStepContentChange}
                           stepId={selectedStepId && selectedStepId > 0 ? selectedStepId : undefined}
                           attachments={steps.find(s => s.id === selectedStepId)?.attachments}
                           onAttachmentsChange={(attachments) => {
@@ -1515,6 +1554,7 @@ export default function LessonEditPage() {
                                 : s
                             );
                             setSteps(updatedSteps);
+                            markAsUnsaved();
                           }}
                           onTempFilesChange={selectedStepId && selectedStepId < 0 ? (files) => handleTempFilesChange(selectedStepId, files) : undefined}
                         />
@@ -1525,13 +1565,19 @@ export default function LessonEditPage() {
                       <div className="space-y-3">
                     <QuizLessonEditor
                           quizTitle={stepQuizTitle}
-                          setQuizTitle={setStepQuizTitle}
+                          setQuizTitle={handleStepQuizTitleChange}
                           quizQuestions={stepQuizQuestions}
-                          setQuizQuestions={setStepQuizQuestions}
+                          setQuizQuestions={handleStepQuizQuestionsChange}
                           quizTimeLimit={stepQuizTimeLimit}
-                          setQuizTimeLimit={setStepQuizTimeLimit}
+                          setQuizTimeLimit={(value) => {
+                            setStepQuizTimeLimit(value);
+                            markAsUnsaved();
+                          }}
                           quizDisplayMode={stepQuizDisplayMode}
-                          setQuizDisplayMode={setStepQuizDisplayMode}
+                          setQuizDisplayMode={(value) => {
+                            setStepQuizDisplayMode(value);
+                            markAsUnsaved();
+                          }}
                         />
                       </div>
                     )}
@@ -1540,7 +1586,7 @@ export default function LessonEditPage() {
                       <div className="space-y-3">
                         <FlashcardEditor
                           flashcardSet={stepFlashcardSet}
-                          setFlashcardSet={setStepFlashcardSet}
+                          setFlashcardSet={handleStepFlashcardSetChange}
                         />
                       </div>
                     )}
@@ -1695,35 +1741,6 @@ export default function LessonEditPage() {
         </div>
       )}
 
-      {/* Quiz Type Dialog */}
-      <Dialog open={showQuizTypeDialog} onOpenChange={(open) => { if (!open) setShowQuizTypeDialog(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Select quiz type</DialogTitle>
-            <DialogDescription>Choose how questions should be answered.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div
-              onClick={() => setSelectedQuizType('single_choice')}
-              className={`p-4 border rounded-md cursor-pointer ${selectedQuizType === 'single_choice' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
-            >
-              <div className="font-medium">Single choice</div>
-              <div className="text-sm text-muted-foreground">Students pick one correct option</div>
-            </div>
-            <div
-              onClick={() => setSelectedQuizType('fill_blank')}
-              className={`p-4 border rounded-md cursor-pointer ${selectedQuizType === 'fill_blank' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
-            >
-              <div className="font-medium">Fill in the blank</div>
-              <div className="text-sm text-muted-foreground">Students type the correct text</div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setShowQuizTypeDialog(false); setPendingStepNumber(null); }}>Cancel</Button>
-            <Button onClick={finalizeCreateQuizStep}>Create quiz step</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Unsaved Changes Warning Dialog - for navigation */}
       <UnsavedChangesDialog

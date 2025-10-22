@@ -316,7 +316,26 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   return (
     <div className={`rich-text-editor ${className}`}>
           <Dialog open={showLatexDialog} onOpenChange={setShowLatexDialog}>
-            <DialogContent className="max-w-4xl">
+            {/* Dark backdrop overlay */}
+            {showLatexDialog && (
+              <div 
+                className="fixed inset-0 bg-black/50 z-[9998]" 
+                style={{ zIndex: 9998 }}
+                onClick={() => setShowLatexDialog(false)}
+              />
+            )}
+            <DialogContent 
+              className="max-w-4xl z-[9999] fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" 
+              style={{ 
+                zIndex: 9999,
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                maxHeight: '90vh',
+                overflow: 'auto'
+              }}
+            >
               <DialogHeader>
                 <DialogTitle>Insert LaTeX Formula</DialogTitle>
               </DialogHeader>
