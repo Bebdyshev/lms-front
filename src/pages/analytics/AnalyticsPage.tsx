@@ -21,6 +21,7 @@ import {
   fetchCourses,
   getAllStudentsAnalytics,
   getGroupsAnalytics,
+  getCourseGroupsAnalytics,
   getGroupStudentsAnalytics,
   exportStudentReport,
   exportGroupReport,
@@ -136,6 +137,7 @@ export default function AnalyticsPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [courseGroups, setCourseGroups] = useState<any[]>([]);
   const [groupStudents, setGroupStudents] = useState<any[]>([]);
   const [courseOverview, setCourseOverview] = useState<CourseOverview | null>(null);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentAnalytics | null>(null);
@@ -156,6 +158,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (selectedCourse) {
       loadCourseOverview();
+      loadCourseGroups();
       if (selectedView === 'video') {
         loadVideoAnalytics();
       } else if (selectedView === 'quiz') {
@@ -288,6 +291,18 @@ export default function AnalyticsPage() {
       console.error('Failed to load groups:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadCourseGroups = async () => {
+    if (!selectedCourse) return;
+    
+    try {
+      const data = await getCourseGroupsAnalytics(selectedCourse);
+      setCourseGroups(data.groups || []);
+    } catch (error) {
+      console.error('Failed to load course groups:', error);
+      setCourseGroups([]);
     }
   };
 
@@ -644,72 +659,27 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Student Performance Table */}
+        {/* Groups Performance Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Detailed Student Performance</CardTitle>
-            <p className="text-sm text-muted-foreground">Click on any student row to view comprehensive step-by-step analytics</p>
+            <CardTitle>Groups Performance in This Course</CardTitle>
+            <p className="text-sm text-muted-foreground">Analytics by groups for this specific course</p>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Student</th>
-                    <th className="text-left p-2">Progress</th>
-                    <th className="text-left p-2">Assignments</th>
-                    <th className="text-left p-2">Study Time</th>
-                    <th className="text-left p-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {courseOverview.student_performance.map((student) => (
-                    <tr 
-                      key={student.student_id} 
-                      className="border-b hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => handleViewDetailedProgress(student.student_id)}
-                      title="Click to view detailed analytics"
-                    >
-                      <td className="p-2">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-semibold">
-                            {student.student_name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div>
-                            <div className="font-medium">{student.student_name}</div>
-                            <div className="text-xs text-muted-foreground">Click for details</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="flex items-center space-x-2">
-                          <Progress value={student.completion_percentage} className="w-20" />
-                          <span className="text-sm">{Math.round(student.completion_percentage)}%</span>
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="text-sm">
-                          {student.completed_assignments}/{student.total_assignments}
-                          <div className="text-muted-foreground">
-                            {Math.round(student.assignment_score_percentage)}% avg
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="text-sm">
-                          {Math.round(student.time_spent_minutes / 60)}h {student.time_spent_minutes % 60}m
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <Badge variant={student.completion_percentage > 80 ? "default" : student.completion_percentage > 50 ? "secondary" : "destructive"}>
-                          {student.completion_percentage > 80 ? "Excellent" : student.completion_percentage > 50 ? "Good" : "Needs Help"}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {courseGroups.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No groups with progress in this course yet</p>
+              </div>
+            ) : (
+              <GroupsTable
+                groups={courseGroups}
+                isLoading={false}
+                onViewGroup={handleViewGroup}
+                onExportGroup={handleExportGroup}
+                onExportAll={handleExportAllStudents}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
