@@ -1095,8 +1095,7 @@ class LMSApiClient {
       {
         id: 1,
         title: 'Sample Quiz',
-        description: 'This is a sample quiz',
-        questions: []
+        question_media: ["pdf", "jpg", "png", "gif", "webp", "mp3", "wav", "ogg", "m4a"]  // For quiz question attachments and audio
       }
     ];
   }

@@ -333,7 +333,7 @@ export interface Question {
   id: string;
   assignment_id: string;
   question_text: string;
-  question_type: 'single_choice' | 'multiple_choice' | 'fill_blank' | 'long_text' | 'media_question';
+  question_type: 'single_choice' | 'multiple_choice' | 'short_answer' | 'fill_blank' | 'text_completion' | 'long_text' | 'media_question';
   options?: QuestionOption[];
   correct_answer: any; // Use any to avoid complex type issues
   points: number;

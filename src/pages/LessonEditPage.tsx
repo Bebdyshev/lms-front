@@ -614,6 +614,9 @@ export default function LessonEditPage() {
   };
   
   const [stepQuizTimeLimit, setStepQuizTimeLimit] = useState<number | undefined>(undefined);
+  const [stepQuizType, setStepQuizType] = useState<'regular' | 'audio' | 'pdf'>('regular');
+  const [stepQuizMediaUrl, setStepQuizMediaUrl] = useState<string>('');
+  const [stepQuizMediaType, setStepQuizMediaType] = useState<'audio' | 'pdf' | ''>('');
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard'>('text');
   
@@ -820,6 +823,9 @@ export default function LessonEditPage() {
             setStepQuizQuestions(quizData.questions || []);
             setStepQuizTimeLimit(quizData.time_limit_minutes);
             setStepQuizDisplayMode(quizData.display_mode || 'one_by_one');
+            setStepQuizType(quizData.quiz_type || 'regular');
+            setStepQuizMediaUrl(quizData.quiz_media_url || '');
+            setStepQuizMediaType(quizData.quiz_media_type || '');
           } catch (e) {
             console.error('Failed to parse quiz data:', e);
           }
@@ -947,6 +953,9 @@ export default function LessonEditPage() {
         setStepQuizQuestions(quizData.questions || []);
         setStepQuizTimeLimit(quizData.time_limit_minutes);
         setStepQuizDisplayMode(quizData.display_mode || 'one_by_one');
+        setStepQuizType(quizData.quiz_type || 'regular');
+        setStepQuizMediaUrl(quizData.quiz_media_url || '');
+        setStepQuizMediaType(quizData.quiz_media_type || '');
       } catch (e) {
         console.error('Failed to parse quiz data:', e);
       }
@@ -955,6 +964,9 @@ export default function LessonEditPage() {
       setStepQuizQuestions([]);
       setStepQuizTimeLimit(undefined);
       setStepQuizDisplayMode('one_by_one');
+      setStepQuizType('regular');
+      setStepQuizMediaUrl('');
+      setStepQuizMediaType('');
     }
 
     if (step.content_type === 'flashcard') {
@@ -1080,7 +1092,10 @@ export default function LessonEditPage() {
               title: stepQuizTitle,
               questions: stepQuizQuestions,
               time_limit_minutes: stepQuizTimeLimit,
-              display_mode: stepQuizDisplayMode
+              display_mode: stepQuizDisplayMode,
+              quiz_type: stepQuizType,
+              quiz_media_url: stepQuizMediaUrl,
+              quiz_media_type: stepQuizMediaType
             });
             updated.video_url = '';
           } else if (stepContentType === 'flashcard') {
@@ -1164,6 +1179,9 @@ export default function LessonEditPage() {
               setStepQuizQuestions(quizData.questions || []);
               setStepQuizTimeLimit(quizData.time_limit_minutes);
               setStepQuizDisplayMode(quizData.display_mode || 'one_by_one');
+              setStepQuizType(quizData.quiz_type || 'regular');
+              setStepQuizMediaUrl(quizData.quiz_media_url || '');
+              setStepQuizMediaType(quizData.quiz_media_type || '');
             } catch (e) {
               console.error('Failed to parse quiz data:', e);
             }
@@ -1576,6 +1594,21 @@ export default function LessonEditPage() {
                           quizDisplayMode={stepQuizDisplayMode}
                           setQuizDisplayMode={(value) => {
                             setStepQuizDisplayMode(value);
+                            markAsUnsaved();
+                          }}
+                          quizType={stepQuizType}
+                          setQuizType={(value) => {
+                            setStepQuizType(value);
+                            markAsUnsaved();
+                          }}
+                          quizMediaUrl={stepQuizMediaUrl}
+                          setQuizMediaUrl={(value) => {
+                            setStepQuizMediaUrl(value);
+                            markAsUnsaved();
+                          }}
+                          quizMediaType={stepQuizMediaType}
+                          setQuizMediaType={(value) => {
+                            setStepQuizMediaType(value);
                             markAsUnsaved();
                           }}
                         />
