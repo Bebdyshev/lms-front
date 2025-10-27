@@ -11,10 +11,11 @@ interface OnboardingManagerProps {
 }
 
 export default function OnboardingManager({ children }: OnboardingManagerProps) {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const location = useLocation();
   const [showWelcome, setShowWelcome] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [onboardingShownInSession, setOnboardingShownInSession] = useState(false);
 
   useEffect(() => {
     console.log('OnboardingManager state changed:', { showWelcome, showTour });
@@ -22,11 +23,12 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
 
   useEffect(() => {
     // Проверяем, нужно ли показывать онбординг
-    if (user && location.pathname === '/dashboard') {
+    if (user && location.pathname === '/dashboard' && !onboardingShownInSession) {
       console.log('Onboarding check:', {
         userId: user.id,
         hasCompleted: user.onboarding_completed,
-        pathname: location.pathname
+        pathname: location.pathname,
+        shownInSession: onboardingShownInSession
       });
       
       // Проверяем статус из данных пользователя (с сервера)
@@ -34,11 +36,12 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
         // Показываем приветственные экраны
         console.log('Starting onboarding flow...');
         setShowWelcome(true);
+        setOnboardingShownInSession(true); // Помечаем, что уже показали в этой сессии
       } else {
         console.log('Onboarding already completed, skipping...');
       }
     }
-  }, [user, location.pathname]);
+  }, [user, location.pathname, onboardingShownInSession]);
 
   const handleWelcomeComplete = () => {
     console.log('Welcome screens completed, starting tour...');
@@ -57,8 +60,11 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
     // Сохраняем статус на сервере
     if (user) {
       try {
-        await apiClient.completeOnboarding();
+        const updatedUser = await apiClient.completeOnboarding();
         console.log('Onboarding status saved on server for user:', user.id);
+        
+        // Обновляем пользователя в контексте с новыми данными
+        updateUser(updatedUser);
         
         // Также сохраняем локально для быстрого доступа
         storage.setItem(`onboarding_completed_${user.id}`, 'true');

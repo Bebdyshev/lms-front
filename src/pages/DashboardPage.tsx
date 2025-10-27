@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext.tsx';
 import StudentDashboard from './StudentDashboard';
 import TeacherDashboard from './TeacherDashboard.tsx';
 import AdminDashboard from './admin/AdminDashboard.tsx';
+import CuratorDashboard from './CuratorDashboard.tsx';
 import apiClient from "../services/api";
 import Skeleton from '../components/Skeleton.tsx';
 import type { DashboardStats, Course, User } from '../types';
@@ -23,7 +24,7 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isTeacher } = useAuth();
+  const { user, isTeacher, isCurator } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -107,6 +108,10 @@ export default function DashboardPage() {
   // Role-based dashboards
   if (user?.role === 'admin') {
     return <AdminDashboard />;
+  }
+  
+  if (user?.role === 'curator') {
+    return <CuratorDashboard />;
   }
   
   if (isTeacher()) {
