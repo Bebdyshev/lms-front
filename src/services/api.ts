@@ -1427,6 +1427,16 @@ class LMSApiClient {
     }
   }
 
+  async completeOnboarding(): Promise<User> {
+    try {
+      const response = await this.api.post('/users/complete-onboarding');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to complete onboarding:', error);
+      throw new Error('Failed to complete onboarding');
+    }
+  }
+
   async deactivateUser(userId: number): Promise<void> {
     try {
       await this.api.delete(`/admin/users/${userId}`);

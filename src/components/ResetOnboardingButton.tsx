@@ -9,7 +9,8 @@ export default function ResetOnboardingButton() {
     if (user) {
       storage.removeItem(`onboarding_completed_${user.id}`);
       console.log('Onboarding reset for user:', user.id);
-      alert('Onboarding reset! Reload the page to see it again.');
+      console.log('Note: Server-side onboarding status is NOT reset. This only affects local storage.');
+      alert('Onboarding reset locally! Reload the page to see it again.\n\nNote: To fully reset, you need to update the database directly.');
       window.location.reload();
     }
   };
