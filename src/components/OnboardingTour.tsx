@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNextStep } from 'nextstepjs';
 import { UserRole } from '../types';
 import { getTourStepsForRole } from '../config/tourSteps';
@@ -11,10 +11,39 @@ interface OnboardingTourProps {
 }
 
 export default function OnboardingTour({ userRole, isOpen, onComplete }: OnboardingTourProps) {
-  const { startNextStep, closeNextStep, isNextStepVisible } = useNextStep();
+  const { startNextStep, closeNextStep, isNextStepVisible, currentStep } = useNextStep();
+  const onCompleteRef = useRef(onComplete);
+  const hasCompletedRef = useRef(false);
+  const tourSteps = getTourStepsForRole(userRole);
+  const totalSteps = tourSteps.length;
+
+  // Update ref when onComplete changes
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  // Отслеживаем прогресс тура
+  useEffect(() => {
+    console.log('[OnboardingTour] Step progress:', { currentStep, totalSteps, isOpen, isNextStepVisible });
+    
+    // Если тур закрыт и был открыт, но не был завершен ранее
+    if (!isNextStepVisible && isOpen && !hasCompletedRef.current && currentStep > 0) {
+      console.log('[OnboardingTour] Tour closed, marking as complete');
+      hasCompletedRef.current = true;
+      onCompleteRef.current();
+    }
+    
+    // Если достигли последнего шага
+    if (currentStep === totalSteps && currentStep > 0 && !hasCompletedRef.current) {
+      console.log('[OnboardingTour] Reached last step, will complete on close');
+    }
+  }, [currentStep, totalSteps, isNextStepVisible, isOpen]);
 
   useEffect(() => {
     if (isOpen && !isNextStepVisible) {
+      // Сбрасываем флаг завершения при новом открытии
+      hasCompletedRef.current = false;
+      
       // Даем время DOM элементам загрузиться перед запуском тура
       const timer = setTimeout(() => {
         const tourName = `${userRole}-onboarding`;
@@ -38,21 +67,43 @@ export default function OnboardingTour({ userRole, isOpen, onComplete }: Onboard
     }
   }, [isOpen, isNextStepVisible, startNextStep, closeNextStep, userRole]);
 
-  // Слушаем завершение тура
+  // Слушаем завершение тура через события
   useEffect(() => {
-    const handleTourEnd = () => {
-      if (isOpen) {
-        onComplete();
+    const handleTourEnd = (event: any) => {
+      console.log('[OnboardingTour] Tour end event received:', event);
+      if (isOpen && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onCompleteRef.current();
       }
     };
 
-    // Добавляем глобальный слушатель для завершения тура
-    window.addEventListener('nextstep:complete', handleTourEnd);
+    const handleTourComplete = (event: any) => {
+      console.log('[OnboardingTour] Tour complete event received:', event);
+      if (isOpen && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onCompleteRef.current();
+      }
+    };
+
+    const handleTourSkip = (event: any) => {
+      console.log('[OnboardingTour] Tour skip event received:', event);
+      if (isOpen && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onCompleteRef.current();
+      }
+    };
+
+    // Добавляем глобальные слушатели для различных событий завершения тура
+    window.addEventListener('nextstep:complete', handleTourComplete);
+    window.addEventListener('nextstep:end', handleTourEnd);
+    window.addEventListener('nextstep:skip', handleTourSkip);
     
     return () => {
-      window.removeEventListener('nextstep:complete', handleTourEnd);
+      window.removeEventListener('nextstep:complete', handleTourComplete);
+      window.removeEventListener('nextstep:end', handleTourEnd);
+      window.removeEventListener('nextstep:skip', handleTourSkip);
     };
-  }, [isOpen, onComplete]);
+  }, [isOpen]);
 
   // Компонент управляет туром через хуки, не рендерит UI
   return null;

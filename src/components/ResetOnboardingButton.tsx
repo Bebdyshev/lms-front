@@ -1,6 +1,7 @@
 import { useAuth } from '../contexts/AuthContext';
 import { storage } from '../utils/storage';
 import { Button } from './ui/button';
+import { RotateCcw } from 'lucide-react';
 
 export default function ResetOnboardingButton() {
   const { user } = useAuth();
@@ -21,15 +22,14 @@ export default function ResetOnboardingButton() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      <Button
-        onClick={handleReset}
-        variant="outline"
-        size="sm"
-        className="bg-yellow-100 hover:bg-yellow-200 border-yellow-400"
-      >
-        🔄 Reset Onboarding
-      </Button>
-    </div>
+    <Button
+      onClick={handleReset}
+      variant="outline"
+      size="sm"
+      className="border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+    >
+      <RotateCcw className="w-4 h-4 mr-2" />
+      Reset Onboarding
+    </Button>
   );
 }

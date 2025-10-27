@@ -24,7 +24,7 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
   useEffect(() => {
     // Проверяем, нужно ли показывать онбординг
     if (user && location.pathname === '/dashboard' && !onboardingShownInSession) {
-      console.log('Onboarding check:', {
+      console.log('[OnboardingManager] Onboarding check:', {
         userId: user.id,
         hasCompleted: user.onboarding_completed,
         pathname: location.pathname,
@@ -34,11 +34,11 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
       // Проверяем статус из данных пользователя (с сервера)
       if (!user.onboarding_completed) {
         // Показываем приветственные экраны
-        console.log('Starting onboarding flow...');
+        console.log('[OnboardingManager] Starting onboarding flow...');
         setShowWelcome(true);
         setOnboardingShownInSession(true); // Помечаем, что уже показали в этой сессии
       } else {
-        console.log('Onboarding already completed, skipping...');
+        console.log('[OnboardingManager] Onboarding already completed, skipping...');
       }
     }
   }, [user, location.pathname, onboardingShownInSession]);
@@ -60,14 +60,22 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
     // Сохраняем статус на сервере
     if (user) {
       try {
+        console.log('Calling completeOnboarding API for user:', user.id);
         const updatedUser = await apiClient.completeOnboarding();
+        console.log('Onboarding API response:', updatedUser);
         console.log('Onboarding status saved on server for user:', user.id);
         
         // Обновляем пользователя в контексте с новыми данными
+        console.log('Updating user in AuthContext with:', {
+          id: updatedUser.id,
+          onboarding_completed: updatedUser.onboarding_completed,
+          onboarding_completed_at: updatedUser.onboarding_completed_at
+        });
         updateUser(updatedUser);
         
         // Также сохраняем локально для быстрого доступа
         storage.setItem(`onboarding_completed_${user.id}`, 'true');
+        console.log('Onboarding saved to localStorage');
       } catch (error) {
         console.error('Failed to save onboarding status:', error);
         // Сохраняем хотя бы локально, если сервер недоступен

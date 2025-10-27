@@ -122,8 +122,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const updateUser = (updatedUser: User): void => {
+    console.log('[AuthContext] updateUser called with:', {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      onboarding_completed: updatedUser.onboarding_completed,
+      onboarding_completed_at: updatedUser.onboarding_completed_at
+    });
     setUser(updatedUser);
     apiClient.setCurrentUser(updatedUser);
+    console.log('[AuthContext] User state updated');
   };
 
   const hasRole = (role: UserRole): boolean => {
