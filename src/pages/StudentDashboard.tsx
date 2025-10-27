@@ -65,7 +65,7 @@ export default function StudentDashboard({
               course_id: parseInt(course.id.toString()),
               course_title: course.title,
               teacher_name: course.teacher_name || 'Unknown',
-              cover_image_url: course.coverImageUrl,
+              cover_image_url: course.cover_image_url,
               completion_percentage: 0,
               total_lessons: 0,
               completed_lessons: 0,
@@ -269,7 +269,7 @@ export default function StudentDashboard({
 
   return (
     <div className="space-y-8">
-      <Card className="border-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+      <Card className="border-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white" data-tour="dashboard-overview">
         <CardHeader className="p-5 sm:p-6">
           <CardTitle className="text-2xl sm:text-3xl">Welcome back, {firstName}!</CardTitle>
           <CardDescription className="text-white/80 text-sm sm:text-base">
@@ -283,7 +283,7 @@ export default function StudentDashboard({
         </CardFooter>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-2" data-tour="dashboard-stats">
         <Card className="h-fit">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="rounded-md bg-blue-100 text-blue-700 p-3">
@@ -301,7 +301,7 @@ export default function StudentDashboard({
           </CardContent>
         </Card>
 
-        <Card className="h-fit">
+        <Card className="h-fit" data-tour="streak-display">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="rounded-md bg-amber-100 text-amber-700 p-3">
               <Clock className="h-6 w-6" />
@@ -497,7 +497,7 @@ export default function StudentDashboard({
               </CardHeader>
             </Card>
           ) : progressData?.courses && progressData.courses.length > 0 ? (
-            <div className="space-y-6">
+            <div className="space-y-6" data-tour="recent-courses">
               {/* Course Progress Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {progressData.courses.map((course) => (

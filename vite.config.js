@@ -1,10 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'node:path'
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
+    extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
+    alias: [
+      // Mock Next.js navigation imports that nextstepjs might try to access
+      {
+        find: 'next/navigation',
+        replacement: path.join(process.cwd(), 'src/mocks/next-navigation.ts'),
+      },
+    ]
   },
   esbuild: {
     loader: 'tsx',
@@ -18,4 +26,7 @@ export default defineConfig({
       },
     },
   },
+  ssr: {
+    noExternal: ['nextstepjs', 'motion']
+  }
 }) 

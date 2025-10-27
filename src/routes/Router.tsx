@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { NextStepProvider, NextStepReact } from 'nextstepjs';
 import { AuthProvider } from '../contexts/AuthContext.tsx';
+import OnboardingManager from '../components/OnboardingManager.tsx';
 import ProtectedRoute from '../components/ProtectedRoute.tsx';
 import AppLayout from '../layouts/AppLayout.tsx';
 import LoginPage from '../pages/LoginPage.tsx';
@@ -36,23 +38,29 @@ import EditEvent from '../pages/EditEvent.tsx';
 import Calendar from '../pages/Calendar.tsx';
 import LandingPage from '../pages/LandingPage.tsx';
 import AnalyticsPage from '../pages/analytics/AnalyticsPage.tsx';
+import { getAllTourSteps } from '../config/allTourSteps';
 
 export default function Router() {
+  const tourSteps = getAllTourSteps();
+  
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/" element={
-            <ProtectedRoute requireAuth={false}>
-              <LandingPage />
-            </ProtectedRoute>
-          } />
-          {/* Auth Routes */}
-          <Route path="/login" element={
-            <ProtectedRoute requireAuth={false}>
-                <LoginPage />
-            </ProtectedRoute>
-          } />
+        <NextStepProvider>
+          <NextStepReact steps={tourSteps}>
+            <OnboardingManager>
+              <Routes>
+                <Route path="/" element={
+                  <ProtectedRoute requireAuth={false}>
+                    <LandingPage />
+                  </ProtectedRoute>
+                } />
+                {/* Auth Routes */}
+                <Route path="/login" element={
+                  <ProtectedRoute requireAuth={false}>
+                      <LoginPage />
+                  </ProtectedRoute>
+                } />
 
           {/* Protected App Routes */}
           <Route path="/" element={
@@ -339,6 +347,9 @@ export default function Router() {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+            </OnboardingManager>
+          </NextStepReact>
+        </NextStepProvider>
       </AuthProvider>
     </BrowserRouter>
   );
