@@ -11,21 +11,32 @@ export function getAllTourSteps(): Tour[] {
     
     return {
       tour: `${role}-onboarding`,
-      steps: tourSteps.map((step, index) => ({
-        icon: index === 0 ? '👋' : 
-              step.title.includes('User') ? '👥' : 
-              step.title.includes('Group') ? '🎓' : 
-              step.title.includes('Course') ? '📚' : 
-              step.title.includes('Analytics') ? '📊' : '💡',
-        title: step.title,
-        content: step.content,
-        selector: step.target,
-        side: (step.placement === 'center' ? 'top' : step.placement) as 'top' | 'bottom' | 'left' | 'right',
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 10,
-        pointerRadius: 8,
-      })),
+      steps: tourSteps.map((step, index) => {
+        // For center placement steps (like welcome screens), omit selector
+        const isCenterPlacement = step.placement === 'center';
+        
+        const stepConfig: any = {
+          icon: index === 0 ? '👋' : 
+                step.title.includes('User') ? '👥' : 
+                step.title.includes('Group') ? '🎓' : 
+                step.title.includes('Course') ? '📚' : 
+                step.title.includes('Analytics') ? '📊' : '💡',
+          title: step.title,
+          content: step.content,
+          showControls: true,
+          showSkip: true,
+          pointerPadding: 10,
+          pointerRadius: 8,
+        };
+        
+        // Only add selector and side for non-centered steps
+        if (!isCenterPlacement) {
+          stepConfig.selector = step.target;
+          stepConfig.side = step.placement || 'bottom';
+        }
+        
+        return stepConfig;
+      }),
     };
   });
 }

@@ -118,7 +118,7 @@ const teacherTourSteps: TourStep[] = [
 const adminTourSteps: TourStep[] = [
   {
     target: 'body',
-    title: 'Welcome to Admin Control Center! 🎯',
+    title: 'Welcome to Admin Control Center!',
     content: 'Let\'s take a comprehensive tour of your administrative capabilities. You have full control over the learning management system.',
     placement: 'center',
     disableBeacon: true,

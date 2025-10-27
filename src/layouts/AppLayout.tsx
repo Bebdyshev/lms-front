@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SidebarDesktop, SidebarMobile } from '../components/Sidebar.tsx';
 import Topbar from '../components/Topbar.tsx';
 import ToastContainer from '../components/Toast.tsx';
+import ResetOnboardingButton from '../components/ResetOnboardingButton.tsx';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </div>
         <ToastContainer />
+        <ResetOnboardingButton />
       </main>
       <SidebarMobile open={mobileOpen} onClose={() => setMobileOpen(false)} />
     </div>
