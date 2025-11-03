@@ -52,6 +52,7 @@ export default function QuizLessonEditor({
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   const openAddQuestion = () => {
     const ts = Date.now().toString();
@@ -349,6 +350,47 @@ export default function QuizLessonEditor({
     };
   }, [showSatImageModal, analyzeImageFile]);
 
+  // Keyboard shortcut for Preview (Cmd+O or Ctrl+O)
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle if question modal is open
+      if (!showQuestionModal || !draftQuestion) return;
+      
+      // Cmd+O (Mac) or Ctrl+O (Windows/Linux)
+      if ((event.metaKey || event.ctrlKey) && event.key === 'o') {
+        event.preventDefault();
+        setShowPreviewModal(true);
+      }
+      
+      // Cmd+H (Mac) or Ctrl+H (Windows/Linux) for Help
+      if ((event.metaKey || event.ctrlKey) && event.key === 'h') {
+        event.preventDefault();
+        setShowHelpModal(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showQuestionModal, draftQuestion]);
+
+  // Close preview modal with Esc key
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (showPreviewModal && event.key === 'Escape') {
+        event.preventDefault();
+        setShowPreviewModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showPreviewModal]);
+
+
   return (
     <div className="space-y-6 p-1">
       {/* Quiz Basic Info */}
@@ -622,84 +664,34 @@ export default function QuizLessonEditor({
                   </div>
                 </div>
                 
-                   {/* Media Preview for Media Questions */}
-                   {q.question_type === 'media_question' && q.media_url && (
-                  <div className="mb-4 flex items-center justify-center">
-                    {q.media_type === 'image' ? (
-                      <img 
-                        src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + q.media_url} 
-                        alt="Question media" 
-                        className="max-w-full max-h-64 object-contain rounded-lg border shadow-sm"
-                      />
-                    ) : q.media_type === 'pdf' ? (
-                      <div className="border rounded-lg p-4 bg-blue-50">
-                        <div className="flex items-center gap-2 text-blue-700">
-                          <FileText className="w-5 h-5" />
-                          <span className="font-medium">PDF Document</span>
-                        </div>
-                        <a 
-                          href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + q.media_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-sm mt-1 inline-block"
-                        >
-                          View PDF →
-                        </a>
-                      </div>
-                    ) : null}
+                {/* Brief question summary */}
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-700">
+                    <span className="font-medium">Type:</span> {
+                      q.question_type === 'single_choice' ? 'Single Choice' :
+                      q.question_type === 'multiple_choice' ? 'Multiple Choice' :
+                      q.question_type === 'short_answer' ? 'Short Answer' :
+                      q.question_type === 'fill_blank' ? 'Fill in the Blank' :
+                      q.question_type === 'text_completion' ? 'Text Completion' :
+                      q.question_type === 'long_text' ? 'Long Text Answer' :
+                      q.question_type === 'media_question' ? 'Media Question' :
+                      q.question_type
+                    }
                   </div>
-                )}
-                
-                {!!q.content_text && (
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="text-gray-800" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
+                  <div className="text-sm text-gray-700 line-clamp-2">
+                    <span className="font-medium">Question:</span> {q.question_text || 'No question text'}
                   </div>
-                )}
-                
-             
-                
-                <div className="text-base font-semibold text-gray-900">
-                  <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
+                  {q.content_text && (
+                    <div className="text-xs text-gray-500 line-clamp-1">
+                      Has passage text
+                    </div>
+                  )}
+                  {q.question_type === 'media_question' && q.media_url && (
+                    <div className="text-xs text-gray-500">
+                      Has {q.media_type} attachment
+                    </div>
+                  )}
                 </div>
-                {q.question_type !== 'fill_blank' ? (
-                  <div className="space-y-2">
-                    {q.options?.slice(0,4).map((opt, oi) => (
-                      <label key={opt.id || oi} className="flex items-center gap-2 p-3 rounded-md border bg-gray-50">
-                        <input type="radio" disabled className="text-blue-600" />
-                        <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(opt.text) }} />
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-md border bg-gray-50">
-                    {(() => {
-                      const text = (q.content_text || q.question_text || '').toString();
-                      const parts = text.split(/\[\[(.*?)\]\]/g);
-                      let gapIndex = 0;
-                      return (
-                        <div className="flex flex-wrap items-center gap-2 text-gray-800">
-                          {parts.map((part, i) => {
-                            const isGap = i % 2 === 1;
-                            if (!isGap) {
-                              return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
-                            }
-                            const inner = (part || '').split(',').map(s => s.trim()).filter(Boolean);
-                            const options = inner;
-                            const idxGap = gapIndex++;
-                            return (
-                              <select key={`prev-gap-${i}`} className="px-2 py-1 border rounded bg-white" defaultValue="">
-                                <option value="" disabled>{`#${idxGap+1}`}</option>
-                                {options.map((o, oi) => (
-                                  <option key={oi} value={o}>{o}</option>
-                                ))}
-                              </select>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -729,14 +721,30 @@ export default function QuizLessonEditor({
                 <h3 className="text-lg font-semibold">
                   {editingQuestionIndex !== null ? 'Edit Question' : 'Add Question'}
                 </h3>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setShowHelpModal(true)}
-                  className="text-blue-600 hover:text-blue-700"
-                >
-                  Help
-                </Button>
+                <div className="flex gap-2">
+                  <div className="flex flex-col items-center">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowPreviewModal(true)}
+                      className="text-green-600 hover:text-green-700"
+                    >
+                      Preview
+                    </Button>
+                    <div className="text-xs text-gray-500 mt-1">⌘+O</div>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowHelpModal(true)}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      Help
+                    </Button>
+                    <div className="text-xs text-gray-500 mt-1">⌘+H</div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -805,19 +813,12 @@ export default function QuizLessonEditor({
               <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Question Text</Label>
-                    <div className="space-y-2">
-                      <Input
-                        value={draftQuestion.question_text}
-                        onChange={(e) => applyDraftUpdate({ question_text: e.target.value })}
-                        placeholder="Enter your question"
-                        autoFocus
-                      />
-                      {draftQuestion.question_text.trim() && (
-                        <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border">
-                          Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.question_text) }} />
-                        </div>
-                      )}
-                    </div>
+                    <Input
+                      value={draftQuestion.question_text}
+                      onChange={(e) => applyDraftUpdate({ question_text: e.target.value })}
+                      placeholder="Enter your question"
+                      autoFocus
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1090,46 +1091,45 @@ export default function QuizLessonEditor({
                 </div>
               )}
 
-              {draftQuestion.question_type !== 'fill_blank' && draftQuestion.question_type !== 'long_text' && draftQuestion.question_type !== 'short_answer' && draftQuestion.question_type !== 'text_completion' ? (
+              {/* Show Options only for single_choice, multiple_choice, and media_question */}
+              {(draftQuestion.question_type === 'single_choice' || 
+                draftQuestion.question_type === 'multiple_choice' || 
+                draftQuestion.question_type === 'media_question') && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Options (4)</Label>
                   </div>
                   <div className="space-y-2">
                     {(draftQuestion.options || []).slice(0,4).map((opt, idx) => (
-                      <div key={opt.id} className="p-2 border rounded-md bg-white space-y-2">
-                        <div className="flex items-center gap-2">
-                          {draftQuestion.question_type === 'multiple_choice' ? (
-                            <input
-                              type="checkbox"
-                              checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
-                              onChange={(e) => setDraftCorrect(idx, e.target.checked)}
-                            />
-                          ) : (
-                            <input
-                              type="radio"
-                              name="draft-correct"
-                              checked={draftQuestion.correct_answer === idx}
-                              onChange={() => setDraftCorrect(idx, true)}
-                            />
-                          )}
-                          <Input
-                            value={opt.text}
-                            onChange={(e) => updateDraftOptionText(idx, e.target.value)}
-                                placeholder={`Option ${idx + 1}`}
-                            className="flex-1"
+                      <div key={opt.id} className="flex items-center gap-2 p-2 border rounded-md bg-white">
+                        {draftQuestion.question_type === 'multiple_choice' ? (
+                          <input
+                            type="checkbox"
+                            checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
+                            onChange={(e) => setDraftCorrect(idx, e.target.checked)}
                           />
-                        </div>
-                        {opt.text.trim() && (
-                          <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border ml-6">
-                            Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(opt.text) }} />
-                          </div>
+                        ) : (
+                          <input
+                            type="radio"
+                            name="draft-correct"
+                            checked={draftQuestion.correct_answer === idx}
+                            onChange={() => setDraftCorrect(idx, true)}
+                          />
                         )}
+                        <Input
+                          value={opt.text}
+                          onChange={(e) => updateDraftOptionText(idx, e.target.value)}
+                          placeholder={`Option ${idx + 1}`}
+                          className="flex-1"
+                        />
                       </div>
                     ))}
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {/* Show Gaps preview only for fill_blank question type */}
+              {draftQuestion.question_type === 'fill_blank' && (
                 <div className="space-y-2">
                   <Label>Gaps preview</Label>
                   <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
@@ -1220,6 +1220,231 @@ export default function QuizLessonEditor({
                   <div className="text-center py-4">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="text-sm text-gray-600 mt-2">Analyzing image with AI...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Preview Modal */}
+      {showPreviewModal && draftQuestion && createPortal(
+        <div className="fixed inset-0 z-[1000]">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative z-[1001] flex items-center justify-center min-h-screen p-4">
+            <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-xl">
+              <div className="flex items-center justify-between border-b pb-4">
+                <h3 className="text-xl font-semibold text-gray-900">Question Preview</h3>
+                <div className="text-center">
+                  <Button variant="outline" size="sm" onClick={() => setShowPreviewModal(false)}>Close</Button>
+                  <div className="text-xs text-gray-500 mt-1">Esc</div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Passage/Content */}
+                {draftQuestion.content_text && (
+                  <div className="bg-gray-50 p-4 rounded-lg border">
+                    <div className="text-sm font-medium text-gray-600 mb-2">Passage:</div>
+                    <div className="text-gray-800 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.content_text) }} />
+                  </div>
+                )}
+
+                {/* Media for Media Questions */}
+                {draftQuestion.question_type === 'media_question' && draftQuestion.media_url && (
+                  <div className="flex items-center justify-center bg-gray-50 p-4 rounded-lg border">
+                    {draftQuestion.media_type === 'image' ? (
+                      <img 
+                        src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url} 
+                        alt="Question media" 
+                        className="max-w-full max-h-96 object-contain rounded-lg shadow-sm"
+                      />
+                    ) : draftQuestion.media_type === 'pdf' ? (
+                      <div className="text-center">
+                        <FileText className="w-12 h-12 mx-auto text-blue-600 mb-2" />
+                        <div className="font-medium text-gray-700">PDF Document</div>
+                        <a 
+                          href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          View PDF →
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Question Text */}
+                <div className="space-y-3">
+                  <div className="text-lg font-semibold text-gray-900">
+                    <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.question_text) }} />
+                  </div>
+                  <div className="text-sm text-gray-500">Points: {draftQuestion.points}</div>
+                </div>
+
+                {/* Answer Options based on question type */}
+                {(draftQuestion.question_type === 'single_choice' || draftQuestion.question_type === 'multiple_choice' || draftQuestion.question_type === 'media_question') && (
+                  <div className="space-y-2">
+                    {draftQuestion.options?.map((opt, idx) => {
+                      const isCorrect = draftQuestion.question_type === 'multiple_choice' 
+                        ? Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)
+                        : draftQuestion.correct_answer === idx;
+                      
+                      return (
+                        <label 
+                          key={opt.id || idx} 
+                          className={`flex items-start gap-3 p-4 rounded-lg border-2 transition-colors ${
+                            isCorrect 
+                              ? 'border-green-500 bg-green-50' 
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          <input 
+                            type={draftQuestion.question_type === 'multiple_choice' ? 'checkbox' : 'radio'}
+                            name="preview-option"
+                            className="mt-1"
+                            checked={isCorrect}
+                            readOnly
+                          />
+                          <div className="flex-1">
+                            <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(opt.text) }} />
+                            {isCorrect && (
+                              <span className="ml-2 text-xs font-medium text-green-600">✓ Correct</span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Short Answer */}
+                {draftQuestion.question_type === 'short_answer' && (
+                  <div className="space-y-2">
+                    <Input 
+                      type="text" 
+                      placeholder="Student's answer will be typed here..." 
+                      disabled 
+                      className="bg-gray-50"
+                    />
+                    <div className="text-sm text-gray-600 bg-green-50 border border-green-200 rounded p-3">
+                      <span className="font-medium text-green-700">Correct answer:</span> {draftQuestion.correct_answer}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fill in the Blank */}
+                {draftQuestion.question_type === 'fill_blank' && (
+                  <div className="p-4 rounded-lg border bg-gray-50">
+                    {(() => {
+                      const text = (draftQuestion.content_text || '').toString();
+                      const parts = text.split(/\[\[(.*?)\]\]/g);
+                      let gapIndex = 0;
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 text-gray-800">
+                          {parts.map((part, i) => {
+                            const isGap = i % 2 === 1;
+                            if (!isGap) {
+                              return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                            }
+                            const inner = (part || '').split(',').map(s => s.trim()).filter(Boolean);
+                            const options = inner;
+                            const idxGap = gapIndex++;
+                            return (
+                              <select key={`preview-gap-${i}`} className="px-3 py-1.5 border-2 border-blue-400 rounded bg-white font-medium" defaultValue="">
+                                <option value="" disabled>{`Select #${idxGap+1}`}</option>
+                                {options.map((o, oi) => (
+                                  <option key={oi} value={o}>{o}</option>
+                                ))}
+                              </select>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Text Completion */}
+                {draftQuestion.question_type === 'text_completion' && (
+                  <div className="space-y-3">
+                    <div className="p-4 rounded-lg border bg-gray-50">
+                      {(() => {
+                        const text = (draftQuestion.content_text || '').toString();
+                        const parts = text.split(/\[\[(.*?)\]\]/g);
+                        let gapIndex = 0;
+                        return (
+                          <div className="flex flex-wrap items-center gap-2 text-gray-800">
+                            {parts.map((part, i) => {
+                              const isGap = i % 2 === 1;
+                              if (!isGap) {
+                                return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
+                              }
+                              const idxGap = gapIndex++;
+                              return (
+                                <Input 
+                                  key={`completion-gap-${i}`} 
+                                  type="text" 
+                                  placeholder={`Gap ${idxGap + 1}`}
+                                  className="inline-block w-32 border-2 border-blue-400"
+                                  disabled
+                                />
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    {Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.length > 0 && (
+                      <div className="text-sm bg-green-50 border border-green-200 rounded p-3">
+                        <span className="font-medium text-green-700">Correct answers:</span>
+                        <div className="mt-1 space-y-1">
+                          {draftQuestion.correct_answer.map((answer, idx) => (
+                            <div key={idx} className="text-gray-700">
+                              Gap {idx + 1}: <span className="font-medium">{answer}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Long Text Answer */}
+                {draftQuestion.question_type === 'long_text' && (
+                  <div className="space-y-2">
+                    <textarea 
+                      rows={6}
+                      placeholder="Student's long answer will be typed here..."
+                      disabled
+                      className="w-full px-3 py-2 border rounded-lg bg-gray-50 resize-none"
+                    />
+                    {(draftQuestion.expected_length || draftQuestion.keywords) && (
+                      <div className="text-sm bg-blue-50 border border-blue-200 rounded p-3 space-y-1">
+                        {draftQuestion.expected_length && (
+                          <div className="text-gray-700">
+                            <span className="font-medium">Expected length:</span> ~{draftQuestion.expected_length} characters
+                          </div>
+                        )}
+                        {draftQuestion.keywords && draftQuestion.keywords.length > 0 && (
+                          <div className="text-gray-700">
+                            <span className="font-medium">Keywords to include:</span> {draftQuestion.keywords.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Explanation */}
+                {draftQuestion.explanation && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="text-sm font-medium text-blue-900 mb-2">Explanation:</div>
+                    <div className="text-gray-800 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.explanation) }} />
                   </div>
                 )}
               </div>

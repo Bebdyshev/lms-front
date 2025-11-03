@@ -133,6 +133,7 @@ export interface StudentProgressOverview {
 export interface StudentCourseProgress {
   course_id: number;
   course_title: string;
+  teacher_id: number;
   teacher_name: string;
   cover_image_url?: string;
   total_lessons: number;

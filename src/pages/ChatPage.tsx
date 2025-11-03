@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { isAuthenticated, fetchThreads, fetchMessages, getAvailableContacts, sendMessage, getCurrentUser } from "../services/api";
 import type { MessageThread, Message, AvailableContact, User } from '../types';
 import { Button } from '../components/ui/button';
@@ -10,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { connectSocket } from '../services/socket';
 
 export default function ChatPage() {
+  const location = useLocation();
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [activePartnerId, setActivePartnerId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,7 +28,23 @@ export default function ChatPage() {
   useEffect(() => {
     loadCurrentUser();
     loadThreads();
+    loadAvailableContacts();
   }, []);
+
+  // Handle navigation state to open chat with specific user
+  useEffect(() => {
+    const contactUserId = (location.state as any)?.contactUserId;
+    if (contactUserId && availableContacts.length > 0) {
+      // Find the contact in available contacts
+      const contact = availableContacts.find(c => c.user_id === contactUserId);
+      if (contact) {
+        // Start chat with this contact
+        startNewChat(contact);
+      }
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, availableContacts]);
 
   const loadCurrentUser = async () => {
     try {

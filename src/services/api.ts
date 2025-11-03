@@ -1784,7 +1784,8 @@ class LMSApiClient {
 
   async getTeacherCourses(): Promise<any[]> {
     try {
-      const response = await this.api.get('/courses/teacher/my');
+      // Teachers get their courses from /courses/ endpoint which auto-filters by teacher_id
+      const response = await this.api.get('/courses/');
       return response.data;
     } catch (error) {
       console.error('Failed to get teacher courses:', error);
@@ -1951,6 +1952,70 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       console.error('Failed to mark step as visited:', error);
+      throw error;
+    }
+  }
+
+  // Quiz Attempts
+  async saveQuizAttempt(attemptData: {
+    step_id: number;
+    course_id: number;
+    lesson_id: number;
+    quiz_title?: string;
+    total_questions: number;
+    correct_answers: number;
+    score_percentage: number;
+    answers?: string;
+    time_spent_seconds?: number;
+  }): Promise<any> {
+    try {
+      const response = await this.api.post('/progress/quiz-attempt', attemptData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to save quiz attempt:', error);
+      throw error;
+    }
+  }
+
+  async getStepQuizAttempts(stepId: number): Promise<any[]> {
+    try {
+      const response = await this.api.get(`/progress/quiz-attempts/step/${stepId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get quiz attempts:', error);
+      throw error;
+    }
+  }
+
+  async getCourseQuizAttempts(courseId: number): Promise<any[]> {
+    try {
+      const response = await this.api.get(`/progress/quiz-attempts/course/${courseId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get course quiz attempts:', error);
+      throw error;
+    }
+  }
+
+  async getCourseQuizAnalytics(courseId: number): Promise<any> {
+    try {
+      const response = await this.api.get(`/progress/quiz-attempts/analytics/course/${courseId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get course quiz analytics:', error);
+      throw error;
+    }
+  }
+
+  async getStudentQuizAnalytics(studentId: number, courseId?: number): Promise<any> {
+    try {
+      const url = courseId 
+        ? `/progress/quiz-attempts/analytics/student/${studentId}?course_id=${courseId}`
+        : `/progress/quiz-attempts/analytics/student/${studentId}`;
+      const response = await this.api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get student quiz analytics:', error);
       throw error;
     }
   }

@@ -6,8 +6,9 @@ import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
 import { Checkbox } from "../components/ui/checkbox";
 import type { DashboardStats, StudentProgressOverview, Assignment, Event, AssignmentSubmission } from "../types";
-import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap } from "lucide-react";
+import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap, MessageCircle, User } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import apiClient from "../services/api";
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
@@ -24,6 +25,7 @@ export default function StudentDashboard({
   onContinueCourse,
   onGoToAllCourses,
 }: StudentDashboardProps) {
+  const navigate = useNavigate();
   const [progressData, setProgressData] = useState<StudentProgressOverview | null>(null);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
   
@@ -64,6 +66,7 @@ export default function StudentDashboard({
             courses: basicCourses.map(course => ({
               course_id: parseInt(course.id.toString()),
               course_title: course.title,
+              teacher_id: parseInt(course.teacher_id?.toString() || '0'),
               teacher_name: course.teacher_name || 'Unknown',
               cover_image_url: course.cover_image_url,
               completion_percentage: 0,
@@ -464,6 +467,67 @@ export default function StudentDashboard({
               )}
             </CardContent>
           </Card>
+
+          {/* Your Teacher Card */}
+          {progressData && progressData.courses && progressData.courses.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Your Teacher
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  // Get unique teachers from all courses
+                  const uniqueTeachers = Array.from(
+                    new Map(
+                      progressData.courses.map(course => [
+                        course.teacher_id,
+                        { id: course.teacher_id, name: course.teacher_name }
+                      ])
+                    ).values()
+                  );
+
+                  return uniqueTeachers.length > 0 ? (
+                    <div className="space-y-3">
+                      {uniqueTeachers.map(teacher => (
+                        <div key={teacher.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-medium">
+                              {teacher.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{teacher.name}</div>
+                              <div className="text-xs text-gray-500">
+                                {progressData.courses.filter(c => c.teacher_id === teacher.id).length} course(s)
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              // Navigate to chat and start conversation with teacher
+                              navigate('/chat', { state: { contactUserId: teacher.id } });
+                            }}
+                            className="flex items-center gap-1"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            Contact
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      No teacher information available
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Column - Main Content */}
