@@ -22,23 +22,45 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
   }, [showWelcome, showTour]);
 
   useEffect(() => {
+    // Определяем дашборды для каждой роли
+    const getDashboardPathForRole = (role: string) => {
+      switch (role) {
+        case 'student':
+          return '/dashboard';
+        case 'teacher':
+          return '/dashboard';
+        case 'curator':
+          return '/dashboard';
+        case 'admin':
+          return '/dashboard';
+        default:
+          return '/dashboard';
+      }
+    };
+
     // Проверяем, нужно ли показывать онбординг
-    if (user && location.pathname === '/dashboard' && !onboardingShownInSession) {
-      console.log('[OnboardingManager] Onboarding check:', {
-        userId: user.id,
-        hasCompleted: user.onboarding_completed,
-        pathname: location.pathname,
-        shownInSession: onboardingShownInSession
-      });
+    if (user && !onboardingShownInSession) {
+      const userDashboard = getDashboardPathForRole(user.role);
+      const isOnDashboard = location.pathname === userDashboard;
       
-      // Проверяем статус из данных пользователя (с сервера)
-      if (!user.onboarding_completed) {
-        // Показываем приветственные экраны
-        console.log('[OnboardingManager] Starting onboarding flow...');
-        setShowWelcome(true);
-        setOnboardingShownInSession(true); // Помечаем, что уже показали в этой сессии
-      } else {
-        console.log('[OnboardingManager] Onboarding already completed, skipping...');
+      if (isOnDashboard) {
+        console.log('[OnboardingManager] Onboarding check:', {
+          userId: user.id,
+          userRole: user.role,
+          hasCompleted: user.onboarding_completed,
+          pathname: location.pathname,
+          shownInSession: onboardingShownInSession
+        });
+        
+        // Проверяем статус из данных пользователя (с сервера)
+        if (!user.onboarding_completed) {
+          // Показываем приветственные экраны
+          console.log('[OnboardingManager] Starting onboarding flow for', user.role);
+          setShowWelcome(true);
+          setOnboardingShownInSession(true); // Помечаем, что уже показали в этой сессии
+        } else {
+          console.log('[OnboardingManager] Onboarding already completed, skipping...');
+        }
       }
     }
   }, [user, location.pathname, onboardingShownInSession]);
@@ -88,8 +110,12 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
 
   return (
     <>
-      {showWelcome && (
-        <WelcomeScreens userName={userName} onComplete={handleWelcomeComplete} />
+      {showWelcome && user && (
+        <WelcomeScreens 
+          userName={userName} 
+          userRole={user.role}
+          onComplete={handleWelcomeComplete} 
+        />
       )}
       
       {user && showTour && (
