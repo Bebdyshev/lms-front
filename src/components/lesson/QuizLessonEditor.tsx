@@ -247,10 +247,21 @@ export default function QuizLessonEditor({
       const result = await apiClient.uploadQuestionMedia(file);
       if (result) {
         setQuizMediaUrl(result.file_url);
-        const fileType = file.type.startsWith('audio/') ? 'audio' : 'pdf';
+        
+        // Determine file type
+        let fileType: 'audio' | 'pdf' | '' = '';
+        if (file.type.startsWith('audio/')) {
+          fileType = 'audio';
+        } else if (file.type === 'application/pdf') {
+          fileType = 'pdf';
+        } else if (file.type.startsWith('image/')) {
+          // For images, we still use 'pdf' as the media type but it will be rendered as image
+          fileType = 'pdf';
+        }
+        
         setQuizMediaType(fileType);
         
-        // Force "all at once" for PDF quizzes
+        // Force "all at once" for PDF/image quizzes
         if (fileType === 'pdf' && setQuizDisplayMode) {
           setQuizDisplayMode('all_at_once');
         }
@@ -450,8 +461,8 @@ export default function QuizLessonEditor({
             }`}
             onClick={() => setQuizType('pdf')}
           >
-            <div className="font-medium">PDF Quiz</div>
-            <div className="text-sm text-gray-600">Questions based on PDF document</div>
+            <div className="font-medium">Document Quiz</div>
+            <div className="text-sm text-gray-600">Questions based on PDF or image</div>
           </div>
         </div>
       </div>
@@ -459,7 +470,7 @@ export default function QuizLessonEditor({
       {/* Media Upload for Audio/PDF Quizzes */}
       {(quizType === 'audio' || quizType === 'pdf') && (
         <div className="space-y-3">
-          <Label>{quizType === 'audio' ? 'Audio File' : 'PDF Document'}</Label>
+          <Label>{quizType === 'audio' ? 'Audio File' : 'Document (PDF or Image)'}</Label>
           {quizMediaUrl ? (
             <div className="border rounded-lg p-4 bg-gray-50">
               <div className="flex items-center justify-between">
@@ -468,9 +479,13 @@ export default function QuizLessonEditor({
                     <>
                       🎵 <span className="font-medium">Audio uploaded</span>
                     </>
-                  ) : (
+                  ) : quizMediaType === 'pdf' ? (
                     <>
                       📄 <span className="font-medium">PDF uploaded</span>
+                    </>
+                  ) : (
+                    <>
+                      🖼️ <span className="font-medium">Image uploaded</span>
                     </>
                   )}
                 </div>
@@ -482,7 +497,7 @@ export default function QuizLessonEditor({
                       className="max-w-xs"
                     />
                   )}
-                  {quizType === 'pdf' && (
+                  {quizType === 'pdf' && quizMediaType === 'pdf' && (
                     <a 
                       href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl} 
                       target="_blank" 
@@ -491,6 +506,13 @@ export default function QuizLessonEditor({
                     >
                       View PDF →
                     </a>
+                  )}
+                  {quizType === 'pdf' && quizMediaType !== 'pdf' && (
+                    <img 
+                      src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl}
+                      alt="Quiz reference"
+                      className="max-h-20 rounded"
+                    />
                   )}
                   <Button 
                     variant="outline" 
@@ -514,11 +536,11 @@ export default function QuizLessonEditor({
                 if (file) {
                   const isValidType = quizType === 'audio' 
                     ? file.type.startsWith('audio/') 
-                    : file.type === 'application/pdf';
+                    : file.type === 'application/pdf' || file.type.startsWith('image/');
                   if (isValidType) {
                     await uploadQuizMedia(file);
                   } else {
-                    alert(`Please upload a ${quizType === 'audio' ? 'audio' : 'PDF'} file.`);
+                    alert(`Please upload ${quizType === 'audio' ? 'an audio' : 'a PDF or image'} file.`);
                   }
                 }
               }}
@@ -529,12 +551,12 @@ export default function QuizLessonEditor({
               <div className="text-sm text-gray-600 mb-2">
                 {quizType === 'audio' 
                   ? 'Drag & drop or click to upload audio file (MP3, WAV, etc.)'
-                  : 'Drag & drop or click to upload PDF document'
+                  : 'Drag & drop or click to upload PDF or image (JPG, PNG, etc.)'
                 }
               </div>
               <input
                 type="file"
-                accept={quizType === 'audio' ? 'audio/*' : '.pdf'}
+                accept={quizType === 'audio' ? 'audio/*' : '.pdf,image/*'}
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
@@ -547,7 +569,7 @@ export default function QuizLessonEditor({
               <label htmlFor={`quiz-media-upload-${quizType}`} className="cursor-pointer">
                 <Button variant="outline" size="sm" disabled={isUploadingMedia} asChild>
                   <span>
-                    {isUploadingMedia ? 'Uploading...' : `Choose ${quizType === 'audio' ? 'Audio' : 'PDF'} File`}
+                    {isUploadingMedia ? 'Uploading...' : `Choose ${quizType === 'audio' ? 'Audio' : 'Document'} File`}
                   </span>
                 </Button>
               </label>

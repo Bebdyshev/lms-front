@@ -724,7 +724,7 @@ export default function LessonPage() {
         {quizData?.quiz_media_url && (
           <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? 'Audio Material' : ''}
+              {quizData.quiz_media_type === 'audio' ? 'Audio Material' : 'Reference Material'}
             </h3>
             {quizData.quiz_media_type === 'audio' ? (
               <audio 
@@ -733,8 +733,20 @@ export default function LessonPage() {
                 className="w-full"
               />
             ) : quizData.quiz_media_type === 'pdf' ? (
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between">
+              // Check if it's actually a PDF or an image
+              quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <img
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                    alt="Reference material"
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this image to answer the questions below.
+                  </p>
+                </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
                     <iframe
                       src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}#toolbar=0&navpanes=0&scrollbar=1`}
@@ -742,11 +754,11 @@ export default function LessonPage() {
                       title="Question PDF"
                     />
                   </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this document to answer the questions below.
+                  </p>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  Reference this document to answer the questions below.
-                </p>
-              </div>
+              )
             ) : null}
           </div>
         )}
@@ -1266,18 +1278,7 @@ export default function LessonPage() {
         {quizData?.quiz_media_url && (
           <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? '🎵 Audio Material' : (
-                <div className="space-y-2">
-                  <a 
-                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    Open PDF →
-                  </a>
-                </div>
-              )}
+              {quizData.quiz_media_type === 'audio' ? '🎵 Audio Material' : '📄 Reference Material'}
             </h3>
             {quizData.quiz_media_type === 'audio' ? (
               <audio 
@@ -1286,21 +1287,35 @@ export default function LessonPage() {
                 className="w-full"
               />
             ) : quizData.quiz_media_type === 'pdf' ? (
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <a 
-                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    Open PDF →
-                  </a>
+              // Check if it's actually a PDF or an image
+              quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <img
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                    alt="Reference material"
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this image to answer the questions below.
+                  </p>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  Reference this document to answer the questions below.
-                </p>
-              </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <a 
+                      href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      Open PDF →
+                    </a>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this document to answer the questions below.
+                  </p>
+                </div>
+              )
             ) : null}
           </div>
         )}
