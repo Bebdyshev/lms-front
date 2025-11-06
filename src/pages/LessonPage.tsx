@@ -815,7 +815,7 @@ export default function LessonPage() {
                   {/* Question */}
                   {q.question_type !== 'text_completion' && (
                     <h3 className="text-lg font-bold text-gray-900 mb-4">
-                      <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }} />
+                      <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text.replace(/\[\[.*?\]\]/g, '')) }} />
                     </h3>
                   )}
 
@@ -1363,7 +1363,7 @@ export default function LessonPage() {
 
             {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' && (
               <h3 className="text-xl font-bold text-gray-900 mb-6">
-                <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
+                <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text.replace(/\[\[.*?\]\]/g, '')) }} />
               </h3>
             )}
 
@@ -1619,7 +1619,7 @@ export default function LessonPage() {
           <div className="p-8">
             {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' && (
               <h3 className="text-xl font-bold text-gray-900 mb-6">
-                <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text) }} />
+                <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text.replace(/\[\[.*?\]\]/g, '')) }} />
               </h3>
             )}
 
