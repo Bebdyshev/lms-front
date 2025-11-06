@@ -1859,10 +1859,10 @@ export default function LessonPage() {
       if (!attachments || attachments.length === 0) return null;
 
       return (
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+        <div className="mt-6 p-4 rounded-lg border">
           <div className="space-y-4">
             {attachments.map((attachment) => (
-              <div key={attachment.id} className="rounded border">
+              <div key={attachment.id} className="rounded">
                 {/* PDF Preview */}
                 {attachment.file_type.toLowerCase() === 'pdf' && (
                       <iframe
@@ -1878,7 +1878,7 @@ export default function LessonPage() {
                     <img
                       src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${attachment.file_url}`}
                       alt={attachment.filename}
-                      className="w-full max-h-48 object-contain rounded border"
+                      className="w-full h-auto rounded"
                     />
                   </div>
                 )}
@@ -1954,13 +1954,13 @@ export default function LessonPage() {
               </div>
             )}
           
+            {renderAttachments(currentStep.attachments)}
+            
             {currentStep.content_text && (
               <div className="prose max-w-none">
                 <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text) }} />
               </div>
             )}
-            
-            {renderAttachments(currentStep.attachments)}
           </div>
         );
       
