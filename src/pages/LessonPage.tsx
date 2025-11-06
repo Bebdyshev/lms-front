@@ -1900,10 +1900,10 @@ export default function LessonPage() {
       case 'text':
         return (
           <div>
+            {renderAttachments(currentStep.attachments)}
             <div className="prose max-w-none">
               <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text || '') }} />
             </div>
-            {renderAttachments(currentStep.attachments)}
           </div>
         );
       
@@ -1937,7 +1937,7 @@ export default function LessonPage() {
             {currentStep && currentStep.video_url && (
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-800">Прогресс просмотра видео</span>
+                  <span className="text-sm font-medium text-blue-800">Video Watch Progress</span>
                   <span className="text-sm text-blue-600">
                     {Math.round((videoProgress.get(currentStep.id.toString()) || 0) * 100)}%
                   </span>
@@ -1949,7 +1949,7 @@ export default function LessonPage() {
                   />
                 </div>
                 <p className="text-xs text-blue-600 mt-2">
-                  Для перехода к следующему шагу необходимо просмотреть видео на 90% или более
+                  You need to watch 90% or more of the video to proceed to the next step
                 </p>
               </div>
             )}
