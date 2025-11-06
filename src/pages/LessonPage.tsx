@@ -268,6 +268,7 @@ export default function LessonPage() {
   const [quizData, setQuizData] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [feedChecked, setFeedChecked] = useState(false);
+  const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (courseId && lessonId) {
@@ -486,6 +487,7 @@ export default function LessonPage() {
         const displayMode = parsedQuizData.display_mode || 'one_by_one';
         if (displayMode === 'all_at_once') {
           setQuizState('question');
+          setQuizStartTime(Date.now()); // Start timer for feed mode quizzes
         } else {
           setQuizState('title');
         }
@@ -581,6 +583,34 @@ export default function LessonPage() {
   // Quiz functions
   const startQuiz = () => {
     setQuizState('question');
+    setQuizStartTime(Date.now());
+  };
+
+  const saveQuizAttempt = async (score: number, totalQuestions: number) => {
+    if (!currentStep || !courseId || !lessonId) return;
+    
+    try {
+      const timeSpentSeconds = quizStartTime 
+        ? Math.floor((Date.now() - quizStartTime) / 1000)
+        : undefined;
+      
+      const attemptData = {
+        step_id: parseInt(currentStep.id.toString()),
+        course_id: parseInt(courseId),
+        lesson_id: parseInt(lessonId),
+        quiz_title: quizData?.title || 'Quiz',
+        total_questions: totalQuestions,
+        correct_answers: score,
+        score_percentage: (score / totalQuestions) * 100,
+        answers: JSON.stringify(Array.from(quizAnswers.entries())),
+        time_spent_seconds: timeSpentSeconds
+      };
+      
+      await apiClient.saveQuizAttempt(attemptData);
+      console.log('Quiz attempt saved successfully');
+    } catch (error) {
+      console.error('Failed to save quiz attempt:', error);
+    }
   };
 
   const handleQuizAnswer = (questionId: string, answer: any) => {
@@ -598,6 +628,22 @@ export default function LessonPage() {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setQuizState('question');
     } else {
+      // Save quiz attempt before completing
+      const score = getScore();
+      const scorePercentage = (score / questions.length) * 100;
+      saveQuizAttempt(score, questions.length);
+      
+      // Check if score is at least 50%
+      if (scorePercentage < 50) {
+        // Score is below 50%, show completed state but don't mark as passed
+        setQuizState('completed');
+        if (currentStep) {
+          // Mark quiz as completed but NOT the step as completed
+          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), false)));
+        }
+        return;
+      }
+      
       if (isNotLastStep) {
         // Mark quiz as completed and step as completed before going to next step
         if (currentStep) {
@@ -621,6 +667,7 @@ export default function LessonPage() {
     setQuizState('title');
     setCurrentQuestionIndex(0);
     setQuizAnswers(new Map());
+    setQuizStartTime(null);
     // Reset quiz completion status for current step
     if (currentStep) {
       setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), false)));
@@ -677,7 +724,7 @@ export default function LessonPage() {
         {quizData?.quiz_media_url && (
           <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? 'Audio Material' : ''}
+              {quizData.quiz_media_type === 'audio' ? 'Audio Material' : 'Reference Material'}
             </h3>
             {quizData.quiz_media_type === 'audio' ? (
               <audio 
@@ -686,8 +733,20 @@ export default function LessonPage() {
                 className="w-full"
               />
             ) : quizData.quiz_media_type === 'pdf' ? (
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between">
+              // Check if it's actually a PDF or an image
+              quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <img
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                    alt="Reference material"
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this image to answer the questions below.
+                  </p>
+                </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
                     <iframe
                       src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}#toolbar=0&navpanes=0&scrollbar=1`}
@@ -695,11 +754,11 @@ export default function LessonPage() {
                       title="Question PDF"
                     />
                   </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this document to answer the questions below.
+                  </p>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  Reference this document to answer the questions below.
-                </p>
-              </div>
+              )
             ) : null}
           </div>
         )}
@@ -1032,7 +1091,12 @@ export default function LessonPage() {
         <div className="flex justify-center pt-4">
           {!feedChecked ? (
             <button
-              onClick={() => setFeedChecked(true)}
+              onClick={() => {
+                setFeedChecked(true);
+                // Save quiz attempt when checking all answers
+                const score = getScore();
+                saveQuizAttempt(score, questions.length);
+              }}
               disabled={questions.some(q => {
                 const ans = quizAnswers.get(q.id);
                 if (q.question_type === 'fill_blank') {
@@ -1068,21 +1132,49 @@ export default function LessonPage() {
             >
               Check All Answers
             </button>
-          ) : (
-            <button
-              onClick={() => {
-                // Mark quiz as completed and step as completed before going to next step
-                if (currentStep) {
-                  setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-                  markStepAsVisited(currentStep.id.toString(), 4); // 4 minutes for quiz completion
-                }
-                goToNextStep();
-              }}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200"
-            >
-              Continue to Next Step
-            </button>
-          )}
+          ) : (() => {
+              const score = getScore();
+              const scorePercentage = (score / questions.length) * 100;
+              const isPassed = scorePercentage >= 50;
+              
+              return (
+                <div className="space-y-4">
+                  {!isPassed && (
+                    <div className="p-4 bg-red-100 border border-red-300 rounded-lg mb-4">
+                      <p className="text-red-900 font-semibold text-center">
+                        Score: {Math.round(scorePercentage)}% (minimum 50% required to continue)
+                      </p>
+                      <p className="text-red-800 text-sm mt-2 text-center">
+                        Please try again to improve your score
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (isPassed) {
+                        // Mark quiz as completed and step as completed before going to next step
+                        if (currentStep) {
+                          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+                          markStepAsVisited(currentStep.id.toString(), 4); // 4 minutes for quiz completion
+                        }
+                        goToNextStep();
+                      } else {
+                        // Reset quiz to retry
+                        resetQuiz();
+                        setFeedChecked(false);
+                      }
+                    }}
+                    className={`px-8 py-3 rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 ${
+                      isPassed
+                        ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                        : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                    }`}
+                  >
+                    {isPassed ? 'Continue to Next Step' : 'Retry Quiz'}
+                  </button>
+                </div>
+              );
+            })()}
         </div>
       </div>
     );
@@ -1186,18 +1278,7 @@ export default function LessonPage() {
         {quizData?.quiz_media_url && (
           <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? '🎵 Audio Material' : (
-                <div className="space-y-2">
-                  <a 
-                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    Open PDF →
-                  </a>
-                </div>
-              )}
+              {quizData.quiz_media_type === 'audio' ? '🎵 Audio Material' : '📄 Reference Material'}
             </h3>
             {quizData.quiz_media_type === 'audio' ? (
               <audio 
@@ -1206,21 +1287,35 @@ export default function LessonPage() {
                 className="w-full"
               />
             ) : quizData.quiz_media_type === 'pdf' ? (
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <a 
-                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    Open PDF →
-                  </a>
+              // Check if it's actually a PDF or an image
+              quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <img
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                    alt="Reference material"
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this image to answer the questions below.
+                  </p>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  Reference this document to answer the questions below.
-                </p>
-              </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <a 
+                      href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      Open PDF →
+                    </a>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this document to answer the questions below.
+                  </p>
+                </div>
+              )
             ) : null}
           </div>
         )}
@@ -1662,6 +1757,7 @@ export default function LessonPage() {
   const renderQuizCompleted = () => {
     const score = getScore();
     const percentage = Math.round((score / questions.length) * 100);
+    const isPassed = percentage >= 50;
     
     return (
       <div className="max-w-2xl mx-auto text-center space-y-6 p-6">
@@ -1671,31 +1767,65 @@ export default function LessonPage() {
         </h1>
 
         {/* Results Card */}
-        <div className="bg-blue-50 p-8 rounded-2xl border border-blue-200 shadow-lg">
+        <div className={`p-8 rounded-2xl border shadow-lg ${
+          isPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+        }`}>
           <div className="space-y-6">
             {/* Score Display */}
             <div className="space-y-2">
-              <div className="text-6xl font-bold text-blue-600">
+              <div className={`text-6xl font-bold ${
+                isPassed ? 'text-green-600' : 'text-red-600'
+              }`}>
                 {percentage}%
               </div>
-              <p className="text-lg text-blue-800 font-medium">
+              <p className={`text-lg font-medium ${
+                isPassed ? 'text-green-800' : 'text-red-800'
+              }`}>
                 {score} out of {questions.length} questions correct
               </p>
+              {!isPassed && (
+                <div className="mt-4 p-4 bg-red-100 border border-red-300 rounded-lg">
+                  <p className="text-red-900 font-semibold">
+                    You need to score at least 50% to continue
+                  </p>
+                  <p className="text-red-800 text-sm mt-2">
+                    Please try again to improve your score
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white/50 rounded-lg p-3 border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">{score}</div>
-                <div className="text-sm font-medium text-blue-800">Correct</div>
+              <div className={`rounded-lg p-3 border ${
+                isPassed ? 'bg-white/50 border-green-200' : 'bg-white/50 border-red-200'
+              }`}>
+                <div className={`text-2xl font-bold ${
+                  isPassed ? 'text-green-600' : 'text-red-600'
+                }`}>{score}</div>
+                <div className={`text-sm font-medium ${
+                  isPassed ? 'text-green-800' : 'text-red-800'
+                }`}>Correct</div>
               </div>
-              <div className="bg-white/50 rounded-lg p-3 border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">{questions.length - score}</div>
-                <div className="text-sm font-medium text-blue-800">Incorrect</div>
+              <div className={`rounded-lg p-3 border ${
+                isPassed ? 'bg-white/50 border-green-200' : 'bg-white/50 border-red-200'
+              }`}>
+                <div className={`text-2xl font-bold ${
+                  isPassed ? 'text-green-600' : 'text-red-600'
+                }`}>{questions.length - score}</div>
+                <div className={`text-sm font-medium ${
+                  isPassed ? 'text-green-800' : 'text-red-800'
+                }`}>Incorrect</div>
               </div>
-              <div className="bg-white/50 rounded-lg p-3 border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">{questions.length}</div>
-                <div className="text-sm font-medium text-blue-800">Total</div>
+              <div className={`rounded-lg p-3 border ${
+                isPassed ? 'bg-white/50 border-green-200' : 'bg-white/50 border-red-200'
+              }`}>
+                <div className={`text-2xl font-bold ${
+                  isPassed ? 'text-green-600' : 'text-red-600'
+                }`}>{questions.length}</div>
+                <div className={`text-sm font-medium ${
+                  isPassed ? 'text-green-800' : 'text-red-800'
+                }`}>Total</div>
               </div>
             </div>
           </div>
@@ -1710,24 +1840,26 @@ export default function LessonPage() {
             Retake Quiz
           </button>
           
-          <button
-            onClick={() => {
-              // Mark quiz as completed and step as completed before going to next step
-              if (currentStep) {
-                setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-                markStepAsVisited(currentStep.id.toString(), 5); // 5 minutes for quiz completion
-              }
-              // Go directly to next step without checking canProceedToNext()
-              if (currentStepIndex < steps.length - 1) {
-                goToStep(currentStepIndex + 1);
-              } else if (nextLessonId) {
-                navigate(`/course/${courseId}/lesson/${nextLessonId}`);
-              }
-            }}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all duration-200"
-          >
-            Continue
-          </button>
+          {isPassed && (
+            <button
+              onClick={() => {
+                // Mark quiz as completed and step as completed before going to next step
+                if (currentStep) {
+                  setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+                  markStepAsVisited(currentStep.id.toString(), 5); // 5 minutes for quiz completion
+                }
+                // Go directly to next step without checking canProceedToNext()
+                if (currentStepIndex < steps.length - 1) {
+                  goToStep(currentStepIndex + 1);
+                } else if (nextLessonId) {
+                  navigate(`/course/${courseId}/lesson/${nextLessonId}`);
+                }
+              }}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-3 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              Continue
+            </button>
+          )}
         </div>
       </div>
     );
@@ -1742,10 +1874,10 @@ export default function LessonPage() {
       if (!attachments || attachments.length === 0) return null;
 
       return (
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+        <div className="mt-6 p-4 rounded-lg border">
           <div className="space-y-4">
             {attachments.map((attachment) => (
-              <div key={attachment.id} className="rounded border">
+              <div key={attachment.id} className="rounded">
                 {/* PDF Preview */}
                 {attachment.file_type.toLowerCase() === 'pdf' && (
                       <iframe
@@ -1761,7 +1893,7 @@ export default function LessonPage() {
                     <img
                       src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${attachment.file_url}`}
                       alt={attachment.filename}
-                      className="w-full max-h-48 object-contain rounded border"
+                      className="w-full h-auto rounded"
                     />
                   </div>
                 )}
@@ -1783,10 +1915,10 @@ export default function LessonPage() {
       case 'text':
         return (
           <div>
+            {renderAttachments(currentStep.attachments)}
             <div className="prose max-w-none">
               <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text || '') }} />
             </div>
-            {renderAttachments(currentStep.attachments)}
           </div>
         );
       
@@ -1820,7 +1952,7 @@ export default function LessonPage() {
             {currentStep && currentStep.video_url && (
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-800">Прогресс просмотра видео</span>
+                  <span className="text-sm font-medium text-blue-800">Video Watch Progress</span>
                   <span className="text-sm text-blue-600">
                     {Math.round((videoProgress.get(currentStep.id.toString()) || 0) * 100)}%
                   </span>
@@ -1832,18 +1964,18 @@ export default function LessonPage() {
                   />
                 </div>
                 <p className="text-xs text-blue-600 mt-2">
-                  Для перехода к следующему шагу необходимо просмотреть видео на 90% или более
+                  You need to watch 90% or more of the video to proceed to the next step
                 </p>
               </div>
             )}
           
+            {renderAttachments(currentStep.attachments)}
+            
             {currentStep.content_text && (
               <div className="prose max-w-none">
                 <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text) }} />
               </div>
             )}
-            
-            {renderAttachments(currentStep.attachments)}
           </div>
         );
       
@@ -2066,9 +2198,9 @@ export default function LessonPage() {
                   <>
                     <span className="hidden sm:inline">•</span>
                     <span className="text-orange-600 font-medium">
-                      {currentStep.content_type === 'video_text' ? 'Видео не завершено' : 
+                      {currentStep.content_type === 'video_text' ? 'Video not watched enough' : 
                        currentStep.content_type === 'quiz' ? 'Quiz is not complete' : 
-                       'Шаг не завершен'}
+                       'Step is not completed'}
                     </span>
                   </>
                 )}

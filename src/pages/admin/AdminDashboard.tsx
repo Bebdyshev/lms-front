@@ -7,10 +7,7 @@ import {
   BookOpen, 
   GraduationCap, 
   UserCheck, 
-  TrendingUp,
-  Calendar,
   Plus,
-  Settings,
   UserPlus,
   Shield,
   Activity,
@@ -66,6 +63,7 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/users?tab=1')}
             variant="outline"
             className="flex items-center gap-2 px-4 py-2 rounded-lg w-full sm:w-auto"
+            data-tour="groups-section"
           >
             <Plus className="w-4 h-4" />
             Create Group
@@ -73,6 +71,7 @@ export default function AdminDashboard() {
           <Button
             onClick={() => navigate('/admin/users')}
             className="flex items-center gap-2 px-4 py-2 rounded-lg w-full sm:w-auto"
+            data-tour="users-management"
           >
             <UserPlus className="w-4 h-4" />
             Add User
@@ -81,7 +80,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" data-tour="dashboard-overview">
         <div className="bg-white rounded-lg border p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -264,6 +263,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => navigate('/admin/users')}
             className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            data-tour="users-management"
           >
             <Users className="w-5 h-5 text-blue-600" />
             <div className="text-left">
@@ -275,6 +275,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => navigate('/admin/groups')}
             className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            data-tour="groups-section"
           >
             <GraduationCap className="w-5 h-5 text-green-600" />
             <div className="text-left">
@@ -286,6 +287,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => navigate('/teacher/courses')}
             className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            data-tour="courses-management"
           >
             <BookOpen className="w-5 h-5 text-orange-600" />
             <div className="text-left">
@@ -297,6 +299,7 @@ export default function AdminDashboard() {
           <button
             onClick={() => navigate('/admin/users?role=student')}
             className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            data-tour="analytics-nav"
           >
             <BarChart3 className="w-5 h-5 text-purple-600" />
             <div className="text-left">

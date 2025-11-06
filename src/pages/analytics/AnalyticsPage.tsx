@@ -12,7 +12,6 @@ import {
   Award, Target, Eye, AlertCircle, Download
 } from 'lucide-react';
 import { 
-  getTeacherCourses, 
   getProgressStudents, 
   getCourseAnalyticsOverview, 
   getDetailedStudentAnalytics, 
@@ -27,6 +26,7 @@ import {
   exportGroupReport,
   exportAllStudentsReport
 } from '../../services/api';
+import apiClient from '../../services/api';
 import StudentsTable from '../../components/StudentsTable';
 import GroupsTable from '../../components/GroupsTable';
 import StudentDetailedProgress from '../../components/StudentDetailedProgress';
@@ -192,12 +192,11 @@ export default function AnalyticsPage() {
   const loadCourses = async () => {
     try {
       // Load courses based on user role
-      let coursesData = [];
-      if (user?.role === 'teacher') {
-        coursesData = await getTeacherCourses();
-      } else if (user?.role === 'admin') {
-        coursesData = await fetchCourses();
-      }
+      // Backend /courses/ endpoint automatically filters courses based on user role:
+      // - Teachers: only their own courses
+      // - Curators: all active courses
+      // - Admins: all courses
+      const coursesData = await fetchCourses();
       setCourses(coursesData);
       if (coursesData.length > 0) {
         setSelectedCourse(coursesData[0].id.toString());
@@ -263,8 +262,15 @@ export default function AnalyticsPage() {
     
     try {
       setIsLoading(true);
-      const data = await getQuizPerformanceAnalytics(selectedCourse);
-      setQuizAnalytics(data);
+      // Load both old quiz analytics and new quiz attempts
+      const [quizData, attemptsData] = await Promise.all([
+        getQuizPerformanceAnalytics(selectedCourse),
+        apiClient.getCourseQuizAnalytics(parseInt(selectedCourse))
+      ]);
+      setQuizAnalytics({
+        ...quizData,
+        attempts: attemptsData
+      });
     } catch (error) {
       console.error('Failed to load quiz analytics:', error);
     } finally {
@@ -835,84 +841,211 @@ export default function AnalyticsPage() {
   const renderQuizTab = () => {
     if (!quizAnalytics) return <div>Loading quiz analytics...</div>;
 
+    const attemptsData = quizAnalytics.attempts;
+
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <HelpCircle className="h-8 w-8 text-blue-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Total Quizzes</p>
-                  <p className="text-2xl font-bold">{quizAnalytics.summary.total_quizzes}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Award className="h-8 w-8 text-green-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Quiz Steps</p>
-                  <p className="text-2xl font-bold">{quizAnalytics.summary.total_quiz_steps}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Quiz Performance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {quizAnalytics.quiz_analytics.map((quiz: any, index: number) => (
-                <div key={index} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="font-semibold">{quiz.title}</h4>
-                      <p className="text-sm text-muted-foreground">Type: {quiz.type}</p>
+        {/* Quiz Attempts Overview */}
+        {attemptsData && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <HelpCircle className="h-8 w-8 text-blue-600" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-muted-foreground">Total Attempts</p>
+                      <p className="text-2xl font-bold">{attemptsData.total_attempts}</p>
                     </div>
-                    <Badge variant={quiz.completion_rate > 80 ? "default" : "secondary"}>
-                      {Math.round(quiz.completion_rate || quiz.average_percentage || 0)}%
-                    </Badge>
                   </div>
-                  
-                  {quiz.type === 'quiz_step' ? (
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Attempts: </span>
-                        <span className="font-medium">{quiz.total_attempts}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Completed: </span>
-                        <span className="font-medium">{quiz.completed_attempts}</span>
-                      </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <Users className="h-8 w-8 text-green-600" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-muted-foreground">Unique Students</p>
+                      <p className="text-2xl font-bold">{attemptsData.unique_students}</p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <Award className="h-8 w-8 text-purple-600" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-muted-foreground">Average Score</p>
+                      <p className="text-2xl font-bold">{attemptsData.average_score}%</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <Clock className="h-8 w-8 text-orange-600" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-muted-foreground">Avg Time</p>
+                      <p className="text-2xl font-bold">{Math.round(attemptsData.average_time_seconds / 60)}m</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Student Attempts Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Student Quiz Attempts</CardTitle>
+                <p className="text-sm text-muted-foreground">All quiz attempts by students in this course</p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {attemptsData.student_attempts && attemptsData.student_attempts.length > 0 ? (
+                    attemptsData.student_attempts.map((student: any) => (
+                      <div key={student.user_id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-semibold text-lg">{student.user_name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {student.attempts.length} attempt{student.attempts.length !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewDetailedProgress(student.user_id)}
+                          >
+                            View Details
+                          </Button>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {student.attempts.map((attempt: any, idx: number) => {
+                            const scoreColor = attempt.score_percentage >= 80 ? 'text-green-600' :
+                                             attempt.score_percentage >= 60 ? 'text-yellow-600' :
+                                             'text-red-600';
+                            return (
+                              <div key={attempt.id} className="flex items-center justify-between p-3 bg-muted/30 rounded">
+                                <div className="flex-1">
+                                  <p className="font-medium">{attempt.quiz_title || 'Quiz'}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(attempt.completed_at).toLocaleString()} • 
+                                    {attempt.time_spent_seconds ? ` ${Math.round(attempt.time_spent_seconds / 60)}m` : ' Time not recorded'}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className={`text-lg font-bold ${scoreColor}`}>
+                                    {Math.round(attempt.score_percentage)}%
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {attempt.correct_answers}/{attempt.total_questions} correct
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
                   ) : (
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Submissions: </span>
-                        <span className="font-medium">{quiz.total_submissions}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Avg Score: </span>
-                        <span className="font-medium">{Math.round(quiz.average_score || 0)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Max Score: </span>
-                        <span className="font-medium">{quiz.max_score}</span>
-                      </div>
+                    <div className="text-center py-8 text-muted-foreground">
+                      <HelpCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No quiz attempts recorded yet</p>
                     </div>
                   )}
                 </div>
-              ))}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* Legacy Quiz Analytics */}
+        {quizAnalytics.summary && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <HelpCircle className="h-8 w-8 text-blue-600" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-muted-foreground">Total Quizzes</p>
+                      <p className="text-2xl font-bold">{quizAnalytics.summary.total_quizzes}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <Award className="h-8 w-8 text-green-600" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-muted-foreground">Quiz Steps</p>
+                      <p className="text-2xl font-bold">{quizAnalytics.summary.total_quiz_steps}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Legacy Quiz Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {quizAnalytics.quiz_analytics.map((quiz: any, index: number) => (
+                    <div key={index} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-semibold">{quiz.title}</h4>
+                          <p className="text-sm text-muted-foreground">Type: {quiz.type}</p>
+                        </div>
+                        <Badge variant={quiz.completion_rate > 80 ? "default" : "secondary"}>
+                          {Math.round(quiz.completion_rate || quiz.average_percentage || 0)}%
+                        </Badge>
+                      </div>
+                      
+                      {quiz.type === 'quiz_step' ? (
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Attempts: </span>
+                            <span className="font-medium">{quiz.total_attempts}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Completed: </span>
+                            <span className="font-medium">{quiz.completed_attempts}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Submissions: </span>
+                            <span className="font-medium">{quiz.total_submissions}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Avg Score: </span>
+                            <span className="font-medium">{Math.round(quiz.average_score || 0)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Max Score: </span>
+                            <span className="font-medium">{quiz.max_score}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     );
   };

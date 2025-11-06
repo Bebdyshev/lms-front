@@ -182,6 +182,7 @@ export default function TeacherDashboard() {
             onClick={() => navigate('/teacher/courses')}
             variant="outline"
             className="flex items-center w-full sm:w-auto"
+            data-tour="create-course"
           >
             <BookOpen className="w-4 h-4 mr-2" />
             Manage Courses
@@ -190,7 +191,7 @@ export default function TeacherDashboard() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="dashboard-overview">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center">
@@ -292,7 +293,7 @@ export default function TeacherDashboard() {
       </div>
 
       {/* Pending Submissions */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden" data-tour="students-section">
         <CardHeader className="px-6 py-4 border-b border-gray-200">
           <CardTitle className="text-lg font-semibold flex items-center">
             <Clock className="w-5 h-5 mr-2 text-orange-600" />

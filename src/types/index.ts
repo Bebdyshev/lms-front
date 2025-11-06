@@ -16,6 +16,8 @@ export interface User {
   daily_streak?: number; // Current daily streak count
   last_activity_date?: string; // Last date when student was active
   total_study_time_minutes?: number; // Total study time in minutes
+  onboarding_completed?: boolean; // Whether user has completed onboarding
+  onboarding_completed_at?: string; // When onboarding was completed
   created_at: string;
   updated_at: string;
 }
@@ -131,6 +133,7 @@ export interface StudentProgressOverview {
 export interface StudentCourseProgress {
   course_id: number;
   course_title: string;
+  teacher_id: number;
   teacher_name: string;
   cover_image_url?: string;
   total_lessons: number;

@@ -4,6 +4,7 @@ import apiClient from '../services/api';
 import { User, Mail, Shield, Calendar, Clock, Save } from 'lucide-react';
 import { useUnsavedChangesWarning } from '../hooks/useUnsavedChangesWarning';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import ResetOnboardingButton from '../components/ResetOnboardingButton';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -188,7 +189,8 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-between items-center pt-4 border-t">
+            <ResetOnboardingButton />
             <button
               onClick={handleSave}
               disabled={saving || !name.trim() || name === user?.name}

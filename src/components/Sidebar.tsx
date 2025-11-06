@@ -24,21 +24,21 @@ import type { LucideIcon } from 'lucide-react';
 import type { Course } from '../types';
 
 // Navigation items based on user roles
-type NavItemTuple = [to: string, label: string, Icon: LucideIcon, badge: number, roles: string[] | null];
+type NavItemTuple = [to: string, label: string, Icon: LucideIcon, badge: number, roles: string[] | null, dataTour?: string];
 function getNavigationItems(_userRole: string | undefined, unreadCount: number): NavItemTuple[] {
   const allItems: NavItemTuple[] = [
-    ['/dashboard', 'Dashboard', Home, 0, null],
-    ['/calendar', 'Calendar', Calendar, 0, null],
-    ['/courses', 'My Courses', BookOpen, 0, ['student']],
-    ['/assignments', 'My assignments', ClipboardList, 0, ['student']],
-    ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher']],
-    ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher']],
-    ['/analytics', 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin']],
-    ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin']],
-    ['/admin/users', 'Manage Users', Users, 0, ['admin']],
-    ['/admin/events', 'Manage Events', Calendar, 0, ['admin']],
-    ['/assignments', 'Assignments', ClipboardList, 0, ['teacher']],
-    ['/chat', 'Chat', MessageCircle, unreadCount, null],
+    ['/dashboard', 'Dashboard', Home, 0, null, 'dashboard-nav'],
+    ['/calendar', 'Calendar', Calendar, 0, null, 'calendar-nav'],
+    ['/courses', 'My Courses', BookOpen, 0, ['student'], 'courses-nav'],
+    ['/assignments', 'My assignments', ClipboardList, 0, ['student'], 'assignments-nav'],
+    ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher'], 'courses-nav'],
+    ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher'], 'students-nav'],
+    ['/analytics', 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin'], 'analytics-nav'],
+    ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin'], 'courses-management'],
+    ['/admin/users', 'Manage Users', Users, 0, ['admin'], 'users-management'],
+    ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management'],
+    ['/assignments', 'Assignments', ClipboardList, 0, ['teacher'], 'assignments-nav'],
+    ['/chat', 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
   ];
 
   return allItems;
@@ -133,14 +133,14 @@ export default function Sidebar({ variant = 'desktop' }: { variant?: SidebarVari
       </div>
       
       <nav className="flex flex-col space-y-1 flex-1">
-        {getNavigationItems(user?.role, unread).map(([to, label, Icon, badge, roles]) => {
+        {getNavigationItems(user?.role, unread).map(([to, label, Icon, badge, roles, dataTour]) => {
           // Skip items if user doesn't have required role
           if (roles && (!user?.role || !roles.includes(user.role))) return null;
           
           // Handle expandable My Courses
           if ((to === '/courses' && user?.role === 'student') || (to === '/teacher/courses' && user?.role === 'teacher')) {
             return (
-              <div key={to}>
+              <div key={to} data-tour={dataTour}>
                 {/* Main Courses Button */}
                 <button
                   onClick={handleCoursesToggle}
@@ -194,6 +194,7 @@ export default function Sidebar({ variant = 'desktop' }: { variant?: SidebarVari
               key={to}
               to={to}
               end={to === '/courses' || to === '/teacher/courses'}
+              data-tour={dataTour}
               className={({ isActive }) =>
                 `flex items-center rounded-xl text-gray-700 hover:bg-gray-100 transition-colors 
                  px-5 py-3 text-base lg:px-4 lg:py-2 lg:text-sm ${isActive ? 'nav-link-active' : ''}`
@@ -210,7 +211,7 @@ export default function Sidebar({ variant = 'desktop' }: { variant?: SidebarVari
       </nav>
       
       <div className="mt-auto pt-6 border-t">
-        <div className="relative">
+        <div className="relative" data-tour="profile-nav">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors"
