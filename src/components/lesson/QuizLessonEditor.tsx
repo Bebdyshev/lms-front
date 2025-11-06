@@ -21,12 +21,12 @@ export interface QuizLessonEditorProps {
   setQuizTimeLimit: (limit: number | undefined) => void;
   quizDisplayMode?: 'one_by_one' | 'all_at_once';
   setQuizDisplayMode?: (mode: 'one_by_one' | 'all_at_once') => void;
-  quizType: 'regular' | 'audio' | 'pdf';
-  setQuizType: (type: 'regular' | 'audio' | 'pdf') => void;
+  quizType: 'regular' | 'audio' | 'pdf' | 'text_based';
+  setQuizType: (type: 'regular' | 'audio' | 'pdf' | 'text_based') => void;
   quizMediaUrl: string;
   setQuizMediaUrl: (url: string) => void;
-  quizMediaType: 'audio' | 'pdf' | '';
-  setQuizMediaType: (type: 'audio' | 'pdf' | '') => void;
+  quizMediaType: 'audio' | 'pdf' | 'text' | '';
+  setQuizMediaType: (type: 'audio' | 'pdf' | 'text' | '') => void;
 }
 
 export default function QuizLessonEditor({
@@ -436,7 +436,7 @@ export default function QuizLessonEditor({
       {/* Quiz Type Selection */}
       <div className="space-y-3">
         <Label>Quiz Type</Label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div 
             className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
               quizType === 'regular' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
@@ -444,7 +444,16 @@ export default function QuizLessonEditor({
             onClick={() => setQuizType('regular')}
           >
             <div className="font-medium">Regular Quiz</div>
-            <div className="text-sm text-gray-600">Standard questions without media</div>
+            <div className="text-sm text-gray-600">Standard questions</div>
+          </div>
+          <div 
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+              quizType === 'text_based' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => setQuizType('text_based')}
+          >
+            <div className="font-medium">Text Based</div>
+            <div className="text-sm text-gray-600">Questions with text passage</div>
           </div>
           <div 
             className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
@@ -453,7 +462,7 @@ export default function QuizLessonEditor({
             onClick={() => setQuizType('audio')}
           >
             <div className="font-medium">Audio Quiz</div>
-            <div className="text-sm text-gray-600">Questions based on audio file</div>
+            <div className="text-sm text-gray-600">Audio-based questions</div>
           </div>
           <div 
             className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
@@ -462,10 +471,28 @@ export default function QuizLessonEditor({
             onClick={() => setQuizType('pdf')}
           >
             <div className="font-medium">Document Quiz</div>
-            <div className="text-sm text-gray-600">Questions based on PDF or image</div>
+            <div className="text-sm text-gray-600">PDF or image based</div>
           </div>
         </div>
       </div>
+
+      {/* Text Content for Text-Based Quizzes */}
+      {quizType === 'text_based' && (
+        <div className="space-y-3">
+          <Label>Passage Text</Label>
+          <RichTextEditor
+            value={quizMediaUrl}
+            onChange={(value) => {
+              setQuizMediaUrl(value);
+              setQuizMediaType('text');
+            }}
+            placeholder="Enter the reading passage or text that students will read before answering questions..."
+          />
+          <p className="text-sm text-gray-500">
+            Students will read this passage before answering the quiz questions
+          </p>
+        </div>
+      )}
 
       {/* Media Upload for Audio/PDF Quizzes */}
       {(quizType === 'audio' || quizType === 'pdf') && (

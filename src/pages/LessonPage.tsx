@@ -720,11 +720,13 @@ export default function LessonPage() {
           <p className="text-gray-600">Answer all questions below to continue</p>
         </div>
 
-        {/* Quiz-level Media for Audio/PDF Quizzes */}
+        {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
           <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? 'Audio Material' : 'Reference Material'}
+              {quizData.quiz_media_type === 'audio' ? 'Audio Material' : 
+               quizData.quiz_media_type === 'text' ? 'Reading Passage' : 
+               'Reference Material'}
             </h3>
             {quizData.quiz_media_type === 'audio' ? (
               <audio 
@@ -732,6 +734,10 @@ export default function LessonPage() {
                 src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
                 className="w-full"
               />
+            ) : quizData.quiz_media_type === 'text' ? (
+              <div className="prose prose-lg max-w-none bg-gray-50 p-6 rounded-lg border">
+                <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(quizData.quiz_media_url) }} />
+              </div>
             ) : quizData.quiz_media_type === 'pdf' ? (
               // Check if it's actually a PDF or an image
               quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
@@ -1274,11 +1280,13 @@ export default function LessonPage() {
           </div>
         </div>
 
-        {/* Quiz-level Media for Audio/PDF Quizzes */}
+        {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
           <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? '🎵 Audio Material' : '📄 Reference Material'}
+              {quizData.quiz_media_type === 'audio' ? '🎵 Audio Material' : 
+               quizData.quiz_media_type === 'text' ? '� Reading Passage' : 
+               '�📄 Reference Material'}
             </h3>
             {quizData.quiz_media_type === 'audio' ? (
               <audio 
@@ -1286,6 +1294,10 @@ export default function LessonPage() {
                 src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
                 className="w-full"
               />
+            ) : quizData.quiz_media_type === 'text' ? (
+              <div className="prose prose-lg max-w-none bg-gray-50 p-6 rounded-lg border">
+                <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(quizData.quiz_media_url) }} />
+              </div>
             ) : quizData.quiz_media_type === 'pdf' ? (
               // Check if it's actually a PDF or an image
               quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (

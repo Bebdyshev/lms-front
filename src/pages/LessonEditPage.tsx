@@ -614,9 +614,9 @@ export default function LessonEditPage() {
   };
   
   const [stepQuizTimeLimit, setStepQuizTimeLimit] = useState<number | undefined>(undefined);
-  const [stepQuizType, setStepQuizType] = useState<'regular' | 'audio' | 'pdf'>('regular');
+  const [stepQuizType, setStepQuizType] = useState<'regular' | 'audio' | 'pdf' | 'text_based'>('regular');
   const [stepQuizMediaUrl, setStepQuizMediaUrl] = useState<string>('');
-  const [stepQuizMediaType, setStepQuizMediaType] = useState<'audio' | 'pdf' | ''>('');
+  const [stepQuizMediaType, setStepQuizMediaType] = useState<'audio' | 'pdf' | 'text' | ''>('');
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard'>('text');
   
