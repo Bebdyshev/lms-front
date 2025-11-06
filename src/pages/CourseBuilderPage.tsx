@@ -1412,8 +1412,20 @@ export default function CourseBuilderPage() {
         apiClient.getCourseGroupAccessStatus(course.id.toString())
       ]);
       
-      const teacherGroups = groups.filter((group: any) => group.teacher_id === user.id);
-      setAvailableGroups(teacherGroups);
+      // Filter groups based on user role:
+      // - Admins see all groups
+      // - Teachers see only their own groups
+      // - Curators see only their assigned groups
+      let availableGroupsList = groups;
+      
+      if (user.role === 'teacher') {
+        availableGroupsList = groups.filter((group: any) => group.teacher_id === user.id);
+      } else if (user.role === 'curator') {
+        availableGroupsList = groups.filter((group: any) => group.curator_id === user.id);
+      }
+      // Admin gets all groups (no filter)
+      
+      setAvailableGroups(availableGroupsList);
       setGroupsWithAccess(accessStatus.groups_with_access || []);
     } catch (error) {
       console.error('Failed to load groups:', error);
@@ -1734,15 +1746,27 @@ export default function CourseBuilderPage() {
             </div>
           ) : availableGroups.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">You don't have any groups yet.</p>
+              <p className="text-gray-500 mb-4">
+                {user?.role === 'admin' 
+                  ? "No groups available yet." 
+                  : user?.role === 'curator'
+                  ? "You don't have any assigned groups yet."
+                  : "You don't have any groups yet."}
+              </p>
               <Button onClick={() => navigate('/groups')} variant="outline">
-                Create a group
+                {user?.role === 'admin' ? 'Create a group' : 'View groups'}
               </Button>
             </div>
           ) : (
             <>
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-medium">Your groups ({availableGroups.length})</h3>
+                <h3 className="font-medium">
+                  {user?.role === 'admin' 
+                    ? `All groups (${availableGroups.length})` 
+                    : user?.role === 'curator'
+                    ? `Assigned groups (${availableGroups.length})`
+                    : `Your groups (${availableGroups.length})`}
+                </h3>
                 <Button 
                   onClick={grantAccessToAllGroups}
                   variant="outline"
