@@ -99,52 +99,54 @@ export default function QuizLessonEditor({
     const errors: string[] = [];
     const questions: Question[] = [];
     
-    // Split by question numbers (e.g., "1.1", "2.1", "3.1", "3.2", etc.)
-    const questionBlocks = text.split(/(?=\d+\.\d+\s)/);
+    // Split by question numbers (supports both "1.1 text" and "32. text" formats)
+    // Look for number(s), dot, optional number(s), space
+    const questionBlocks = text.split(/(?=^\d+\.(?:\d+\s|\s))/m);
     
     for (const block of questionBlocks) {
       const trimmed = block.trim();
       if (!trimmed) continue;
       
       try {
-        // Extract question number (e.g., "1.1")
-        const numberMatch = trimmed.match(/^(\d+\.\d+)\s/);
+        // Extract question number (e.g., "1.1" or "32")
+        // Match: digits, dot, optional digits (for sub-questions like 9.1)
+        const numberMatch = trimmed.match(/^(\d+)\.(\d+)?\s/) || trimmed.match(/^(\d+)\.\s/);
         if (!numberMatch) {
           // Skip blocks without valid question numbers (like headers, instructions, etc.)
           continue;
         }
         
-        const questionNumber = numberMatch[1];
+        const questionNumber = numberMatch[2] ? `${numberMatch[1]}.${numberMatch[2]}` : numberMatch[1];
         
-        // Extract question text (everything before the options)
-        const optionsStart = trimmed.search(/\n[A-D]\)\s/);
-        if (optionsStart === -1) {
-          errors.push(`Question ${questionNumber}: Could not find options`);
+        // Split by newlines to extract passage and options
+        const lines = trimmed.split('\n');
+        const firstLine = lines[0];
+        
+        // Extract passage text (first line after question number)
+        const passageText = firstLine.substring(numberMatch[0].length).trim();
+        
+        // Extract options (remaining non-empty lines)
+        const optionLines = lines.slice(1).filter(line => line.trim() !== '');
+        
+        if (optionLines.length !== 4) {
+          errors.push(`Question ${questionNumber}: Expected 4 options, found ${optionLines.length}`);
           continue;
         }
         
-        const passageText = trimmed.substring(numberMatch[0].length, optionsStart).trim();
-        
-        // Extract options
-        const optionsText = trimmed.substring(optionsStart);
-        const optionMatches = optionsText.matchAll(/([A-D])\)\s([^\n]+(?:\n(?![A-D]\))[^\n]+)*)/g);
         const options: { id: string; text: string; is_correct: boolean; letter: string }[] = [];
+        const letters = ['A', 'B', 'C', 'D'];
         
-        for (const match of optionMatches) {
-          const letter = match[1];
-          const text = match[2].trim();
+        optionLines.forEach((line, index) => {
+          const letter = letters[index];
+          // Remove letter prefix if it exists (e.g., "A) option" -> "option")
+          const text = line.replace(/^[A-D]\)\s*/, '').trim();
           options.push({
             id: `${Date.now()}_${letter}_${Math.random()}`,
             text: text,
             is_correct: false,
             letter: letter
           });
-        }
-        
-        if (options.length !== 4) {
-          errors.push(`Question ${questionNumber}: Expected 4 options, found ${options.length}`);
-          continue;
-        }
+        });
         
         // For SAT grammar questions, we'll default to option A as correct
         // User can change this in the editor
@@ -152,7 +154,7 @@ export default function QuizLessonEditor({
         options[correctIndex].is_correct = true;
         
         const question: Question = {
-          id: `bulk_${Date.now()}_${questionNumber.replace('.', '_')}`,
+          id: `bulk_${Date.now()}_${questionNumber.replace(/\./g, '_')}`,
           assignment_id: '',
           question_text: `Question ${questionNumber}`,
           question_type: 'single_choice',
