@@ -2029,6 +2029,9 @@ export default function LessonPage() {
             <div>
               <FlashcardViewer
                 flashcardSet={flashcardData}
+                stepId={currentStep.id}
+                lessonId={parseInt(lessonId || '0')}
+                courseId={parseInt(courseId || '0')}
                 onComplete={() => {
                   // Mark flashcard step as completed
                   if (currentStep) {

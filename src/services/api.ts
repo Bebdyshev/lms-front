@@ -1748,6 +1748,59 @@ class LMSApiClient {
   }
 
   // =============================================================================
+  // FAVORITE FLASHCARDS METHODS
+  // =============================================================================
+
+  async addFavoriteFlashcard(data: {
+    step_id: number;
+    flashcard_id: string;
+    lesson_id?: number;
+    course_id?: number;
+    flashcard_data: string;
+  }): Promise<any> {
+    try {
+      const response = await this.api.post('/flashcards/favorites', data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to add flashcard to favorites');
+    }
+  }
+
+  async getFavoriteFlashcards(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/flashcards/favorites');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to load favorite flashcards');
+    }
+  }
+
+  async removeFavoriteFlashcard(favoriteId: number): Promise<void> {
+    try {
+      await this.api.delete(`/flashcards/favorites/${favoriteId}`);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to remove flashcard from favorites');
+    }
+  }
+
+  async removeFavoriteByCardId(stepId: number, flashcardId: string): Promise<void> {
+    try {
+      await this.api.delete(`/flashcards/favorites/by-card/${stepId}/${flashcardId}`);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to remove flashcard from favorites');
+    }
+  }
+
+  async checkIsFavorite(stepId: number, flashcardId: string): Promise<{ is_favorite: boolean; favorite_id: number | null }> {
+    try {
+      const response = await this.api.get(`/flashcards/favorites/check/${stepId}/${flashcardId}`);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to check favorite status');
+    }
+  }
+
+  // =============================================================================
   // ANALYTICS METHODS
   // =============================================================================
 
@@ -2177,3 +2230,10 @@ export const exportAllStudentsReport = apiClient.exportAllStudentsReport.bind(ap
 export const exportAnalyticsExcel = apiClient.exportAnalyticsExcel.bind(apiClient);
 export const getStudentDetailedProgress = apiClient.getStudentDetailedProgress.bind(apiClient);
 export const getStudentLearningPath = apiClient.getStudentLearningPath.bind(apiClient);
+
+// Favorite Flashcards
+export const addFavoriteFlashcard = apiClient.addFavoriteFlashcard.bind(apiClient);
+export const getFavoriteFlashcards = apiClient.getFavoriteFlashcards.bind(apiClient);
+export const removeFavoriteFlashcard = apiClient.removeFavoriteFlashcard.bind(apiClient);
+export const removeFavoriteByCardId = apiClient.removeFavoriteByCardId.bind(apiClient);
+export const checkIsFavorite = apiClient.checkIsFavorite.bind(apiClient);

@@ -19,6 +19,7 @@ import {
   GraduationCap,
   Calendar,
   BarChart3,
+  Heart,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Course } from '../types';
@@ -31,6 +32,7 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number):
     ['/calendar', 'Calendar', Calendar, 0, null, 'calendar-nav'],
     ['/courses', 'My Courses', BookOpen, 0, ['student'], 'courses-nav'],
     ['/assignments', 'My assignments', ClipboardList, 0, ['student'], 'assignments-nav'],
+    ['/favorites', 'My Favorites', Heart, 0, ['student'], 'favorites-nav'],
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher'], 'courses-nav'],
     ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher'], 'students-nav'],
     ['/analytics', 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin'], 'analytics-nav'],

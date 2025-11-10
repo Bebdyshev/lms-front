@@ -384,6 +384,25 @@ export interface FlashcardSet {
   show_progress: boolean;
 }
 
+export interface FavoriteFlashcard {
+  id: number;
+  user_id: number;
+  step_id: number;
+  flashcard_id: string;
+  lesson_id?: number;
+  course_id?: number;
+  flashcard_data: string; // JSON string with FlashcardItem data
+  created_at: string;
+}
+
+export interface FavoriteFlashcardCreate {
+  step_id: number;
+  flashcard_id: string;
+  lesson_id?: number;
+  course_id?: number;
+  flashcard_data: string; // JSON string with FlashcardItem data
+}
+
 export interface LessonMaterial {
   id: string;
   lesson_id: string;
