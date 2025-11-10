@@ -927,12 +927,13 @@ export default function QuizLessonEditor({
                             size="sm"
                             onClick={() => {
                               const currentText = draftQuestion.content_text || '';
-                              const newText = currentText + (currentText ? ' ' : '') + '[[ ]]';
+                              // Replace all [ ] with [[ ]]
+                              const newText = currentText.replace(/\[([^\]]+)\]/g, '[[$1]]');
                               applyDraftUpdate({ content_text: newText });
                             }}
                             className="text-xs"
                           >
-                            Add Gap [[ ]]
+                            Convert [ ] to [[ ]]
                           </Button>
                         )}
                       </div>
