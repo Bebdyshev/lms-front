@@ -3,6 +3,7 @@ import { Upload, X, File, Image, FileText, Archive, Trash2 } from 'lucide-react'
 import { Button } from './ui/button';
 import PDFPreview from './PDFPreview';
 import type { StepAttachment } from '../types';
+import { MAX_FILE_SIZE_MB } from '../config/constants';
 
 interface FileUploadAreaProps {
   attachments: StepAttachment[];
@@ -19,10 +20,10 @@ const FileUploadArea: React.FC<FileUploadAreaProps> = ({
   onFileUpload,
   onFileDelete,
   disabled = false,
-  maxFileSize = 10,
+  maxFileSize = MAX_FILE_SIZE_MB,
   allowedTypes = ['pdf', 'docx', 'doc', 'jpg', 'png', 'gif', 'webp', 'txt', 'zip', 'xlsx', 'pptx'],
   tempMode = false
-}) => {
+}) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
