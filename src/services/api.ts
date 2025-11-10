@@ -646,6 +646,16 @@ class LMSApiClient {
     }
   }
 
+  async reorderSteps(lessonId: string, stepIds: number[]): Promise<void> {
+    try {
+      await this.api.post(`/courses/lessons/${lessonId}/reorder-steps`, {
+        step_ids: stepIds
+      });
+    } catch (error) {
+      throw new Error('Failed to reorder steps');
+    }
+  }
+
   async uploadStepAttachment(stepId: string, file: File): Promise<{
     attachment_id: number;
     filename: string;
@@ -2062,6 +2072,7 @@ export const createStep = apiClient.createStep.bind(apiClient);
 export const getStep = apiClient.getStep.bind(apiClient);
 export const updateStep = apiClient.updateStep.bind(apiClient);
 export const deleteStep = apiClient.deleteStep.bind(apiClient);
+export const reorderSteps = apiClient.reorderSteps.bind(apiClient);
 export const uploadStepAttachment = apiClient.uploadStepAttachment.bind(apiClient);
 export const deleteStepAttachment = apiClient.deleteStepAttachment.bind(apiClient);
 export const fetchLesson = apiClient.fetchLesson.bind(apiClient);
