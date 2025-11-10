@@ -53,6 +53,9 @@ export default function QuizLessonEditor({
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [bulkUploadText, setBulkUploadText] = useState('');
+  const [bulkUploadErrors, setBulkUploadErrors] = useState<string[]>([]);
 
   const openAddQuestion = () => {
     const ts = Date.now().toString();
@@ -89,6 +92,108 @@ export default function QuizLessonEditor({
   const applyDraftUpdate = (patch: Partial<Question>) => {
     if (!draftQuestion) return;
     setDraftQuestion({ ...draftQuestion, ...patch });
+  };
+
+  // Parse bulk upload text format
+  const parseBulkQuestions = (text: string): { questions: Question[]; errors: string[] } => {
+    const errors: string[] = [];
+    const questions: Question[] = [];
+    
+    // Split by question numbers (e.g., "1.1", "2.1", "3.1", "3.2", etc.)
+    const questionBlocks = text.split(/(?=\d+\.\d+\s)/);
+    
+    for (const block of questionBlocks) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+      
+      try {
+        // Extract question number (e.g., "1.1")
+        const numberMatch = trimmed.match(/^(\d+\.\d+)\s/);
+        if (!numberMatch) {
+          // Skip blocks without valid question numbers (like headers, instructions, etc.)
+          continue;
+        }
+        
+        const questionNumber = numberMatch[1];
+        
+        // Extract question text (everything before the options)
+        const optionsStart = trimmed.search(/\n[A-D]\)\s/);
+        if (optionsStart === -1) {
+          errors.push(`Question ${questionNumber}: Could not find options`);
+          continue;
+        }
+        
+        const passageText = trimmed.substring(numberMatch[0].length, optionsStart).trim();
+        
+        // Extract options
+        const optionsText = trimmed.substring(optionsStart);
+        const optionMatches = optionsText.matchAll(/([A-D])\)\s([^\n]+(?:\n(?![A-D]\))[^\n]+)*)/g);
+        const options: { id: string; text: string; is_correct: boolean; letter: string }[] = [];
+        
+        for (const match of optionMatches) {
+          const letter = match[1];
+          const text = match[2].trim();
+          options.push({
+            id: `${Date.now()}_${letter}_${Math.random()}`,
+            text: text,
+            is_correct: false,
+            letter: letter
+          });
+        }
+        
+        if (options.length !== 4) {
+          errors.push(`Question ${questionNumber}: Expected 4 options, found ${options.length}`);
+          continue;
+        }
+        
+        // For SAT grammar questions, we'll default to option A as correct
+        // User can change this in the editor
+        const correctIndex = 0;
+        options[correctIndex].is_correct = true;
+        
+        const question: Question = {
+          id: `bulk_${Date.now()}_${questionNumber.replace('.', '_')}`,
+          assignment_id: '',
+          question_text: `Question ${questionNumber}`,
+          question_type: 'single_choice',
+          options: options,
+          correct_answer: correctIndex,
+          points: 1,
+          order_index: questions.length,
+          is_sat_question: true,
+          content_text: passageText
+        };
+        
+        questions.push(question);
+      } catch (error) {
+        errors.push(`Error parsing block: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    
+    return { questions, errors };
+  };
+
+  const handleBulkUpload = () => {
+    setBulkUploadErrors([]);
+    const { questions, errors } = parseBulkQuestions(bulkUploadText);
+    
+    if (errors.length > 0) {
+      setBulkUploadErrors(errors);
+      return;
+    }
+    
+    if (questions.length === 0) {
+      setBulkUploadErrors(['No valid questions found. Please check the format.']);
+      return;
+    }
+    
+    // Add all questions to the quiz
+    setQuizQuestions([...quizQuestions, ...questions]);
+    
+    // Close modal and reset
+    setShowBulkUploadModal(false);
+    setBulkUploadText('');
+    setBulkUploadErrors([]);
   };
 
 
@@ -676,6 +781,7 @@ export default function QuizLessonEditor({
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium text-gray-900">Questions</h3>
           <div className="flex gap-2">
+                <Button onClick={() => setShowBulkUploadModal(true)} variant="outline">Bulk Upload</Button>
                 <Button onClick={() => setShowSatImageModal(true)} variant="outline">Analyze SAT Image</Button>
                 <Button onClick={openAddQuestion} variant="default">Add Question</Button>
           </div>
@@ -1210,6 +1316,93 @@ export default function QuizLessonEditor({
                 <Button onClick={saveDraftQuestion} className="bg-blue-600 hover:bg-blue-700">
                   {editingQuestionIndex !== null ? 'Update Question' : 'Save Question'}
                 </Button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Bulk Upload Modal */}
+      {showBulkUploadModal && createPortal(
+        <div className="fixed inset-0 z-[1000]">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative z-[1001] flex items-center justify-center min-h-screen p-4">
+            <div 
+              className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl"
+              tabIndex={0}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Bulk Upload Questions</h3>
+                <Button variant="outline" onClick={() => {
+                  setShowBulkUploadModal(false);
+                  setBulkUploadText('');
+                  setBulkUploadErrors([]);
+                }}>Close</Button>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Paste your questions in the format below. Each question should be numbered (e.g., 1.1, 2.1) followed by the question text with a blank (___), and then four options labeled A) through D).
+                </p>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+                  <div className="font-medium text-blue-900 mb-2">Example Format:</div>
+                  <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+{`1.1 Along with her ___ Coretta Scott King played an important role...
+A) husband Martin Luther King,
+B) husband Martin Luther King;
+C) husband, Martin Luther King,
+D) husband, Martin Luther King
+
+2.1 Some animal trainers claim that most obedience programs...
+A) dog, that has undergone obedience training
+B) dog that has undergone obedience training
+C) dog that, has undergone obedience training
+D) dog, that has undergone obedience training`}
+                  </pre>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Paste Questions:</Label>
+                  <textarea
+                    value={bulkUploadText}
+                    onChange={(e) => setBulkUploadText(e.target.value)}
+                    placeholder="Paste your questions here..."
+                    className="w-full h-96 p-3 border rounded-lg font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {bulkUploadErrors.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="font-medium text-red-900 mb-2">Errors:</div>
+                    <ul className="list-disc list-inside space-y-1">
+                      {bulkUploadErrors.map((error, index) => (
+                        <li key={index} className="text-sm text-red-700">{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowBulkUploadModal(false);
+                      setBulkUploadText('');
+                      setBulkUploadErrors([]);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleBulkUpload}
+                    disabled={!bulkUploadText.trim()}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Import Questions
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
