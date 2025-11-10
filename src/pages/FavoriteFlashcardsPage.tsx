@@ -4,7 +4,7 @@ import { getFavoriteFlashcards, removeFavoriteFlashcard } from '../services/api'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Heart, Trash2, BookOpen, Eye, EyeOff, Play } from 'lucide-react';
+import { Heart, Trash2, BookOpen, Eye, EyeOff, Play, XCircle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from '../components/Toast';
 import Loader from '../components/Loader';
 import type { FavoriteFlashcard, FlashcardItem } from '../types';
@@ -13,6 +13,10 @@ export default function FavoriteFlashcardsPage() {
   const [favorites, setFavorites] = useState<FavoriteFlashcard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
+  const [isPracticeMode, setIsPracticeMode] = useState(false);
+  const [currentPracticeIndex, setCurrentPracticeIndex] = useState(0);
+  const [practiceFlipped, setPracticeFlipped] = useState(false);
+  const [practiceCompleted, setPracticeCompleted] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,14 +77,205 @@ export default function FavoriteFlashcardsPage() {
   };
 
   const handlePracticeAll = () => {
-    // TODO: Implement practice mode with all favorite flashcards
-    toast('Practice mode coming soon!', 'info');
+    setIsPracticeMode(true);
+    setCurrentPracticeIndex(0);
+    setPracticeFlipped(false);
+    setPracticeCompleted(new Set());
+  };
+
+  const handleExitPractice = () => {
+    setIsPracticeMode(false);
+    setCurrentPracticeIndex(0);
+    setPracticeFlipped(false);
+    setPracticeCompleted(new Set());
+  };
+
+  const handlePracticeFlip = () => {
+    setPracticeFlipped(!practiceFlipped);
+  };
+
+  const handlePracticeNext = () => {
+    if (currentPracticeIndex < favorites.length - 1) {
+      setCurrentPracticeIndex(currentPracticeIndex + 1);
+      setPracticeFlipped(false);
+    } else {
+      // Completed all cards
+      toast('Great job! You\'ve practiced all flashcards!', 'success');
+      handleExitPractice();
+    }
+  };
+
+  const handlePracticePrevious = () => {
+    if (currentPracticeIndex > 0) {
+      setCurrentPracticeIndex(currentPracticeIndex - 1);
+      setPracticeFlipped(false);
+    }
+  };
+
+  const handlePracticeKnow = () => {
+    const newCompleted = new Set(practiceCompleted);
+    newCompleted.add(favorites[currentPracticeIndex].id.toString());
+    setPracticeCompleted(newCompleted);
+    handlePracticeNext();
+  };
+
+  const handlePracticeReview = () => {
+    handlePracticeNext();
   };
 
   if (isLoading) {
     return <Loader />;
   }
 
+  // Practice Mode UI
+  if (isPracticeMode && favorites.length > 0) {
+    const currentFavorite = favorites[currentPracticeIndex];
+    const flashcard = parseFlashcardData(currentFavorite.flashcard_data);
+    
+    if (!flashcard) {
+      return <div>Error loading flashcard</div>;
+    }
+
+    const progress = ((currentPracticeIndex + 1) / favorites.length) * 100;
+
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        {/* Practice Header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">Practice Mode</h2>
+            <Button variant="outline" onClick={handleExitPractice}>
+              Exit Practice
+            </Button>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm text-gray-600">
+              <span>Card {currentPracticeIndex + 1} of {favorites.length}</span>
+              <span>{Math.round(progress)}% complete</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Practice Card */}
+        <Card 
+          className="min-h-[400px] mb-6 cursor-pointer hover:shadow-xl transition-all"
+          onClick={!practiceFlipped ? handlePracticeFlip : undefined}
+        >
+          <CardContent className="p-12 flex flex-col justify-center items-center text-center">
+            <Badge className={`${getDifficultyColor(flashcard.difficulty)} mb-6`}>
+              {flashcard.difficulty}
+            </Badge>
+
+            {!practiceFlipped ? (
+              // Question Side
+              <div className="space-y-6 w-full">
+                <div className="text-sm text-gray-400 uppercase tracking-wider mb-4">
+                  Question
+                </div>
+                {flashcard.front_image_url && (
+                  <img 
+                    src={flashcard.front_image_url} 
+                    alt="Front" 
+                    className="max-w-full max-h-48 object-contain rounded mb-6 mx-auto"
+                  />
+                )}
+                <div className="text-3xl font-bold text-gray-900 mb-8">
+                  {flashcard.front_text}
+                </div>
+                <div className="text-sm text-gray-400 mt-8">
+                  Click to reveal answer
+                </div>
+              </div>
+            ) : (
+              // Answer Side
+              <div className="space-y-6 w-full">
+                <div className="text-sm text-gray-400 uppercase tracking-wider mb-4">
+                  Answer
+                </div>
+                {flashcard.back_image_url && (
+                  <img 
+                    src={flashcard.back_image_url} 
+                    alt="Back" 
+                    className="max-w-full max-h-48 object-contain rounded mb-6 mx-auto"
+                  />
+                )}
+                <div className="text-3xl font-bold text-gray-900 mb-8">
+                  {flashcard.back_text}
+                </div>
+                
+                {/* Rating Buttons */}
+                <div className="flex gap-4 justify-center mt-8" onClick={(e) => e.stopPropagation()}>
+                  <Button 
+                    onClick={handlePracticeReview}
+                    variant="outline"
+                    size="lg"
+                    className="flex items-center gap-2"
+                  >
+                    <XCircle className="h-5 w-5" />
+                    Need Review
+                  </Button>
+                  <Button 
+                    onClick={handlePracticeKnow}
+                    size="lg"
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="h-5 w-5" />
+                    I Know This
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Tags */}
+            {flashcard.tags && flashcard.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 justify-center mt-8">
+                {flashcard.tags.map((tag) => (
+                  <Badge key={tag} variant="outline">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Navigation */}
+        <div className="flex justify-between items-center">
+          <Button 
+            onClick={handlePracticePrevious}
+            variant="outline"
+            disabled={currentPracticeIndex === 0}
+          >
+            <ChevronLeft className="h-5 w-5 mr-1" />
+            Previous
+          </Button>
+          
+          <div className="text-sm text-gray-500">
+            {practiceCompleted.size} cards marked as known
+          </div>
+
+          <Button 
+            onClick={handlePracticeNext}
+            variant="outline"
+            disabled={currentPracticeIndex === favorites.length - 1}
+          >
+            Next
+            <ChevronRight className="h-5 w-5 ml-1" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Grid View (default)
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-8">
