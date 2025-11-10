@@ -230,10 +230,74 @@ export default function FlashcardEditor({ flashcardSet, setFlashcardSet }: Flash
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium text-gray-900">Flashcards</h3>
-          <Button onClick={addCard} className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Add Card
-          </Button>
+          <div className="flex gap-2">
+            <Dialog open={showBulkUploadModal} onOpenChange={setShowBulkUploadModal}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  Bulk Upload
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Bulk Upload Flashcards</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Format</Label>
+                    <div className="text-sm text-gray-600 mb-2">
+                      Enter pairs of lines: first line is the front (question), second line is the back (answer).
+                    </div>
+                    <pre className="bg-gray-100 p-3 rounded text-xs">
+{`'tis
+it is
+'twas
+it was
+o'er
+over`}
+                    </pre>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="bulk-text">Paste your flashcards</Label>
+                    <Textarea
+                      id="bulk-text"
+                      value={bulkUploadText}
+                      onChange={(e) => setBulkUploadText(e.target.value)}
+                      placeholder="Enter flashcard pairs, each on a new line..."
+                      rows={15}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+
+                  {bulkUploadErrors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded p-3">
+                      <h4 className="text-sm font-medium text-red-800 mb-2">Errors:</h4>
+                      <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                        {bulkUploadErrors.map((error, i) => (
+                          <li key={i}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowBulkUploadModal(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleBulkUpload}>
+                      Import Flashcards
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            
+            <Button onClick={addCard} className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Add Card
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-4">
