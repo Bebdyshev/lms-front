@@ -135,11 +135,20 @@ export default function QuizLessonEditor({
         
         const options: { id: string; text: string; is_correct: boolean; letter: string }[] = [];
         const letters = ['A', 'B', 'C', 'D'];
+        let correctIndex = 0; // Default to A
         
         optionLines.forEach((line, index) => {
           const letter = letters[index];
           // Remove letter prefix if it exists (e.g., "A) option" -> "option")
-          const text = line.replace(/^[A-D]\)\s*/, '').trim();
+          let text = line.replace(/^[A-D]\)\s*/, '').trim();
+          
+          // Check if this option is marked as correct with "+"
+          const isCorrect = text.endsWith('+');
+          if (isCorrect) {
+            text = text.slice(0, -1).trim(); // Remove the "+" marker
+            correctIndex = index;
+          }
+          
           options.push({
             id: `${Date.now()}_${letter}_${Math.random()}`,
             text: text,
@@ -148,9 +157,7 @@ export default function QuizLessonEditor({
           });
         });
         
-        // For SAT grammar questions, we'll default to option A as correct
-        // User can change this in the editor
-        const correctIndex = 0;
+        // Set the correct answer
         options[correctIndex].is_correct = true;
         
         const question: Question = {
