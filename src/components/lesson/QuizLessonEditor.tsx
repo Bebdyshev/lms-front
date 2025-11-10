@@ -918,7 +918,24 @@ export default function QuizLessonEditor({
                 {draftQuestion.is_sat_question && (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Content:</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>Content:</Label>
+                        {draftQuestion.question_type === 'text_completion' && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const currentText = draftQuestion.content_text || '';
+                              const newText = currentText + (currentText ? ' ' : '') + '[[ ]]';
+                              applyDraftUpdate({ content_text: newText });
+                            }}
+                            className="text-xs"
+                          >
+                            Add Gap [[ ]]
+                          </Button>
+                        )}
+                      </div>
                       <Tabs defaultValue="passage" className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                           <TabsTrigger value="passage">Passage</TabsTrigger>
