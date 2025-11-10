@@ -15,15 +15,16 @@ interface FileUploadAreaProps {
   tempMode?: boolean; // For handling temporary files before step is saved
 }
 
-const FileUploadArea: React.FC<FileUploadAreaProps> = ({
-  attachments,
-  onFileUpload,
-  onFileDelete,
-  disabled = false,
-  maxFileSize = MAX_FILE_SIZE_MB,
-  allowedTypes = ['pdf', 'docx', 'doc', 'jpg', 'png', 'gif', 'webp', 'txt', 'zip', 'xlsx', 'pptx'],
-  tempMode = false
-}) {
+const FileUploadArea: React.FC<FileUploadAreaProps> = (props) => {
+  const {
+    attachments,
+    onFileUpload,
+    onFileDelete,
+    disabled = false,
+    maxFileSize = MAX_FILE_SIZE_MB,
+    allowedTypes = ['pdf', 'docx', 'doc', 'jpg', 'png', 'gif', 'webp', 'txt', 'zip', 'xlsx', 'pptx'],
+    tempMode = false
+  } = props;
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
