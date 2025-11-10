@@ -471,8 +471,9 @@ export default function LessonPage() {
         (parsedQuizData.questions || []).forEach((q: any) => {
           if (q.question_type === 'fill_blank') {
             const text = (q.content_text || q.question_text || '').toString();
+            const separator = q.gap_separator || ',';
             const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-            const perGapOptions: string[][] = gaps.map((m: any) => (m[1]||'').split(',').map((s: string) => s.trim()).filter(Boolean));
+            const perGapOptions: string[][] = gaps.map((m: any) => (m[1]||'').split(separator).map((s: string) => s.trim()).filter(Boolean));
             // shuffle each gap options
             const shuffled = perGapOptions.map(arr => arr.map(x=>x).sort(() => Math.random() - 0.5));
             const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);

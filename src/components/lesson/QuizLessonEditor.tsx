@@ -304,10 +304,11 @@ export default function QuizLessonEditor({
     if (draftQuestion.question_type === 'fill_blank') {
       // Extract answers from [[correct, wrong1, wrong2]] in content_text; take first as correct
       const text = (draftQuestion.content_text || '').toString();
+      const separator = draftQuestion.gap_separator || ',';
       const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
       const corrects = gaps
         .map(m => (m[1] || ''))
-        .map(inner => inner.split(',').map(s => s.trim()).filter(Boolean))
+        .map(inner => inner.split(separator).map(s => s.trim()).filter(Boolean))
         .map(tokens => tokens[0])
         .filter(Boolean);
       correctAnswer = corrects;
@@ -1028,6 +1029,7 @@ export default function QuizLessonEditor({
                           next.question_type = 'fill_blank';
                           next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
                           next.options = undefined; // Clear options for fill_blank
+                          next.gap_separator = next.gap_separator || ','; // Set default separator
                         } else if (val === 'text_completion') {
                           next.question_type = 'text_completion';
                           next.correct_answer = [];
@@ -1288,16 +1290,29 @@ export default function QuizLessonEditor({
               {/* Show Gaps preview only for fill_blank question type */}
               {draftQuestion.question_type === 'fill_blank' && (
                 <div className="space-y-2">
-                  <Label>Gaps preview</Label>
+                  <Label>Gap Separator</Label>
+                  <Input
+                    type="text"
+                    value={draftQuestion.gap_separator || ','}
+                    onChange={(e) => applyDraftUpdate({ gap_separator: e.target.value || ',' })}
+                    placeholder=","
+                    className="w-24"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Character to separate correct answer from distractors (default: comma)
+                  </p>
+                  
+                  <Label className="mt-4">Gaps preview</Label>
                   <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
                     {(() => {
                       const text = (draftQuestion.content_text || '').toString();
+                      const separator = draftQuestion.gap_separator || ',';
                       const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-                      if (gaps.length === 0) return <span>No gaps yet. Add [[correct, wrong1, wrong2]] in the passage field.</span>;
+                      if (gaps.length === 0) return <span>No gaps yet. Add [[correct{separator}wrong1{separator}wrong2]] in the passage field.</span>;
                       return (
                         <div className="space-y-1">
                           {gaps.map((m, i) => {
-                            const tokens = (m[1]||'').split(',').map(s => s.trim()).filter(Boolean);
+                            const tokens = (m[1]||'').split(separator).map(s => s.trim()).filter(Boolean);
                             const correct = tokens[0];
                             const distractors = tokens.slice(1);
                             return (
@@ -1586,6 +1601,7 @@ D) dog, that has undergone obedience training`}
                   <div className="p-4 rounded-lg border bg-gray-50">
                     {(() => {
                       const text = (draftQuestion.content_text || '').toString();
+                      const separator = draftQuestion.gap_separator || ',';
                       const parts = text.split(/\[\[(.*?)\]\]/g);
                       let gapIndex = 0;
                       return (
@@ -1595,7 +1611,7 @@ D) dog, that has undergone obedience training`}
                             if (!isGap) {
                               return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
                             }
-                            const inner = (part || '').split(',').map(s => s.trim()).filter(Boolean);
+                            const inner = (part || '').split(separator).map(s => s.trim()).filter(Boolean);
                             const options = inner;
                             const idxGap = gapIndex++;
                             return (
@@ -1791,12 +1807,21 @@ D) dog, that has undergone obedience training`}
                   <p className="text-sm text-gray-600">
                     For fill-in-the-blank questions, use double brackets in the passage:
                   </p>
-                  <div className="p-3 bg-blue-50 rounded border">
-                    <code className="text-sm font-mono">
-                      The sky is [[blue, azure, cyan]] and the grass is [[green, emerald]].
-                    </code>
-                    <p className="text-xs text-gray-600 mt-1">
-                      First option is correct, others are distractors
+                  <div className="p-3 bg-blue-50 rounded border space-y-2">
+                    <div>
+                      <div className="text-xs font-medium text-gray-700 mb-1">Default (comma separator):</div>
+                      <code className="text-sm font-mono">
+                        The sky is [[blue, azure, cyan]] and the grass is [[green, emerald]].
+                      </code>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-700 mb-1">Custom separator (e.g., slash):</div>
+                      <code className="text-sm font-mono">
+                        The capital is [[Paris / Lyon / Marseille]] and the river is [[Seine / Loire]].
+                      </code>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      First option is correct, others are distractors. You can customize the separator character in the question settings.
                     </p>
                   </div>
                 </div>

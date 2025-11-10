@@ -351,6 +351,7 @@ export interface Question {
   media_type?: 'pdf' | 'image'; // Type of media attachment
   expected_length?: number; // For long text questions (character count)
   keywords?: string[]; // For auto-grading long text answers
+  gap_separator?: string; // Custom separator for fill_blank questions (default: ',')
 }
 
 export interface QuizData {
