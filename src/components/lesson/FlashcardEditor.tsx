@@ -6,7 +6,8 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
-import { Plus, Trash2, X, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, X, Image as ImageIcon, Upload } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import type { FlashcardSet, FlashcardItem } from '../../types';
 
 interface FlashcardEditorProps {
@@ -16,6 +17,9 @@ interface FlashcardEditorProps {
 
 export default function FlashcardEditor({ flashcardSet, setFlashcardSet }: FlashcardEditorProps) {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [bulkUploadText, setBulkUploadText] = useState('');
+  const [bulkUploadErrors, setBulkUploadErrors] = useState<string[]>([]);
 
   const updateFlashcardSet = (updates: Partial<FlashcardSet>) => {
     setFlashcardSet({ ...flashcardSet, ...updates });
@@ -91,6 +95,65 @@ export default function FlashcardEditor({ flashcardSet, setFlashcardSet }: Flash
       const newTags = card.tags.filter(tag => tag !== tagToRemove);
       updateCard(cardId, { tags: newTags });
     }
+  };
+
+  const parseBulkFlashcards = (text: string): { cards: FlashcardItem[]; errors: string[] } => {
+    const errors: string[] = [];
+    const cards: FlashcardItem[] = [];
+    
+    // Split by lines, expecting pairs of lines (front, back)
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line !== '');
+    
+    if (lines.length % 2 !== 0) {
+      errors.push(`Expected even number of lines (pairs of front/back). Found ${lines.length} lines.`);
+      return { cards, errors };
+    }
+    
+    for (let i = 0; i < lines.length; i += 2) {
+      const frontText = lines[i];
+      const backText = lines[i + 1];
+      
+      if (!frontText || !backText) {
+        errors.push(`Card ${i / 2 + 1}: Both front and back text are required`);
+        continue;
+      }
+      
+      const card: FlashcardItem = {
+        id: `bulk_${Date.now()}_${i / 2}_${Math.random()}`,
+        front_text: frontText,
+        back_text: backText,
+        difficulty: 'normal',
+        order_index: flashcardSet.cards.length + cards.length,
+        tags: []
+      };
+      
+      cards.push(card);
+    }
+    
+    return { cards, errors };
+  };
+
+  const handleBulkUpload = () => {
+    setBulkUploadErrors([]);
+    const { cards, errors } = parseBulkFlashcards(bulkUploadText);
+    
+    if (errors.length > 0) {
+      setBulkUploadErrors(errors);
+      return;
+    }
+    
+    if (cards.length === 0) {
+      setBulkUploadErrors(['No valid flashcards found. Please check the format.']);
+      return;
+    }
+    
+    // Add all cards to the flashcard set
+    updateFlashcardSet({ cards: [...flashcardSet.cards, ...cards] });
+    
+    // Close modal and reset
+    setShowBulkUploadModal(false);
+    setBulkUploadText('');
+    setBulkUploadErrors([]);
   };
 
   return (

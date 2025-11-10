@@ -147,6 +147,7 @@ export default function QuizLessonEditor({
           if (isCorrect) {
             text = text.slice(0, -1).trim(); // Remove the "+" marker
             correctIndex = index;
+            console.log(`Found correct answer: ${letter}) ${text} (index: ${index})`);
           }
           
           options.push({
