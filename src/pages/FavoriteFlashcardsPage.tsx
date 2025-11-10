@@ -176,8 +176,8 @@ export default function FavoriteFlashcardsPage() {
 
             {!practiceFlipped ? (
               // Question Side
-              <div className="space-y-6 w-full">
-                <div className="text-sm text-gray-400 uppercase tracking-wider mb-4">
+              <div className="space-y-6 w-full flex flex-col items-center justify-center">
+                <div className="text-sm text-gray-400 uppercase tracking-wider mb-8">
                   Question
                 </div>
                 {flashcard.front_image_url && (
@@ -187,7 +187,7 @@ export default function FavoriteFlashcardsPage() {
                     className="max-w-full max-h-48 object-contain rounded mb-6 mx-auto"
                   />
                 )}
-                <div className="text-3xl font-bold text-gray-900 mb-8">
+                <div className="text-3xl font-bold text-gray-900 text-center">
                   {flashcard.front_text}
                 </div>
                 <div className="text-sm text-gray-400 mt-8">
@@ -196,7 +196,7 @@ export default function FavoriteFlashcardsPage() {
               </div>
             ) : (
               // Answer Side
-              <div className="space-y-6 w-full">
+              <div className="space-y-6 w-full flex flex-col items-center justify-center">
                 <div className="text-sm text-gray-400 uppercase tracking-wider mb-4">
                   Answer
                 </div>
@@ -207,7 +207,7 @@ export default function FavoriteFlashcardsPage() {
                     className="max-w-full max-h-48 object-contain rounded mb-6 mx-auto"
                   />
                 )}
-                <div className="text-3xl font-bold text-gray-900 mb-8">
+                <div className="text-3xl font-bold text-gray-900 mb-8 text-center">
                   {flashcard.back_text}
                 </div>
                 
