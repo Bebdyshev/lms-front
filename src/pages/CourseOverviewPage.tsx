@@ -95,12 +95,14 @@ export default function CourseOverviewPage() {
               <p className="mt-2 text-lg text-gray-600">{course.description}</p>
               
               <div className="mt-4 flex items-center space-x-6">
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-500">
-                    {course.estimatedDurationMinutes} minutes
-                  </span>
-                </div>
+                {course.estimated_duration_minutes > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-500">
+                      {course.estimated_duration_minutes} minutes
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center space-x-2">
                   <Users className="w-4 h-4 text-gray-400" />
                   <span className="text-sm text-gray-500">
