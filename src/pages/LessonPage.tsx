@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -1012,41 +1011,67 @@ export default function LessonPage() {
                       {(() => {
                         const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
                         const current = gapAnswers.get(q.id) || new Array(answers.length).fill('');
-                        const parts = (q.content_text || q.question_text || '').split(/\[\[(.*?)\]\]/g);
+                        const parts = (q.content_text || q.question_text || '').split(/(\[\[.*?\]\])/g);
                         let gapIndex = 0;
+                        
+                        // Create HTML with placeholders
+                        const tempHtml = parts.map((part: string) => {
+                          const gapMatch = part.match(/\[\[(.*?)\]\]/);
+                          if (!gapMatch) {
+                            return renderTextWithLatex(part);
+                          }
+                          const id = `GAP_PLACEHOLDER_${gapIndex++}`;
+                          return `<span id="${id}"></span>`;
+                        }).join('');
+                        
                         return (
                           <div className="p-3 border rounded-md">
-                            <div className="text-gray-800 flex flex-wrap items-center gap-2">
-                              {parts.map((part: string, i: number) => {
-                                const isGap = i % 2 === 1;
-                                if (!isGap) {
-                                  return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
-                                }
-                                const idx = gapIndex++;
-                                const options = (gapOptions.get(q.id) || [])[idx] || [];
-                                return (
-                                  <Select
-                                    key={`gap-${i}`}
-                                    disabled={feedChecked}
-                                    value={current[idx] || ''}
-                                    onValueChange={(value: string) => {
-                                      const next = [...current];
-                                      next[idx] = value;
-                                      setGapAnswers(prev => new Map(prev.set(q.id, next)));
-                                    }}
-                                  >
-                                    <SelectTrigger className="w-auto min-w-[80px] h-8 px-2 py-1 text-sm">
-                                      <SelectValue placeholder={`#${idx+1}`} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {options.map((opt, oi) => (
-                                        <SelectItem key={oi} value={opt}>{opt}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                );
-                              })}
-                            </div>
+                            <div 
+                              className="text-gray-800 text-lg leading-relaxed prose prose-lg max-w-none"
+                              dangerouslySetInnerHTML={{ __html: tempHtml }}
+                              ref={(el) => {
+                                if (!el) return;
+                                let currentGapIndex = 0;
+                                parts.forEach((part: string) => {
+                                  const gapMatch = part.match(/\[\[(.*?)\]\]/);
+                                  if (gapMatch) {
+                                    const id = `GAP_PLACEHOLDER_${currentGapIndex}`;
+                                    const placeholder = el.querySelector(`#${id}`);
+                                    if (placeholder) {
+                                      const options = (gapOptions.get(q.id) || [])[currentGapIndex] || [];
+                                      const select = document.createElement('select');
+                                      select.className = 'inline px-2 py-1 border-2 border-blue-400 rounded bg-white text-sm font-medium align-baseline mx-1';
+                                      select.disabled = feedChecked;
+                                      
+                                      const defaultOption = document.createElement('option');
+                                      defaultOption.value = '';
+                                      defaultOption.disabled = true;
+                                      defaultOption.selected = !current[currentGapIndex];
+                                      defaultOption.textContent = `#${currentGapIndex+1}`;
+                                      select.appendChild(defaultOption);
+                                      
+                                      options.forEach((o: string) => {
+                                        const option = document.createElement('option');
+                                        option.value = o;
+                                        option.textContent = o;
+                                        option.selected = current[currentGapIndex] === o;
+                                        select.appendChild(option);
+                                      });
+                                      
+                                      select.addEventListener('change', (e) => {
+                                        const value = (e.target as HTMLSelectElement).value;
+                                        const next = [...current];
+                                        next[currentGapIndex] = value;
+                                        setGapAnswers(prev => new Map(prev.set(q.id, next)));
+                                      });
+                                      
+                                      placeholder.replaceWith(select);
+                                    }
+                                    currentGapIndex++;
+                                  }
+                                });
+                              }}
+                            />
                             {feedChecked && (
                               <div className="mt-2 text-sm">
                                 {current.every((val, idx) => (val||'').trim().toLowerCase() === (answers[idx]||'').toString().trim().toLowerCase()) ? (
@@ -1497,39 +1522,65 @@ export default function LessonPage() {
                 {(() => {
                   const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
                   const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
-                  const parts = (question.content_text || question.question_text || '').split(/\[\[(.*?)\]\]/g);
+                  const parts = (question.content_text || question.question_text || '').split(/(\[\[.*?\]\])/g);
                   let gapIndex = 0;
+                  
+                  // Create HTML with placeholders
+                  const tempHtml = parts.map((part: string) => {
+                    const gapMatch = part.match(/\[\[(.*?)\]\]/);
+                    if (!gapMatch) {
+                      return renderTextWithLatex(part);
+                    }
+                    const id = `GAP_PLACEHOLDER_${gapIndex++}`;
+                    return `<span id="${id}"></span>`;
+                  }).join('');
+                  
                   return (
-                    <div className="text-gray-800 flex flex-wrap items-center gap-2">
-                      {parts.map((part: string, i: number) => {
-                        const isGap = i % 2 === 1;
-                        if (!isGap) {
-                          return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
-                        }
-                        const idx = gapIndex++;
-                        const options = (gapOptions.get(question.id) || [])[idx] || [];
-                        return (
-                          <Select
-                            key={`gapq-${i}`}
-                            value={current[idx] || ''}
-                            onValueChange={(value: string) => {
-                              const next = [...current];
-                              next[idx] = value;
-                              setGapAnswers(prev => new Map(prev.set(question.id, next)));
-                            }}
-                          >
-                            <SelectTrigger className="w-auto min-w-[80px] h-8 px-2 py-1 text-sm">
-                              <SelectValue placeholder={`#${idx+1}`} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {options.map((opt, oi) => (
-                                <SelectItem key={oi} value={opt}>{opt}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        );
-                      })}
-                    </div>
+                    <div 
+                      className="text-gray-800 text-lg leading-relaxed prose prose-lg max-w-none"
+                      dangerouslySetInnerHTML={{ __html: tempHtml }}
+                      ref={(el) => {
+                        if (!el) return;
+                        let currentGapIndex = 0;
+                        parts.forEach((part: string) => {
+                          const gapMatch = part.match(/\[\[(.*?)\]\]/);
+                          if (gapMatch) {
+                            const id = `GAP_PLACEHOLDER_${currentGapIndex}`;
+                            const placeholder = el.querySelector(`#${id}`);
+                            if (placeholder) {
+                              const options = (gapOptions.get(question.id) || [])[currentGapIndex] || [];
+                              const select = document.createElement('select');
+                              select.className = 'inline px-2 py-1 border-2 border-blue-400 rounded bg-white text-sm font-medium align-baseline mx-1';
+                              
+                              const defaultOption = document.createElement('option');
+                              defaultOption.value = '';
+                              defaultOption.disabled = true;
+                              defaultOption.selected = !current[currentGapIndex];
+                              defaultOption.textContent = `#${currentGapIndex+1}`;
+                              select.appendChild(defaultOption);
+                              
+                              options.forEach((o: string) => {
+                                const option = document.createElement('option');
+                                option.value = o;
+                                option.textContent = o;
+                                option.selected = current[currentGapIndex] === o;
+                                select.appendChild(option);
+                              });
+                              
+                              select.addEventListener('change', (e) => {
+                                const value = (e.target as HTMLSelectElement).value;
+                                const next = [...current];
+                                next[currentGapIndex] = value;
+                                setGapAnswers(prev => new Map(prev.set(question.id, next)));
+                              });
+                              
+                              placeholder.replaceWith(select);
+                            }
+                            currentGapIndex++;
+                          }
+                        });
+                      }}
+                    />
                   );
                 })()}
               </div>

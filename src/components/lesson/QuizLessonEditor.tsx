@@ -1628,28 +1628,58 @@ D) dog, that has undergone obedience training`}
                     {(() => {
                       const text = (draftQuestion.content_text || '').toString();
                       const separator = draftQuestion.gap_separator || ',';
-                      const parts = text.split(/\[\[(.*?)\]\]/g);
+                      const parts = text.split(/(\[\[.*?\]\])/g);
                       let gapIndex = 0;
+                      
+                      // Create placeholder IDs for gaps
+                      const tempHtml = parts.map((part) => {
+                        const gapMatch = part.match(/\[\[(.*?)\]\]/);
+                        if (!gapMatch) {
+                          return renderTextWithLatex(part);
+                        }
+                        // Replace gap with a unique placeholder
+                        const id = `GAP_PLACEHOLDER_${gapIndex++}`;
+                        return `<span id="${id}"></span>`;
+                      }).join('');
+                      
                       return (
-                        <div className="flex flex-wrap items-center gap-2 text-gray-800">
-                          {parts.map((part, i) => {
-                            const isGap = i % 2 === 1;
-                            if (!isGap) {
-                              return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
-                            }
-                            const inner = (part || '').split(separator).map(s => s.trim()).filter(Boolean);
-                            const options = inner;
-                            const idxGap = gapIndex++;
-                            return (
-                              <select key={`preview-gap-${i}`} className="px-3 py-1.5 border-2 border-blue-400 rounded bg-white font-medium" defaultValue="">
-                                <option value="" disabled>{`Select #${idxGap+1}`}</option>
-                                {options.map((o, oi) => (
-                                  <option key={oi} value={o}>{o}</option>
-                                ))}
-                              </select>
-                            );
-                          })}
-                        </div>
+                        <div 
+                          className="text-gray-800 text-lg leading-relaxed prose prose-lg max-w-none"
+                          dangerouslySetInnerHTML={{ __html: tempHtml }}
+                          ref={(el) => {
+                            if (!el) return;
+                            // Replace placeholders with actual select elements
+                            let currentGapIndex = 0;
+                            parts.forEach((part) => {
+                              const gapMatch = part.match(/\[\[(.*?)\]\]/);
+                              if (gapMatch) {
+                                const id = `GAP_PLACEHOLDER_${currentGapIndex++}`;
+                                const placeholder = el.querySelector(`#${id}`);
+                                if (placeholder) {
+                                  const inner = gapMatch[1].split(separator).map(s => s.trim()).filter(Boolean);
+                                  const select = document.createElement('select');
+                                  select.className = 'inline px-2 py-1 border-2 border-blue-400 rounded bg-white text-sm font-medium align-baseline mx-1';
+                                  
+                                  const defaultOption = document.createElement('option');
+                                  defaultOption.value = '';
+                                  defaultOption.disabled = true;
+                                  defaultOption.selected = true;
+                                  defaultOption.textContent = `#${currentGapIndex}`;
+                                  select.appendChild(defaultOption);
+                                  
+                                  inner.forEach((o) => {
+                                    const option = document.createElement('option');
+                                    option.value = o;
+                                    option.textContent = o;
+                                    select.appendChild(option);
+                                  });
+                                  
+                                  placeholder.replaceWith(select);
+                                }
+                              }
+                            });
+                          }}
+                        />
                       );
                     })()}
                   </div>
