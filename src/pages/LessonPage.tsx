@@ -471,7 +471,7 @@ export default function LessonPage() {
             const text = (q.content_text || q.question_text || '').toString();
             const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
             const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-            init.set(q.id, new Array(Math.max(gaps.length, answers.length)).fill(''));
+            init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
           }
         });
         setGapAnswers(init);
@@ -616,7 +616,6 @@ export default function LessonPage() {
   };
 
   const nextQuestion = () => {
-    const isNotLastStep = currentStepIndex < steps.length - 1;
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setQuizState('question');
@@ -626,30 +625,14 @@ export default function LessonPage() {
       const scorePercentage = (score / questions.length) * 100;
       saveQuizAttempt(score, questions.length);
       
-      // Check if score is at least 50%
-      if (scorePercentage < 50) {
-        // Score is below 50%, show completed state but don't mark as passed
-        setQuizState('completed');
-        if (currentStep) {
-          // Mark quiz as completed but NOT the step as completed
-          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), false)));
-        }
-        return;
-      }
+      // Always show completed state first, regardless of pass/fail or step position
+      setQuizState('completed');
       
-      if (isNotLastStep) {
-        // Mark quiz as completed and step as completed before going to next step
-        if (currentStep) {
-          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-          markStepAsVisited(currentStep.id.toString(), 3); // 3 minutes for quiz completion
-        }
-        // Go directly to next step without checking canProceedToNext()
-        goToStep(currentStepIndex + 1);
-      } else {
-        setQuizState('completed');
-        // Mark quiz as completed and step as completed when quiz is finished
-        if (currentStep) {
-          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+      // Mark quiz completion status
+      if (currentStep) {
+        const passed = scorePercentage >= 50;
+        setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
+        if (passed) {
           markStepAsVisited(currentStep.id.toString(), 3); // 3 minutes for quiz completion
         }
       }
@@ -678,27 +661,99 @@ export default function LessonPage() {
 
   const isCurrentAnswerCorrect = () => {
     const question = getCurrentQuestion();
-    const userAnswer = getCurrentUserAnswer();
     if (!question) return false;
+    
     if (question.question_type === 'fill_blank') {
-      const correct = (question.correct_answer || '').toString().trim().toLowerCase();
-      const user = (userAnswer || '').toString().trim().toLowerCase();
-      return user.length > 0 && user === correct;
+      // For fill_blank questions, check all gaps
+      const userAnswers = gapAnswers.get(question.id.toString()) || [];
+      const correctAnswers: string[] = Array.isArray(question.correct_answer) 
+        ? question.correct_answer 
+        : (question.correct_answer ? [question.correct_answer] : []);
+      
+      return userAnswers.length === correctAnswers.length &&
+        userAnswers.every((userAns, idx) => 
+          (userAns || '').toString().trim().toLowerCase() === 
+          (correctAnswers[idx] || '').toString().trim().toLowerCase()
+        );
     }
+    
+    const userAnswer = getCurrentUserAnswer();
     return userAnswer === question.correct_answer;
   };
 
   const getScore = () => {
-    return Array.from(quizAnswers.entries()).filter(([questionId, answer]) => {
-      const question = questions.find(q => q.id === questionId);
-      if (!question) return false;
+    let score = 0;
+    
+    // Check all questions
+    questions.forEach(question => {
       if (question.question_type === 'fill_blank') {
-        const correct = (question.correct_answer || '').toString().trim().toLowerCase();
-        const user = (answer || '').toString().trim().toLowerCase();
-        return user.length > 0 && user === correct;
+        // For fill_blank questions, use gapAnswers and count partial credit
+        const userAnswers = gapAnswers.get(question.id.toString()) || [];
+        const correctAnswers: string[] = Array.isArray(question.correct_answer) 
+          ? question.correct_answer 
+          : (question.correct_answer ? [question.correct_answer] : []);
+        
+        // Count how many gaps are correct
+        let correctGaps = 0;
+        const totalGaps = Math.min(userAnswers.length, correctAnswers.length);
+        
+        userAnswers.forEach((userAns, idx) => {
+          if (idx < correctAnswers.length) {
+            const isGapCorrect = (userAns || '').toString().trim().toLowerCase() === 
+              (correctAnswers[idx] || '').toString().trim().toLowerCase();
+            if (isGapCorrect) correctGaps++;
+          }
+        });
+        
+        // Award partial credit: correctGaps / totalGaps
+        const partialScore = totalGaps > 0 ? correctGaps / totalGaps : 0;
+        score += partialScore;
+      } else {
+        // For other question types, use quizAnswers
+        const answer = quizAnswers.get(question.id);
+        if (answer !== undefined && answer === question.correct_answer) {
+          score++;
+        }
       }
-      return answer === question.correct_answer;
-    }).length;
+    });
+    
+    return score;
+  };
+
+  // Get detailed gap statistics for display
+  const getGapStatistics = () => {
+    let totalGaps = 0;
+    let correctGaps = 0;
+    let regularQuestions = 0;
+    let correctRegular = 0;
+    
+    questions.forEach(question => {
+      if (question.question_type === 'fill_blank') {
+        const userAnswers = gapAnswers.get(question.id.toString()) || [];
+        const correctAnswers: string[] = Array.isArray(question.correct_answer) 
+          ? question.correct_answer 
+          : (question.correct_answer ? [question.correct_answer] : []);
+        
+        const gaps = Math.min(userAnswers.length, correctAnswers.length);
+        totalGaps += gaps;
+        
+        userAnswers.forEach((userAns, idx) => {
+          if (idx < correctAnswers.length) {
+            const isGapCorrect = (userAns || '').toString().trim().toLowerCase() === 
+              (correctAnswers[idx] || '').toString().trim().toLowerCase();
+            if (isGapCorrect) correctGaps++;
+          }
+        });
+      } else {
+        regularQuestions++;
+        const answer = quizAnswers.get(question.id);
+        if (answer !== undefined && answer === question.correct_answer) {
+          correctRegular++;
+        }
+      }
+    });
+    
+    return { totalGaps, correctGaps, regularQuestions, correctRegular };
   };
 
   // Feed mode renderer: show all questions vertically when quiz is not the last step
@@ -823,7 +878,7 @@ export default function LessonPage() {
                     <div className="space-y-4">
                       <textarea
                         value={userAnswer || ''}
-                        onChange={(e) => setQuizAnswers(prev => new Map(prev.set(q.id, e.target.value)))}
+                        onChange={(e) => setQuizAnswers(prev => new Map(prev.set(q.id.toString(), e.target.value)))}
                         placeholder="Enter your detailed answer here..."
                         className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-vertical"
                         maxLength={q.expected_length || 1000}
@@ -845,7 +900,7 @@ export default function LessonPage() {
                       <input
                         type="text"
                         value={userAnswer || ''}
-                        onChange={(e) => setQuizAnswers(prev => new Map(prev.set(q.id, e.target.value)))}
+                        onChange={(e) => setQuizAnswers(prev => new Map(prev.set(q.id.toString(), e.target.value)))}
                         placeholder="Enter your answer..."
                         className="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
                         disabled={feedChecked}
@@ -872,7 +927,7 @@ export default function LessonPage() {
                           const text = (q.content_text || '').toString();
                           const parts = text.split(/\[\[(.*?)\]\]/g);
                           let gapIndex = 0;
-                          const currentAnswers = gapAnswers.get(q.id) || [];
+                          const currentAnswers = gapAnswers.get(q.id.toString()) || [];
                           
                           return (
                             <div className="flex flex-wrap items-baseline gap-1">
@@ -890,7 +945,7 @@ export default function LessonPage() {
                                     onChange={(e) => {
                                       const newAnswers = [...currentAnswers];
                                       newAnswers[currentGapIndex] = e.target.value;
-                                      setGapAnswers(prev => new Map(prev.set(q.id, newAnswers)));
+                                      setGapAnswers(prev => new Map(prev.set(q.id.toString(), newAnswers)));
                                     }}
                                     className="inline-block mx-1 px-2 py-1 border-b-2 border-blue-500 bg-transparent text-center w-[120px] focus:outline-none focus:border-blue-700"
                                     disabled={feedChecked}
@@ -905,7 +960,7 @@ export default function LessonPage() {
                         <div className="mt-3 text-sm">
                           {(() => {
                             const correctAnswers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-                            const userAnswers = gapAnswers.get(q.id) || [];
+                            const userAnswers = gapAnswers.get(q.id.toString()) || [];
                             const isCorrect = userAnswers.length === correctAnswers.length && 
                               userAnswers.every((val, idx) => (val||'').trim().toLowerCase() === (correctAnswers[idx]||'').toString().trim().toLowerCase());
                             
@@ -951,7 +1006,7 @@ export default function LessonPage() {
                         return (
                           <button
                             key={option.id}
-                            onClick={() => setQuizAnswers(prev => new Map(prev.set(q.id, optionIndex)))}
+                            onClick={() => setQuizAnswers(prev => new Map(prev.set(q.id.toString(), optionIndex)))}
                             disabled={feedChecked}
                             className={buttonClass}
                           >
@@ -1003,7 +1058,7 @@ export default function LessonPage() {
                     <div className="space-y-2">
                       {(() => {
                         const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-                        const current = gapAnswers.get(q.id) || new Array(answers.length).fill('');
+                        const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
                         
                         // Convert current array to object for FillInBlankRenderer
                         const answersObj: Record<number, string> = {};
@@ -1020,7 +1075,7 @@ export default function LessonPage() {
                               onAnswerChange={(gapIndex: number, value: string) => {
                                 const next = [...current];
                                 next[gapIndex] = value;
-                                setGapAnswers(prev => new Map(prev.set(q.id, next)));
+                                setGapAnswers(prev => new Map(prev.set(q.id.toString(), next)));
                               }}
                               disabled={feedChecked}
                               showCorrectAnswers={feedChecked}
@@ -1047,7 +1102,7 @@ export default function LessonPage() {
                      let isCorrect = false;
                      if (q.question_type === 'fill_blank') {
                        const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-                       const current = gapAnswers.get(q.id) || new Array(answers.length).fill('');
+                       const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
                        isCorrect = current.every((val, idx) => (val||'').toString().trim().toLowerCase() === (answers[idx]||'').toString().trim().toLowerCase());
                      } else {
                        isCorrect = userAnswer === q.correct_answer;
@@ -1090,7 +1145,7 @@ export default function LessonPage() {
                   return !ans || (ans || '').toString().trim() === '';
                 }
                 if (q.question_type === 'text_completion') {
-                  const gapAns = gapAnswers.get(q.id) || [];
+                  const gapAns = gapAnswers.get(q.id.toString()) || [];
                   return gapAns.length === 0 || gapAns.some(v => (v||'').toString().trim() === '');
                 }
                 if (q.question_type === 'short_answer' || q.question_type === 'long_text') {
@@ -1105,7 +1160,7 @@ export default function LessonPage() {
                     return !ans || (ans || '').toString().trim() === '';
                   }
                   if (q.question_type === 'text_completion') {
-                    const gapAns = gapAnswers.get(q.id) || [];
+                    const gapAns = gapAnswers.get(q.id.toString()) || [];
                     return gapAns.length === 0 || gapAns.some(v => (v||'').toString().trim() === '');
                   }
                   if (q.question_type === 'short_answer' || q.question_type === 'long_text') {
@@ -1227,12 +1282,12 @@ export default function LessonPage() {
     const hasAnswered = question.question_type === 'fill_blank'
       ? (() => {
           const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
-          const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
+          const current = gapAnswers.get(question.id.toString()) || new Array(answers.length).fill('');
           return current.every(v => (v||'').toString().trim() !== '');
         })()
       : question.question_type === 'text_completion'
       ? (() => {
-          const current = gapAnswers.get(question.id) || [];
+          const current = gapAnswers.get(question.id.toString()) || [];
           return current.length > 0 && current.every(v => (v||'').toString().trim() !== '');
         })()
       : question.question_type === 'long_text' || question.question_type === 'short_answer'
@@ -1399,7 +1454,7 @@ export default function LessonPage() {
                     const text = (question.content_text || '').toString();
                     const parts = text.split(/\[\[(.*?)\]\]/g);
                     let gapIndex = 0;
-                    const currentAnswers = gapAnswers.get(question.id) || [];
+                    const currentAnswers = gapAnswers.get(question.id.toString()) || [];
                     
                     return (
                       <div className="flex flex-wrap items-baseline gap-1">
@@ -1417,7 +1472,7 @@ export default function LessonPage() {
                               onChange={(e) => {
                                 const newAnswers = [...currentAnswers];
                                 newAnswers[currentGapIndex] = e.target.value;
-                                setGapAnswers(prev => new Map(prev.set(question.id, newAnswers)));
+                                setGapAnswers(prev => new Map(prev.set(question.id.toString(), newAnswers)));
                               }}
                               className="inline-block mx-1 px-2 py-1 border-b-2 border-blue-500 bg-transparent text-center min-w-[80px] focus:outline-none focus:border-blue-700"
                               placeholder="____"
@@ -1476,7 +1531,7 @@ export default function LessonPage() {
               <div className="p-3 border rounded-md">
                 {(() => {
                   const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
-                  const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
+                  const current = gapAnswers.get(question.id.toString()) || new Array(answers.length).fill('');
                   
                   // Convert current array to object for FillInBlankRenderer
                   const answersObj: Record<number, string> = {};
@@ -1492,7 +1547,7 @@ export default function LessonPage() {
                       onAnswerChange={(gapIndex: number, value: string) => {
                         const next = [...current];
                         next[gapIndex] = value;
-                        setGapAnswers(prev => new Map(prev.set(question.id, next)));
+                        setGapAnswers(prev => new Map(prev.set(question.id.toString(), next)));
                       }}
                       disabled={false}
                       shuffleOptions={true}
@@ -1670,7 +1725,7 @@ export default function LessonPage() {
               <div className="p-6 rounded-xl border-2 bg-gray-50 border-gray-200">
                 {(() => {
                   const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
-                  const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
+                  const current = gapAnswers.get(question.id.toString()) || new Array(answers.length).fill('');
                   const parts = (question.content_text || question.question_text || '').split(/\[\[(.*?)\]\]/g);
                   let gapIndex = 0;
                   return (
@@ -1738,6 +1793,11 @@ export default function LessonPage() {
     const score = getScore();
     const percentage = Math.round((score / questions.length) * 100);
     const isPassed = percentage >= 50;
+    const stats = getGapStatistics();
+    
+    // Calculate total "items" (gaps + regular questions)
+    const totalItems = stats.totalGaps + stats.regularQuestions;
+    const correctItems = stats.correctGaps + stats.correctRegular;
     
     return (
       <div className="max-w-2xl mx-auto text-center space-y-6 p-6">
@@ -1761,7 +1821,7 @@ export default function LessonPage() {
               <p className={`text-lg font-medium ${
                 isPassed ? 'text-green-800' : 'text-red-800'
               }`}>
-                {score} out of {questions.length} questions correct
+                {correctItems} out of {totalItems} {totalItems === 1 ? 'answer' : 'answers'} correct
               </p>
               {!isPassed && (
                 <div className="mt-4 p-4 bg-red-100 border border-red-300 rounded-lg">
@@ -1782,7 +1842,7 @@ export default function LessonPage() {
               }`}>
                 <div className={`text-2xl font-bold ${
                   isPassed ? 'text-green-600' : 'text-red-600'
-                }`}>{score}</div>
+                }`}>{correctItems}</div>
                 <div className={`text-sm font-medium ${
                   isPassed ? 'text-green-800' : 'text-red-800'
                 }`}>Correct</div>
@@ -1792,7 +1852,7 @@ export default function LessonPage() {
               }`}>
                 <div className={`text-2xl font-bold ${
                   isPassed ? 'text-green-600' : 'text-red-600'
-                }`}>{questions.length - score}</div>
+                }`}>{totalItems - correctItems}</div>
                 <div className={`text-sm font-medium ${
                   isPassed ? 'text-green-800' : 'text-red-800'
                 }`}>Incorrect</div>
@@ -1802,7 +1862,7 @@ export default function LessonPage() {
               }`}>
                 <div className={`text-2xl font-bold ${
                   isPassed ? 'text-green-600' : 'text-red-600'
-                }`}>{questions.length}</div>
+                }`}>{totalItems}</div>
                 <div className={`text-sm font-medium ${
                   isPassed ? 'text-green-800' : 'text-red-800'
                 }`}>Total</div>
