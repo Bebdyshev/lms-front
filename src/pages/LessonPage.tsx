@@ -10,6 +10,7 @@ import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment }
 import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
 import FlashcardViewer from '../components/lesson/FlashcardViewer';
+import { FillInBlankRenderer } from '../components/lesson/FillInBlankRenderer';
 
 interface LessonSidebarProps {
   course: Course | null;
@@ -261,7 +262,6 @@ export default function LessonPage() {
   // Quiz state
   const [quizAnswers, setQuizAnswers] = useState<Map<string, any>>(new Map());
   const [gapAnswers, setGapAnswers] = useState<Map<string, string[]>>(new Map());
-  const [gapOptions, setGapOptions] = useState<Map<string, string[][]>>(new Map());
   const [quizState, setQuizState] = useState<'title' | 'question' | 'result' | 'completed'>('title');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizData, setQuizData] = useState<any>(null);
@@ -466,22 +466,15 @@ export default function LessonPage() {
         setQuestions(parsedQuizData.questions || []);
         // Initialize gap answers map per question
         const init = new Map<string, string[]>();
-        const opts = new Map<string, string[][]>();
         (parsedQuizData.questions || []).forEach((q: any) => {
           if (q.question_type === 'fill_blank') {
             const text = (q.content_text || q.question_text || '').toString();
-            const separator = q.gap_separator || ',';
             const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-            const perGapOptions: string[][] = gaps.map((m: any) => (m[1]||'').split(separator).map((s: string) => s.trim()).filter(Boolean));
-            // shuffle each gap options
-            const shuffled = perGapOptions.map(arr => arr.map(x=>x).sort(() => Math.random() - 0.5));
             const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-            init.set(q.id, new Array(answers.length).fill(''));
-            opts.set(q.id, shuffled);
+            init.set(q.id, new Array(Math.max(gaps.length, answers.length)).fill(''));
           }
         });
         setGapAnswers(init);
-        setGapOptions(opts);
         
         // Use display_mode from quiz data to determine quiz behavior
         const displayMode = parsedQuizData.display_mode || 'one_by_one';
@@ -1011,66 +1004,28 @@ export default function LessonPage() {
                       {(() => {
                         const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
                         const current = gapAnswers.get(q.id) || new Array(answers.length).fill('');
-                        const parts = (q.content_text || q.question_text || '').split(/(\[\[.*?\]\])/g);
-                        let gapIndex = 0;
                         
-                        // Create HTML with placeholders
-                        const tempHtml = parts.map((part: string) => {
-                          const gapMatch = part.match(/\[\[(.*?)\]\]/);
-                          if (!gapMatch) {
-                            return renderTextWithLatex(part);
-                          }
-                          const id = `GAP_PLACEHOLDER_${gapIndex++}`;
-                          return `<span id="${id}"></span>`;
-                        }).join('');
+                        // Convert current array to object for FillInBlankRenderer
+                        const answersObj: Record<number, string> = {};
+                        current.forEach((val, idx) => {
+                          answersObj[idx] = val;
+                        });
                         
                         return (
                           <div className="p-3 border rounded-md">
-                            <div 
-                              className="text-gray-800 text-lg leading-relaxed prose prose-lg max-w-none"
-                              dangerouslySetInnerHTML={{ __html: tempHtml }}
-                              ref={(el) => {
-                                if (!el) return;
-                                let currentGapIndex = 0;
-                                parts.forEach((part: string) => {
-                                  const gapMatch = part.match(/\[\[(.*?)\]\]/);
-                                  if (gapMatch) {
-                                    const id = `GAP_PLACEHOLDER_${currentGapIndex}`;
-                                    const placeholder = el.querySelector(`#${id}`);
-                                    if (placeholder) {
-                                      const options = (gapOptions.get(q.id) || [])[currentGapIndex] || [];
-                                      const select = document.createElement('select');
-                                      select.className = 'inline px-2 py-1 border-2 border-blue-400 rounded bg-white text-sm font-medium align-baseline mx-1';
-                                      select.disabled = feedChecked;
-                                      
-                                      const defaultOption = document.createElement('option');
-                                      defaultOption.value = '';
-                                      defaultOption.disabled = true;
-                                      defaultOption.selected = !current[currentGapIndex];
-                                      defaultOption.textContent = `#${currentGapIndex+1}`;
-                                      select.appendChild(defaultOption);
-                                      
-                                      options.forEach((o: string) => {
-                                        const option = document.createElement('option');
-                                        option.value = o;
-                                        option.textContent = o;
-                                        option.selected = current[currentGapIndex] === o;
-                                        select.appendChild(option);
-                                      });
-                                      
-                                      select.addEventListener('change', (e) => {
-                                        const value = (e.target as HTMLSelectElement).value;
-                                        const next = [...current];
-                                        next[currentGapIndex] = value;
-                                        setGapAnswers(prev => new Map(prev.set(q.id, next)));
-                                      });
-                                      
-                                      placeholder.replaceWith(select);
-                                    }
-                                    currentGapIndex++;
-                                  }
-                                });
+                            <FillInBlankRenderer
+                              text={q.content_text || q.question_text || ''}
+                              separator={q.gap_separator || ','}
+                              answers={answersObj}
+                              onAnswerChange={(gapIndex: number, value: string) => {
+                                const next = [...current];
+                                next[gapIndex] = value;
+                                setGapAnswers(prev => new Map(prev.set(q.id, next)));
                               }}
+                              disabled={feedChecked}
+                              showCorrectAnswers={feedChecked}
+                              correctAnswers={answers}
+                              shuffleOptions={true}
                             />
                             {feedChecked && (
                               <div className="mt-2 text-sm">
@@ -1522,64 +1477,25 @@ export default function LessonPage() {
                 {(() => {
                   const answers: string[] = Array.isArray(question.correct_answer) ? question.correct_answer : (question.correct_answer ? [question.correct_answer] : []);
                   const current = gapAnswers.get(question.id) || new Array(answers.length).fill('');
-                  const parts = (question.content_text || question.question_text || '').split(/(\[\[.*?\]\])/g);
-                  let gapIndex = 0;
                   
-                  // Create HTML with placeholders
-                  const tempHtml = parts.map((part: string) => {
-                    const gapMatch = part.match(/\[\[(.*?)\]\]/);
-                    if (!gapMatch) {
-                      return renderTextWithLatex(part);
-                    }
-                    const id = `GAP_PLACEHOLDER_${gapIndex++}`;
-                    return `<span id="${id}"></span>`;
-                  }).join('');
+                  // Convert current array to object for FillInBlankRenderer
+                  const answersObj: Record<number, string> = {};
+                  current.forEach((val, idx) => {
+                    answersObj[idx] = val;
+                  });
                   
                   return (
-                    <div 
-                      className="text-gray-800 text-lg leading-relaxed prose prose-lg max-w-none"
-                      dangerouslySetInnerHTML={{ __html: tempHtml }}
-                      ref={(el) => {
-                        if (!el) return;
-                        let currentGapIndex = 0;
-                        parts.forEach((part: string) => {
-                          const gapMatch = part.match(/\[\[(.*?)\]\]/);
-                          if (gapMatch) {
-                            const id = `GAP_PLACEHOLDER_${currentGapIndex}`;
-                            const placeholder = el.querySelector(`#${id}`);
-                            if (placeholder) {
-                              const options = (gapOptions.get(question.id) || [])[currentGapIndex] || [];
-                              const select = document.createElement('select');
-                              select.className = 'inline px-2 py-1 border-2 border-blue-400 rounded bg-white text-sm font-medium align-baseline mx-1';
-                              
-                              const defaultOption = document.createElement('option');
-                              defaultOption.value = '';
-                              defaultOption.disabled = true;
-                              defaultOption.selected = !current[currentGapIndex];
-                              defaultOption.textContent = `#${currentGapIndex+1}`;
-                              select.appendChild(defaultOption);
-                              
-                              options.forEach((o: string) => {
-                                const option = document.createElement('option');
-                                option.value = o;
-                                option.textContent = o;
-                                option.selected = current[currentGapIndex] === o;
-                                select.appendChild(option);
-                              });
-                              
-                              select.addEventListener('change', (e) => {
-                                const value = (e.target as HTMLSelectElement).value;
-                                const next = [...current];
-                                next[currentGapIndex] = value;
-                                setGapAnswers(prev => new Map(prev.set(question.id, next)));
-                              });
-                              
-                              placeholder.replaceWith(select);
-                            }
-                            currentGapIndex++;
-                          }
-                        });
+                    <FillInBlankRenderer
+                      text={question.content_text || question.question_text || ''}
+                      separator={question.gap_separator || ','}
+                      answers={answersObj}
+                      onAnswerChange={(gapIndex: number, value: string) => {
+                        const next = [...current];
+                        next[gapIndex] = value;
+                        setGapAnswers(prev => new Map(prev.set(question.id, next)));
                       }}
+                      disabled={false}
+                      shuffleOptions={true}
                     />
                   );
                 })()}

@@ -11,6 +11,7 @@ import apiClient from '../../services/api';
 import { renderTextWithLatex } from '../../utils/latex';
 import RichTextEditor from '../RichTextEditor';
 import { Upload, FileText, Image } from 'lucide-react';
+import { FillInBlankRenderer } from './FillInBlankRenderer';
 
 export interface QuizLessonEditorProps {
   quizTitle: string;
@@ -1625,63 +1626,11 @@ D) dog, that has undergone obedience training`}
                 {/* Fill in the Blank */}
                 {draftQuestion.question_type === 'fill_blank' && (
                   <div className="p-4 rounded-lg border bg-gray-50">
-                    {(() => {
-                      const text = (draftQuestion.content_text || '').toString();
-                      const separator = draftQuestion.gap_separator || ',';
-                      const parts = text.split(/(\[\[.*?\]\])/g);
-                      let gapIndex = 0;
-                      
-                      // Create placeholder IDs for gaps
-                      const tempHtml = parts.map((part) => {
-                        const gapMatch = part.match(/\[\[(.*?)\]\]/);
-                        if (!gapMatch) {
-                          return renderTextWithLatex(part);
-                        }
-                        // Replace gap with a unique placeholder
-                        const id = `GAP_PLACEHOLDER_${gapIndex++}`;
-                        return `<span id="${id}"></span>`;
-                      }).join('');
-                      
-                      return (
-                        <div 
-                          className="text-gray-800 text-lg leading-relaxed prose prose-lg max-w-none"
-                          dangerouslySetInnerHTML={{ __html: tempHtml }}
-                          ref={(el) => {
-                            if (!el) return;
-                            // Replace placeholders with actual select elements
-                            let currentGapIndex = 0;
-                            parts.forEach((part) => {
-                              const gapMatch = part.match(/\[\[(.*?)\]\]/);
-                              if (gapMatch) {
-                                const id = `GAP_PLACEHOLDER_${currentGapIndex++}`;
-                                const placeholder = el.querySelector(`#${id}`);
-                                if (placeholder) {
-                                  const inner = gapMatch[1].split(separator).map(s => s.trim()).filter(Boolean);
-                                  const select = document.createElement('select');
-                                  select.className = 'inline px-2 py-1 border-2 border-blue-400 rounded bg-white text-sm font-medium align-baseline mx-1';
-                                  
-                                  const defaultOption = document.createElement('option');
-                                  defaultOption.value = '';
-                                  defaultOption.disabled = true;
-                                  defaultOption.selected = true;
-                                  defaultOption.textContent = `#${currentGapIndex}`;
-                                  select.appendChild(defaultOption);
-                                  
-                                  inner.forEach((o) => {
-                                    const option = document.createElement('option');
-                                    option.value = o;
-                                    option.textContent = o;
-                                    select.appendChild(option);
-                                  });
-                                  
-                                  placeholder.replaceWith(select);
-                                }
-                              }
-                            });
-                          }}
-                        />
-                      );
-                    })()}
+                    <FillInBlankRenderer
+                      text={(draftQuestion.content_text || '').toString()}
+                      separator={draftQuestion.gap_separator || ','}
+                      disabled={true}
+                    />
                   </div>
                 )}
 
