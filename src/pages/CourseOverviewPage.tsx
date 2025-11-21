@@ -17,14 +17,14 @@ export default function CourseOverviewPage() {
 
   const formatDuration = (minutes: number): string => {
     if (minutes < 60) {
-      return `${minutes} минут`;
+      return `${minutes} minutes`;
     }
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
     if (remainingMinutes === 0) {
-      return `${hours} ${hours === 1 ? 'hour' : hours < 5 ? 'hours' : 'hours'}`;
+      return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
     }
-    return `${hours} ${hours === 1 ? 'hour' : hours < 5 ? 'hours' : 'hours'} ${remainingMinutes} minutes`;
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ${remainingMinutes} minutes`;
   };
 
   useEffect(() => {
