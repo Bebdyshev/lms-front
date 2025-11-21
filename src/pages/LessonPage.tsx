@@ -1104,14 +1104,14 @@ export default function LessonPage() {
             </div>
 
             {/* Step Content */}
-            <Card>
-              <CardContent className="p-4 sm:p-6">
+            <Card className="border-0 shadow-none">
+              <CardContent className="p-4 sm:p-6 border-none">
                 {currentStep ? (
-                  <div className="min-h-[300px] sm:min-h-[400px]">
+                  <div className="min-h-[300px] sm:min-h-[400px] border-none">
                     {renderStepContent()}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
+                  <div className="text-center py-12 border-none">
                     <p className="text-gray-500">No steps available for this lesson.</p>
                   </div>
                 )}

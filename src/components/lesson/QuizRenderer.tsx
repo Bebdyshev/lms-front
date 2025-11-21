@@ -155,7 +155,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
           {questions.map((q, idx) => {
             const userAnswer = quizAnswers.get(q.id);
             return (
-              <div key={q.id} className="bg-white border border-gray-200 rounded-xl shadow-md">
+              <div key={q.id} className="bg-white rounded-xl border">
                 <div className="p-6">
                   {/* Question Number Badge */}
                   <div className="flex items-center gap-3 mb-4">
@@ -499,7 +499,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
           </div>
         )}
 
-        <div className="bg-white border border-gray-200 rounded-xl shadow-md">
+        <div className="bg-white rounded-xl">
           <div className="p-6">
             {/* Media Attachment for Media Questions */}
             {q.question_type === 'media_question' && q.media_url && (
@@ -651,41 +651,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
           </div>
         </div>
 
-        {/* Result Header */}
-        <div className={`rounded-xl p-6 text-center shadow-md border ${
-          isCorrect 
-            ? 'bg-green-50 border-green-200' 
-            : 'bg-blue-50 border-blue-200'
-        }`}>
-          <div className="flex items-center justify-center space-x-3">
-            {/* Result Icon */}
-            {isCorrect && (
-              <>
-                <div className="w-12 h-12 rounded-full flex items-center justify-center bg-green-500">
-                  <CheckCircle className="w-6 h-6 text-white" />
-                </div>
-                
-                {/* Result Text */}
-                <div>
-                  <h2 className="text-xl font-bold text-green-800">
-                    Correct!
-                  </h2>
-                </div>
-              </>
-            )}
-            
-            {!isCorrect && (
-              <div>
-                <h2 className="text-xl font-bold text-blue-800">
-                  Review your answer
-                </h2>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* Question Review */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl overflow-hidden">
           <div className="p-8">
             {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' && (
               <h3 className="text-xl font-bold text-gray-900 mb-6">
