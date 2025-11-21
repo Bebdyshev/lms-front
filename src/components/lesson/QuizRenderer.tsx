@@ -103,7 +103,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
+          <div className="bg-white rounded-lg border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
               {quizData.quiz_media_type === 'audio' ? 'Audio Material' : 
                quizData.quiz_media_type === 'text' ? 'Reading Passage' : 
@@ -452,7 +452,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
+          <div className="bg-white rounded-lg border p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">
               {quizData.quiz_media_type === 'audio' ? 'Audio Material' : 
                quizData.quiz_media_type === 'text' ? 'Reading Passage' : 
