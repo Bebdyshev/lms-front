@@ -481,9 +481,11 @@ export default function LessonPage() {
         const displayMode = parsedQuizData.display_mode || 'one_by_one';
         console.log('Quiz display_mode:', displayMode, 'Quiz data:', parsedQuizData);
         
+        // For "all at once", skip title screen and go straight to feed
         if (displayMode === 'all_at_once') {
           setQuizState('feed');
         } else {
+          // For "one by one", start with title screen
           setQuizState('title');
         }
         
@@ -578,7 +580,13 @@ export default function LessonPage() {
 
   // Quiz functions
   const startQuiz = () => {
-    setQuizState('question');
+    // Determine the next state based on display mode
+    const displayMode = quizData?.display_mode || 'one_by_one';
+    if (displayMode === 'all_at_once') {
+      setQuizState('feed');
+    } else {
+      setQuizState('question');
+    }
     setQuizStartTime(Date.now());
   };
 
@@ -663,7 +671,7 @@ export default function LessonPage() {
   };
 
   const resetQuiz = () => {
-    // Determine initial state based on display mode
+    // For "all at once", return to feed; for "one by one", return to title screen
     const displayMode = quizData?.display_mode || 'one_by_one';
     if (displayMode === 'all_at_once') {
       setQuizState('feed');
@@ -1092,19 +1100,6 @@ export default function LessonPage() {
                       </button>
                     );
                   })}
-              </div>
-            </div>
-
-            {/* Content Actions */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="gap-1">
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  {currentStep?.content_type === 'video_text' ? 'Video' : currentStep?.content_type === 'quiz' ? 'Quiz' : 'Reading'}
-                </Badge>
-                {lesson.title && (
-                  <Badge variant="outline">{lesson.title}</Badge>
-                )}
               </div>
             </div>
 

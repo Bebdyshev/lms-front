@@ -1,5 +1,5 @@
 import { Button } from '../ui/button';
-import { CheckCircle, ChevronRight, HelpCircle } from 'lucide-react';
+import { CheckCircle, ChevronRight } from 'lucide-react';
 import { renderTextWithLatex } from '../../utils/latex';
 import type { Step } from '../../types';
 import { useNavigate } from 'react-router-dom';
@@ -377,53 +377,60 @@ const QuizRenderer = (props: QuizRendererProps) => {
   };
 
   const renderQuizTitleScreen = () => {
+    // Show beautiful Duolingo-style screen for all modes
     return (
-      <div className="max-w-2xl mx-auto text-center space-y-6 p-6">
-        {/* Main Content Card */}
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-2xl border border-blue-100 shadow-lg">
-          <div className="space-y-4">
-            {/* Quiz Icon */}
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
-                <HelpCircle className="w-8 h-8 text-white" />
-              </div>
-            </div>
-            
-            {/* Title */}
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">
-              {quizData?.title || 'Quiz'}
+      <div className="min-h-[500px] relative flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 -mx-4 -my-4 p-8 rounded-lg overflow-hidden">
+        {/* Logo in bottom-left corner */}
+        <div className="absolute bottom-0 left-0">
+          <img 
+            src="/logo-half.svg" 
+            alt="Logo" 
+            className="w-64 h-64 md:w-80 md:h-80 brightness-0 invert"
+          />
+        </div>
+
+        {/* Logo in bottom-right corner */}
+        <div className="absolute bottom-0 right-0">
+          <img 
+            src="/logo-half.svg" 
+            alt="Logo" 
+            className="w-64 h-64 md:w-80 md:h-80 brightness-0 invert scale-x-[-1]"
+          />
+        </div>
+
+        {/* Logo at top center - showing only bottom half */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+          <img 
+            src="/logo.svg" 
+            alt="Logo" 
+            className="w-80 h-80 md:w-96 md:h-96 brightness-0 invert"
+          />
+        </div>
+
+        <div className="text-center space-y-6 max-w-2xl">
+          {/* Title */}
+          <div className="space-y-3">
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight">
+              {quizData?.title || 'Ready to practice?'}
             </h1>
-            
-            {/* Quiz Info */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-gray-700">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="font-medium">{questions.length} question{questions.length !== 1 ? 's' : ''}</span>
-              </div>
-              {quizData?.time_limit_minutes && (
-                <>
-                  <div className="hidden sm:block w-1 h-1 bg-gray-400 rounded-full"></div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span>{quizData.time_limit_minutes} minutes</span>
-                  </div>
-                </>
-              )}
-            </div>
-            
-            <p className="text-gray-600 mt-3">
-              Read each question carefully and select the best answer.
+            <p className="text-[15px] md:text-[18px] text-blue-100 font-light">
+              Okay, show us what you can do!
             </p>
           </div>
+
+          <div className="flex flex-col items-center gap-4">
+            <Button
+              onClick={startQuiz}
+              className="px-10 py-4 bg-white text-blue-900 text-lg font-bold hover:bg-blue-50"
+            >
+              Start Practice
+            </Button>
+
+            <div className="inline-flex items-center justify-center gap-2 text-white text-base md:text-lg">
+              <span className="font-medium">{questions.length} question{questions.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
         </div>
-        
-        {/* Start Button */}
-        <Button
-          onClick={startQuiz}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-        >
-          Start Quiz
-        </Button>
       </div>
     );
   };
