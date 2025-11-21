@@ -15,6 +15,18 @@ export default function CourseOverviewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const formatDuration = (minutes: number): string => {
+    if (minutes < 60) {
+      return `${minutes} минут`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (remainingMinutes === 0) {
+      return `${hours} ${hours === 1 ? 'hour' : hours < 5 ? 'hours' : 'hours'}`;
+    }
+    return `${hours} ${hours === 1 ? 'hour' : hours < 5 ? 'hours' : 'hours'} ${remainingMinutes} minutes`;
+  };
+
   useEffect(() => {
     if (courseId) {
       loadCourseData();
@@ -95,11 +107,11 @@ export default function CourseOverviewPage() {
               <p className="mt-2 text-lg text-gray-600">{course.description}</p>
               
               <div className="mt-4 flex items-center space-x-6">
-                {course.estimated_duration_minutes > 0 && (
+                {course.estimated_duration_minutes && course.estimated_duration_minutes > 0 && (
                   <div className="flex items-center space-x-2">
                     <Clock className="w-4 h-4 text-gray-400" />
                     <span className="text-sm text-gray-500">
-                      {course.estimated_duration_minutes} minutes
+                      {formatDuration(course.estimated_duration_minutes)}
                     </span>
                   </div>
                 )}
