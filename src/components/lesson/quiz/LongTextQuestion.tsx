@@ -28,11 +28,6 @@ export const LongTextQuestion: React.FC<LongTextQuestionProps> = ({
           {(value || '').length} / {question.expected_length} characters
         </div>
       )}
-      {question.keywords && question.keywords.length > 0 && (
-        <div className="text-sm text-gray-600">
-          <strong>Hint:</strong> Try to include these concepts: {question.keywords.join(', ')}
-        </div>
-      )}
     </div>
   );
 };

@@ -41,7 +41,7 @@ export const FillInBlankQuestion: React.FC<FillInBlankQuestionProps> = ({
           {answers.every((val, idx) => (val||'').trim().toLowerCase() === (correctAnswers[idx]||'').toString().trim().toLowerCase()) ? (
             <span className="text-green-700">All gaps correct</span>
           ) : (
-            <span className="text-red-700">Some answers are incorrect. Correct: {correctAnswers.join(', ')}</span>
+            <span className="text-red-700">Some answers are incorrect.</span>
           )}
         </div>
       )}

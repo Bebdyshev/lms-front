@@ -763,8 +763,17 @@ export default function LessonPage() {
       } else {
         // For other question types, use quizAnswers
         const answer = quizAnswers.get(question.id);
-        if (answer !== undefined && answer === question.correct_answer) {
-          score++;
+        
+        // For long_text questions, automatically give full credit if answer is not empty
+        if (question.question_type === 'long_text') {
+          if (answer && answer.toString().trim() !== '') {
+            score++;
+          }
+        } else {
+          // For other question types, check if answer is correct
+          if (answer !== undefined && answer === question.correct_answer) {
+            score++;
+          }
         }
       }
     });
@@ -799,8 +808,17 @@ export default function LessonPage() {
       } else {
         regularQuestions++;
         const answer = quizAnswers.get(question.id);
-        if (answer !== undefined && answer === question.correct_answer) {
-          correctRegular++;
+        
+        // For long_text questions, automatically count as correct if answer is not empty
+        if (question.question_type === 'long_text') {
+          if (answer && answer.toString().trim() !== '') {
+            correctRegular++;
+          }
+        } else {
+          // For other question types, check if answer is correct
+          if (answer !== undefined && answer === question.correct_answer) {
+            correctRegular++;
+          }
         }
       }
     });
