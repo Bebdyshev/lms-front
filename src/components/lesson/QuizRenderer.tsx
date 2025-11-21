@@ -411,10 +411,10 @@ const QuizRenderer = (props: QuizRendererProps) => {
           {/* Title */}
           <div className="space-y-3">
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight">
-              {quizData?.title || 'Ready to practice?'}
+              {quizData?.title || 'Quiz incoming!'}
             </h1>
             <p className="text-[15px] md:text-[18px] text-blue-100 font-light">
-              Okay, show us what you can do!
+              it's your time to shine
             </p>
           </div>
 
