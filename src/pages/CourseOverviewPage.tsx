@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronRight, Play, FileText, HelpCircle, Clock, Users } from 'lucide-react';
+import { ChevronRight, Play, FileText, HelpCircle, Clock, Users, CheckCircle } from 'lucide-react';
 import apiClient from '../services/api';
 import type { Course, Lesson } from '../types';
 
@@ -98,38 +98,27 @@ export default function CourseOverviewPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{course.title}</h1>
-              <p className="mt-2 text-lg text-gray-600">{course.description}</p>
-              
-              <div className="mt-4 flex items-center space-x-6">
-                {course.estimated_duration_minutes && course.estimated_duration_minutes > 0 && (
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-500">
-                      {formatDuration(course.estimated_duration_minutes)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center space-x-2">
-                  <Users className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-500">
-                    {modules.length} modules
+      {/* Course Info (not a header) */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{course.title}</h1>
+            <p className="mt-1 text-base text-gray-600">{course.description}</p>
+            <div className="mt-2 flex items-center space-x-4">
+              {course.estimated_duration_minutes && course.estimated_duration_minutes > 0 && (
+                <div className="flex items-center space-x-1">
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  <span className="text-xs text-gray-500">
+                    {formatDuration(course.estimated_duration_minutes)}
                   </span>
                 </div>
+              )}
+              <div className="flex items-center space-x-1">
+                <Users className="w-4 h-4 text-gray-400" />
+                <span className="text-xs text-gray-500">
+                  {modules.length} modules
+                </span>
               </div>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                course.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-              }`}>
-                {course.isActive ? "Active" : "Draft"}
-              </span>
             </div>
           </div>
         </div>
@@ -139,11 +128,19 @@ export default function CourseOverviewPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
           {modules.map((module) => (
-            <Card key={module.id}>
+            <Card key={module.id} className={module.is_completed ? "border-green-200 bg-green-50/30" : ""}>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold">{module.title}</h2>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-semibold">{module.title}</h2>
+                      {module.is_completed && (
+                        <span className="flex items-center text-xs font-medium text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Completed
+                        </span>
+                      )}
+                    </div>
                     {module.description && (
                       <p className="text-sm text-gray-600 mt-1">{module.description}</p>
                     )}
@@ -160,25 +157,33 @@ export default function CourseOverviewPage() {
                       <button
                         key={lesson.id}
                         onClick={() => handleLessonClick(lesson)}
-                        className="w-full flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                        className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors text-left ${
+                          lesson.is_completed 
+                            ? 'bg-green-50 border-green-200 hover:border-green-300 hover:bg-green-100' 
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
                       >
                         <div className="flex items-center space-x-3">
-                          <div className="flex-shrink-0">
-                            {getLessonIcon(lesson)}
+                          <div className={`flex-shrink-0 ${lesson.is_completed ? 'text-green-600' : 'text-gray-400'}`}>
+                            {lesson.is_completed ? <CheckCircle className="w-5 h-5" /> : getLessonIcon(lesson)}
                           </div>
                           <div>
-                            <h3 className="font-medium text-gray-900">{lesson.title}</h3>
+                            <h3 className={`font-medium ${lesson.is_completed ? 'text-green-900' : 'text-gray-900'}`}>
+                              {lesson.title}
+                            </h3>
                             {lesson.description && (
-                              <p className="text-sm text-gray-500 mt-1">{lesson.description}</p>
+                              <p className={`text-sm mt-1 ${lesson.is_completed ? 'text-green-700' : 'text-gray-500'}`}>
+                                {lesson.description}
+                              </p>
                             )}
                             {lesson.steps && lesson.steps.length > 0 && (
-                              <p className="text-xs text-gray-400 mt-1">
+                              <p className={`text-xs mt-1 ${lesson.is_completed ? 'text-green-600' : 'text-gray-400'}`}>
                                 {lesson.steps.length} steps
                               </p>
                             )}
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                        <ChevronRight className={`w-4 h-4 ${lesson.is_completed ? 'text-green-400' : 'text-gray-400'}`} />
                       </button>
                     ))}
                   </div>

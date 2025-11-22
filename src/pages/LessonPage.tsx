@@ -426,24 +426,7 @@ export default function LessonPage() {
   // Check if step is completed based on content type
   const isStepCompleted = (step: Step): boolean => {
     const stepProgress = stepsProgress.find(p => p.step_id === step.id);
-    if (!stepProgress) return false;
-
-    switch (step.content_type) {
-      case 'video_text':
-        // Video step is completed if video is watched 90%+ and step is marked as completed
-        const videoProgressValue = videoProgress.get(step.id.toString()) || 0;
-        return stepProgress.status === 'completed' && videoProgressValue >= 0.9;
-      
-      case 'quiz':
-        // Quiz step is completed if quiz is completed and step is marked as completed
-        const isQuizCompleted = quizCompleted.get(step.id.toString()) || false;
-        return stepProgress.status === 'completed' && isQuizCompleted;
-      
-      case 'text':
-      default:
-        // Text step is completed if it's marked as completed
-        return stepProgress.status === 'completed';
-    }
+    return stepProgress?.status === 'completed';
   };
 
   // Mark current step as started when it changes
@@ -502,6 +485,10 @@ export default function LessonPage() {
     if (!currentStep) return false;
     
     const stepId = currentStep.id.toString();
+
+    // Check if already completed in backend/local state
+    const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
+    if (stepProgress?.status === 'completed') return true;
     
     if (currentStep.content_type === 'video_text') {
       // For video steps, check if video is watched 90%+

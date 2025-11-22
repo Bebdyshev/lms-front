@@ -66,6 +66,7 @@ export interface Step {
   attachments?: string; // JSON string of StepAttachment[]
   order_index: number;
   created_at: string;
+  is_completed?: boolean;
 }
 
 export interface StepProgress {
@@ -283,6 +284,7 @@ export interface CourseModule {
   lessons?: Lesson[];
   created_at: string;
   updated_at: string;
+  is_completed?: boolean;
 }
 
 // Updated lesson interface without content fields
