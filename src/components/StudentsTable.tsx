@@ -41,6 +41,12 @@ interface Student {
   total_study_time_minutes: number;
   daily_streak: number;
   last_activity_date: string | null;
+  last_lesson: {
+    lesson_title: string;
+    lesson_progress_percentage: number;
+    completed_steps: number;
+    total_steps: number;
+  } | null;
 }
 
 interface StudentsTableProps {
@@ -206,6 +212,7 @@ export default function StudentsTable({
                       Progress {getSortIcon('completion_percentage')}
                     </Button>
                   </TableHead>
+                  <TableHead>Current Lesson</TableHead>
                   <TableHead>
                     <Button 
                       variant="ghost" 
@@ -265,6 +272,29 @@ export default function StudentsTable({
                         <div className="text-xs text-muted-foreground">
                           {student.completed_steps}/{student.total_steps} steps
                         </div>
+                      </div>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <div className="space-y-1">
+                        {student.last_lesson ? (
+                          <>
+                            <div className="text-sm font-medium truncate max-w-32" title={student.last_lesson.lesson_title}>
+                              {student.last_lesson.lesson_title}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Progress value={student.last_lesson.lesson_progress_percentage} className="w-12" />
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round(student.last_lesson.lesson_progress_percentage)}%
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {student.last_lesson.completed_steps}/{student.last_lesson.total_steps} steps
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No activity</span>
+                        )}
                       </div>
                     </TableCell>
                     

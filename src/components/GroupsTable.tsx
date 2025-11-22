@@ -221,9 +221,8 @@ export default function GroupsTable({
                   <TableRow key={group.group_id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{group.group_name}</div>
                         {group.description && (
-                          <div className="text-sm text-muted-foreground line-clamp-2">
+                          <div className="font-medium">
                             {group.description}
                           </div>
                         )}
