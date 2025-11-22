@@ -114,7 +114,7 @@ export default function StudentsTable({
     if (percentage >= 80) return <Badge variant="default">Excellent</Badge>;
     if (percentage >= 60) return <Badge variant="secondary">Good</Badge>;
     if (percentage >= 40) return <Badge variant="outline">Satisfactory</Badge>;
-    return <Badge variant="destructive">Needs Attention</Badge>;
+    return <Badge variant="destructive" className='text-center'>Needs Attention</Badge>;
   };
 
   const formatTime = (minutes: number) => {
@@ -206,7 +206,6 @@ export default function StudentsTable({
                       Progress {getSortIcon('completion_percentage')}
                     </Button>
                   </TableHead>
-                  <TableHead>Courses</TableHead>
                   <TableHead>
                     <Button 
                       variant="ghost" 
@@ -247,8 +246,8 @@ export default function StudentsTable({
                       <div className="flex flex-wrap gap-1">
                         {student.groups.length > 0 ? (
                           student.groups.map((group) => (
-                            <Badge key={group.id} variant="outline" className="text-xs">
-                              {group.name}
+                            <Badge key={group.id} variant="outline" className="text-xs text-center whitespace-nowrap">
+                              {group.name.split('-')[1]}
                             </Badge>
                           ))
                         ) : (
@@ -266,13 +265,6 @@ export default function StudentsTable({
                         <div className="text-xs text-muted-foreground">
                           {student.completed_steps}/{student.total_steps} steps
                         </div>
-                      </div>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm">{student.active_courses_count}</span>
                       </div>
                     </TableCell>
                     
@@ -313,16 +305,6 @@ export default function StudentsTable({
                             title="Detailed step-by-step progress"
                           >
                             <BarChart3 className="w-4 h-4" />
-                          </Button>
-                        )}
-                        {onExportStudent && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onExportStudent(student.student_id)}
-                            title="Export report"
-                          >
-                            <Download className="w-4 h-4" />
                           </Button>
                         )}
                       </div>

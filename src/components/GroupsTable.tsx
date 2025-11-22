@@ -101,7 +101,7 @@ export default function GroupsTable({
     if (percentage >= 80) return <Badge variant="default">Excellent</Badge>;
     if (percentage >= 60) return <Badge variant="secondary">Good</Badge>;
     if (percentage >= 40) return <Badge variant="outline">Satisfactory</Badge>;
-    return <Badge variant="destructive">Needs Attention</Badge>;
+    return <Badge variant="destructive" className='text-center'>Needs Attention</Badge>;
   };
 
   const formatTime = (minutes: number) => {
@@ -175,7 +175,6 @@ export default function GroupsTable({
                       Group {getSortIcon('group_name')}
                     </Button>
                   </TableHead>
-                  <TableHead>Teacher / Curator</TableHead>
                   <TableHead>
                     <Button 
                       variant="ghost" 
@@ -232,26 +231,6 @@ export default function GroupsTable({
                     </TableCell>
                     
                     <TableCell>
-                      <div className="space-y-1">
-                        {group.teacher_name && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <GraduationCap className="w-4 h-4 text-blue-600" />
-                            <span>{group.teacher_name}</span>
-                          </div>
-                        )}
-                        {group.curator_name && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <UserCheck className="w-4 h-4 text-green-600" />
-                            <span>{group.curator_name}</span>
-                          </div>
-                        )}
-                        {!group.teacher_name && !group.curator_name && (
-                          <span className="text-sm text-muted-foreground">Not assigned</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    
-                    <TableCell>
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{group.students_count}</span>
@@ -298,16 +277,6 @@ export default function GroupsTable({
                             title="View group students"
                           >
                             <Eye className="w-4 h-4" />
-                          </Button>
-                        )}
-                        {onExportGroup && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onExportGroup(group.group_id)}
-                            title="Export group report"
-                          >
-                            <Download className="w-4 h-4" />
                           </Button>
                         )}
                       </div>
