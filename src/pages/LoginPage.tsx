@@ -37,21 +37,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    // TODO: Implement Google OAuth
-    console.log("Continue with Google clicked");
-  };
-  
-  const handleResetPassword = () => {
-    // TODO: Implement password reset
-    console.log("Reset Password clicked");
-  };
-
-  const handleCreateAccount = () => {
-    // TODO: Implement account creation or redirect to registration
-    console.log("Create Account clicked");
-  };
-
   const handleBackToHome = () => {
     navigate('/');
   };
@@ -63,9 +48,6 @@ export default function LoginPage() {
         description="Access your account and continue your learning journey with us"
         heroImageSrc="https://images.unsplash.com/photo-1642615835477-d303d7dc9ee9?w=2160&q=80"
         onSignIn={handleSignIn}
-        onGoogleSignIn={handleGoogleSignIn}
-        onResetPassword={handleResetPassword}
-        onCreateAccount={handleCreateAccount}
         onBackToHome={handleBackToHome}
         error={error}
         loading={loading}
