@@ -7,7 +7,7 @@ import { Progress } from '../components/ui/progress';
 import Skeleton from '../components/Skeleton.tsx';
 import apiClient from "../services/api";
 import type { Course } from '../types';
-import { BookOpen, Target, CheckCircle, Play } from 'lucide-react';
+import { BookOpen, Target, CheckCircle, Play, Trash2 } from 'lucide-react';
 
 interface CourseCard {
   id: string;
@@ -25,6 +25,8 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<CourseCard[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -42,7 +44,7 @@ export default function CoursesPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       let coursesData: CourseCard[];
       if (user?.role === 'student') {
         // For students, get their progress overview with detailed course data
@@ -71,7 +73,7 @@ export default function CoursesPage() {
           duration: 0 // This would need to come from API
         }));
       }
-      
+
       setCourses(coursesData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load courses';
@@ -79,6 +81,53 @@ export default function CoursesPage() {
       console.error('Failed to load courses:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleCourseSelection = (courseId: string) => {
+    setSelectedCourses(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(courseId)) {
+        newSet.delete(courseId);
+      } else {
+        newSet.add(courseId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCourses.size === courses.length) {
+      setSelectedCourses(new Set());
+    } else {
+      setSelectedCourses(new Set(courses.map(c => c.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedCourses.size === 0) return;
+
+    const confirmMessage = `Вы уверены, что хотите удалить ${selectedCourses.size} курс(ов)?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsDeleting(true);
+    try {
+      // Delete selected courses
+      const deletePromises = Array.from(selectedCourses).map(courseId =>
+        apiClient.deleteCourse(courseId)
+      );
+
+      await Promise.all(deletePromises);
+
+      // Clear selection and reload courses
+      setSelectedCourses(new Set());
+      await loadCourses();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete courses';
+      alert(`Ошибка при удалении курсов: ${errorMessage}`);
+      console.error('Failed to delete courses:', err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -107,7 +156,7 @@ export default function CoursesPage() {
         <div className="bg-red-50 border border-red-200 rounded p-4">
           <h3 className="font-semibold text-red-800">Error loading courses</h3>
           <p className="text-red-600">{error}</p>
-          <Button 
+          <Button
             onClick={loadCourses}
             variant="destructive"
             className="mt-2"
@@ -123,15 +172,45 @@ export default function CoursesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h2 className="text-2xl sm:text-3xl font-bold">Courses</h2>
-        {user?.role === 'teacher' && (
-          <Button 
-            onClick={() => navigate('/teacher/courses')}
-            className="px-4 py-2 w-full sm:w-auto"
-          >
-            Manage Courses
-          </Button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-2">
+          {user?.role === 'teacher' && (
+            <Button
+              onClick={() => navigate('/teacher/courses')}
+              className="px-4 py-2 w-full sm:w-auto"
+            >
+              Manage Courses
+            </Button>
+          )}
+          {user?.role !== 'student' && courses.length > 0 && (
+            <>
+              <Button
+                onClick={toggleSelectAll}
+                variant="outline"
+                className="px-4 py-2 w-full sm:w-auto"
+              >
+                {selectedCourses.size === courses.length ? 'Отменить выбор' : 'Выбрать все'}
+              </Button>
+              {selectedCourses.size > 0 && (
+                <Button
+                  onClick={handleDeleteSelected}
+                  variant="destructive"
+                  className="px-4 py-2 w-full sm:w-auto"
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {isDeleting ? 'Удаление...' : `Удалить (${selectedCourses.size})`}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
+
+      {selectedCourses.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded px-4 py-2 text-blue-800">
+          Выбрано курсов: {selectedCourses.size}
+        </div>
+      )}
 
       {courses.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
@@ -143,7 +222,19 @@ export default function CoursesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {courses.map(course => (
-            <Card key={course.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+            <Card key={course.id} className="hover:shadow-lg transition-shadow overflow-hidden relative">
+              {/* Selection Checkbox for teachers/admins */}
+              {user?.role !== 'student' && (
+                <div className="absolute top-3 right-3 z-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedCourses.has(course.id)}
+                    onChange={() => toggleCourseSelection(course.id)}
+                    className="w-5 h-5 cursor-pointer accent-blue-600"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
               {/* Course Image */}
               {course.image ? (
                 <div className="relative h-48 bg-gray-200">
@@ -164,8 +255,8 @@ export default function CoursesPage() {
                         <span className="text-sm font-medium">Progress</span>
                         <span className="text-sm font-bold">{course.progress}%</span>
                       </div>
-                      <Progress 
-                        value={course.progress} 
+                      <Progress
+                        value={course.progress}
                         className="h-1 mt-2"
                       />
                     </div>
@@ -184,15 +275,15 @@ export default function CoursesPage() {
                         <span className="text-sm font-medium">Progress</span>
                         <span className="text-sm font-bold">{course.progress}%</span>
                       </div>
-                      <Progress 
-                        value={course.progress} 
+                      <Progress
+                        value={course.progress}
                         className="h-1 mt-2"
                       />
                     </div>
                   )}
                 </div>
               )}
-              
+
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg truncate">{course.title}</CardTitle>
                 <CardDescription className="text-sm">
@@ -209,8 +300,8 @@ export default function CoursesPage() {
                         {course.progress}%
                       </span>
                     </div>
-                    <Progress 
-                      value={course.progress} 
+                    <Progress
+                      value={course.progress}
                       className="h-2"
                     />
                   </div>
@@ -220,7 +311,7 @@ export default function CoursesPage() {
                   {course.description}
                 </div>
                 {/* Action Button */}
-                <Button 
+                <Button
                   onClick={() => navigate(`/course/${course.id}`)}
                   className="w-full"
                   variant={user?.role === 'student' && course.progress === 100 ? "outline" : "default"}

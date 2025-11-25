@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import EmptyState from '../components/EmptyState';
-import { BookOpen, Plus, Users, Settings, AlertCircle, Eye, Pencil } from 'lucide-react';
+import { BookOpen, Plus, Users, Settings, AlertCircle, Eye, Pencil, Trash2 } from 'lucide-react';
 import CreateCourseModal from '../components/CreateCourseModal.tsx';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -31,6 +31,8 @@ export default function TeacherCoursesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [selectedCourses, setSelectedCourses] = useState<Set<number>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadCourses();
@@ -43,10 +45,10 @@ export default function TeacherCoursesPage() {
 
       // Get courses for this teacher
       const coursesData = await apiClient.getCourses();
-      
+
       // Filter courses for current teacher if needed
-      const teacherCourses = user?.role === 'admin' 
-        ? coursesData 
+      const teacherCourses = user?.role === 'admin'
+        ? coursesData
         : coursesData.filter((course: any) => course.teacher_id === user?.id);
 
       // Enhance with additional stats if available
@@ -119,6 +121,53 @@ export default function TeacherCoursesPage() {
       setLoading(false);
     }
   };
+
+  const toggleCourseSelection = (courseId: number) => {
+    setSelectedCourses(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(courseId)) {
+        newSet.delete(courseId);
+      } else {
+        newSet.add(courseId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCourses.size === courses.length) {
+      setSelectedCourses(new Set());
+    } else {
+      setSelectedCourses(new Set(courses.map(c => c.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedCourses.size === 0) return;
+
+    const confirmMessage = `Вы уверены, что хотите удалить ${selectedCourses.size} курс(ов)?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsDeleting(true);
+    try {
+      // Delete selected courses
+      const deletePromises = Array.from(selectedCourses).map(courseId =>
+        apiClient.deleteCourse(String(courseId))
+      );
+
+      await Promise.all(deletePromises);
+
+      // Clear selection and reload courses
+      setSelectedCourses(new Set());
+      await loadCourses();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete courses';
+      alert(`Ошибка при удалении курсов: ${errorMessage}`);
+      console.error('Failed to delete courses:', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   if (loading) {
     return (
       <div className="space-y-6 p-6">
@@ -149,7 +198,7 @@ export default function TeacherCoursesPage() {
             <h3 className="font-semibold text-red-800">Error</h3>
           </div>
           <p className="text-red-600 mt-1">{error}</p>
-          <button 
+          <button
             onClick={loadCourses}
             className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
@@ -168,7 +217,29 @@ export default function TeacherCoursesPage() {
           My Courses
         </h1>
         <div className="flex gap-3">
-          <Button 
+          {courses.length > 0 && (
+            <>
+              <Button
+                onClick={toggleSelectAll}
+                variant="outline"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg"
+              >
+                {selectedCourses.size === courses.length ? 'Отменить выбор' : 'Выбрать все'}
+              </Button>
+              {selectedCourses.size > 0 && (
+                <Button
+                  onClick={handleDeleteSelected}
+                  variant="destructive"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg"
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isDeleting ? 'Удаление...' : `Удалить (${selectedCourses.size})`}
+                </Button>
+              )}
+            </>
+          )}
+          <Button
             onClick={() => setCreateOpen(true)}
             variant="outline"
             className="flex items-center gap-2 px-4 py-2 rounded-lg"
@@ -178,6 +249,12 @@ export default function TeacherCoursesPage() {
           </Button>
         </div>
       </div>
+
+      {selectedCourses.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded px-4 py-2 text-blue-800">
+          Выбрано курсов: {selectedCourses.size}
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -190,7 +267,7 @@ export default function TeacherCoursesPage() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
           <div className="flex items-center">
             <Users className="w-6 h-6 text-green-600 mr-2" />
@@ -202,7 +279,7 @@ export default function TeacherCoursesPage() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
           <div className="flex items-center">
             <Settings className="w-6 h-6 text-purple-600 mr-2" />
@@ -217,8 +294,8 @@ export default function TeacherCoursesPage() {
       </div>
 
       {courses.length === 0 ? (
-        <EmptyState 
-          title="No courses yet" 
+        <EmptyState
+          title="No courses yet"
           subtitle="Create your first course to start teaching"
         />
       ) : (
@@ -231,6 +308,14 @@ export default function TeacherCoursesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
+                  <TableHead className="px-6 py-3 w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedCourses.size === courses.length && courses.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 cursor-pointer accent-blue-600"
+                    />
+                  </TableHead>
                   <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</TableHead>
                   <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modules</TableHead>
                   <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</TableHead>
@@ -244,12 +329,21 @@ export default function TeacherCoursesPage() {
                 {courses.map(course => (
                   <TableRow key={course.id} className="hover:bg-gray-50">
                     <TableCell className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedCourses.has(course.id)}
+                        onChange={() => toggleCourseSelection(course.id)}
+                        className="w-4 h-4 cursor-pointer accent-blue-600"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-md bg-gray-100 overflow-hidden flex items-center justify-center text-gray-500 text-xs">
                           {course.cover_image_url ? (
                             <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + course.cover_image_url} alt={course.title} className="w-full h-full object-cover" />
                           ) : (
-                            <span className="font-medium">{course.title?.slice(0,1)?.toUpperCase() || 'C'}</span>
+                            <span className="font-medium">{course.title?.slice(0, 1)?.toUpperCase() || 'C'}</span>
                           )}
                         </div>
                         <div className="font-medium text-gray-900">{course.title}</div>
@@ -268,13 +362,12 @@ export default function TeacherCoursesPage() {
                       <span className="font-medium">{course.avg_progress ?? 0}%</span>
                     </TableCell>
                     <TableCell className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        course.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : course.status === 'draft'
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${course.status === 'active'
+                        ? 'bg-green-100 text-green-800'
+                        : course.status === 'draft'
                           ? 'bg-yellow-100 text-yellow-800'
                           : 'bg-gray-100 text-gray-800'
-                      }`}>
+                        }`}>
                         {course.status || 'Active'}
                       </span>
                     </TableCell>
