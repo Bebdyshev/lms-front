@@ -481,43 +481,118 @@ export default function LessonPage() {
 
   // Initialize quiz when quiz step is loaded
   useEffect(() => {
+    let isMounted = true;
+
     if (currentStep?.content_type === 'quiz') {
-      try {
-        const parsedQuizData = JSON.parse(currentStep.content_text || '{}');
-        setQuizData(parsedQuizData);
-        setQuestions(parsedQuizData.questions || []);
+      const loadQuizData = async () => {
+        try {
+          const parsedQuizData = JSON.parse(currentStep.content_text || '{}');
 
-        // Initialize gap answers map per question
-        const init = new Map<string, string[]>();
-        (parsedQuizData.questions || []).forEach((q: any) => {
-          if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
-            const text = (q.content_text || q.question_text || '').toString();
-            const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-            const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-            init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
+          if (!isMounted) return;
+
+          setQuizData(parsedQuizData);
+          setQuestions(parsedQuizData.questions || []);
+
+          // Initialize gap answers map per question
+          const init = new Map<string, string[]>();
+          (parsedQuizData.questions || []).forEach((q: any) => {
+            if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
+              const text = (q.content_text || q.question_text || '').toString();
+              const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+              const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+              init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
+            }
+          });
+
+          // Check for previous attempts BEFORE resetting state
+          try {
+            const attempts = await apiClient.getStepQuizAttempts(currentStep.id);
+
+            if (!isMounted) return;
+
+            if (attempts && attempts.length > 0) {
+              const lastAttempt = attempts[0]; // Get the most recent attempt
+              console.log('Restoring quiz attempt:', lastAttempt);
+
+              // Restore answers
+              if (lastAttempt.answers) {
+                try {
+                  const savedAnswers = JSON.parse(lastAttempt.answers);
+                  console.log('Parsed saved answers:', savedAnswers);
+
+                  // Handle both Map-like array [[key, val], ...] and object {key: val} formats
+                  let answersMap: Map<string, any>;
+                  if (Array.isArray(savedAnswers)) {
+                    answersMap = new Map(savedAnswers) as Map<string, any>;
+                  } else {
+                    answersMap = new Map(Object.entries(savedAnswers)) as Map<string, any>;
+                  }
+
+                  console.log('Restored answers map keys:', Array.from(answersMap.keys()));
+                  setQuizAnswers(answersMap);
+
+                  // Restore gap answers
+                  const newGapAnswers = new Map(init);
+
+                  (parsedQuizData.questions || []).forEach((q: any) => {
+                    if ((q.question_type === 'fill_blank' || q.question_type === 'text_completion') && answersMap.has(q.id.toString())) {
+                      const savedGapAns = answersMap.get(q.id.toString());
+                      console.log(`Restoring gap answer for Q ${q.id}:`, savedGapAns);
+                      if (Array.isArray(savedGapAns)) {
+                        newGapAnswers.set(q.id.toString(), savedGapAns);
+                      }
+                    }
+                  });
+
+                  setGapAnswers(newGapAnswers);
+
+                } catch (e) {
+                  console.error('Failed to parse saved answers:', e);
+                }
+              }
+
+              // Restore state
+              setQuizState('completed');
+
+              // Mark as completed if passed
+              const passed = lastAttempt.score_percentage >= 50;
+              setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
+
+              return; // Skip default initialization if restored
+            }
+          } catch (err) {
+            console.error('Failed to load quiz attempts:', err);
           }
-        });
-        setGapAnswers(init);
 
-        // Use display_mode from quiz data to determine quiz behavior
-        const displayMode = parsedQuizData.display_mode || 'one_by_one';
-        console.log('Quiz display_mode:', displayMode, 'Quiz data:', parsedQuizData);
+          if (!isMounted) return;
 
-        // For "all at once", skip title screen and go straight to feed
-        if (displayMode === 'all_at_once') {
-          setQuizState('feed');
-        } else {
-          // For "one by one", start with title screen
-          setQuizState('title');
+          // Default initialization if no previous attempt found
+          // Only NOW do we reset state, preventing flicker
+          setGapAnswers(init);
+          setQuizAnswers(new Map());
+
+          const displayMode = parsedQuizData.display_mode || 'one_by_one';
+          console.log('Quiz display_mode:', displayMode, 'Quiz data:', parsedQuizData);
+
+          if (displayMode === 'all_at_once') {
+            setQuizState('feed');
+          } else {
+            setQuizState('title');
+          }
+
+          setCurrentQuestionIndex(0);
+          setFeedChecked(false);
+        } catch (error) {
+          console.error('Failed to parse quiz data:', error);
         }
+      };
 
-        setCurrentQuestionIndex(0);
-        setQuizAnswers(new Map());
-        setFeedChecked(false);
-      } catch (error) {
-        console.error('Failed to parse quiz data:', error);
-      }
+      loadQuizData();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentStep]);
 
   // Check if user can proceed to next step
@@ -616,32 +691,7 @@ export default function LessonPage() {
     setQuizStartTime(Date.now());
   };
 
-  const saveQuizAttempt = async (score: number, totalQuestions: number) => {
-    if (!currentStep || !courseId || !lessonId) return;
 
-    try {
-      const timeSpentSeconds = quizStartTime
-        ? Math.floor((Date.now() - quizStartTime) / 1000)
-        : undefined;
-
-      const attemptData = {
-        step_id: parseInt(currentStep.id.toString()),
-        course_id: parseInt(courseId),
-        lesson_id: parseInt(lessonId),
-        quiz_title: quizData?.title || 'Quiz',
-        total_questions: totalQuestions,
-        correct_answers: score,
-        score_percentage: (score / totalQuestions) * 100,
-        answers: JSON.stringify(Array.from(quizAnswers.entries())),
-        time_spent_seconds: timeSpentSeconds
-      };
-
-      await apiClient.saveQuizAttempt(attemptData);
-      console.log('Quiz attempt saved successfully');
-    } catch (error) {
-      console.error('Failed to save quiz attempt:', error);
-    }
-  };
 
   const handleQuizAnswer = (questionId: string, answer: any) => {
     setQuizAnswers(prev => new Map(prev.set(questionId, answer)));
@@ -658,9 +708,9 @@ export default function LessonPage() {
       setQuizState('question');
     } else {
       // Save quiz attempt before completing
-      const score = getScore();
-      const scorePercentage = (score / questions.length) * 100;
-      saveQuizAttempt(score, questions.length);
+      const { score, total } = getScore();
+      const scorePercentage = total > 0 ? (score / total) * 100 : 0;
+      saveQuizAttempt(score, total);
 
       // Always show completed state first, regardless of pass/fail or step position
       setQuizState('completed');
@@ -677,9 +727,9 @@ export default function LessonPage() {
   };
 
   const finishQuiz = () => {
-    const score = getScore();
-    const scorePercentage = (score / questions.length) * 100;
-    saveQuizAttempt(score, questions.length);
+    const { score, total } = getScore();
+    const scorePercentage = total > 0 ? (score / total) * 100 : 0;
+    saveQuizAttempt(score, total);
     setQuizState('completed');
 
     if (currentStep) {
@@ -729,6 +779,34 @@ export default function LessonPage() {
     // setGapAnswers(init);
   };
 
+  // Development helper: Auto-fill correct answers
+  const autoFillCorrectAnswers = () => {
+    if (import.meta.env.DEV) {
+      const newQuizAnswers = new Map<string, any>();
+      const newGapAnswers = new Map<string, string[]>();
+
+      questions.forEach((question: any) => {
+        if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
+          // Extract correct answers from gaps
+          const text = question.content_text || question.question_text || '';
+          const separator = question.gap_separator || ',';
+          const correctAnswers = extractCorrectAnswersFromGaps(text, separator);
+          newGapAnswers.set(question.id.toString(), correctAnswers);
+        } else if (question.question_type === 'long_text') {
+          // For long text, fill with sample text
+          newQuizAnswers.set(question.id, 'Sample answer for development testing');
+        } else {
+          // For single_choice, multiple_choice, etc.
+          newQuizAnswers.set(question.id, question.correct_answer);
+        }
+      });
+
+      setQuizAnswers(newQuizAnswers);
+      setGapAnswers(newGapAnswers);
+      console.log('✅ Auto-filled correct answers for development');
+    }
+  };
+
   const getCurrentQuestion = () => {
     return questions[currentQuestionIndex];
   };
@@ -763,53 +841,46 @@ export default function LessonPage() {
   };
 
   const getScore = () => {
-    let score = 0;
+    const stats = getGapStatistics();
+    return {
+      score: stats.correctGaps + stats.correctRegular,
+      total: stats.totalGaps + stats.regularQuestions
+    };
+  };
 
-    // Check all questions
-    questions.forEach(question => {
-      if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
-        // For fill_blank and text_completion questions, use gapAnswers and count partial credit
-        const userAnswers = gapAnswers.get(question.id.toString()) || [];
+  const saveQuizAttempt = async (score: number, totalQuestions: number) => {
+    if (!currentStep || !courseId || !lessonId) return;
 
-        // Extract correct answers from the text using the new utility
-        const text = question.content_text || question.question_text || '';
-        const separator = question.gap_separator || ',';
-        const correctAnswers = extractCorrectAnswersFromGaps(text, separator);
+    try {
+      const timeSpentSeconds = quizStartTime
+        ? Math.floor((Date.now() - quizStartTime) / 1000)
+        : undefined;
 
-        // Count how many gaps are correct
-        let correctGaps = 0;
-        const totalGaps = Math.min(userAnswers.length, correctAnswers.length);
+      const answersToSave = Array.from(new Map([...quizAnswers, ...gapAnswers]).entries());
+      console.log('Saving quiz attempt:', {
+        score,
+        totalQuestions,
+        answersCount: answersToSave.length,
+        sampleAnswers: answersToSave.slice(0, 3)
+      });
 
-        userAnswers.forEach((userAns, idx) => {
-          if (idx < correctAnswers.length) {
-            const isGapCorrect = (userAns || '').toString().trim().toLowerCase() ===
-              (correctAnswers[idx] || '').toString().trim().toLowerCase();
-            if (isGapCorrect) correctGaps++;
-          }
-        });
+      const attemptData = {
+        step_id: parseInt(currentStep.id.toString()),
+        course_id: parseInt(courseId),
+        lesson_id: parseInt(lessonId),
+        quiz_title: quizData?.title || 'Quiz',
+        total_questions: totalQuestions,
+        correct_answers: score,
+        score_percentage: totalQuestions > 0 ? (score / totalQuestions) * 100 : 0,
+        answers: JSON.stringify(answersToSave),
+        time_spent_seconds: timeSpentSeconds
+      };
 
-        // Award partial credit: correctGaps / totalGaps
-        const partialScore = totalGaps > 0 ? correctGaps / totalGaps : 0;
-        score += partialScore;
-      } else {
-        // For other question types, use quizAnswers
-        const answer = quizAnswers.get(question.id);
-
-        // For long_text questions, automatically give full credit if answer is not empty
-        if (question.question_type === 'long_text') {
-          if (answer && answer.toString().trim() !== '') {
-            score++;
-          }
-        } else {
-          // For other question types, check if answer is correct
-          if (answer !== undefined && answer === question.correct_answer) {
-            score++;
-          }
-        }
-      }
-    });
-
-    return score;
+      await apiClient.saveQuizAttempt(attemptData);
+      console.log('Quiz attempt saved successfully');
+    } catch (error) {
+      console.error('Failed to save quiz attempt:', error);
+    }
   };
 
   // Get detailed gap statistics for display
@@ -828,7 +899,14 @@ export default function LessonPage() {
         const separator = question.gap_separator || ',';
         const correctAnswers = extractCorrectAnswersFromGaps(text, separator);
 
-        const gaps = Math.min(userAnswers.length, correctAnswers.length);
+        console.log(`Stats for Q ${question.id}:`, {
+          userAnswers,
+          correctAnswers,
+          userAnswersLen: userAnswers.length,
+          correctAnswersLen: correctAnswers.length
+        });
+
+        const gaps = correctAnswers.length;
         totalGaps += gaps;
 
         userAnswers.forEach((userAns, idx) => {
@@ -1007,6 +1085,7 @@ export default function LessonPage() {
             courseId={courseId}
             finishQuiz={finishQuiz}
             reviewQuiz={reviewQuiz}
+            autoFillCorrectAnswers={autoFillCorrectAnswers}
           />
         );
 

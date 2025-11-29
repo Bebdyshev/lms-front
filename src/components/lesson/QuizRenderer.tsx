@@ -27,7 +27,7 @@ interface QuizRendererProps {
   checkAnswer: () => void;
   nextQuestion: () => void;
   resetQuiz: () => void;
-  getScore: () => number;
+  getScore: () => { score: number; total: number; };
   isCurrentAnswerCorrect: () => boolean;
   getCurrentQuestion: () => QuizQuestion | null;
   getCurrentUserAnswer: () => any;
@@ -46,6 +46,7 @@ interface QuizRendererProps {
   courseId: string | undefined;
   finishQuiz: () => void;
   reviewQuiz: () => void;
+  autoFillCorrectAnswers: () => void;
 }
 
 const QuizRenderer = (props: QuizRendererProps) => {
@@ -82,6 +83,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
     courseId,
     finishQuiz,
     reviewQuiz,
+    autoFillCorrectAnswers,
   } = props;
 
   const navigate = useNavigate();
@@ -132,6 +134,17 @@ const QuizRenderer = (props: QuizRendererProps) => {
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold text-gray-900">Quick Practice</h2>
           <p className="text-gray-600">Answer all questions below to continue</p>
+
+          {/* Development Helper Button */}
+          {import.meta.env.DEV && (
+            <button
+              onClick={autoFillCorrectAnswers}
+              className="mt-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-semibold shadow-md transition-all"
+              title="Development only: Auto-fill correct answers"
+            >
+              🔧 Dev: Fill Correct Answers
+            </button>
+          )}
         </div>
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
