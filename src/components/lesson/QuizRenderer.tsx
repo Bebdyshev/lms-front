@@ -86,9 +86,42 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
   const navigate = useNavigate();
 
+  // Calculate total number of "questions" considering gaps in fill_blank and text_completion
+  const getTotalQuestionCount = () => {
+    if (!questions || questions.length === 0) return 0;
+
+    return questions.reduce((total, q) => {
+      if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
+        // Count the number of gaps in the question
+        const text = q.content_text || q.question_text || '';
+        const gaps = text.match(/\[\[(.*?)\]\]/g);
+        return total + (gaps ? gaps.length : 1);
+      }
+      return total + 1;
+    }, 0);
+  };
+
+  const totalQuestionCount = getTotalQuestionCount();
+
   // All render functions will be moved here from LessonPage.tsx
   // For now, this is a placeholder.
   // The actual implementation will be added in the next steps.
+
+  // Get the display number for a question (accounting for gaps in previous questions)
+  const getQuestionDisplayNumber = (questionIndex: number) => {
+    let displayNumber = 1;
+    for (let i = 0; i < questionIndex; i++) {
+      const q = questions[i];
+      if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
+        const text = q.content_text || q.question_text || '';
+        const gaps = text.match(/\[\[(.*?)\]\]/g);
+        displayNumber += gaps ? gaps.length : 1;
+      } else {
+        displayNumber += 1;
+      }
+    }
+    return displayNumber;
+  };
 
   const renderQuizFeed = () => {
     if (!questions || questions.length === 0) return null;
@@ -154,16 +187,21 @@ const QuizRenderer = (props: QuizRendererProps) => {
         <div className="space-y-6">
           {questions.map((q, idx) => {
             const userAnswer = quizAnswers.get(q.id);
+            const displayNumber = getQuestionDisplayNumber(idx);
+            const questionGaps = (q.question_type === 'fill_blank' || q.question_type === 'text_completion')
+              ? (q.content_text || q.question_text || '').match(/\[\[(.*?)\]\]/g)?.length || 1
+              : 1;
+
             return (
               <div key={q.id} className="bg-white rounded-xl border">
                 <div className="p-6">
                   {/* Question Number Badge */}
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                      {idx + 1}
+                      {displayNumber}
                     </div>
                     <span className="text-sm font-medium text-gray-500">
-                      Question {idx + 1} of {questions.length}
+                      Question{questionGaps > 1 ? 's' : ''} {displayNumber}{questionGaps > 1 ? `-${displayNumber + questionGaps - 1}` : ''} of {totalQuestionCount}
                     </span>
                   </div>
 
@@ -261,7 +299,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                   {/* Result Indicator */}
                   {feedChecked && (() => {
                     let isCorrect = false;
-                    if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
+                    if (q.question_type === 'fill_blank') {
                       const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
                       const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
                       isCorrect = current.every((val, idx) => (val || '').toString().trim().toLowerCase() === (answers[idx] || '').toString().trim().toLowerCase());
@@ -321,15 +359,17 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 }
                 return ans === undefined;
               })
-                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg"
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg"
                 }`}
             >
               Check All Answers
             </button>
           ) : (() => {
-            const score = getScore();
-            const scorePercentage = (score / questions.length) * 100;
+            const stats = getGapStatistics();
+            const totalItems = stats.totalGaps + stats.regularQuestions;
+            const correctItems = stats.correctGaps + stats.correctRegular;
+            const scorePercentage = totalItems > 0 ? (correctItems / totalItems) * 100 : 0;
             const isPassed = scorePercentage >= 50;
 
             return (
@@ -360,8 +400,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     }
                   }}
                   className={`px-8 py-3 rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 ${isPassed
-                      ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
-                      : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                    ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
                     }`}
                 >
                   {isPassed ? 'Continue to Next Step' : 'Retry Quiz'}
@@ -425,7 +465,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             </Button>
 
             <div className="inline-flex items-center justify-center gap-2 text-white text-base md:text-lg">
-              <span className="font-medium">{questions.length} question{questions.length !== 1 ? 's' : ''}</span>
+              <span className="font-medium">{totalQuestionCount} question{totalQuestionCount !== 1 ? 's' : ''}</span>
             </div>
           </div>
         </div>
@@ -439,13 +479,19 @@ const QuizRenderer = (props: QuizRendererProps) => {
     if (!q) return null;
 
     const userAnswer = quizAnswers.get(q.id);
+    const displayNumber = getQuestionDisplayNumber(currentQuestionIndex);
+    const questionGaps = (q.question_type === 'fill_blank' || q.question_type === 'text_completion')
+      ? (q.content_text || q.question_text || '').match(/\[\[(.*?)\]\]/g)?.length || 1
+      : 1;
 
     return (
       <div className="max-w-3xl mx-auto space-y-6 p-4">
         {/* Header */}
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold text-gray-900">Quiz Question</h2>
-          <p className="text-gray-600">Question {currentQuestionIndex + 1} of {questions.length}</p>
+          <p className="text-gray-600">
+            Question{questionGaps > 1 ? 's' : ''} {displayNumber}{questionGaps > 1 ? `-${displayNumber + questionGaps - 1}` : ''} of {totalQuestionCount}
+          </p>
         </div>
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
@@ -626,7 +672,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
     const userAnswer = getCurrentUserAnswer();
     const isCorrect = isCurrentAnswerCorrect();
-    const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+
+    // Calculate progress based on actual question items (including gaps)
+    const displayNumber = getQuestionDisplayNumber(currentQuestionIndex);
+    const questionGaps = (question.question_type === 'fill_blank' || question.question_type === 'text_completion')
+      ? (question.content_text || question.question_text || '').match(/\[\[(.*?)\]\]/g)?.length || 1
+      : 1;
+    const currentEndNumber = displayNumber + questionGaps - 1;
+    const progress = (currentEndNumber / totalQuestionCount) * 100;
 
     return (
       <div className="max-w-4xl mx-auto space-y-8 p-6">
@@ -634,7 +687,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-lg font-semibold text-gray-700">
-              Question {currentQuestionIndex + 1} of {questions.length}
+              Question{questionGaps > 1 ? 's' : ''} {displayNumber}{questionGaps > 1 ? `-${currentEndNumber}` : ''} of {totalQuestionCount}
             </span>
             <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
               {Math.round(progress)}% Complete
@@ -680,18 +733,18 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
                   return (
                     <div key={option.id} className={`p-6 rounded-xl border-2 transition-all duration-300 ${isCorrectOption
-                        ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-md'
-                        : isSelected && !isCorrect
-                          ? 'bg-gradient-to-r from-red-50 to-pink-50 border-red-300 shadow-md'
-                          : 'bg-gray-50 border-gray-200'
+                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-md'
+                      : isSelected && !isCorrect
+                        ? 'bg-gradient-to-r from-red-50 to-pink-50 border-red-300 shadow-md'
+                        : 'bg-gray-50 border-gray-200'
                       }`}>
                       <div className="flex items-center space-x-4">
                         {/* Status Icon */}
                         <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isCorrectOption
-                            ? "bg-green-500 border-green-500 shadow-lg"
-                            : isSelected && !isCorrect
-                              ? "bg-red-500 border-red-500 shadow-lg"
-                              : "border-gray-300 bg-white"
+                          ? "bg-green-500 border-green-500 shadow-lg"
+                          : isSelected && !isCorrect
+                            ? "bg-red-500 border-red-500 shadow-lg"
+                            : "border-gray-300 bg-white"
                           }`}>
                           {isCorrectOption ? (
                             <CheckCircle className="w-5 h-5 text-white" />
@@ -704,12 +757,12 @@ const QuizRenderer = (props: QuizRendererProps) => {
                         <div className="flex-1">
                           <div className="flex items-start gap-3">
                             <span className={`text-xl font-bold ${isCorrectOption ? 'text-green-700' :
-                                isSelected && !isCorrect ? 'text-red-700' : 'text-gray-600'
+                              isSelected && !isCorrect ? 'text-red-700' : 'text-gray-600'
                               }`}>
                               {option.letter}.
                             </span>
                             <span className={`text-lg leading-relaxed ${isCorrectOption ? 'text-green-800 font-medium' :
-                                isSelected && !isCorrect ? 'text-red-800' : 'text-gray-700'
+                              isSelected && !isCorrect ? 'text-red-800' : 'text-gray-700'
                               }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
                           </div>
 
@@ -763,8 +816,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
                           return (
                             <span key={`gap-review-${i}`} className={`inline-flex items-center px-3 py-1 mx-1 rounded-md font-medium ${isCorrectGap
-                                ? 'bg-green-200 text-green-800 border-2 border-green-300'
-                                : 'bg-red-200 text-red-800 border-2 border-red-300'
+                              ? 'bg-green-200 text-green-800 border-2 border-green-300'
+                              : 'bg-red-200 text-red-800 border-2 border-red-300'
                               }`}>
                               {userAnswer || `[Gap ${idx + 1}]`}
                               {!isCorrectGap && (
@@ -811,14 +864,13 @@ const QuizRenderer = (props: QuizRendererProps) => {
   };
 
   const renderQuizCompleted = () => {
-    const score = getScore();
-    const percentage = Math.round((score / questions.length) * 100);
-    const isPassed = percentage >= 50;
     const stats = getGapStatistics();
 
     // Calculate total "items" (gaps + regular questions)
     const totalItems = stats.totalGaps + stats.regularQuestions;
     const correctItems = stats.correctGaps + stats.correctRegular;
+    const percentage = totalItems > 0 ? Math.round((correctItems / totalItems) * 100) : 0;
+    const isPassed = percentage >= 50;
 
     return (
       <div className="max-w-2xl mx-auto text-center space-y-6 p-6">

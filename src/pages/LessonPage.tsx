@@ -52,7 +52,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
         // Use optimized endpoint to get all lessons for the course
         const allLessons = await apiClient.getCourseLessons(course?.id || '');
         console.log('Loaded lessons:', allLessons);
-        
+
         // Group lessons by module
         const lecturesMap = new Map<string, Lesson[]>();
         for (const lesson of allLessons) {
@@ -62,14 +62,14 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
           }
           lecturesMap.get(moduleId)!.push(lesson);
         }
-        
+
         console.log('Grouped lessons by module:', lecturesMap);
         setModuleLectures(lecturesMap);
       } catch (error) {
         console.error('Failed to load course lessons:', error);
       }
     };
-    
+
     if (modules.length > 0 && course?.id) {
       loadAllLectures();
     }
@@ -80,7 +80,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
     const loadStepsProgress = async () => {
       try {
         const progressMap = new Map<string, StepProgress[]>();
-        
+
         for (const [, lessons] of moduleLectures.entries()) {
           for (const lesson of lessons) {
             try {
@@ -92,13 +92,13 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
             }
           }
         }
-        
+
         setStepsProgress(progressMap);
       } catch (error) {
         console.error('Failed to load steps progress:', error);
       }
     };
-    
+
     if (moduleLectures.size > 0) {
       loadStepsProgress();
     }
@@ -126,9 +126,9 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
             <p className="text-xs text-muted-foreground">Lesson navigation</p>
           </div>
         </div>
-        <Progress value={Math.min(100, Math.round(((Array.from(stepsProgress.values()).filter(arr => (arr||[]).every(p => p.status === 'completed')).length) / Math.max(1, Array.from(moduleLectures.values()).flat().length)) * 100))} className="h-2" />
+        <Progress value={Math.min(100, Math.round(((Array.from(stepsProgress.values()).filter(arr => (arr || []).every(p => p.status === 'completed')).length) / Math.max(1, Array.from(moduleLectures.values()).flat().length)) * 100))} className="h-2" />
       </div>
-      
+
       {/* Modules and Lessons - Scrollable */}
       <div className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
         <div className="p-2">
@@ -144,17 +144,16 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                   const done = prog.filter(p => p.status === 'completed').length;
                   return total > 0 && done >= total;
                 }).length;
-                
+
                 return (
                   <div key={module.id} className="space-y-1">
                     {/* Module Header */}
                     <button
                       onClick={() => toggleModuleExpanded(module.id.toString())}
-                      className={`w-full justify-between p-4 h-auto rounded-none border-b border-border/50 flex items-center text-left group ${
-                        lectures.some(lesson => lesson.id === selectedLessonId)
-                          ? 'bg-accent border-l-4 border-l-primary'
-                          : 'hover:bg-muted/40'
-                      }`}
+                      className={`w-full justify-between p-4 h-auto rounded-none border-b border-border/50 flex items-center text-left group ${lectures.some(lesson => lesson.id === selectedLessonId)
+                        ? 'bg-accent border-l-4 border-l-primary'
+                        : 'hover:bg-muted/40'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="flex items-center justify-center w-7 h-7 bg-primary text-primary-foreground rounded-full text-xs font-semibold">
@@ -166,14 +165,14 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Progress value={lectures.length ? (completedInModule/lectures.length)*100 : 0} className="w-16 h-1" />
-                        {isExpanded ? 
-                          <ChevronUp className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" /> : 
+                        <Progress value={lectures.length ? (completedInModule / lectures.length) * 100 : 0} className="w-16 h-1" />
+                        {isExpanded ?
+                          <ChevronUp className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" /> :
                           <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                         }
                       </div>
                     </button>
-                    
+
                     {/* Lessons List */}
                     {isExpanded && (
                       <div className="bg-muted/30">
@@ -194,21 +193,20 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                               if (steps.length > 0) {
                                 switch (steps[0].content_type) {
                                   case 'video_text': return <Play className="w-4 h-4" />;
-                                case 'quiz': return <HelpCircle className="w-4 h-4" />;
-                                case 'text': return <FileText className="w-4 h-4" />;
-                                default: return <Edit3 className="w-4 h-4" />;
-                              }
+                                  case 'quiz': return <HelpCircle className="w-4 h-4" />;
+                                  case 'text': return <FileText className="w-4 h-4" />;
+                                  default: return <Edit3 className="w-4 h-4" />;
+                                }
                               }
                               return <Edit3 className="w-4 h-4" />;
                             };
-                            
+
                             return (
                               <button
                                 key={lecture.id}
                                 onClick={() => onLessonSelect(lecture.id)}
-                                className={`w-full justify-start pl-12 pr-4 py-3 h-auto rounded-none border-b border-border/30 flex items-center gap-3 text-left text-sm ${
-                                  isSelected ? 'bg-accent border-l-4 border-l-primary' : 'hover:bg-muted/60'
-                                }`}
+                                className={`w-full justify-start pl-12 pr-4 py-3 h-auto rounded-none border-b border-border/30 flex items-center gap-3 text-left text-sm ${isSelected ? 'bg-accent border-l-4 border-l-primary' : 'hover:bg-muted/60'
+                                  }`}
                               >
                                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50">
                                   {getLessonIcon(lecture.steps || [])}
@@ -244,7 +242,7 @@ export default function LessonPage() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [course, setCourse] = useState<Course | null>(null);
@@ -257,7 +255,7 @@ export default function LessonPage() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [videoProgress, setVideoProgress] = useState<Map<string, number>>(new Map());
   const [quizCompleted, setQuizCompleted] = useState<Map<string, boolean>>(new Map());
-  
+
   // Quiz state
   const [quizAnswers, setQuizAnswers] = useState<Map<string, any>>(new Map());
   const [gapAnswers, setGapAnswers] = useState<Map<string, string[]>>(new Map());
@@ -279,11 +277,11 @@ export default function LessonPage() {
     if (steps.length > 0) {
       const stepParam = searchParams.get('step');
       const stepNumber = stepParam ? parseInt(stepParam, 10) : 1;
-      
+
       // Validate step number (1-based in URL, convert to 0-based for state)
       const validStepNumber = Math.max(1, Math.min(stepNumber, steps.length));
       const stepIndex = validStepNumber - 1;
-      
+
       if (stepIndex !== currentStepIndex) {
         setCurrentStepIndex(stepIndex);
       }
@@ -293,23 +291,23 @@ export default function LessonPage() {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
+
       // Load lesson with steps
       const lessonData = await apiClient.getLesson(lessonId!);
       setLesson(lessonData);
-      
+
       // Load steps
       const stepsData = await apiClient.getLessonSteps(lessonId!);
       setSteps(stepsData);
-      
+
       // Load course
       const courseData = await apiClient.getCourse(courseId!);
       setCourse(courseData);
-      
+
       // Load modules for navigation
       const modulesData = await apiClient.getCourseModules(courseId!);
       setModules(modulesData);
-      
+
       // Resolve next lesson: prefer explicit pointer, else fallback to ordered list
       try {
         const allLessons = await apiClient.getCourseLessons(courseId!);
@@ -325,7 +323,7 @@ export default function LessonPage() {
       } catch (e) {
         setNextLessonId(null);
       }
-      
+
       // Load steps progress
       try {
         const progressData = await apiClient.getLessonStepsProgress(lessonId!);
@@ -334,7 +332,7 @@ export default function LessonPage() {
         console.error('Failed to load steps progress:', error);
         setStepsProgress([]);
       }
-      
+
     } catch (error) {
       console.error('Failed to load lesson data:', error);
       setError('Failed to load lesson data');
@@ -346,12 +344,12 @@ export default function LessonPage() {
   const markStepAsStarted = async (stepId: string) => {
     try {
       await apiClient.markStepStarted(stepId);
-      
+
       // Update local progress state
       setStepsProgress(prev => {
         const updated = [...prev];
         const existingIndex = updated.findIndex(p => p.step_id === parseInt(stepId));
-        
+
         if (existingIndex >= 0) {
           updated[existingIndex] = {
             ...updated[existingIndex],
@@ -374,7 +372,7 @@ export default function LessonPage() {
             time_spent_minutes: 0
           });
         }
-        
+
         return updated;
       });
     } catch (error) {
@@ -385,12 +383,12 @@ export default function LessonPage() {
   const markStepAsVisited = async (stepId: string, timeSpent: number = 1) => {
     try {
       await apiClient.markStepVisited(stepId, timeSpent);
-      
+
       // Update local progress state
       setStepsProgress(prev => {
         const updated = [...prev];
         const existingIndex = updated.findIndex(p => p.step_id === parseInt(stepId));
-        
+
         if (existingIndex >= 0) {
           updated[existingIndex] = {
             ...updated[existingIndex],
@@ -413,7 +411,7 @@ export default function LessonPage() {
             time_spent_minutes: 1
           });
         }
-        
+
         return updated;
       });
     } catch (error) {
@@ -446,7 +444,7 @@ export default function LessonPage() {
         const parsedQuizData = JSON.parse(currentStep.content_text || '{}');
         setQuizData(parsedQuizData);
         setQuestions(parsedQuizData.questions || []);
-        
+
         // Initialize gap answers map per question
         const init = new Map<string, string[]>();
         (parsedQuizData.questions || []).forEach((q: any) => {
@@ -458,11 +456,11 @@ export default function LessonPage() {
           }
         });
         setGapAnswers(init);
-        
+
         // Use display_mode from quiz data to determine quiz behavior
         const displayMode = parsedQuizData.display_mode || 'one_by_one';
         console.log('Quiz display_mode:', displayMode, 'Quiz data:', parsedQuizData);
-        
+
         // For "all at once", skip title screen and go straight to feed
         if (displayMode === 'all_at_once') {
           setQuizState('feed');
@@ -470,7 +468,7 @@ export default function LessonPage() {
           // For "one by one", start with title screen
           setQuizState('title');
         }
-        
+
         setCurrentQuestionIndex(0);
         setQuizAnswers(new Map());
         setFeedChecked(false);
@@ -483,13 +481,13 @@ export default function LessonPage() {
   // Check if user can proceed to next step
   const canProceedToNext = (): boolean => {
     if (!currentStep) return false;
-    
+
     const stepId = currentStep.id.toString();
 
     // Check if already completed in backend/local state
     const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
     if (stepProgress?.status === 'completed') return true;
-    
+
     if (currentStep.content_type === 'video_text') {
       // For video steps, check if video is watched 90%+
       const progress = videoProgress.get(stepId) || 0; // progress is a fraction [0..1]
@@ -498,7 +496,7 @@ export default function LessonPage() {
       // For quiz steps, check if quiz is completed
       return quizCompleted.get(stepId) || false;
     }
-    
+
     // For other step types, allow proceeding
     return true;
   };
@@ -507,7 +505,7 @@ export default function LessonPage() {
     // Check if current step is completed
     if (currentStep && !canProceedToNext()) {
       let message = '';
-      
+
       switch (currentStep.content_type) {
         case 'video_text':
           const videoProgressValue = videoProgress.get(currentStep.id.toString()) || 0; // fraction [0..1]
@@ -520,7 +518,7 @@ export default function LessonPage() {
         default:
           message = 'Пожалуйста, завершите текущий шаг перед переходом к следующему.';
       }
-      
+
       alert(message);
       return;
     }
@@ -544,7 +542,7 @@ export default function LessonPage() {
       markStepAsVisited(currentStep.id.toString(), 2); // 2 minutes for step completion
     }
     setCurrentStepIndex(index);
-    
+
     // Update URL with step parameter (1-based)
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.set('step', (index + 1).toString());
@@ -578,12 +576,12 @@ export default function LessonPage() {
 
   const saveQuizAttempt = async (score: number, totalQuestions: number) => {
     if (!currentStep || !courseId || !lessonId) return;
-    
+
     try {
-      const timeSpentSeconds = quizStartTime 
+      const timeSpentSeconds = quizStartTime
         ? Math.floor((Date.now() - quizStartTime) / 1000)
         : undefined;
-      
+
       const attemptData = {
         step_id: parseInt(currentStep.id.toString()),
         course_id: parseInt(courseId),
@@ -595,7 +593,7 @@ export default function LessonPage() {
         answers: JSON.stringify(Array.from(quizAnswers.entries())),
         time_spent_seconds: timeSpentSeconds
       };
-      
+
       await apiClient.saveQuizAttempt(attemptData);
       console.log('Quiz attempt saved successfully');
     } catch (error) {
@@ -621,10 +619,10 @@ export default function LessonPage() {
       const score = getScore();
       const scorePercentage = (score / questions.length) * 100;
       saveQuizAttempt(score, questions.length);
-      
+
       // Always show completed state first, regardless of pass/fail or step position
       setQuizState('completed');
-      
+
       // Mark quiz completion status
       if (currentStep) {
         const passed = scorePercentage >= 50;
@@ -641,7 +639,7 @@ export default function LessonPage() {
     const scorePercentage = (score / questions.length) * 100;
     saveQuizAttempt(score, questions.length);
     setQuizState('completed');
-    
+
     if (currentStep) {
       const passed = scorePercentage >= 50;
       setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
@@ -664,17 +662,17 @@ export default function LessonPage() {
     } else {
       setQuizState('title');
     }
-    
+
     setCurrentQuestionIndex(0);
     setQuizAnswers(new Map());
     setQuizStartTime(null);
     setFeedChecked(false);
-    
+
     // Reset quiz completion status for current step
     if (currentStep) {
       setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), false)));
     }
-    
+
     // Re-initialize gap answers
     const init = new Map<string, string[]>();
     (questions || []).forEach((q: any) => {
@@ -700,56 +698,56 @@ export default function LessonPage() {
   const isCurrentAnswerCorrect = () => {
     const question = getCurrentQuestion();
     if (!question) return false;
-    
+
     if (question.question_type === 'fill_blank') {
       // For fill_blank questions, check all gaps
       const userAnswers = gapAnswers.get(question.id.toString()) || [];
-      const correctAnswers: string[] = Array.isArray(question.correct_answer) 
-        ? question.correct_answer 
+      const correctAnswers: string[] = Array.isArray(question.correct_answer)
+        ? question.correct_answer
         : (question.correct_answer ? [question.correct_answer] : []);
-      
+
       return userAnswers.length === correctAnswers.length &&
-        userAnswers.every((userAns, idx) => 
-          (userAns || '').toString().trim().toLowerCase() === 
+        userAnswers.every((userAns, idx) =>
+          (userAns || '').toString().trim().toLowerCase() ===
           (correctAnswers[idx] || '').toString().trim().toLowerCase()
         );
     }
-    
+
     const userAnswer = getCurrentUserAnswer();
     return userAnswer === question.correct_answer;
   };
 
   const getScore = () => {
     let score = 0;
-    
+
     // Check all questions
     questions.forEach(question => {
-      if (question.question_type === 'fill_blank') {
-        // For fill_blank questions, use gapAnswers and count partial credit
+      if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
+        // For fill_blank and text_completion questions, use gapAnswers and count partial credit
         const userAnswers = gapAnswers.get(question.id.toString()) || [];
-        const correctAnswers: string[] = Array.isArray(question.correct_answer) 
-          ? question.correct_answer 
+        const correctAnswers: string[] = Array.isArray(question.correct_answer)
+          ? question.correct_answer
           : (question.correct_answer ? [question.correct_answer] : []);
-        
+
         // Count how many gaps are correct
         let correctGaps = 0;
         const totalGaps = Math.min(userAnswers.length, correctAnswers.length);
-        
+
         userAnswers.forEach((userAns, idx) => {
           if (idx < correctAnswers.length) {
-            const isGapCorrect = (userAns || '').toString().trim().toLowerCase() === 
+            const isGapCorrect = (userAns || '').toString().trim().toLowerCase() ===
               (correctAnswers[idx] || '').toString().trim().toLowerCase();
             if (isGapCorrect) correctGaps++;
           }
         });
-        
+
         // Award partial credit: correctGaps / totalGaps
         const partialScore = totalGaps > 0 ? correctGaps / totalGaps : 0;
         score += partialScore;
       } else {
         // For other question types, use quizAnswers
         const answer = quizAnswers.get(question.id);
-        
+
         // For long_text questions, automatically give full credit if answer is not empty
         if (question.question_type === 'long_text') {
           if (answer && answer.toString().trim() !== '') {
@@ -763,7 +761,7 @@ export default function LessonPage() {
         }
       }
     });
-    
+
     return score;
   };
 
@@ -773,20 +771,20 @@ export default function LessonPage() {
     let correctGaps = 0;
     let regularQuestions = 0;
     let correctRegular = 0;
-    
+
     questions.forEach(question => {
-      if (question.question_type === 'fill_blank') {
+      if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
         const userAnswers = gapAnswers.get(question.id.toString()) || [];
-        const correctAnswers: string[] = Array.isArray(question.correct_answer) 
-          ? question.correct_answer 
+        const correctAnswers: string[] = Array.isArray(question.correct_answer)
+          ? question.correct_answer
           : (question.correct_answer ? [question.correct_answer] : []);
-        
+
         const gaps = Math.min(userAnswers.length, correctAnswers.length);
         totalGaps += gaps;
-        
+
         userAnswers.forEach((userAns, idx) => {
           if (idx < correctAnswers.length) {
-            const isGapCorrect = (userAns || '').toString().trim().toLowerCase() === 
+            const isGapCorrect = (userAns || '').toString().trim().toLowerCase() ===
               (correctAnswers[idx] || '').toString().trim().toLowerCase();
             if (isGapCorrect) correctGaps++;
           }
@@ -794,7 +792,7 @@ export default function LessonPage() {
       } else {
         regularQuestions++;
         const answer = quizAnswers.get(question.id);
-        
+
         // For long_text questions, automatically count as correct if answer is not empty
         if (question.question_type === 'long_text') {
           if (answer && answer.toString().trim() !== '') {
@@ -808,7 +806,7 @@ export default function LessonPage() {
         }
       }
     });
-    
+
     return { totalGaps, correctGaps, regularQuestions, correctRegular };
   };
 
@@ -826,13 +824,13 @@ export default function LessonPage() {
               <div key={attachment.id} className="rounded">
                 {/* PDF Preview */}
                 {attachment.file_type.toLowerCase() === 'pdf' && (
-                      <iframe
-                        src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${attachment.file_url}#toolbar=0&navpanes=0&scrollbar=1`}
-                        className="w-full h-96 sm:h-[500px] lg:h-[600px] border-0"
-                        title={`Preview of ${attachment.filename}`}
-                      />
+                  <iframe
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${attachment.file_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                    className="w-full h-96 sm:h-[500px] lg:h-[600px] border-0"
+                    title={`Preview of ${attachment.filename}`}
+                  />
                 )}
-                
+
                 {/* Image Preview */}
                 {['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(attachment.file_type.toLowerCase()) && (
                   <div className="mt-3">
@@ -867,7 +865,7 @@ export default function LessonPage() {
             </div>
           </div>
         );
-      
+
       case 'video_text':
         return (
           <div className="space-y-4">
@@ -879,7 +877,7 @@ export default function LessonPage() {
                   className="w-full h-full"
                   onProgress={(progress) => {
                     setVideoProgress(prev => new Map(prev.set(currentStep.id.toString(), progress)));
-                    
+
                     // Auto-complete video step when 90%+ is watched
                     if (progress >= 0.9) {
                       const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
@@ -893,7 +891,7 @@ export default function LessonPage() {
                 />
               </div>
             )}
-            
+
             {/* Video Progress Indicator */}
             {currentStep && currentStep.video_url && (
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -904,7 +902,7 @@ export default function LessonPage() {
                   </span>
                 </div>
                 <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(videoProgress.get(currentStep.id.toString()) || 0) * 100}%` }}
                   />
@@ -914,9 +912,9 @@ export default function LessonPage() {
                 </p>
               </div>
             )}
-          
+
             {renderAttachments(currentStep.attachments)}
-            
+
             {currentStep.content_text && (
               <div className="prose max-w-none">
                 <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text) }} />
@@ -924,7 +922,7 @@ export default function LessonPage() {
             )}
           </div>
         );
-      
+
       case 'quiz':
         return (
           <QuizRenderer
@@ -962,7 +960,7 @@ export default function LessonPage() {
             reviewQuiz={reviewQuiz}
           />
         );
-      
+
       case 'flashcard':
         try {
           const flashcardData = JSON.parse(currentStep.content_text || '{}');
@@ -990,7 +988,7 @@ export default function LessonPage() {
           console.error('Failed to parse flashcard data:', error);
           return <div>Error loading flashcards</div>;
         }
-      
+
       default:
         return <div>Unsupported content type</div>;
     }
@@ -1035,7 +1033,7 @@ export default function LessonPage() {
           onLessonSelect={handleLessonSelect}
         />
       </div>
-      
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
@@ -1044,7 +1042,7 @@ export default function LessonPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3">
                 {/* Mobile: open lessons sidebar */}
-                <button 
+                <button
                   className="lg:hidden inline-flex items-center px-3 py-2 border rounded-md text-sm"
                   onClick={() => setIsMobileSidebarOpen(true)}
                 >
@@ -1060,13 +1058,13 @@ export default function LessonPage() {
                   <span>Back to Dashboard</span>
                 </Button>
                 <div className="h-6 w-px bg-border" />
-                
+
               </div>
               <div className="hidden" />
             </div>
           </CardHeader>
         </Card>
-        
+
         {/* Content */}
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
           <div className="max-w-4xl mx-auto">
@@ -1077,18 +1075,17 @@ export default function LessonPage() {
                   .sort((a, b) => a.order_index - b.order_index)
                   .map((step, index) => {
                     const isCompleted = isStepCompleted(step);
-                    
+
                     return (
                       <button
                         key={step.id}
                         onClick={() => goToStep(index)}
-                        className={`aspect-square rounded-md text-white p-1 relative shadow-sm hover:shadow-md transition-all cursor-pointer ${
-                          currentStepIndex === index 
-                            ? 'bg-blue-800 ring-2 ring-blue-400' 
-                            : isCompleted
+                        className={`aspect-square rounded-md text-white p-1 relative shadow-sm hover:shadow-md transition-all cursor-pointer ${currentStepIndex === index
+                          ? 'bg-blue-800 ring-2 ring-blue-400'
+                          : isCompleted
                             ? 'bg-green-600 hover:bg-green-700'
                             : 'bg-gray-500 hover:bg-gray-600'
-                        }`}
+                          }`}
                       >
                         <div className="h-full w-full flex flex-col items-start justify-end">
                           <div className="absolute top-1 left-1 text-[10px] sm:text-[11px] bg-white/20 rounded px-1 py-0.5">
@@ -1141,9 +1138,9 @@ export default function LessonPage() {
                   <>
                     <span className="hidden sm:inline">•</span>
                     <span className="text-orange-600 font-medium">
-                      {currentStep.content_type === 'video_text' ? 'Video not watched enough' : 
-                       currentStep.content_type === 'quiz' ? 'Quiz is not complete' : 
-                       'Step is not completed'}
+                      {currentStep.content_type === 'video_text' ? 'Video not watched enough' :
+                        currentStep.content_type === 'quiz' ? 'Quiz is not complete' :
+                          'Step is not completed'}
                     </span>
                   </>
                 )}
