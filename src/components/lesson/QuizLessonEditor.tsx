@@ -1363,11 +1363,45 @@ export default function QuizLessonEditor({
                           return (
                             <div className="space-y-1">
                               {gaps.map((m, i) => {
-                                const tokens = (m[1] || '').split(separator).map(s => s.trim()).filter(Boolean);
-                                const correct = tokens[0];
-                                const distractors = tokens.slice(1);
+                                const rawTokens = (m[1] || '').split(separator).map(s => s.trim()).filter(Boolean);
+
+                                // Clean tokens: remove * and HTML entities like &nbsp;
+                                const cleanToken = (token: string) => {
+                                  return token
+                                    .replace(/\*/g, '')  // Remove asterisks
+                                    .replace(/&nbsp;/g, ' ')  // Replace &nbsp; with space
+                                    .trim();
+                                };
+
+                                // Find correct answer: if any token has *, use it; otherwise use first
+                                let correctIndex = 0;
+                                const markedIndex = rawTokens.findIndex(t => t.includes('*'));
+                                if (markedIndex !== -1) {
+                                  correctIndex = markedIndex;
+                                }
+
+                                const tokens = rawTokens.map(cleanToken);
+                                const correct = tokens[correctIndex] || tokens[0];
+                                const others = tokens.filter((_, idx) => idx !== correctIndex);
+
                                 return (
-                                  <div key={i}>#{i + 1}: <b>{correct}</b>{distractors.length ? ` (others: ${distractors.join(', ')})` : ''}</div>
+                                  <div key={i} className="flex items-start gap-2">
+                                    <span className="text-gray-600 font-medium">#{i + 1}:</span>
+                                    <div className="flex-1">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-800 rounded font-semibold">
+                                        ✓ {correct}
+                                      </span>
+                                      {others.length > 0 && (
+                                        <div className="mt-1 text-xs text-gray-600">
+                                          Others: {others.map((o, idx) => (
+                                            <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-200 rounded mr-1">
+                                              {o}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                 );
                               })}
                             </div>

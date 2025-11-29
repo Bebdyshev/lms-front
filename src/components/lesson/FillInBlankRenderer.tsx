@@ -17,6 +17,7 @@ interface FillInBlankRendererProps {
 interface GapData {
   index: number;
   options: string[];
+  correctOption: string; // The correct answer without the asterisk
   container: HTMLElement | null;
 }
 
@@ -48,19 +49,28 @@ export const FillInBlankRenderer: React.FC<FillInBlankRendererProps> = ({
         return renderTextWithLatex(part);
       }
 
-      let options = gapMatch[1]
+      let rawOptions = gapMatch[1]
         .split(separator)
         .map(s => s.trim())
         .filter(Boolean);
-      
-      if (shuffleOptions) {
-        options = [...options].sort(() => Math.random() - 0.5);
-      }
+
+      // Find which option has the asterisk (*) - it's the correct one
+      let correctOption = rawOptions[0] || ''; // Default to first option
+      const options = rawOptions.map(opt => {
+        if (opt.endsWith('*')) {
+          correctOption = opt.slice(0, -1).trim(); // Remove asterisk
+          return correctOption;
+        }
+        return opt;
+      });
+
+      // If shuffleOptions is enabled, shuffle them
+      let displayOptions = shuffleOptions ? [...options].sort(() => Math.random() - 0.5) : options;
 
       const id = `gap-container-${gapIndex}`;
-      gapData.push({ index: gapIndex, options, container: null });
+      gapData.push({ index: gapIndex, options: displayOptions, correctOption, container: null });
       gapIndex++;
-      
+
       // Create inline container for the select
       return `<span id="${id}" class="inline-block align-baseline mx-1" style="display: inline-block; vertical-align: baseline;"></span>`;
     }).join('');
@@ -87,8 +97,10 @@ export const FillInBlankRenderer: React.FC<FillInBlankRendererProps> = ({
         if (!gap.container) return null;
 
         const value = answers[gap.index] || '';
-        const correctAnswer = correctAnswers[gap.index];
-        
+        // Use the correct option extracted from the gap text (with asterisk marker)
+        // Falls back to correctAnswers prop if needed (for backward compatibility)
+        const correctAnswer = gap.correctOption || correctAnswers[gap.index];
+
         const isCorrect = showCorrectAnswers && value && correctAnswer &&
           value.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
         const isIncorrect = showCorrectAnswers && value && correctAnswer &&

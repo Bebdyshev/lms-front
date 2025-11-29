@@ -11,6 +11,23 @@ import { renderTextWithLatex } from '../utils/latex';
 import FlashcardViewer from '../components/lesson/FlashcardViewer';
 import QuizRenderer from '../components/lesson/QuizRenderer';
 
+// Utility function to extract correct answers from gap text
+// If an option ends with *, it's the correct answer (without the *)
+// Otherwise, the first option is correct
+const extractCorrectAnswersFromGaps = (text: string, separator: string = ','): string[] => {
+  const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+  return gaps.map(match => {
+    const options = match[1].split(separator).map(s => s.trim()).filter(Boolean);
+    // Find option with asterisk
+    const markedOption = options.find(opt => opt.endsWith('*'));
+    if (markedOption) {
+      return markedOption.slice(0, -1).trim(); // Remove asterisk
+    }
+    // Default to first option
+    return options[0] || '';
+  });
+};
+
 interface LessonSidebarProps {
   course: Course | null;
   modules: CourseModule[];
@@ -699,12 +716,14 @@ export default function LessonPage() {
     const question = getCurrentQuestion();
     if (!question) return false;
 
-    if (question.question_type === 'fill_blank') {
-      // For fill_blank questions, check all gaps
+    if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
+      // For fill_blank and text_completion questions, check all gaps
       const userAnswers = gapAnswers.get(question.id.toString()) || [];
-      const correctAnswers: string[] = Array.isArray(question.correct_answer)
-        ? question.correct_answer
-        : (question.correct_answer ? [question.correct_answer] : []);
+
+      // Extract correct answers from the text using the new utility
+      const text = question.content_text || question.question_text || '';
+      const separator = question.gap_separator || ',';
+      const correctAnswers = extractCorrectAnswersFromGaps(text, separator);
 
       return userAnswers.length === correctAnswers.length &&
         userAnswers.every((userAns, idx) =>
@@ -725,9 +744,11 @@ export default function LessonPage() {
       if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
         // For fill_blank and text_completion questions, use gapAnswers and count partial credit
         const userAnswers = gapAnswers.get(question.id.toString()) || [];
-        const correctAnswers: string[] = Array.isArray(question.correct_answer)
-          ? question.correct_answer
-          : (question.correct_answer ? [question.correct_answer] : []);
+
+        // Extract correct answers from the text using the new utility
+        const text = question.content_text || question.question_text || '';
+        const separator = question.gap_separator || ',';
+        const correctAnswers = extractCorrectAnswersFromGaps(text, separator);
 
         // Count how many gaps are correct
         let correctGaps = 0;
@@ -775,9 +796,11 @@ export default function LessonPage() {
     questions.forEach(question => {
       if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
         const userAnswers = gapAnswers.get(question.id.toString()) || [];
-        const correctAnswers: string[] = Array.isArray(question.correct_answer)
-          ? question.correct_answer
-          : (question.correct_answer ? [question.correct_answer] : []);
+
+        // Extract correct answers from the text using the new utility
+        const text = question.content_text || question.question_text || '';
+        const separator = question.gap_separator || ',';
+        const correctAnswers = extractCorrectAnswersFromGaps(text, separator);
 
         const gaps = Math.min(userAnswers.length, correctAnswers.length);
         totalGaps += gaps;
