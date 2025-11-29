@@ -54,15 +54,20 @@ export const FillInBlankRenderer: React.FC<FillInBlankRendererProps> = ({
         .map(s => s.trim())
         .filter(Boolean);
 
+      // Helper to strip HTML tags
+      const stripHTML = (str: string) => str.replace(/<[^>]*>/g, '').trim();
+
       // Find which option has the asterisk (*) - it's the correct one
-      let correctOption = rawOptions[0] || ''; // Default to first option
-      const options = rawOptions.map(opt => {
-        if (opt.endsWith('*')) {
-          correctOption = opt.slice(0, -1).trim(); // Remove asterisk
-          return correctOption;
+      let correctIndex = 0;
+      rawOptions.forEach((opt, idx) => {
+        if (opt.includes('*')) {
+          correctIndex = idx;
         }
-        return opt;
       });
+
+      // Clean options: remove HTML tags and asterisks
+      const options = rawOptions.map(opt => stripHTML(opt.replace(/\*/g, '')));
+      const correctOption = options[correctIndex] || options[0] || '';
 
       // If shuffleOptions is enabled, shuffle them
       let displayOptions = shuffleOptions ? [...options].sort(() => Math.random() - 0.5) : options;

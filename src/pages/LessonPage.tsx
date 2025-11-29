@@ -17,14 +17,25 @@ import QuizRenderer from '../components/lesson/QuizRenderer';
 const extractCorrectAnswersFromGaps = (text: string, separator: string = ','): string[] => {
   const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
   return gaps.map(match => {
-    const options = match[1].split(separator).map(s => s.trim()).filter(Boolean);
-    // Find option with asterisk
-    const markedOption = options.find(opt => opt.endsWith('*'));
-    if (markedOption) {
-      return markedOption.slice(0, -1).trim(); // Remove asterisk
+    const rawOptions = match[1].split(separator).map(s => s.trim()).filter(Boolean);
+
+    // Helper to strip HTML tags
+    const stripHTML = (str: string) => str.replace(/<[^>]*>/g, '').trim();
+
+    // Find option with asterisk (check both raw and stripped versions)
+    let correctIndex = 0;
+    const markedIndex = rawOptions.findIndex(opt => {
+      // Check if asterisk is in the raw option (might be inside HTML tags)
+      return opt.includes('*');
+    });
+
+    if (markedIndex !== -1) {
+      correctIndex = markedIndex;
     }
-    // Default to first option
-    return options[0] || '';
+
+    // Clean the correct option: remove HTML tags and asterisk
+    const correctOption = rawOptions[correctIndex] || rawOptions[0] || '';
+    return stripHTML(correctOption.replace(/\*/g, ''));
   });
 };
 

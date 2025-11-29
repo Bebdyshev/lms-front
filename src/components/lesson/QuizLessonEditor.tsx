@@ -1360,18 +1360,41 @@ export default function QuizLessonEditor({
                           const separator = draftQuestion.gap_separator || ',';
                           const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
                           if (gaps.length === 0) return <span>No gaps yet. Add [[correct{separator}wrong1{separator}wrong2]] in the passage field.</span>;
+
+                          // Helper function to clean text from HTML tags and entities
+                          const cleanText = (text: string): string => {
+                            let cleaned = text;
+
+                            // Remove asterisks first
+                            cleaned = cleaned.replace(/\*/g, '');
+
+                            // Replace HTML entities
+                            cleaned = cleaned
+                              .replace(/&nbsp;/g, ' ')
+                              .replace(/&lt;/g, '<')
+                              .replace(/&gt;/g, '>')
+                              .replace(/&amp;/g, '&')
+                              .replace(/&quot;/g, '"')
+                              .replace(/&#39;/g, "'");
+
+                            // Remove ALL HTML tags (including broken/partial tags)
+                            // This regex handles multiple scenarios
+                            cleaned = cleaned
+                              .replace(/<[^>]*>/g, '')  // Normal tags
+                              .replace(/<[^>]*$/g, '')  // Unclosed tags at end
+                              .replace(/^[^<]*>/g, '')  // Orphaned closing tags at start
+                              .replace(/>[^<]*</g, '><'); // Then remove any remaining < or >
+
+                            // Clean up any remaining angle brackets that might be leftovers
+                            cleaned = cleaned.replace(/[<>]/g, '');
+
+                            return cleaned.trim();
+                          };
+
                           return (
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               {gaps.map((m, i) => {
                                 const rawTokens = (m[1] || '').split(separator).map(s => s.trim()).filter(Boolean);
-
-                                // Clean tokens: remove * and HTML entities like &nbsp;
-                                const cleanToken = (token: string) => {
-                                  return token
-                                    .replace(/\*/g, '')  // Remove asterisks
-                                    .replace(/&nbsp;/g, ' ')  // Replace &nbsp; with space
-                                    .trim();
-                                };
 
                                 // Find correct answer: if any token has *, use it; otherwise use first
                                 let correctIndex = 0;
@@ -1380,21 +1403,23 @@ export default function QuizLessonEditor({
                                   correctIndex = markedIndex;
                                 }
 
-                                const tokens = rawTokens.map(cleanToken);
+                                const tokens = rawTokens.map(cleanText);
                                 const correct = tokens[correctIndex] || tokens[0];
-                                const others = tokens.filter((_, idx) => idx !== correctIndex);
+                                // Filter out empty options
+                                const others = tokens.filter((_, idx) => idx !== correctIndex).filter(o => o && o.trim());
 
                                 return (
-                                  <div key={i} className="flex items-start gap-2">
-                                    <span className="text-gray-600 font-medium">#{i + 1}:</span>
+                                  <div key={i} className="flex items-start gap-2 pb-2 border-b border-gray-200 last:border-0">
+                                    <span className="text-gray-600 font-medium min-w-[3rem]">#{i + 1}:</span>
                                     <div className="flex-1">
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-800 rounded font-semibold">
-                                        ✓ {correct}
-                                      </span>
+                                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded font-semibold text-sm">
+                                        ✓ {correct || '(empty)'}
+                                      </div>
                                       {others.length > 0 && (
-                                        <div className="mt-1 text-xs text-gray-600">
-                                          Others: {others.map((o, idx) => (
-                                            <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-200 rounded mr-1">
+                                        <div className="mt-1.5 flex flex-wrap gap-1">
+                                          <span className="text-xs text-gray-500 mr-1">Others:</span>
+                                          {others.map((o, idx) => (
+                                            <span key={idx} className="inline-flex items-center px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded text-xs">
                                               {o}
                                             </span>
                                           ))}
