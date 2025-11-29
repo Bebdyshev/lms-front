@@ -81,8 +81,6 @@ interface LessonSidebarProps {
 
 const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: LessonSidebarProps) => {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-  const [moduleLectures, setModuleLectures] = useState<Map<string, Lesson[]>>(new Map());
-  const [stepsProgress, setStepsProgress] = useState<Map<string, StepProgress[]>>(new Map());
 
   // Update expanded modules when modules are loaded
   useEffect(() => {
@@ -93,77 +91,17 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
 
   // Auto-expand module containing current lesson
   useEffect(() => {
-    if (selectedLessonId && modules.length > 0 && moduleLectures.size > 0) {
+    if (selectedLessonId && modules.length > 0) {
       // Find which module contains the current lesson
-      for (const [moduleId, lessons] of moduleLectures.entries()) {
-        const hasCurrentLesson = lessons.some(lesson => lesson.id === selectedLessonId);
+      for (const module of modules) {
+        const hasCurrentLesson = module.lessons?.some(lesson => lesson.id.toString() === selectedLessonId);
         if (hasCurrentLesson) {
-          setExpandedModules(prev => new Set([...prev, moduleId]));
+          setExpandedModules(prev => new Set([...prev, module.id.toString()]));
           break;
         }
       }
     }
-  }, [selectedLessonId, modules, moduleLectures]);
-
-  // Load lectures for all modules on component mount
-  useEffect(() => {
-    const loadAllLectures = async () => {
-      try {
-        console.log('Loading lessons for course:', course?.id);
-        // Use optimized endpoint to get all lessons for the course
-        const allLessons = await apiClient.getCourseLessons(course?.id || '');
-        console.log('Loaded lessons:', allLessons);
-
-        // Group lessons by module
-        const lecturesMap = new Map<string, Lesson[]>();
-        for (const lesson of allLessons) {
-          const moduleId = lesson.module_id.toString();
-          if (!lecturesMap.has(moduleId)) {
-            lecturesMap.set(moduleId, []);
-          }
-          lecturesMap.get(moduleId)!.push(lesson);
-        }
-
-        console.log('Grouped lessons by module:', lecturesMap);
-        setModuleLectures(lecturesMap);
-      } catch (error) {
-        console.error('Failed to load course lessons:', error);
-      }
-    };
-
-    if (modules.length > 0 && course?.id) {
-      loadAllLectures();
-    }
-  }, [modules, course?.id]);
-
-  // Load steps progress for all lessons
-  useEffect(() => {
-    const loadStepsProgress = async () => {
-      try {
-        const progressMap = new Map<string, StepProgress[]>();
-
-        for (const [, lessons] of moduleLectures.entries()) {
-          for (const lesson of lessons) {
-            try {
-              const progress = await apiClient.getLessonStepsProgress(lesson.id.toString());
-              progressMap.set(lesson.id.toString(), progress);
-            } catch (error) {
-              console.error(`Failed to load progress for lesson ${lesson.id}:`, error);
-              progressMap.set(lesson.id.toString(), []);
-            }
-          }
-        }
-
-        setStepsProgress(progressMap);
-      } catch (error) {
-        console.error('Failed to load steps progress:', error);
-      }
-    };
-
-    if (moduleLectures.size > 0) {
-      loadStepsProgress();
-    }
-  }, [moduleLectures]);
+  }, [selectedLessonId, modules]);
 
   const toggleModuleExpanded = (moduleId: string) => {
     const newExpanded = new Set(expandedModules);
@@ -173,6 +111,22 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
       newExpanded.add(moduleId);
     }
     setExpandedModules(newExpanded);
+  };
+
+  // Calculate total progress for the course based on modules data
+  const calculateTotalProgress = () => {
+    if (!modules.length) return 0;
+
+    let totalLessons = 0;
+    let completedLessons = 0;
+
+    modules.forEach(module => {
+      const lessons = module.lessons || [];
+      totalLessons += lessons.length;
+      completedLessons += lessons.filter(l => l.is_completed).length;
+    });
+
+    return totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
   };
 
   return (
@@ -187,7 +141,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
             <p className="text-xs text-muted-foreground">Lesson navigation</p>
           </div>
         </div>
-        <Progress value={Math.min(100, Math.round(((Array.from(stepsProgress.values()).filter(arr => (arr || []).every(p => p.status === 'completed')).length) / Math.max(1, Array.from(moduleLectures.values()).flat().length)) * 100))} className="h-2" />
+        <Progress value={calculateTotalProgress()} className="h-2" />
       </div>
 
       {/* Modules and Lessons - Scrollable */}
@@ -197,29 +151,21 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
             {modules
               .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
               .map((module, moduleIndex) => {
-                const lectures = moduleLectures.get(module.id.toString()) || [];
+                const lectures = module.lessons || [];
                 const isExpanded = expandedModules.has(module.id.toString());
-                const completedInModule = lectures.filter(l => {
-                  const prog = stepsProgress.get(l.id.toString()) || [];
-                  const total = l.steps?.length || 0;
-                  const done = prog.filter(p => p.status === 'completed').length;
-                  return total > 0 && done >= total;
-                }).length;
+                const completedInModule = lectures.filter(l => l.is_completed).length;
 
                 return (
                   <div key={module.id} className="space-y-1">
                     {/* Module Header */}
                     <button
                       onClick={() => toggleModuleExpanded(module.id.toString())}
-                      className={`w-full justify-between p-4 h-auto rounded-none border-b border-border/50 flex items-center text-left group ${lectures.some(lesson => lesson.id === selectedLessonId)
+                      className={`w-full justify-between p-4 h-auto rounded-none border-b border-border/50 flex items-center text-left group ${lectures.some(lesson => lesson.id.toString() === selectedLessonId)
                         ? 'bg-accent border-l-4 border-l-primary'
                         : 'hover:bg-muted/40'
                         }`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="flex items-center justify-center w-7 h-7 bg-primary text-primary-foreground rounded-full text-xs font-semibold">
-                          {moduleIndex + 1}
-                        </span>
                         <div className="flex flex-col items-start">
                           <span className="text-sm font-medium text-foreground">{module.title}</span>
                           <span className="text-xs text-muted-foreground">{completedInModule}/{lectures.length} lessons</span>
@@ -248,7 +194,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                             return orderA - orderB;
                           })
                           .map((lecture, lectureIndex) => {
-                            const isSelected = selectedLessonId === lecture.id;
+                            const isSelected = selectedLessonId === lecture.id.toString();
                             const getLessonIcon = (steps: Step[] = []) => {
                               // Determine icon based on first step content type
                               if (steps.length > 0) {
@@ -265,7 +211,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                             return (
                               <button
                                 key={lecture.id}
-                                onClick={() => onLessonSelect(lecture.id)}
+                                onClick={() => onLessonSelect(lecture.id.toString())}
                                 className={`w-full justify-start pl-12 pr-4 py-3 h-auto rounded-none border-b border-border/30 flex items-center gap-3 text-left text-sm ${isSelected ? 'bg-accent border-l-4 border-l-primary' : 'hover:bg-muted/60'
                                   }`}
                               >
@@ -273,16 +219,10 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                                   {getLessonIcon(lecture.steps || [])}
                                 </div>
                                 <div className="flex items-center justify-between w-full min-w-0">
-                                  <span className="truncate">{moduleIndex + 1}.{lectureIndex + 1} {lecture.title}</span>
-                                  {(() => {
-                                    const lessonProgress = stepsProgress.get(lecture.id.toString()) || [];
-                                    const completedSteps = lessonProgress.filter(p => p.status === 'completed').length;
-                                    const totalSteps = lecture.steps?.length || 0;
-                                    const done = totalSteps > 0 && completedSteps >= totalSteps;
-                                    return done ? (
-                                      <span className="ml-2 h-5 px-2 inline-flex items-center rounded bg-accent text-primary border border-primary/20 text-[10px]">✓</span>
-                                    ) : null;
-                                  })()}
+                                  <span className="truncate">{lecture.title}</span>
+                                  {lecture.is_completed ? (
+                                    <span className="ml-2 h-5 px-2 inline-flex items-center rounded bg-accent text-primary border border-primary/20 text-[10px]">✓</span>
+                                  ) : null}
                                 </div>
                               </button>
                             );
@@ -309,7 +249,8 @@ export default function LessonPage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isCourseLoading, setIsCourseLoading] = useState(true);
+  const [isLessonLoading, setIsLessonLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
@@ -327,11 +268,47 @@ export default function LessonPage() {
   const [feedChecked, setFeedChecked] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
 
+  // Load Course Data (Sidebar structure) - Only when courseId changes
   useEffect(() => {
-    if (courseId && lessonId) {
-      loadData();
+    if (courseId) {
+      loadCourseData();
     }
-  }, [courseId, lessonId]);
+  }, [courseId]);
+
+  // Load Lesson Data (Content) - When lessonId changes
+  useEffect(() => {
+    if (lessonId) {
+      loadLessonData();
+    }
+  }, [lessonId]);
+
+  // Calculate next lesson when lesson or modules change
+  useEffect(() => {
+    if (lesson && modules.length > 0) {
+      try {
+        const explicitNext = (lesson as any).next_lesson_id;
+        if (explicitNext) {
+          setNextLessonId(String(explicitNext));
+        } else {
+          // Flatten lessons from modules to find next lesson
+          const allLessons = modules
+            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+            .flatMap(m => (m.lessons || []).sort((a, b) => {
+              const orderA = a.order_index || 0;
+              const orderB = b.order_index || 0;
+              if (orderA === orderB) return parseInt(a.id) - parseInt(b.id);
+              return orderA - orderB;
+            }));
+
+          const currentIndex = allLessons.findIndex((l: any) => String(l.id) === String(lesson.id));
+          const next = currentIndex >= 0 && currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
+          setNextLessonId(next ? String(next.id) : null);
+        }
+      } catch (e) {
+        setNextLessonId(null);
+      }
+    }
+  }, [lesson, modules]);
 
   // Sync URL step parameter with currentStepIndex
   useEffect(() => {
@@ -349,43 +326,36 @@ export default function LessonPage() {
     }
   }, [searchParams, steps.length, currentStepIndex]);
 
-  const loadData = async () => {
+  const loadCourseData = async () => {
     try {
-      setIsLoading(true);
+      setIsCourseLoading(true);
+      const [courseData, modulesData] = await Promise.all([
+        apiClient.getCourse(courseId!),
+        apiClient.getCourseModules(courseId!, true)
+      ]);
+      setCourse(courseData);
+      setModules(modulesData);
+    } catch (error) {
+      console.error('Failed to load course data:', error);
+      setError('Failed to load course data');
+    } finally {
+      setIsCourseLoading(false);
+    }
+  };
 
-      // Load lesson with steps
-      const lessonData = await apiClient.getLesson(lessonId!);
+  const loadLessonData = async () => {
+    try {
+      setIsLessonLoading(true);
+
+      const [lessonData, stepsData] = await Promise.all([
+        apiClient.getLesson(lessonId!),
+        apiClient.getLessonSteps(lessonId!)
+      ]);
+
       setLesson(lessonData);
-
-      // Load steps
-      const stepsData = await apiClient.getLessonSteps(lessonId!);
       setSteps(stepsData);
 
-      // Load course
-      const courseData = await apiClient.getCourse(courseId!);
-      setCourse(courseData);
-
-      // Load modules for navigation
-      const modulesData = await apiClient.getCourseModules(courseId!);
-      setModules(modulesData);
-
-      // Resolve next lesson: prefer explicit pointer, else fallback to ordered list
-      try {
-        const allLessons = await apiClient.getCourseLessons(courseId!);
-        const explicitNext = (lessonData as any).next_lesson_id;
-        if (explicitNext) {
-          setNextLessonId(String(explicitNext));
-        } else {
-          const ordered = Array.isArray(allLessons) ? allLessons : [];
-          const currentIndex = ordered.findIndex((l: any) => String(l.id) === String(lessonId));
-          const next = currentIndex >= 0 && currentIndex < ordered.length - 1 ? ordered[currentIndex + 1] : null;
-          setNextLessonId(next ? String(next.id) : null);
-        }
-      } catch (e) {
-        setNextLessonId(null);
-      }
-
-      // Load steps progress
+      // Load steps progress for current lesson
       try {
         const progressData = await apiClient.getLessonStepsProgress(lessonId!);
         setStepsProgress(progressData);
@@ -398,7 +368,7 @@ export default function LessonPage() {
       console.error('Failed to load lesson data:', error);
       setError('Failed to load lesson data');
     } finally {
-      setIsLoading(false);
+      setIsLessonLoading(false);
     }
   };
 
@@ -1068,32 +1038,36 @@ export default function LessonPage() {
     }
   };
 
-  if (isLoading) {
+  if (isCourseLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (error || !lesson) {
+  if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error</h2>
-          <p className="text-gray-600">{error || 'Lesson not found'}</p>
-          <Button onClick={() => navigate(-1)} className="mt-4">
-            Go Back
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Error</h2>
+          <p className="text-muted-foreground">{error}</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry
           </Button>
         </div>
       </div>
     );
   }
 
+  if (!lesson || !course) {
+    return null;
+  }
+
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar (desktop) */}
-      <div className="hidden lg:block">
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Sidebar - Hidden on mobile, visible on desktop */}
+      <div className="hidden md:block">
         <LessonSidebar
           course={course}
           modules={modules}
@@ -1103,125 +1077,142 @@ export default function LessonPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-screen">
         {/* Header */}
-        <Card className="border-0 rounded-none border-b">
-          <CardHeader className="pb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3">
-                {/* Mobile: open lessons sidebar */}
-                <button
-                  className="lg:hidden inline-flex items-center px-3 py-2 border rounded-md text-sm"
-                  onClick={() => setIsMobileSidebarOpen(true)}
-                >
-                  <ChevronRight className="w-4 h-4 mr-2" />
-                  Lessons
-                </button>
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate('/dashboard')}
-                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span>Back to Dashboard</span>
-                </Button>
-                <div className="h-6 w-px bg-border" />
+        <div className="h-16 border-b border-border flex items-center justify-between px-4 md:px-6 bg-card flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMobileSidebarOpen(true)}>
+              <ChevronRight className="w-5 h-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/course/${courseId}`)}>
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <h1 className="font-semibold text-lg truncate max-w-[200px] sm:max-w-md">
+              {lesson.title}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/course/${courseId}`)}>
+              Course Overview
+            </Button>
+          </div>
+        </div>
 
+        {/* Content Scroll Area */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth custom-scrollbar">
+          <div className="max-w-4xl mx-auto pb-20">
+            {isLessonLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               </div>
-              <div className="hidden" />
-            </div>
-          </CardHeader>
-        </Card>
+            ) : (
+              <>
+                {/* Steps Navigation */}
+                <div className="mb-6">
+                  <div className="grid gap-2 [grid-template-columns:repeat(6,minmax(0,1fr))] sm:[grid-template-columns:repeat(10,minmax(0,1fr))] lg:[grid-template-columns:repeat(15,minmax(0,1fr))]">
+                    {steps
+                      .sort((a, b) => a.order_index - b.order_index)
+                      .map((step, index) => {
+                        const isCompleted = isStepCompleted(step);
 
-        {/* Content */}
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
-          <div className="max-w-4xl mx-auto">
-            {/* Steps Navigation */}
-            <div className="mb-6">
-              <div className="grid gap-2 [grid-template-columns:repeat(6,minmax(0,1fr))] sm:[grid-template-columns:repeat(10,minmax(0,1fr))] lg:[grid-template-columns:repeat(15,minmax(0,1fr))]">
-                {steps
-                  .sort((a, b) => a.order_index - b.order_index)
-                  .map((step, index) => {
-                    const isCompleted = isStepCompleted(step);
-
-                    return (
-                      <button
-                        key={step.id}
-                        onClick={() => goToStep(index)}
-                        className={`aspect-square rounded-md text-white p-1 relative shadow-sm hover:shadow-md transition-all cursor-pointer ${currentStepIndex === index
-                          ? 'bg-blue-800 ring-2 ring-blue-400'
-                          : isCompleted
-                            ? 'bg-green-600 hover:bg-green-700'
-                            : 'bg-gray-500 hover:bg-gray-600'
-                          }`}
-                      >
-                        <div className="h-full w-full flex flex-col items-start justify-end">
-                          <div className="absolute top-1 left-1 text-[10px] sm:text-[11px] bg-white/20 rounded px-1 py-0.5">
-                            {step.order_index}
-                          </div>
-                          <div className="flex items-center gap-1 opacity-90">
-                            {getStepIcon(step)}
-                            {isCompleted && (
-                              <CheckCircle className="w-3 h-3 text-white" />
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Step Content */}
-            <Card className="border-0 shadow-none">
-              <CardContent className="p-4 sm:p-6 border-none">
-                {currentStep ? (
-                  <div className="min-h-[300px] sm:min-h-[400px] border-none">
-                    {renderStepContent()}
+                        return (
+                          <button
+                            key={step.id}
+                            onClick={() => goToStep(index)}
+                            className={`aspect-square rounded-md text-white p-1 relative shadow-sm hover:shadow-md transition-all cursor-pointer ${currentStepIndex === index
+                              ? 'bg-blue-800 ring-2 ring-blue-400'
+                              : isCompleted
+                                ? 'bg-green-600 hover:bg-green-700'
+                                : 'bg-gray-500 hover:bg-gray-600'
+                              }`}
+                          >
+                            <div className="h-full w-full flex flex-col items-start justify-end">
+                              <div className="absolute top-1 left-1 text-[10px] sm:text-[11px] bg-white/20 rounded px-1 py-0.5">
+                                {step.order_index}
+                              </div>
+                              <div className="flex items-center gap-1 opacity-90">
+                                {getStepIcon(step)}
+                                {isCompleted && (
+                                  <CheckCircle className="w-3 h-3 text-white" />
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                   </div>
-                ) : (
-                  <div className="text-center py-12 border-none">
-                    <p className="text-gray-500">No steps available for this lesson.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                </div>
 
-            {/* Bottom step navigation */}
-            <div className="mt-6 flex flex-col sm:flex-row gap-2 sm:justify-between items-center">
-              <Button
-                variant="outline"
-                onClick={goToPreviousStep}
-                disabled={currentStepIndex === 0}
-                className="w-full sm:w-auto"
-              >
-                <ChevronLeft className="w-4 h-4 mr-2" />
-                Previous
-              </Button>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground order-[-1] sm:order-none">
-                <span>Step {currentStep?.order_index ?? currentStepIndex + 1} of {steps.length}</span>
-                <span className="hidden sm:inline">•</span>
-                <span>Lesson {lesson.module_id}.{lesson.order_index}</span>
-                {currentStep && !isStepCompleted(currentStep) && (
-                  <>
+                {/* Step Content */}
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="border-b border-border/50 pb-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold flex items-center gap-2">
+                        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm">
+                          {currentStepIndex + 1}
+                        </span>
+                        {currentStep?.title}
+                      </h2>
+                      <div className="flex items-center gap-2">
+                        {currentStep && isStepCompleted(currentStep) && (
+                          <span className="flex items-center text-green-600 text-sm font-medium bg-green-50 px-2 py-1 rounded">
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Completed
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6 border-none">
+                    {currentStep ? (
+                      <div className="min-h-[300px] sm:min-h-[400px] border-none">
+                        {renderStepContent()}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 border-none">
+                        <p className="text-gray-500">No steps available for this lesson.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Bottom step navigation */}
+                <div className="mt-6 flex flex-col sm:flex-row gap-2 sm:justify-between items-center">
+                  <Button
+                    variant="outline"
+                    onClick={goToPreviousStep}
+                    disabled={currentStepIndex === 0}
+                    className="w-full sm:w-auto"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground order-[-1] sm:order-none">
+                    <span>Step {currentStep?.order_index ?? currentStepIndex + 1} of {steps.length}</span>
                     <span className="hidden sm:inline">•</span>
-                    <span className="text-orange-600 font-medium">
-                      {currentStep.content_type === 'video_text' ? 'Video not watched enough' :
-                        currentStep.content_type === 'quiz' ? 'Quiz is not complete' :
-                          'Step is not completed'}
-                    </span>
-                  </>
-                )}
-              </div>
-              <Button
-                onClick={goToNextStep}
-                className="w-full sm:w-auto"
-                disabled={!canProceedToNext()}
-              >
-                {currentStepIndex < steps.length - 1 ? 'Next' : (nextLessonId ? 'Next Lesson' : 'Next')}
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
+                    <span>Lesson {lesson.module_id}.{lesson.order_index}</span>
+                    {currentStep && !isStepCompleted(currentStep) && (
+                      <>
+                        <span className="hidden sm:inline">•</span>
+                        <span className="text-orange-600 font-medium">
+                          {currentStep.content_type === 'video_text' ? 'Video not watched enough' :
+                            currentStep.content_type === 'quiz' ? 'Quiz is not complete' :
+                              'Step is not completed'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    onClick={goToNextStep}
+                    className="w-full sm:w-auto"
+                    disabled={!canProceedToNext()}
+                  >
+                    {currentStepIndex < steps.length - 1 ? 'Next' : (nextLessonId ? 'Next Lesson' : 'Next')}
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
