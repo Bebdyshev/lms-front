@@ -103,6 +103,16 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
     }
   }, [selectedLessonId, modules]);
 
+  // Scroll to active lesson
+  useEffect(() => {
+    if (selectedLessonId && modules.length > 0) {
+      const activeLessonElement = document.getElementById(`lesson-sidebar-${selectedLessonId}`);
+      if (activeLessonElement) {
+        activeLessonElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [selectedLessonId, modules, expandedModules]);
+
   const toggleModuleExpanded = (moduleId: string) => {
     const newExpanded = new Set(expandedModules);
     if (newExpanded.has(moduleId)) {
@@ -211,6 +221,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                             return (
                               <button
                                 key={lecture.id}
+                                id={`lesson-sidebar-${lecture.id}`}
                                 onClick={() => onLessonSelect(lecture.id.toString())}
                                 className={`w-full justify-start pl-12 pr-4 py-3 h-auto rounded-none border-b border-border/30 flex items-center gap-3 text-left text-sm ${isSelected ? 'bg-accent border-l-4 border-l-primary' : 'hover:bg-muted/60'
                                   }`}
