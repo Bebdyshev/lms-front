@@ -1144,25 +1144,7 @@ export default function LessonPage() {
                 </div>
 
                 {/* Step Content */}
-                <Card className="border-none shadow-sm">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold flex items-center gap-2">
-                        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm">
-                          {currentStepIndex + 1}
-                        </span>
-                        {currentStep?.title}
-                      </h2>
-                      <div className="flex items-center gap-2">
-                        {currentStep && isStepCompleted(currentStep) && (
-                          <span className="flex items-center text-green-600 text-sm font-medium bg-green-50 px-2 py-1 rounded">
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Completed
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
+                <Card className="border-none shadow-none">
                   <CardContent className="p-4 sm:p-6 border-none">
                     {currentStep ? (
                       <div className="min-h-[300px] sm:min-h-[400px] border-none">

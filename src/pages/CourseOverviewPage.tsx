@@ -6,10 +6,12 @@ import { ChevronRight, Play, FileText, HelpCircle, Clock, Users, CheckCircle } f
 import apiClient from '../services/api';
 import type { Course, Lesson } from '../types';
 
+import { Progress } from '../components/ui/progress';
+
 export default function CourseOverviewPage() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  
+
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,6 +29,21 @@ export default function CourseOverviewPage() {
     return `${hours} ${hours === 1 ? 'hour' : 'hours'} ${remainingMinutes} minutes`;
   };
 
+  const calculateProgress = () => {
+    if (!modules.length) return 0;
+
+    let totalLessons = 0;
+    let completedLessons = 0;
+
+    modules.forEach(module => {
+      const lessons = module.lessons || [];
+      totalLessons += lessons.length;
+      completedLessons += lessons.filter((l: any) => l.is_completed).length;
+    });
+
+    return totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  };
+
   useEffect(() => {
     if (courseId) {
       loadCourseData();
@@ -36,15 +53,15 @@ export default function CourseOverviewPage() {
   const loadCourseData = async () => {
     try {
       setIsLoading(true);
-      
+
       // Load course details
       const courseData = await apiClient.getCourse(courseId!);
       setCourse(courseData);
-      
+
       // Load modules with lessons
       const modulesData = await apiClient.getCourseModules(courseId!, true);
       setModules(modulesData);
-      
+
     } catch (error) {
       console.error('Failed to load course data:', error);
       setError('Failed to load course data');
@@ -101,10 +118,20 @@ export default function CourseOverviewPage() {
       {/* Course Info (not a header) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+          <div className="w-full">
             <h1 className="text-2xl font-bold text-gray-900">{course.title}</h1>
             <p className="mt-1 text-base text-gray-600">{course.description}</p>
-            <div className="mt-2 flex items-center space-x-4">
+
+            {/* Progress Bar */}
+            <div className="mt-6 max-w-xl">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span className="font-medium">Course Progress</span>
+                <span className="font-medium">{calculateProgress()}%</span>
+              </div>
+              <Progress value={calculateProgress()} className="h-2" />
+            </div>
+
+            <div className="mt-6 flex items-center space-x-4">
               {course.estimated_duration_minutes && course.estimated_duration_minutes > 0 && (
                 <div className="flex items-center space-x-1">
                   <Clock className="w-4 h-4 text-gray-400" />
@@ -157,11 +184,10 @@ export default function CourseOverviewPage() {
                       <button
                         key={lesson.id}
                         onClick={() => handleLessonClick(lesson)}
-                        className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors text-left ${
-                          lesson.is_completed 
-                            ? 'bg-green-50 border-green-200 hover:border-green-300 hover:bg-green-100' 
+                        className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors text-left ${lesson.is_completed
+                            ? 'bg-green-50 border-green-200 hover:border-green-300 hover:bg-green-100'
                             : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center space-x-3">
                           <div className={`flex-shrink-0 ${lesson.is_completed ? 'text-green-600' : 'text-gray-400'}`}>
