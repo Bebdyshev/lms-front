@@ -19,23 +19,56 @@ const extractCorrectAnswersFromGaps = (text: string, separator: string = ','): s
   return gaps.map(match => {
     const rawOptions = match[1].split(separator).map(s => s.trim()).filter(Boolean);
 
-    // Helper to strip HTML tags
-    const stripHTML = (str: string) => str.replace(/<[^>]*>/g, '').trim();
+    // Helper to strip HTML tags and entities - must match FillInBlankRenderer logic exactly
+    const stripHTML = (str: string) => {
+      let cleaned = str;
 
-    // Find option with asterisk (check both raw and stripped versions)
+      // Replace HTML entities first
+      cleaned = cleaned
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+
+      // Remove ALL HTML tags (including broken/partial tags)
+      cleaned = cleaned
+        .replace(/<[^>]*>/g, '')     // Normal tags
+        .replace(/<[^>]*$/g, '')     // Unclosed tags at end
+        .replace(/^[^<]*>/g, '')     // Orphaned closing tags at start
+        .replace(/>[^<]*</g, '><');  // Text between tags
+
+      // Clean up any remaining angle brackets
+      cleaned = cleaned.replace(/[<>]/g, '');
+
+      return cleaned.trim();
+    };
+
+    // Find option with asterisk
     let correctIndex = 0;
-    const markedIndex = rawOptions.findIndex(opt => {
-      // Check if asterisk is in the raw option (might be inside HTML tags)
-      return opt.includes('*');
+    rawOptions.forEach((opt, idx) => {
+      if (opt.includes('*')) {
+        correctIndex = idx;
+      }
     });
 
-    if (markedIndex !== -1) {
-      correctIndex = markedIndex;
+    // Clean options: remove asterisks first, then HTML tags
+    const cleanedOptions = rawOptions.map(opt => stripHTML(opt.replace(/\*/g, '')));
+
+    // Filter out empty options
+    const options = cleanedOptions.filter(opt => opt && opt.trim());
+
+    // Determine correct option using the same logic as renderer
+    let correctOption = cleanedOptions[correctIndex];
+
+    // If the correct option was filtered out (empty), or doesn't exist in options,
+    // default to the first option
+    if (!correctOption || !correctOption.trim() || !options.includes(correctOption)) {
+      correctOption = options[0] || '';
     }
 
-    // Clean the correct option: remove HTML tags and asterisk
-    const correctOption = rawOptions[correctIndex] || rawOptions[0] || '';
-    return stripHTML(correctOption.replace(/\*/g, ''));
+    return correctOption;
   });
 };
 
@@ -692,7 +725,8 @@ export default function LessonPage() {
     }
 
     setCurrentQuestionIndex(0);
-    setQuizAnswers(new Map());
+    // Don't clear answers - keep them for retry/debugging
+    // setQuizAnswers(new Map());
     setQuizStartTime(null);
     setFeedChecked(false);
 
@@ -701,17 +735,17 @@ export default function LessonPage() {
       setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), false)));
     }
 
-    // Re-initialize gap answers
-    const init = new Map<string, string[]>();
-    (questions || []).forEach((q: any) => {
-      if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
-        const text = (q.content_text || q.question_text || '').toString();
-        const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-        const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-        init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
-      }
-    });
-    setGapAnswers(init);
+    // Don't re-initialize gap answers - keep previous answers
+    // const init = new Map<string, string[]>();
+    // (questions || []).forEach((q: any) => {
+    //   if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
+    //     const text = (q.content_text || q.question_text || '').toString();
+    //     const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+    //     const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+    //     init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
+    //   }
+    // });
+    // setGapAnswers(init);
   };
 
   const getCurrentQuestion = () => {

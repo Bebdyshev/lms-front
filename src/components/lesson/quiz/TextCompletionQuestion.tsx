@@ -38,15 +38,6 @@ export const TextCompletionQuestion: React.FC<TextCompletionQuestionProps> = ({
         correctAnswers={correctAnswers}
         showNumbering={question.show_numbering || false}
       />
-      {showResult && (
-        <div className="mt-2 text-sm">
-          {answers.every((val, idx) => (val || '').trim().toLowerCase() === (correctAnswers[idx] || '').toString().trim().toLowerCase()) ? (
-            <span className="text-green-700">All blanks correct</span>
-          ) : (
-            <span className="text-red-700">Some answers are incorrect.</span>
-          )}
-        </div>
-      )}
     </div>
   );
 };
