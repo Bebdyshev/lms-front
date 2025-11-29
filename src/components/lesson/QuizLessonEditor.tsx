@@ -12,6 +12,7 @@ import { renderTextWithLatex } from '../../utils/latex';
 import RichTextEditor from '../RichTextEditor';
 import { Upload, FileText, Image } from 'lucide-react';
 import { FillInBlankRenderer } from './FillInBlankRenderer';
+import { TextCompletionRenderer } from './TextCompletionRenderer';
 
 export interface QuizLessonEditorProps {
   quizTitle: string;
@@ -99,15 +100,15 @@ export default function QuizLessonEditor({
   const parseBulkQuestions = (text: string): { questions: Question[]; errors: string[] } => {
     const errors: string[] = [];
     const questions: Question[] = [];
-    
+
     // Split by question numbers (supports both "1.1 text" and "32. text" formats)
     // Look for number(s), dot, optional number(s), space
     const questionBlocks = text.split(/(?=^\d+\.(?:\d+\s|\s))/m);
-    
+
     for (const block of questionBlocks) {
       const trimmed = block.trim();
       if (!trimmed) continue;
-      
+
       try {
         // Extract question number (e.g., "1.1" or "32")
         // Match: digits, dot, optional digits (for sub-questions like 9.1)
@@ -116,33 +117,33 @@ export default function QuizLessonEditor({
           // Skip blocks without valid question numbers (like headers, instructions, etc.)
           continue;
         }
-        
+
         const questionNumber = numberMatch[2] ? `${numberMatch[1]}.${numberMatch[2]}` : numberMatch[1];
-        
+
         // Split by newlines to extract passage and options
         const lines = trimmed.split('\n');
         const firstLine = lines[0];
-        
+
         // Extract passage text (first line after question number)
         const passageText = firstLine.substring(numberMatch[0].length).trim();
-        
+
         // Extract options (remaining non-empty lines)
         const optionLines = lines.slice(1).filter(line => line.trim() !== '');
-        
+
         if (optionLines.length !== 4) {
           errors.push(`Question ${questionNumber}: Expected 4 options, found ${optionLines.length}`);
           continue;
         }
-        
+
         const options: { id: string; text: string; is_correct: boolean; letter: string }[] = [];
         const letters = ['A', 'B', 'C', 'D'];
         let correctIndex = 0; // Default to A
-        
+
         optionLines.forEach((line, index) => {
           const letter = letters[index];
           // Remove letter prefix if it exists (e.g., "A) option" -> "option")
           let text = line.replace(/^[A-D]\)\s*/, '').trim();
-          
+
           // Check if this option is marked as correct with "+"
           const isCorrect = text.endsWith('+');
           if (isCorrect) {
@@ -150,7 +151,7 @@ export default function QuizLessonEditor({
             correctIndex = index;
             console.log(`Found correct answer: ${letter}) ${text} (index: ${index})`);
           }
-          
+
           options.push({
             id: `${Date.now()}_${letter}_${Math.random()}`,
             text: text,
@@ -158,10 +159,10 @@ export default function QuizLessonEditor({
             letter: letter
           });
         });
-        
+
         // Set the correct answer
         options[correctIndex].is_correct = true;
-        
+
         const question: Question = {
           id: `bulk_${Date.now()}_${questionNumber.replace(/\./g, '_')}`,
           assignment_id: '',
@@ -174,33 +175,33 @@ export default function QuizLessonEditor({
           is_sat_question: true,
           content_text: passageText
         };
-        
+
         questions.push(question);
       } catch (error) {
         errors.push(`Error parsing block: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
-    
+
     return { questions, errors };
   };
 
   const handleBulkUpload = () => {
     setBulkUploadErrors([]);
     const { questions, errors } = parseBulkQuestions(bulkUploadText);
-    
+
     if (errors.length > 0) {
       setBulkUploadErrors(errors);
       return;
     }
-    
+
     if (questions.length === 0) {
       setBulkUploadErrors(['No valid questions found. Please check the format.']);
       return;
     }
-    
+
     // Add all questions to the quiz
     setQuizQuestions([...quizQuestions, ...questions]);
-    
+
     // Close modal and reset
     setShowBulkUploadModal(false);
     setBulkUploadText('');
@@ -210,16 +211,16 @@ export default function QuizLessonEditor({
 
   const validateQuestion = (question: Question): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
-    
+
     // Only validate if the question has been started (has some content)
-    const hasStarted = question.question_text.trim() || 
-                      (question.options && question.options.some(opt => opt.text.trim())) ||
-                      (question.correct_answer && (typeof question.correct_answer === 'string' ? question.correct_answer.trim() : Array.isArray(question.correct_answer) ? question.correct_answer.length > 0 : true));
-    
+    const hasStarted = question.question_text.trim() ||
+      (question.options && question.options.some(opt => opt.text.trim())) ||
+      (question.correct_answer && (typeof question.correct_answer === 'string' ? question.correct_answer.trim() : Array.isArray(question.correct_answer) ? question.correct_answer.length > 0 : true));
+
     if (!hasStarted) {
       return { isValid: true, errors: [] }; // Don't show errors for empty questions
     }
-    
+
     if (!question.question_text.trim()) {
       errors.push('Question text is required');
     }
@@ -273,7 +274,7 @@ export default function QuizLessonEditor({
         errors.push('All options must have text');
       }
     }
-    
+
     return { isValid: errors.length === 0, errors };
   };
 
@@ -327,7 +328,7 @@ export default function QuizLessonEditor({
       correct_answer: correctAnswer,
       order_index: editingQuestionIndex !== null ? draftQuestion.order_index : quizQuestions.length,
     };
-    
+
     if (editingQuestionIndex !== null) {
       // Update existing question
       const updatedQuestions = [...quizQuestions];
@@ -335,9 +336,9 @@ export default function QuizLessonEditor({
       setQuizQuestions(updatedQuestions);
     } else {
       // Add new question
-    setQuizQuestions([...quizQuestions, toSave]);
+      setQuizQuestions([...quizQuestions, toSave]);
     }
-    
+
     setShowQuestionModal(false);
     setDraftQuestion(null);
     setEditingQuestionIndex(null);
@@ -364,7 +365,7 @@ export default function QuizLessonEditor({
       const result = await apiClient.uploadQuestionMedia(file);
       if (result) {
         setQuizMediaUrl(result.file_url);
-        
+
         // Determine file type
         let fileType: 'audio' | 'pdf' | '' = '';
         if (file.type.startsWith('audio/')) {
@@ -375,9 +376,9 @@ export default function QuizLessonEditor({
           // For images, we still use 'pdf' as the media type but it will be rendered as image
           fileType = 'pdf';
         }
-        
+
         setQuizMediaType(fileType);
-        
+
         // Force "all at once" for PDF/image quizzes
         if (fileType === 'pdf' && setQuizDisplayMode) {
           setQuizDisplayMode('all_at_once');
@@ -406,7 +407,7 @@ export default function QuizLessonEditor({
         return;
       }
 
-      
+
       // Convert SAT format to our Question format
       const optionsArray = Array.isArray(result.options) ? result.options : [];
       const correctIndex = optionsArray.findIndex((opt: any) => opt.letter === result.correct_answer);
@@ -430,7 +431,7 @@ export default function QuizLessonEditor({
         is_sat_question: true,
         content_text: result.content_text || ''
       };
-      
+
       setDraftQuestion(satQuestion);
       setEditingQuestionIndex(null);
       setShowSatImageModal(false);
@@ -455,7 +456,7 @@ export default function QuizLessonEditor({
     const handleGlobalPaste = async (event: ClipboardEvent) => {
       // Only handle paste if SAT modal is open
       if (!showSatImageModal) return;
-      
+
       const items = event.clipboardData?.items;
       if (!items) return;
 
@@ -483,13 +484,13 @@ export default function QuizLessonEditor({
     const handleKeyDown = (event: KeyboardEvent) => {
       // Only handle if question modal is open
       if (!showQuestionModal || !draftQuestion) return;
-      
+
       // Cmd+O (Mac) or Ctrl+O (Windows/Linux)
       if ((event.metaKey || event.ctrlKey) && event.key === 'o') {
         event.preventDefault();
         setShowPreviewModal(true);
       }
-      
+
       // Cmd+H (Mac) or Ctrl+H (Windows/Linux) for Help
       if ((event.metaKey || event.ctrlKey) && event.key === 'h') {
         event.preventDefault();
@@ -554,37 +555,33 @@ export default function QuizLessonEditor({
       <div className="space-y-3">
         <Label>Quiz Type</Label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div 
-            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-              quizType === 'regular' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-            }`}
+          <div
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${quizType === 'regular' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
             onClick={() => setQuizType('regular')}
           >
             <div className="font-medium">Regular Quiz</div>
             <div className="text-sm text-gray-600">Standard questions</div>
           </div>
-          <div 
-            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-              quizType === 'text_based' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-            }`}
+          <div
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${quizType === 'text_based' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
             onClick={() => setQuizType('text_based')}
           >
             <div className="font-medium">Text Based</div>
             <div className="text-sm text-gray-600">Questions with text passage</div>
           </div>
-          <div 
-            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-              quizType === 'audio' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-            }`}
+          <div
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${quizType === 'audio' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
             onClick={() => setQuizType('audio')}
           >
             <div className="font-medium">Audio Quiz</div>
             <div className="text-sm text-gray-600">Audio-based questions</div>
           </div>
-          <div 
-            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-              quizType === 'pdf' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-            }`}
+          <div
+            className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${quizType === 'pdf' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
             onClick={() => setQuizType('pdf')}
           >
             <div className="font-medium">Document Quiz</div>
@@ -635,16 +632,16 @@ export default function QuizLessonEditor({
                 </div>
                 <div className="flex gap-2">
                   {quizType === 'audio' && (
-                    <audio 
-                      controls 
+                    <audio
+                      controls
                       src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl}
                       className="max-w-xs"
                     />
                   )}
                   {quizType === 'pdf' && quizMediaType === 'pdf' && (
-                    <a 
-                      href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl} 
-                      target="_blank" 
+                    <a
+                      href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800 text-sm"
                     >
@@ -652,14 +649,14 @@ export default function QuizLessonEditor({
                     </a>
                   )}
                   {quizType === 'pdf' && quizMediaType !== 'pdf' && (
-                    <img 
+                    <img
                       src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizMediaUrl}
                       alt="Quiz reference"
                       className="max-h-20 rounded"
                     />
                   )}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => {
                       setQuizMediaUrl('');
@@ -672,14 +669,14 @@ export default function QuizLessonEditor({
               </div>
             </div>
           ) : (
-            <div 
+            <div
               className="text-center border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors"
               onDrop={async (e) => {
                 e.preventDefault();
                 const file = e.dataTransfer.files?.[0];
                 if (file) {
-                  const isValidType = quizType === 'audio' 
-                    ? file.type.startsWith('audio/') 
+                  const isValidType = quizType === 'audio'
+                    ? file.type.startsWith('audio/')
                     : file.type === 'application/pdf' || file.type.startsWith('image/');
                   if (isValidType) {
                     await uploadQuizMedia(file);
@@ -693,7 +690,7 @@ export default function QuizLessonEditor({
             >
               <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
               <div className="text-sm text-gray-600 mb-2">
-                {quizType === 'audio' 
+                {quizType === 'audio'
                   ? 'Drag & drop or click to upload audio file (MP3, WAV, etc.)'
                   : 'Drag & drop or click to upload PDF or image (JPG, PNG, etc.)'
                 }
@@ -738,16 +735,14 @@ export default function QuizLessonEditor({
         <div className="space-y-2">
           <Label>Display Mode</Label>
           <div className="grid grid-cols-2 gap-3">
-            <div 
-              className={`p-3 border-2 rounded-lg transition-colors ${
-                quizType === 'pdf' 
-                  ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-100' 
-                  : `cursor-pointer ${
-                      quizDisplayMode === 'one_by_one' 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`
-              }`}
+            <div
+              className={`p-3 border-2 rounded-lg transition-colors ${quizType === 'pdf'
+                ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-100'
+                : `cursor-pointer ${quizDisplayMode === 'one_by_one'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300'
+                }`
+                }`}
               onClick={() => {
                 if (quizType !== 'pdf' && quizType !== 'audio') {
                   setQuizDisplayMode('one_by_one');
@@ -765,13 +760,12 @@ export default function QuizLessonEditor({
                 </div>
               </div>
             </div>
-            
-            <div 
-              className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                quizDisplayMode === 'all_at_once' 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
+
+            <div
+              className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${quizDisplayMode === 'all_at_once'
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
+                }`}
               onClick={() => setQuizDisplayMode('all_at_once')}
             >
               <div className="flex items-center gap-2">
@@ -793,56 +787,56 @@ export default function QuizLessonEditor({
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium text-gray-900">Questions</h3>
           <div className="flex gap-2">
-                <Button onClick={() => setShowBulkUploadModal(true)} variant="outline">Bulk Upload</Button>
-                <Button onClick={() => setShowSatImageModal(true)} variant="outline">Analyze SAT Image</Button>
-                <Button onClick={openAddQuestion} variant="default">Add Question</Button>
+            <Button onClick={() => setShowBulkUploadModal(true)} variant="outline">Bulk Upload</Button>
+            <Button onClick={() => setShowSatImageModal(true)} variant="outline">Analyze SAT Image</Button>
+            <Button onClick={openAddQuestion} variant="default">Add Question</Button>
           </div>
         </div>
 
         <div className="space-y-8">
           {quizQuestions.map((q, idx) => {
             const validation = getQuestionValidationStatus(q);
-              return (
+            return (
               <div key={q.id} className={`p-4 rounded-lg border bg-white space-y-4 ${!validation.isValid ? 'border-red-200' : ''}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                     <div className="text-sm text-gray-500">Question {idx + 1}</div>
-                      {!validation.isValid && (
-                        <div className="text-sm text-red-600">
-                          {validation.errors.join(', ')}
-                        </div>
-                      )}
-                    </div>
+                    {!validation.isValid && (
+                      <div className="text-sm text-red-600">
+                        {validation.errors.join(', ')}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex gap-2">
-                    <Button 
-                      onClick={() => openEditQuestion(idx)} 
-                      variant="outline" 
+                    <Button
+                      onClick={() => openEditQuestion(idx)}
+                      variant="outline"
                       size="sm"
                     >
                       Edit
                     </Button>
-                    <Button 
-                      onClick={() => removeQuestion(idx)} 
-                      variant="destructive" 
+                    <Button
+                      onClick={() => removeQuestion(idx)}
+                      variant="destructive"
                       size="sm"
                     >
                       Remove
                     </Button>
                   </div>
                 </div>
-                
+
                 {/* Brief question summary */}
                 <div className="space-y-2">
                   <div className="text-sm text-gray-700">
                     <span className="font-medium">Type:</span> {
                       q.question_type === 'single_choice' ? 'Single Choice' :
-                      q.question_type === 'multiple_choice' ? 'Multiple Choice' :
-                      q.question_type === 'short_answer' ? 'Short Answer' :
-                      q.question_type === 'fill_blank' ? 'Fill in the Blank' :
-                      q.question_type === 'text_completion' ? 'Text Completion' :
-                      q.question_type === 'long_text' ? 'Long Text Answer' :
-                      q.question_type === 'media_question' ? 'Media Question' :
-                      q.question_type
+                        q.question_type === 'multiple_choice' ? 'Multiple Choice' :
+                          q.question_type === 'short_answer' ? 'Short Answer' :
+                            q.question_type === 'fill_blank' ? 'Fill in the Blank' :
+                              q.question_type === 'text_completion' ? 'Text Completion' :
+                                q.question_type === 'long_text' ? 'Long Text Answer' :
+                                  q.question_type === 'media_question' ? 'Media Question' :
+                                    q.question_type
                     }
                   </div>
                   <div className="text-sm text-gray-700 line-clamp-2">
@@ -862,7 +856,7 @@ export default function QuizLessonEditor({
               </div>
             );
           })}
-          </div>
+        </div>
 
         {quizQuestions.length === 0 && (
           <Card>
@@ -878,7 +872,7 @@ export default function QuizLessonEditor({
         <div className="fixed inset-0 z-[1000]">
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative z-[1001] flex items-center justify-center min-h-screen">
-            <div 
+            <div
               className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl"
               onKeyDown={(e) => e.stopPropagation()}
               onKeyUp={(e) => e.stopPropagation()}
@@ -890,9 +884,9 @@ export default function QuizLessonEditor({
                 </h3>
                 <div className="flex gap-2">
                   <div className="flex flex-col items-center">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setShowPreviewModal(true)}
                       className="text-green-600 hover:text-green-700"
                     >
@@ -901,9 +895,9 @@ export default function QuizLessonEditor({
                     <div className="text-xs text-gray-500 mt-1">⌘+O</div>
                   </div>
                   <div className="flex flex-col items-center">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setShowHelpModal(true)}
                       className="text-blue-600 hover:text-blue-700"
                     >
@@ -922,20 +916,36 @@ export default function QuizLessonEditor({
                       <div className="flex items-center justify-between">
                         <Label>Content:</Label>
                         {draftQuestion.question_type === 'text_completion' && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const currentText = draftQuestion.content_text || '';
-                              // Replace all [ ] with [[ ]]
-                              const newText = currentText.replace(/\[([^\]]+)\]/g, '[[$1]]');
-                              applyDraftUpdate({ content_text: newText });
-                            }}
-                            className="text-xs"
-                          >
-                            Convert [ ] to [[ ]]
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const currentText = draftQuestion.content_text || '';
+                                // Replace "1. ", "2. " etc with empty string
+                                const newText = currentText.replace(/\d+\.\s*/g, '');
+                                applyDraftUpdate({ content_text: newText });
+                              }}
+                              className="text-xs"
+                            >
+                              Remove Numbering
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const currentText = draftQuestion.content_text || '';
+                                // Replace all [ ] with [[ ]]
+                                const newText = currentText.replace(/\[([^\]]+)\]/g, '[[$1]]');
+                                applyDraftUpdate({ content_text: newText });
+                              }}
+                              className="text-xs"
+                            >
+                              Convert [ ] to [[ ]]
+                            </Button>
+                          </div>
                         )}
                       </div>
                       <Tabs defaultValue="passage" className="w-full">
@@ -943,7 +953,7 @@ export default function QuizLessonEditor({
                           <TabsTrigger value="passage">Passage</TabsTrigger>
                           <TabsTrigger value="explanation">Explanation</TabsTrigger>
                         </TabsList>
-                        
+
                         <TabsContent value="passage" className="space-y-2">
                           <RichTextEditor
                             value={draftQuestion.content_text || ''}
@@ -954,12 +964,12 @@ export default function QuizLessonEditor({
                                 const gaps = Array.from(value.matchAll(/\[\[(.*?)\]\]/g));
                                 const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
                                 console.log('Extracted answers:', answers); // Debug log
-                                
+
                                 // Use setTimeout to avoid potential race conditions with RichTextEditor
                                 setTimeout(() => {
-                                  applyDraftUpdate({ 
+                                  applyDraftUpdate({
                                     content_text: value,
-                                    correct_answer: answers 
+                                    correct_answer: answers
                                   });
                                 }, 0);
                               } else {
@@ -975,7 +985,7 @@ export default function QuizLessonEditor({
                             </div>
                           )}
                         </TabsContent>
-                        
+
                         <TabsContent value="explanation" className="space-y-2">
                           <RichTextEditor
                             value={draftQuestion.explanation || ''}
@@ -995,7 +1005,7 @@ export default function QuizLessonEditor({
                 )}
 
                 {/* Right side - Question settings and options */}
-              <div className="space-y-4">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Question Text</Label>
                     <Input
@@ -1007,351 +1017,365 @@ export default function QuizLessonEditor({
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Points</Label>
-                    <Input
-                      type="number"
-                      value={draftQuestion.points}
-                      onChange={(e) => applyDraftUpdate({ points: parseInt(e.target.value) || 0 })}
-                      min={1}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Question Type</Label>
-                    <Select
-                      value={draftQuestion.question_type}
-                      onValueChange={(val) => {
-                        const next: any = { ...draftQuestion };
-                        if (val === 'single_choice') {
-                          next.question_type = val;
-                          next.correct_answer = typeof draftQuestion.correct_answer === 'number' ? draftQuestion.correct_answer : 0;
-                          // Ensure options exist for single choice
-                          if (!next.options || next.options.length === 0) {
-                            const ts = Date.now().toString();
-                            next.options = [
-                              { id: ts + '_1', text: '', is_correct: false, letter: 'A' },
-                              { id: ts + '_2', text: '', is_correct: false, letter: 'B' },
-                              { id: ts + '_3', text: '', is_correct: false, letter: 'C' },
-                              { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
-                            ];
-                          }
-                        } else if (val === 'media_question') {
-                          next.question_type = val;
-                          next.correct_answer = typeof draftQuestion.correct_answer === 'number' ? draftQuestion.correct_answer : 0;
-                          // Ensure options exist for media question
-                          if (!next.options || next.options.length === 0) {
-                            const ts = Date.now().toString();
-                            next.options = [
-                              { id: ts + '_1', text: '', is_correct: false, letter: 'A' },
-                              { id: ts + '_2', text: '', is_correct: false, letter: 'B' },
-                              { id: ts + '_3', text: '', is_correct: false, letter: 'C' },
-                              { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
-                            ];
-                          }
-                        } else if (val === 'short_answer') {
-                          next.question_type = 'short_answer';
-                          next.correct_answer = '';
-                          next.options = undefined; // Clear options for short_answer
-                        } else if (val === 'fill_blank') {
-                          next.question_type = 'fill_blank';
-                          next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
-                          next.options = undefined; // Clear options for fill_blank
-                          next.gap_separator = next.gap_separator || ','; // Set default separator
-                        } else if (val === 'text_completion') {
-                          next.question_type = 'text_completion';
-                          next.correct_answer = [];
-                          next.options = undefined; // Clear options for text_completion
-                          // Auto-extract answers if content_text already has gaps
-                          if (next.content_text) {
-                            const gaps = Array.from(next.content_text.matchAll(/\[\[(.*?)\]\]/g));
-                            const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
-                            next.correct_answer = answers;
-                          }
-                        } else if (val === 'long_text') {
-                          next.question_type = 'long_text';
-                          next.correct_answer = '';
-                          next.options = undefined; // Clear options for long_text
-                        }
-                        setDraftQuestion(next);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select question type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="single_choice">Single choice</SelectItem>
-                        <SelectItem value="short_answer">Short answer</SelectItem>
-                        <SelectItem value="fill_blank">Fill in the blank</SelectItem>
-                        <SelectItem value="text_completion">Text completion</SelectItem>
-                        <SelectItem value="long_text">Long text answer</SelectItem>
-                        <SelectItem value="media_question">Media-based question</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-              </div>
-
-              {/* Media Upload for Media Questions */}
-              {draftQuestion.question_type === 'media_question' && (
-                <div className="space-y-2">
-                  <Label>Media Attachment</Label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                    {draftQuestion.media_url ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          {draftQuestion.media_type === 'pdf' ? (
-                            <FileText className="w-5 h-5 text-red-600" />
-                          ) : (
-                            <Image className="w-5 h-5 text-blue-600" />
-                          )}
-                          <span className="text-sm font-medium">Media attached</span>
-                        </div>
-                        {draftQuestion.media_type === 'image' && (
-                          <img 
-                            src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url} 
-                            alt="Question media" 
-                            className="max-w-xs max-h-48 object-contain rounded"
-                          />
-                        )}
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => applyDraftUpdate({ media_url: undefined, media_type: undefined })}
-                        >
-                          Remove Media
-                        </Button>
-                      </div>
-                    ) : (
-                      <div 
-                        className="text-center border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors"
-                        onDrop={async (e) => {
-                          e.preventDefault();
-                          const file = e.dataTransfer.files?.[0];
-                          if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
-                            const result = await uploadQuestionMedia(file);
-                            if (result) {
-                              const mediaType = file.type.startsWith('image/') ? 'image' : 'pdf';
-                              applyDraftUpdate({ 
-                                media_url: result.file_url, 
-                                media_type: mediaType 
-                              });
+                    <div className="space-y-2">
+                      <Label>Points</Label>
+                      <Input
+                        type="number"
+                        value={draftQuestion.points}
+                        onChange={(e) => applyDraftUpdate({ points: parseInt(e.target.value) || 0 })}
+                        min={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Question Type</Label>
+                      <Select
+                        value={draftQuestion.question_type}
+                        onValueChange={(val) => {
+                          const next: any = { ...draftQuestion };
+                          if (val === 'single_choice') {
+                            next.question_type = val;
+                            next.correct_answer = typeof draftQuestion.correct_answer === 'number' ? draftQuestion.correct_answer : 0;
+                            // Ensure options exist for single choice
+                            if (!next.options || next.options.length === 0) {
+                              const ts = Date.now().toString();
+                              next.options = [
+                                { id: ts + '_1', text: '', is_correct: false, letter: 'A' },
+                                { id: ts + '_2', text: '', is_correct: false, letter: 'B' },
+                                { id: ts + '_3', text: '', is_correct: false, letter: 'C' },
+                                { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
+                              ];
                             }
+                          } else if (val === 'media_question') {
+                            next.question_type = val;
+                            next.correct_answer = typeof draftQuestion.correct_answer === 'number' ? draftQuestion.correct_answer : 0;
+                            // Ensure options exist for media question
+                            if (!next.options || next.options.length === 0) {
+                              const ts = Date.now().toString();
+                              next.options = [
+                                { id: ts + '_1', text: '', is_correct: false, letter: 'A' },
+                                { id: ts + '_2', text: '', is_correct: false, letter: 'B' },
+                                { id: ts + '_3', text: '', is_correct: false, letter: 'C' },
+                                { id: ts + '_4', text: '', is_correct: false, letter: 'D' },
+                              ];
+                            }
+                          } else if (val === 'short_answer') {
+                            next.question_type = 'short_answer';
+                            next.correct_answer = '';
+                            next.options = undefined; // Clear options for short_answer
+                          } else if (val === 'fill_blank') {
+                            next.question_type = 'fill_blank';
+                            next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
+                            next.options = undefined; // Clear options for fill_blank
+                            next.gap_separator = next.gap_separator || ','; // Set default separator
+                          } else if (val === 'text_completion') {
+                            next.question_type = 'text_completion';
+                            next.correct_answer = [];
+                            next.options = undefined; // Clear options for text_completion
+                            // Auto-extract answers if content_text already has gaps
+                            if (next.content_text) {
+                              const gaps = Array.from(next.content_text.matchAll(/\[\[(.*?)\]\]/g));
+                              const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
+                              next.correct_answer = answers;
+                            }
+                          } else if (val === 'long_text') {
+                            next.question_type = 'long_text';
+                            next.correct_answer = '';
+                            next.options = undefined; // Clear options for long_text
                           }
+                          setDraftQuestion(next);
                         }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDragEnter={(e) => e.preventDefault()}
                       >
-                        <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                        <div className="text-sm text-gray-600 mb-2">
-                          Drag & drop or click to upload PDF or image
-                        </div>
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const result = await uploadQuestionMedia(file);
-                              if (result) {
-                                const mediaType = file.type.startsWith('image/') ? 'image' : 'pdf';
-                                applyDraftUpdate({ 
-                                  media_url: result.file_url, 
-                                  media_type: mediaType 
-                                });
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select question type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single_choice">Single choice</SelectItem>
+                          <SelectItem value="short_answer">Short answer</SelectItem>
+                          <SelectItem value="fill_blank">Fill in the blank</SelectItem>
+                          <SelectItem value="text_completion">Text completion</SelectItem>
+                          <SelectItem value="long_text">Long text answer</SelectItem>
+                          <SelectItem value="media_question">Media-based question</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Media Upload for Media Questions */}
+                  {draftQuestion.question_type === 'media_question' && (
+                    <div className="space-y-2">
+                      <Label>Media Attachment</Label>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                        {draftQuestion.media_url ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              {draftQuestion.media_type === 'pdf' ? (
+                                <FileText className="w-5 h-5 text-red-600" />
+                              ) : (
+                                <Image className="w-5 h-5 text-blue-600" />
+                              )}
+                              <span className="text-sm font-medium">Media attached</span>
+                            </div>
+                            {draftQuestion.media_type === 'image' && (
+                              <img
+                                src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url}
+                                alt="Question media"
+                                className="max-w-xs max-h-48 object-contain rounded"
+                              />
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => applyDraftUpdate({ media_url: undefined, media_type: undefined })}
+                            >
+                              Remove Media
+                            </Button>
+                          </div>
+                        ) : (
+                          <div
+                            className="text-center border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors"
+                            onDrop={async (e) => {
+                              e.preventDefault();
+                              const file = e.dataTransfer.files?.[0];
+                              if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
+                                const result = await uploadQuestionMedia(file);
+                                if (result) {
+                                  const mediaType = file.type.startsWith('image/') ? 'image' : 'pdf';
+                                  applyDraftUpdate({
+                                    media_url: result.file_url,
+                                    media_type: mediaType
+                                  });
+                                }
                               }
-                            }
-                          }}
-                          className="hidden"
-                          id={`media-upload-${draftQuestion?.id || 'new'}`}
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDragEnter={(e) => e.preventDefault()}
+                          >
+                            <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                            <div className="text-sm text-gray-600 mb-2">
+                              Drag & drop or click to upload PDF or image
+                            </div>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const result = await uploadQuestionMedia(file);
+                                  if (result) {
+                                    const mediaType = file.type.startsWith('image/') ? 'image' : 'pdf';
+                                    applyDraftUpdate({
+                                      media_url: result.file_url,
+                                      media_type: mediaType
+                                    });
+                                  }
+                                }
+                              }}
+                              className="hidden"
+                              id={`media-upload-${draftQuestion?.id || 'new'}`}
+                            />
+                            <label htmlFor={`media-upload-${draftQuestion?.id || 'new'}`} className="cursor-pointer">
+                              <Button variant="outline" size="sm" disabled={isUploadingMedia} asChild>
+                                <span>
+                                  {isUploadingMedia ? 'Uploading...' : 'Choose File'}
+                                </span>
+                              </Button>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Short Answer Configuration */}
+                  {draftQuestion.question_type === 'short_answer' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="correct-answer">Correct Answer</Label>
+                      <Input
+                        id="correct-answer"
+                        type="text"
+                        value={draftQuestion.correct_answer || ''}
+                        onChange={(e) => applyDraftUpdate({ correct_answer: e.target.value })}
+                        placeholder="Enter the correct answer"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Students will need to type this exact answer (case-insensitive matching)
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Text Completion Configuration */}
+                  {draftQuestion.question_type === 'text_completion' && (
+                    <div className="space-y-2">
+                      <Label>Gap Answers</Label>
+                      <p className="text-xs text-gray-500">
+                        Add gaps in the Passage above using [[answer]] format. Example: "The capital of France is [[Paris]]."
+                      </p>
+
+                      {/* Preview with detected gaps */}
+                      {draftQuestion.content_text && (
+                        <div className="space-y-2">
+                          <div className="p-3 bg-gray-50 border rounded-md text-sm">
+                            <div className="font-medium mb-2">Detected Gaps:</div>
+                            {(() => {
+                              const text = (draftQuestion.content_text || '').toString();
+                              const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+                              if (gaps.length === 0) {
+                                return <div className="text-gray-500">No gaps detected. Use [[answer]] format in the Passage above.</div>;
+                              }
+                              return gaps.map((gap, index) => (
+                                <div key={index} className="flex items-center gap-2 mb-2">
+                                  <span className="text-gray-600">Gap {index + 1}:</span>
+                                  <Input
+                                    value={gap[1] || ''}
+                                    onChange={(e) => {
+                                      const text = (draftQuestion.content_text || '').toString();
+                                      const newText = text.replace(
+                                        `[[${gap[1]}]]`,
+                                        `[[${e.target.value}]]`
+                                      );
+                                      applyDraftUpdate({ content_text: newText });
+                                      // Update correct_answer array immediately
+                                      const updatedGaps = Array.from(newText.matchAll(/\[\[(.*?)\]\]/g));
+                                      const answers = updatedGaps.map(match => match[1].trim());
+                                      applyDraftUpdate({ correct_answer: answers });
+                                    }}
+                                    placeholder="Correct answer"
+                                    className="w-32 text-sm"
+                                  />
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Numbering option */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <input
+                          type="checkbox"
+                          id="show-numbering"
+                          checked={draftQuestion.show_numbering || false}
+                          onChange={(e) => applyDraftUpdate({ show_numbering: e.target.checked })}
+                          className="w-4 h-4 cursor-pointer accent-blue-600"
                         />
-                        <label htmlFor={`media-upload-${draftQuestion?.id || 'new'}`} className="cursor-pointer">
-                          <Button variant="outline" size="sm" disabled={isUploadingMedia} asChild>
-                            <span>
-                              {isUploadingMedia ? 'Uploading...' : 'Choose File'}
-                            </span>
-                          </Button>
+                        <label htmlFor="show-numbering" className="text-sm text-gray-700 cursor-pointer">
+                          Show numbering (e.g., "1. [input] 2. [input]")
                         </label>
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                    </div>
+                  )}
 
-              {/* Short Answer Configuration */}
-              {draftQuestion.question_type === 'short_answer' && (
-                <div className="space-y-2">
-                  <Label htmlFor="correct-answer">Correct Answer</Label>
-                  <Input
-                    id="correct-answer"
-                    type="text"
-                    value={draftQuestion.correct_answer || ''}
-                    onChange={(e) => applyDraftUpdate({ correct_answer: e.target.value })}
-                    placeholder="Enter the correct answer"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Students will need to type this exact answer (case-insensitive matching)
-                  </p>
-                </div>
-              )}
-
-              {/* Text Completion Configuration */}
-              {draftQuestion.question_type === 'text_completion' && (
-                <div className="space-y-2">
-                  <Label>Gap Answers</Label>
-                  <p className="text-xs text-gray-500">
-                    Add gaps in the Passage above using [[answer]] format. Example: "The capital of France is [[Paris]]."
-                  </p>
-                  
-                  {/* Preview with detected gaps */}
-                  {draftQuestion.content_text && (
+                  {/* Long Text Answer Configuration */}
+                  {draftQuestion.question_type === 'long_text' && (
                     <div className="space-y-2">
-                      <div className="p-3 bg-gray-50 border rounded-md text-sm">
-                        <div className="font-medium mb-2">Detected Gaps:</div>
-                        {(() => {
-                          const text = (draftQuestion.content_text || '').toString();
-                          const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-                          if (gaps.length === 0) {
-                            return <div className="text-gray-500">No gaps detected. Use [[answer]] format in the Passage above.</div>;
-                          }
-                          return gaps.map((gap, index) => (
-                            <div key={index} className="flex items-center gap-2 mb-2">
-                              <span className="text-gray-600">Gap {index + 1}:</span>
+                      <Label>Answer Configuration</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="expected-length">Expected Length (characters)</Label>
+                          <Input
+                            id="expected-length"
+                            type="number"
+                            value={draftQuestion.expected_length || ''}
+                            onChange={(e) => applyDraftUpdate({ expected_length: parseInt(e.target.value) || undefined })}
+                            placeholder="e.g. 500"
+                            min="1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="keywords">Keywords (comma-separated)</Label>
+                          <Input
+                            id="keywords"
+                            type="text"
+                            value={draftQuestion.keywords?.join(', ') || ''}
+                            onChange={(e) => {
+                              const keywords = e.target.value.split(',').map(k => k.trim()).filter(Boolean);
+                              applyDraftUpdate({ keywords: keywords.length > 0 ? keywords : undefined });
+                            }}
+                            placeholder="keyword1, keyword2, keyword3"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Keywords help with automatic grading. Students' answers will be checked for these terms.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show Options only for single_choice, multiple_choice, and media_question */}
+                  {(draftQuestion.question_type === 'single_choice' ||
+                    draftQuestion.question_type === 'multiple_choice' ||
+                    draftQuestion.question_type === 'media_question') && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>Options (4)</Label>
+                        </div>
+                        <div className="space-y-2">
+                          {(draftQuestion.options || []).slice(0, 4).map((opt, idx) => (
+                            <div key={opt.id} className="flex items-center gap-2 p-2 border rounded-md bg-white">
+                              {draftQuestion.question_type === 'multiple_choice' ? (
+                                <input
+                                  type="checkbox"
+                                  checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
+                                  onChange={(e) => setDraftCorrect(idx, e.target.checked)}
+                                />
+                              ) : (
+                                <input
+                                  type="radio"
+                                  name="draft-correct"
+                                  checked={draftQuestion.correct_answer === idx}
+                                  onChange={() => setDraftCorrect(idx, true)}
+                                />
+                              )}
                               <Input
-                                value={gap[1] || ''}
-                                onChange={(e) => {
-                                  const text = (draftQuestion.content_text || '').toString();
-                                  const newText = text.replace(
-                                    `[[${gap[1]}]]`, 
-                                    `[[${e.target.value}]]`
-                                  );
-                                  applyDraftUpdate({ content_text: newText });
-                                  // Update correct_answer array immediately
-                                  const updatedGaps = Array.from(newText.matchAll(/\[\[(.*?)\]\]/g));
-                                  const answers = updatedGaps.map(match => match[1].trim());
-                                  applyDraftUpdate({ correct_answer: answers });
-                                }}
-                                placeholder="Correct answer"
-                                className="w-32 text-sm"
+                                value={opt.text}
+                                onChange={(e) => updateDraftOptionText(idx, e.target.value)}
+                                placeholder={`Option ${idx + 1}`}
+                                className="flex-1"
                               />
                             </div>
-                          ));
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Show Gaps preview only for fill_blank question type */}
+                  {draftQuestion.question_type === 'fill_blank' && (
+                    <div className="space-y-2">
+                      <Label>Gap Separator</Label>
+                      <Input
+                        type="text"
+                        value={draftQuestion.gap_separator || ','}
+                        onChange={(e) => applyDraftUpdate({ gap_separator: e.target.value || ',' })}
+                        placeholder=","
+                        className="w-24"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Character to separate correct answer from distractors (default: comma)
+                      </p>
+
+                      <Label className="mt-4">Gaps preview</Label>
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
+                        {(() => {
+                          const text = (draftQuestion.content_text || '').toString();
+                          const separator = draftQuestion.gap_separator || ',';
+                          const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+                          if (gaps.length === 0) return <span>No gaps yet. Add [[correct{separator}wrong1{separator}wrong2]] in the passage field.</span>;
+                          return (
+                            <div className="space-y-1">
+                              {gaps.map((m, i) => {
+                                const tokens = (m[1] || '').split(separator).map(s => s.trim()).filter(Boolean);
+                                const correct = tokens[0];
+                                const distractors = tokens.slice(1);
+                                return (
+                                  <div key={i}>#{i + 1}: <b>{correct}</b>{distractors.length ? ` (others: ${distractors.join(', ')})` : ''}</div>
+                                );
+                              })}
+                            </div>
+                          );
                         })()}
                       </div>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Long Text Answer Configuration */}
-              {draftQuestion.question_type === 'long_text' && (
-                <div className="space-y-2">
-                  <Label>Answer Configuration</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="expected-length">Expected Length (characters)</Label>
-                      <Input
-                        id="expected-length"
-                        type="number"
-                        value={draftQuestion.expected_length || ''}
-                        onChange={(e) => applyDraftUpdate({ expected_length: parseInt(e.target.value) || undefined })}
-                        placeholder="e.g. 500"
-                        min="1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="keywords">Keywords (comma-separated)</Label>
-                      <Input
-                        id="keywords"
-                        type="text"
-                        value={draftQuestion.keywords?.join(', ') || ''}
-                        onChange={(e) => {
-                          const keywords = e.target.value.split(',').map(k => k.trim()).filter(Boolean);
-                          applyDraftUpdate({ keywords: keywords.length > 0 ? keywords : undefined });
-                        }}
-                        placeholder="keyword1, keyword2, keyword3"
-                      />
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Keywords help with automatic grading. Students' answers will be checked for these terms.
-                  </div>
-                </div>
-              )}
-
-              {/* Show Options only for single_choice, multiple_choice, and media_question */}
-              {(draftQuestion.question_type === 'single_choice' || 
-                draftQuestion.question_type === 'multiple_choice' || 
-                draftQuestion.question_type === 'media_question') && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Options (4)</Label>
-                  </div>
-                  <div className="space-y-2">
-                    {(draftQuestion.options || []).slice(0,4).map((opt, idx) => (
-                      <div key={opt.id} className="flex items-center gap-2 p-2 border rounded-md bg-white">
-                        {draftQuestion.question_type === 'multiple_choice' ? (
-                          <input
-                            type="checkbox"
-                            checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
-                            onChange={(e) => setDraftCorrect(idx, e.target.checked)}
-                          />
-                        ) : (
-                          <input
-                            type="radio"
-                            name="draft-correct"
-                            checked={draftQuestion.correct_answer === idx}
-                            onChange={() => setDraftCorrect(idx, true)}
-                          />
-                        )}
-                        <Input
-                          value={opt.text}
-                          onChange={(e) => updateDraftOptionText(idx, e.target.value)}
-                          placeholder={`Option ${idx + 1}`}
-                          className="flex-1"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Show Gaps preview only for fill_blank question type */}
-              {draftQuestion.question_type === 'fill_blank' && (
-                <div className="space-y-2">
-                  <Label>Gap Separator</Label>
-                  <Input
-                    type="text"
-                    value={draftQuestion.gap_separator || ','}
-                    onChange={(e) => applyDraftUpdate({ gap_separator: e.target.value || ',' })}
-                    placeholder=","
-                    className="w-24"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Character to separate correct answer from distractors (default: comma)
-                  </p>
-                  
-                  <Label className="mt-4">Gaps preview</Label>
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
-                    {(() => {
-                      const text = (draftQuestion.content_text || '').toString();
-                      const separator = draftQuestion.gap_separator || ',';
-                      const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-                      if (gaps.length === 0) return <span>No gaps yet. Add [[correct{separator}wrong1{separator}wrong2]] in the passage field.</span>;
-                      return (
-                        <div className="space-y-1">
-                          {gaps.map((m, i) => {
-                            const tokens = (m[1]||'').split(separator).map(s => s.trim()).filter(Boolean);
-                            const correct = tokens[0];
-                            const distractors = tokens.slice(1);
-                            return (
-                              <div key={i}>#{i+1}: <b>{correct}</b>{distractors.length ? ` (others: ${distractors.join(', ')})` : ''}</div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
                 </div>
               </div>
 
@@ -1372,7 +1396,7 @@ export default function QuizLessonEditor({
         <div className="fixed inset-0 z-[1000]">
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative z-[1001] flex items-center justify-center min-h-screen p-4">
-            <div 
+            <div
               className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl"
               tabIndex={0}
             >
@@ -1389,11 +1413,11 @@ export default function QuizLessonEditor({
                 <p className="text-sm text-gray-600">
                   Paste your questions in the format below. Each question should be numbered (e.g., 1.1, 2.1) followed by the question text with a blank (___), and then four options labeled A) through D).
                 </p>
-                
+
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
                   <div className="font-medium text-blue-900 mb-2">Example Format:</div>
                   <pre className="text-xs text-gray-700 whitespace-pre-wrap">
-{`1.1 Along with her ___ Coretta Scott King played an important role...
+                    {`1.1 Along with her ___ Coretta Scott King played an important role...
 A) husband Martin Luther King,
 B) husband Martin Luther King;
 C) husband, Martin Luther King,
@@ -1429,8 +1453,8 @@ D) dog, that has undergone obedience training`}
                 )}
 
                 <div className="flex justify-end gap-3">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => {
                       setShowBulkUploadModal(false);
                       setBulkUploadText('');
@@ -1439,7 +1463,7 @@ D) dog, that has undergone obedience training`}
                   >
                     Cancel
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleBulkUpload}
                     disabled={!bulkUploadText.trim()}
                     className="bg-blue-600 hover:bg-blue-700"
@@ -1459,7 +1483,7 @@ D) dog, that has undergone obedience training`}
         <div className="fixed inset-0 z-[1000]">
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative z-[1001] flex items-center justify-center min-h-screen">
-            <div 
+            <div
               className="bg-white rounded-lg w-full max-w-md p-6 space-y-4 shadow-xl"
               tabIndex={0}
             >
@@ -1472,7 +1496,7 @@ D) dog, that has undergone obedience training`}
                 <p className="text-sm text-gray-600">
                   Upload an image of a SAT question to automatically extract the question text, options, and correct answer.
                 </p>
-                
+
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                   <input
                     type="file"
@@ -1542,18 +1566,18 @@ D) dog, that has undergone obedience training`}
                 {draftQuestion.question_type === 'media_question' && draftQuestion.media_url && (
                   <div className="flex items-center justify-center bg-gray-50 p-4 rounded-lg border">
                     {draftQuestion.media_type === 'image' ? (
-                      <img 
-                        src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url} 
-                        alt="Question media" 
+                      <img
+                        src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url}
+                        alt="Question media"
                         className="max-w-full max-h-96 object-contain rounded-lg shadow-sm"
                       />
                     ) : draftQuestion.media_type === 'pdf' ? (
                       <div className="text-center">
                         <FileText className="w-12 h-12 mx-auto text-blue-600 mb-2" />
                         <div className="font-medium text-gray-700">PDF Document</div>
-                        <a 
-                          href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url} 
-                          target="_blank" 
+                        <a
+                          href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + draftQuestion.media_url}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:text-blue-800 text-sm"
                         >
@@ -1576,20 +1600,19 @@ D) dog, that has undergone obedience training`}
                 {(draftQuestion.question_type === 'single_choice' || draftQuestion.question_type === 'multiple_choice' || draftQuestion.question_type === 'media_question') && (
                   <div className="space-y-2">
                     {draftQuestion.options?.map((opt, idx) => {
-                      const isCorrect = draftQuestion.question_type === 'multiple_choice' 
+                      const isCorrect = draftQuestion.question_type === 'multiple_choice'
                         ? Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)
                         : draftQuestion.correct_answer === idx;
-                      
+
                       return (
-                        <label 
-                          key={opt.id || idx} 
-                          className={`flex items-start gap-3 p-4 rounded-lg border-2 transition-colors ${
-                            isCorrect 
-                              ? 'border-green-500 bg-green-50' 
-                              : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
+                        <label
+                          key={opt.id || idx}
+                          className={`flex items-start gap-3 p-4 rounded-lg border-2 transition-colors ${isCorrect
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                            }`}
                         >
-                          <input 
+                          <input
                             type={draftQuestion.question_type === 'multiple_choice' ? 'checkbox' : 'radio'}
                             name="preview-option"
                             className="mt-1"
@@ -1611,10 +1634,10 @@ D) dog, that has undergone obedience training`}
                 {/* Short Answer */}
                 {draftQuestion.question_type === 'short_answer' && (
                   <div className="space-y-2">
-                    <Input 
-                      type="text" 
-                      placeholder="Student's answer will be typed here..." 
-                      disabled 
+                    <Input
+                      type="text"
+                      placeholder="Student's answer will be typed here..."
+                      disabled
                       className="bg-gray-50"
                     />
                     <div className="text-sm text-gray-600 bg-green-50 border border-green-200 rounded p-3">
@@ -1638,31 +1661,13 @@ D) dog, that has undergone obedience training`}
                 {draftQuestion.question_type === 'text_completion' && (
                   <div className="space-y-3">
                     <div className="p-4 rounded-lg border bg-gray-50">
-                      {(() => {
-                        const text = (draftQuestion.content_text || '').toString();
-                        const parts = text.split(/\[\[(.*?)\]\]/g);
-                        let gapIndex = 0;
-                        return (
-                          <div className="flex flex-wrap items-center gap-2 text-gray-800">
-                            {parts.map((part, i) => {
-                              const isGap = i % 2 === 1;
-                              if (!isGap) {
-                                return <span key={i} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(part) }} />;
-                              }
-                              const idxGap = gapIndex++;
-                              return (
-                                <Input 
-                                  key={`completion-gap-${i}`} 
-                                  type="text" 
-                                  placeholder={`Gap ${idxGap + 1}`}
-                                  className="inline-block w-32 border-2 border-blue-400"
-                                  disabled
-                                />
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
+                      <TextCompletionRenderer
+                        text={(draftQuestion.content_text || '').toString()}
+                        disabled={true}
+                        correctAnswers={Array.isArray(draftQuestion.correct_answer) ? draftQuestion.correct_answer : []}
+                        showCorrectAnswers={false}
+                        showNumbering={draftQuestion.show_numbering || false}
+                      />
                     </div>
                     {Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.length > 0 && (
                       <div className="text-sm bg-green-50 border border-green-200 rounded p-3">
@@ -1682,7 +1687,7 @@ D) dog, that has undergone obedience training`}
                 {/* Long Text Answer */}
                 {draftQuestion.question_type === 'long_text' && (
                   <div className="space-y-2">
-                    <textarea 
+                    <textarea
                       rows={6}
                       placeholder="Student's long answer will be typed here..."
                       disabled
@@ -1724,7 +1729,7 @@ D) dog, that has undergone obedience training`}
         <div className="fixed inset-0 z-[1000]">
           <div className="absolute inset-0 bg-black/50" />
           <div className="relative z-[1001] flex items-center justify-center min-h-screen">
-            <div 
+            <div
               className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6 space-y-4 shadow-xl"
             >
               <div className="flex items-center justify-between">
@@ -1738,32 +1743,32 @@ D) dog, that has undergone obedience training`}
                   <p className="text-sm text-gray-600">
                     You can use simple markdown formatting in Question Text and Options fields:
                   </p>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                       <code className="text-sm font-mono bg-white px-2 py-1 rounded border">_text_</code>
                       <span className="text-sm">→</span>
                       <em className="text-sm">italic text</em>
                     </div>
-                    
+
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                       <code className="text-sm font-mono bg-white px-2 py-1 rounded border">**text**</code>
                       <span className="text-sm">→</span>
                       <strong className="text-sm">bold text</strong>
                     </div>
-                    
+
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                       <code className="text-sm font-mono bg-white px-2 py-1 rounded border">__text__</code>
                       <span className="text-sm">→</span>
                       <u className="text-sm">underlined text</u>
                     </div>
-                    
+
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                       <code className="text-sm font-mono bg-white px-2 py-1 rounded border">~~text~~</code>
                       <span className="text-sm">→</span>
                       <del className="text-sm">strikethrough text</del>
                     </div>
-                    
+
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                       <code className="text-sm font-mono bg-white px-2 py-1 rounded border">`text`</code>
                       <span className="text-sm">→</span>
@@ -1777,14 +1782,14 @@ D) dog, that has undergone obedience training`}
                   <p className="text-sm text-gray-600">
                     For mathematical expressions, use LaTeX syntax:
                   </p>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                       <code className="text-sm font-mono bg-white px-2 py-1 rounded border">$x^2$</code>
                       <span className="text-sm">→</span>
                       <span className="text-sm">x² (inline formula)</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
                       <code className="text-sm font-mono bg-white px-2 py-1 rounded border">$$\frac{"{a}"}{"{b}"}$$</code>
                       <span className="text-sm">→</span>

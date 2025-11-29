@@ -354,6 +354,7 @@ export interface Question {
   expected_length?: number; // For long text questions (character count)
   keywords?: string[]; // For auto-grading long text answers
   gap_separator?: string; // Custom separator for fill_blank questions (default: ',')
+  show_numbering?: boolean; // Show numbering before input fields in text_completion (e.g., "1. [input] 2. [input]")
 }
 
 export interface QuizData {
@@ -441,26 +442,26 @@ export interface Assignment {
   updated_at: string;
 }
 
-export type AssignmentType = 
-  | 'single_choice' 
-  | 'multiple_choice' 
+export type AssignmentType =
+  | 'single_choice'
+  | 'multiple_choice'
   | 'picture_choice'
   | 'fill_in_blanks'
   | 'matching'
   | 'matching_text'
   | 'free_text'
   | 'file_upload'
-  | 'quiz' 
-  | 'essay' 
-  | 'coding' 
+  | 'quiz'
+  | 'essay'
+  | 'coding'
   | 'mixed';
 
-export type QuestionType = 
-  | 'single_choice' 
-  | 'multiple_choice' 
-  | 'fill_blank' 
-  | 'matching' 
-  | 'free_text' 
+export type QuestionType =
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'fill_blank'
+  | 'matching'
+  | 'free_text'
   | 'picture_choice'
   | 'file_upload';
 
