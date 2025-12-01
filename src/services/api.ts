@@ -608,6 +608,15 @@ class LMSApiClient {
     }
   }
 
+  async addSummaryStepsToCourse(courseId: string): Promise<{ message: string; added_count: number }> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/add-summary-steps`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to add summary steps');
+    }
+  }
+
   // =============================================================================
   // STEP MANAGEMENT
   // =============================================================================

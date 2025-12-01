@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import CourseSidebar from '../components/CourseSidebar.tsx';
 import type { Course, CourseModule, Lesson, LessonContentType, Group } from '../types';
-import { ChevronDown, ChevronUp, MoreVertical, GripVertical, FileText, Video, HelpCircle, Users, Check, X, Eye } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreVertical, GripVertical, FileText, Video, HelpCircle, Users, Check, X, Eye, Trophy } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -1538,6 +1538,20 @@ export default function CourseBuilderPage() {
     }
   };
 
+  const handleAddSummaries = async () => {
+    if (!courseId) return;
+    if (!window.confirm('This will add a summary step to all lessons that do not have one. Continue?')) return;
+    
+    try {
+      const result = await apiClient.addSummaryStepsToCourse(courseId);
+      alert(result.message);
+      loadCourseData();
+    } catch (error) {
+      console.error('Failed to add summaries:', error);
+      alert('Failed to add summary steps');
+    }
+  };
+
 
 
 
@@ -1573,6 +1587,15 @@ export default function CourseBuilderPage() {
               <p className="text-gray-600 mt-1">Create and organize your course content</p>
             </div>
             <div className="flex items-center space-x-3">
+              <Button
+                onClick={handleAddSummaries}
+                variant="outline"
+                className="flex items-center space-x-2"
+                title="Add summary step to all lessons"
+              >
+                <Trophy className="w-4 h-4" />
+                <span>Add Summaries</span>
+              </Button>
               <Button
                 onClick={() => navigate(`/course/${courseId}`)}
                 variant="outline"

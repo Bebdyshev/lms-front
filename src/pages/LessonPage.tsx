@@ -1273,9 +1273,6 @@ export default function LessonPage() {
                               </div>
                               <div className="flex items-center gap-1 opacity-90">
                                 {getStepIcon(step)}
-                                {isCompleted && (
-                                  <CheckCircle className="w-3 h-3 text-white" />
-                                )}
                               </div>
                             </div>
                           </button>
