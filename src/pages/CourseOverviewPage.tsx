@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronRight, Play, FileText, HelpCircle, Clock, Users, CheckCircle } from 'lucide-react';
+import { ChevronRight, Play, FileText, HelpCircle, Clock, Users, CheckCircle, Lock } from 'lucide-react';
 import apiClient from '../services/api';
 import type { Course, Lesson } from '../types';
 
@@ -87,7 +87,15 @@ export default function CourseOverviewPage() {
     return <FileText className="w-4 h-4" />;
   };
 
-  const handleLessonClick = (lesson: Lesson) => {
+  const handleLessonClick = (lesson: any) => {
+    // Check if lesson is accessible (for sequential progression)
+    const isAccessible = (lesson as any).is_accessible !== false;
+    
+    if (!isAccessible) {
+      alert('Complete previous lessons first to unlock this lesson');
+      return;
+    }
+    
     navigate(`/course/${courseId}/lesson/${lesson.id}`);
   };
 
@@ -180,18 +188,38 @@ export default function CourseOverviewPage() {
               <CardContent>
                 {module.lessons && module.lessons.length > 0 ? (
                   <div className="space-y-3">
-                    {module.lessons.map((lesson: any) => (
+                    {module.lessons.map((lesson: any) => {
+                      const isAccessible = (lesson as any).is_accessible !== false;
+                      
+                      return (
                       <button
                         key={lesson.id}
                         onClick={() => handleLessonClick(lesson)}
-                        className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors text-left ${lesson.is_completed
-                            ? 'bg-green-50 border-green-200 hover:border-green-300 hover:bg-green-100'
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                          }`}
+                        disabled={!isAccessible}
+                        title={!isAccessible ? "Complete previous lessons to unlock" : ""}
+                        className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors text-left ${
+                          !isAccessible
+                            ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-200'
+                            : lesson.is_completed
+                              ? 'bg-green-50 border-green-200 hover:border-green-300 hover:bg-green-100'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
                       >
                         <div className="flex items-center space-x-3">
-                          <div className={`flex-shrink-0 ${lesson.is_completed ? 'text-green-600' : 'text-gray-400'}`}>
-                            {lesson.is_completed ? <CheckCircle className="w-5 h-5" /> : getLessonIcon(lesson)}
+                          <div className={`flex-shrink-0 ${
+                            !isAccessible 
+                              ? 'text-gray-400' 
+                              : lesson.is_completed 
+                                ? 'text-green-600' 
+                                : 'text-gray-400'
+                          }`}>
+                            {!isAccessible ? (
+                              <Lock className="w-5 h-5" />
+                            ) : lesson.is_completed ? (
+                              <CheckCircle className="w-5 h-5" />
+                            ) : (
+                              getLessonIcon(lesson)
+                            )}
                           </div>
                           <div>
                             <h3 className={`font-medium ${lesson.is_completed ? 'text-green-900' : 'text-gray-900'}`}>
@@ -211,7 +239,7 @@ export default function CourseOverviewPage() {
                         </div>
                         <ChevronRight className={`w-4 h-4 ${lesson.is_completed ? 'text-green-400' : 'text-gray-400'}`} />
                       </button>
-                    ))}
+                    )})}
                   </div>
                 ) : (
                   <div className="text-center py-8">

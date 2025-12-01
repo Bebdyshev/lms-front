@@ -480,6 +480,24 @@ export default function LessonPage() {
 
         return updated;
       });
+
+      // Check if all steps in current lesson are now completed
+      // If so, reload modules to update is_accessible for lessons unlocked by redirect
+      const allStepsCompleted = steps.every(step => {
+        if (step.id.toString() === stepId) {
+          return true; // This step is now completed
+        }
+        const stepProgress = stepsProgress.find(p => p.step_id === step.id);
+        return stepProgress?.status === 'completed';
+      });
+
+      console.log('Step completed. All steps done?', allStepsCompleted, 'Lesson has next_lesson_id?', !!lesson?.next_lesson_id);
+
+      if (allStepsCompleted && lesson?.next_lesson_id) {
+        // This lesson has a redirect and is now complete - reload modules to unlock target
+        console.log('Lesson completed with redirect, reloading modules...');
+        loadCourseData();
+      }
     } catch (error) {
       console.error('Failed to mark step as visited:', error);
     }
