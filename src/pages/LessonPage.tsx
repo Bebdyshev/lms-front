@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock, Trophy } from 'lucide-react';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -10,6 +10,7 @@ import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
 import FlashcardViewer from '../components/lesson/FlashcardViewer';
 import QuizRenderer from '../components/lesson/QuizRenderer';
+import SummaryStepRenderer from '../components/lesson/SummaryStepRenderer';
 
 // Utility function to extract correct answers from gap text
 // If an option ends with *, it's the correct answer (without the *)
@@ -213,6 +214,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                                 switch (steps[0].content_type) {
                                   case 'video_text': return <Play className="w-4 h-4" />;
                                   case 'quiz': return <HelpCircle className="w-4 h-4" />;
+                                  case 'summary': return <Trophy className="w-4 h-4" />;
                                   case 'text': return <FileText className="w-4 h-4" />;
                                   default: return <Edit3 className="w-4 h-4" />;
                                 }
@@ -714,6 +716,10 @@ export default function LessonPage() {
         return <Play className="w-4 h-4" />;
       case 'quiz':
         return <HelpCircle className="w-4 h-4" />;
+      case 'flashcard':
+        return <HelpCircle className="w-4 h-4" />; // Using HelpCircle as fallback for BookOpen if not imported, or add BookOpen import
+      case 'summary':
+        return <Trophy className="w-4 h-4" />;
       case 'text':
       default:
         return <FileText className="w-4 h-4" />;
@@ -1158,6 +1164,9 @@ export default function LessonPage() {
           console.error('Failed to parse flashcard data:', error);
           return <div>Error loading flashcards</div>;
         }
+
+      case 'summary':
+        return <SummaryStepRenderer lessonId={lessonId || ''} />;
 
       default:
         return <div>Unsupported content type</div>;

@@ -2050,6 +2050,16 @@ class LMSApiClient {
     }
   }
 
+  async getLessonQuizSummary(lessonId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/progress/lessons/${lessonId}/quiz-summary`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get lesson quiz summary:', error);
+      throw error;
+    }
+  }
+
   async getStepQuizAttempts(stepId: number): Promise<any[]> {
     try {
       const response = await this.api.get(`/progress/quiz-attempts/step/${stepId}`);

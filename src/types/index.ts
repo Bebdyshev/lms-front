@@ -60,13 +60,38 @@ export interface Step {
   id: number;
   lesson_id: number;
   title: string;
-  content_type: 'text' | 'video_text' | 'quiz' | 'flashcard';
+  content_type: 'text' | 'video_text' | 'quiz' | 'flashcard' | 'summary';
   video_url?: string;
   content_text?: string;
   attachments?: string; // JSON string of StepAttachment[]
   order_index: number;
   created_at: string;
   is_completed?: boolean;
+}
+
+// =============================================================================
+// QUIZ SUMMARY TYPES
+// =============================================================================
+
+export interface QuizSummaryItem {
+  step_id: number;
+  quiz_title: string;
+  order_index: number;
+  last_attempt: {
+    score: number;
+    total: number;
+    percentage: number;
+    completed_at: string;
+  } | null;
+}
+
+export interface LessonQuizSummary {
+  quizzes: QuizSummaryItem[];
+  overall_stats: {
+    average_percentage: number;
+    total_questions: number;
+    total_correct: number;
+  };
 }
 
 export interface StepProgress {

@@ -19,7 +19,8 @@ import {
   BookOpen,
   Play,
   Edit3,
-  GripVertical
+  GripVertical,
+  Trophy
 } from 'lucide-react';
 import {
   DndContext,
@@ -593,6 +594,8 @@ const SortableStepItem = ({ step, isSelected, onSelect }: SortableStepItemProps)
         return <HelpCircle className="w-4 h-4" />;
       case 'flashcard':
         return <BookOpen className="w-4 h-4" />;
+      case 'summary':
+        return <Trophy className="w-4 h-4" />;
       case 'text':
       default:
         return <FileText className="w-4 h-4" />;
@@ -672,7 +675,7 @@ export default function LessonEditPage() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
   const [stepTitle, setStepTitle] = useState('');
-  const [stepContentType, setStepContentType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard'>('text');
+ const [stepContentType, setStepContentType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard' | 'summary'>('text');
   const [stepContent, setStepContent] = useState('');
   const [stepVideoUrl, setStepVideoUrl] = useState('');
   const [stepQuizTitle, setStepQuizTitle] = useState('');
@@ -708,7 +711,7 @@ export default function LessonEditPage() {
   const [stepQuizMediaUrl, setStepQuizMediaUrl] = useState<string>('');
   const [stepQuizMediaType, setStepQuizMediaType] = useState<'audio' | 'pdf' | 'text' | ''>('');
   const [showAddStepModal, setShowAddStepModal] = useState(false);
-  const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard'>('text');
+  const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard' | 'summary'>('text');
   
   // State for step switching with unsaved changes
   const [showStepSwitchDialog, setShowStepSwitchDialog] = useState(false);
@@ -1888,6 +1891,25 @@ export default function LessonEditPage() {
                   <div>
                     <h3 className="font-medium">Flashcards</h3>
                     <p className="text-sm text-muted-foreground">Interactive flashcards for vocabulary learning</p>
+                  </div>
+                </div>
+              </div>
+
+              <div 
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                  newStepType === 'summary' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setNewStepType('summary')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <Trophy className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium">Summary</h3>
+                    <p className="text-sm text-muted-foreground">Lesson quiz summary with statistics</p>
                   </div>
                 </div>
               </div>
