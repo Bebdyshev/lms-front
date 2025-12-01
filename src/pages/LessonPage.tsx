@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock } from 'lucide-react';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -205,6 +205,8 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                           })
                           .map((lecture, lectureIndex) => {
                             const isSelected = selectedLessonId === lecture.id.toString();
+                            const isAccessible = (lecture as any).is_accessible !== false; // Default to accessible if not specified
+                            
                             const getLessonIcon = (steps: Step[] = []) => {
                               // Determine icon based on first step content type
                               if (steps.length > 0) {
@@ -222,12 +224,19 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
                               <button
                                 key={lecture.id}
                                 id={`lesson-sidebar-${lecture.id}`}
-                                onClick={() => onLessonSelect(lecture.id.toString())}
-                                className={`w-full justify-start pl-12 pr-4 py-3 h-auto rounded-none border-b border-border/30 flex items-center gap-3 text-left text-sm ${isSelected ? 'bg-accent border-l-4 border-l-primary' : 'hover:bg-muted/60'
+                                onClick={() => isAccessible && onLessonSelect(lecture.id.toString())}
+                                disabled={!isAccessible}
+                                title={!isAccessible ? "Complete previous lessons to unlock" : ""}
+                                className={`w-full justify-start pl-12 pr-4 py-3 h-auto rounded-none border-b border-border/30 flex items-center gap-3 text-left text-sm ${
+                                  isSelected 
+                                    ? 'bg-accent border-l-4 border-l-primary' 
+                                    : isAccessible 
+                                      ? 'hover:bg-muted/60' 
+                                      : 'opacity-50 cursor-not-allowed'
                                   }`}
                               >
                                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50">
-                                  {getLessonIcon(lecture.steps || [])}
+                                  {!isAccessible ? <Lock className="w-4 h-4 text-muted-foreground" /> : getLessonIcon(lecture.steps || [])}
                                 </div>
                                 <div className="flex items-center justify-between w-full min-w-0">
                                   <span className="truncate">{lecture.title}</span>
@@ -357,6 +366,21 @@ export default function LessonPage() {
   const loadLessonData = async () => {
     try {
       setIsLessonLoading(true);
+
+      // Check lesson accessibility for students
+      try {
+        const accessCheck = await apiClient.checkLessonAccess(lessonId!);
+        if (!accessCheck.accessible) {
+          // Lesson is not accessible - show error and redirect
+          setError(accessCheck.reason || 'You cannot access this lesson yet.');
+          alert(accessCheck.reason || 'Please complete previous lessons first.');
+          navigate(`/courses`);
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to check lesson access:', error);
+        // If access check fails, continue loading (fail open for teachers/admins)
+      }
 
       const [lessonData, stepsData] = await Promise.all([
         apiClient.getLesson(lessonId!),
@@ -1268,7 +1292,7 @@ export default function LessonPage() {
                         <span className="hidden sm:inline">•</span>
                         <span className="text-orange-600 font-medium">
                           {currentStep.content_type === 'video_text' ? 'Video not watched enough' :
-                            currentStep.content_type === 'quiz' ? 'Quiz is not complete' :
+                              currentStep.content_type === 'quiz' && !isStepCompleted(currentStep) ? 'Quiz is not complete' :
                               'Step is not completed'}
                         </span>
                       </>

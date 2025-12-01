@@ -563,6 +563,16 @@ class LMSApiClient {
     }
   }
 
+  async checkLessonAccess(lessonId: string): Promise<{ accessible: boolean; reason?: string }> {
+    try {
+      const response = await this.api.get(`/courses/lessons/${lessonId}/check-access`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to check lesson access');
+    }
+  }
+
+
   async getLessonTyped(lessonId: string): Promise<{type: string, data: any}> {
     try {
       const response = await this.api.get(`/courses/lessons/${lessonId}/typed`);
