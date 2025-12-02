@@ -311,7 +311,15 @@ export default function LessonPage() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [feedChecked, setFeedChecked] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('lessonSidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Persist sidebar state
+  useEffect(() => {
+    localStorage.setItem('lessonSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
   // Load Course Data (Sidebar structure) - Only when courseId changes
   useEffect(() => {

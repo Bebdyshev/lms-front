@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { connectSocket } from '../services/socket';
 import apiClient from '../services/api';
@@ -62,6 +62,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
   const [isCoursesExpanded, setIsCoursesExpanded] = useState(false);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   
   useEffect(() => {
     if (!user) return;
@@ -118,6 +119,11 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
   };
 
   const handleCoursesToggle = () => {
+    if (isCollapsed) {
+      // If collapsed, navigate to courses page instead of expanding
+      navigate(user?.role === 'teacher' ? '/teacher/courses' : '/courses');
+      return;
+    }
     setIsCoursesExpanded(!isCoursesExpanded);
     if (!isCoursesExpanded) {
       loadCourses();
