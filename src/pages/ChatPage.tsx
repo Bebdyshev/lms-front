@@ -8,6 +8,7 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Check } from 'lucide-react';
 import { connectSocket } from '../services/socket';
 
 export default function ChatPage() {
@@ -290,7 +291,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-[calc(100vh-160px)] min-h-0">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-[calc(100vh-200px)] min-h-0">
       {/* Список разговоров */}
       <Card className="lg:col-span-4 flex flex-col min-h-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -594,13 +595,20 @@ export default function ChatPage() {
                     >
                       <div className="flex items-start gap-2">
                         <span className="flex-1">{message.content}</span>
-                        <span className={`text-[10px] whitespace-nowrap mt-auto ${
+                        <span className={`text-[10px] whitespace-nowrap mt-auto flex items-center gap-0.5 ${
                           message.from_user_id === activePartnerId ? 'text-gray-500' : 'text-blue-100'
                         }`}>
                           {formatTime(message.created_at)}
                           {message.from_user_id !== activePartnerId && (
-                            <span className="ml-1">
-                              {message.is_read ? '✓✓' : '✓'}
+                            <span className="relative inline-flex items-center text-white">
+                              {message.is_read ? (
+                                <>
+                                  <Check className="w-3 h-3" strokeWidth={2.5} />
+                                  <Check className="w-3 h-3 -ml-1.5" strokeWidth={2.5} />
+                                </>
+                              ) : (
+                                <Check className="w-3 h-3" strokeWidth={2.5} />
+                              )}
                             </span>
                           )}
                         </span>
