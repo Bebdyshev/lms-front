@@ -584,7 +584,7 @@ export default function ChatPage() {
                   key={message.id}
                   className={`flex ${message.from_user_id === activePartnerId ? 'justify-start' : 'justify-end'}`}
                 >
-                  <div className={`max-w-[85%] sm:max-w-[70%] ${message.from_user_id === activePartnerId ? 'order-1' : 'order-2'}`}>
+                  <div className={`max-w-[85%] sm:max-w-[70%]`}>
                     <div
                       className={`px-3 py-2 rounded-xl text-sm ${
                         message.from_user_id === activePartnerId
@@ -592,13 +592,19 @@ export default function ChatPage() {
                           : 'bg-blue-600 text-white'
                       }`}
                     >
-                      {message.content}
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-1">
-                      {formatTime(message.created_at)}
-                      {!message.is_read && message.from_user_id !== activePartnerId && (
-                        <span className="ml-2">✓</span>
-                      )}
+                      <div className="flex items-start gap-2">
+                        <span className="flex-1">{message.content}</span>
+                        <span className={`text-[10px] whitespace-nowrap mt-auto ${
+                          message.from_user_id === activePartnerId ? 'text-gray-500' : 'text-blue-100'
+                        }`}>
+                          {formatTime(message.created_at)}
+                          {message.from_user_id !== activePartnerId && (
+                            <span className="ml-1">
+                              {message.is_read ? '✓✓' : '✓'}
+                            </span>
+                          )}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
