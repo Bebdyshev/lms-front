@@ -65,19 +65,6 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
       <div className="flex items-center gap-3">
         {/* Daily Streak */}
         <StreakIcon />
-        
-        {/* Индикатор сообщений */}
-        <Link to="/chat" className="relative">
-          <button className="w-10 h-10 sm:w-10 sm:h-10 rounded-lg bg-white border flex items-center justify-center hover:bg-gray-50">
-            <Bell className="w-5 h-5" />
-          </button>
-          {unreadCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </Badge>
-          )}
-        </Link>
-        
         <button className="lg:hidden w-10 h-10 rounded-lg bg-white border text-lg" onClick={onOpenSidebar} aria-label="Open menu">☰</button>
       </div>
     </div>

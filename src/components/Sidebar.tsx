@@ -268,7 +268,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
           </button>
           
           {isDropdownOpen && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border rounded-lg shadow-lg py-2 z-10">
+            <div className={`absolute bottom-full ${isCollapsed ? 'left-full ml-2 w-48' : 'left-0 right-0 w-full'} mb-2 bg-white border rounded-lg shadow-lg py-2 z-50`}>
               <NavLink
                 to="/profile"
                 onClick={() => setIsDropdownOpen(false)}
