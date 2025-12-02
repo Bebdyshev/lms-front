@@ -1173,6 +1173,16 @@ class LMSApiClient {
     }
   }
 
+  getTeacherStudentsProgress = async () => {
+    try {
+      const response = await this.api.get('/dashboard/teacher/students-progress');
+      return response.data.students_progress || [];
+    } catch (error) {
+      console.warn('Failed to load students progress:', error);
+      return [];
+    }
+  }
+
 
 
   allowResubmission = async (_submissionId: string): Promise<any> => {
