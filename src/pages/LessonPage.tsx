@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -78,9 +78,11 @@ interface LessonSidebarProps {
   modules: CourseModule[];
   selectedLessonId: string;
   onLessonSelect: (lessonId: string) => void;
+  isCollapsed?: boolean;
+  onToggle?: () => void;
 }
 
-const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: LessonSidebarProps) => {
+const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect, isCollapsed = false, onToggle }: LessonSidebarProps) => {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
   // Update expanded modules when modules are loaded
@@ -141,21 +143,40 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
   };
 
   return (
-    <div className="w-80 bg-card border-r border-border h-screen flex flex-col">
-      <div className="p-6 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course?.cover_image_url || '')} alt={course?.title} className="w-10 h-10 rounded-lg" />
+    <div className={`${isCollapsed ? 'w-0 border-none' : 'w-80 border-r'} bg-card border-border h-screen flex flex-col transition-all duration-300 overflow-hidden`}>
+      <div className={`p-4 border-b border-border flex-shrink-0 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+        {!isCollapsed && (
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+              <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course?.cover_image_url || '')} alt={course?.title} className="w-10 h-10 rounded-lg object-cover" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-semibold truncate text-sm">{course?.title || 'Course'}</h2>
+              <p className="text-xs text-muted-foreground truncate">Lesson navigation</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h2 className="font-semibold truncate">{course?.title || 'Course'}</h2>
-            <p className="text-xs text-muted-foreground">Lesson navigation</p>
-          </div>
-        </div>
-        <Progress value={calculateTotalProgress()} className="h-2" />
+        )}
+        {isCollapsed && (
+           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center flex-shrink-0 mb-2">
+              <img src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + (course?.cover_image_url || '')} alt={course?.title} className="w-10 h-10 rounded-lg object-cover" />
+           </div>
+        )}
+        
+        {onToggle && !isCollapsed && (
+          <Button variant="ghost" size="icon" onClick={onToggle} title="Collapse Sidebar">
+            <PanelLeftClose className="w-4 h-4" />
+          </Button>
+        )}
       </div>
+      
+      {!isCollapsed && (
+        <div className="px-6 pb-4 pt-2">
+           <Progress value={calculateTotalProgress()} className="h-2" />
+        </div>
+      )}
 
       {/* Modules and Lessons - Scrollable */}
+      {!isCollapsed && (
       <div className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
         <div className="p-2">
           <div className="space-y-1">
@@ -257,6 +278,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect }: Le
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
@@ -289,6 +311,7 @@ export default function LessonPage() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [feedChecked, setFeedChecked] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Load Course Data (Sidebar structure) - Only when courseId changes
   useEffect(() => {
@@ -1214,6 +1237,8 @@ export default function LessonPage() {
           modules={modules}
           selectedLessonId={lessonId!}
           onLessonSelect={handleLessonSelect}
+          isCollapsed={isSidebarCollapsed}
+          onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
       </div>
 
@@ -1225,7 +1250,12 @@ export default function LessonPage() {
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMobileSidebarOpen(true)}>
               <ChevronRight className="w-5 h-5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => navigate(`/course/${courseId}`)}>
+            {isSidebarCollapsed && (
+              <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => setIsSidebarCollapsed(false)} title="Expand Sidebar">
+                <PanelLeftOpen className="w-5 h-5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/course/${courseId}`)} title="Back to Course">
               <ChevronLeft className="w-5 h-5" />
             </Button>
             <h1 className="font-semibold text-lg truncate max-w-[200px] sm:max-w-md">
