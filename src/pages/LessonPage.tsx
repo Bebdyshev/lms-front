@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -379,20 +379,35 @@ export default function LessonPage() {
     }
   }, [searchParams, steps.length, currentStepIndex]);
 
-  const loadCourseData = async () => {
+  const loadCourseData = async (showLoader = true) => {
     try {
-      setIsCourseLoading(true);
-      const [courseData, modulesData] = await Promise.all([
-        apiClient.getCourse(courseId!),
-        apiClient.getCourseModules(courseId!, true)
-      ]);
-      setCourse(courseData);
+      if (showLoader) {
+        setIsCourseLoading(true);
+      }
+      
+      const promises: Promise<any>[] = [apiClient.getCourseModules(courseId!, true)];
+      
+      // Only fetch course info if we don't have it yet
+      if (!course) {
+        promises.push(apiClient.getCourse(courseId!));
+      }
+      
+      const results = await Promise.all(promises);
+      const modulesData = results[0];
+      
+      // If we fetched course data, update it
+      if (results[1]) {
+        setCourse(results[1]);
+      }
+      
       setModules(modulesData);
     } catch (error) {
       console.error('Failed to load course data:', error);
       setError('Failed to load course data');
     } finally {
-      setIsCourseLoading(false);
+      if (showLoader) {
+        setIsCourseLoading(false);
+      }
     }
   };
 
@@ -400,37 +415,46 @@ export default function LessonPage() {
     try {
       setIsLessonLoading(true);
 
-      // Check lesson accessibility for students
-      try {
-        const accessCheck = await apiClient.checkLessonAccess(lessonId!);
-        if (!accessCheck.accessible) {
-          // Lesson is not accessible - show error and redirect
-          setError(accessCheck.reason || 'You cannot access this lesson yet.');
-          alert(accessCheck.reason || 'Please complete previous lessons first.');
-          navigate(`/courses`);
-          return;
+      // Optimization: Check access using locally available modules data first
+      // This saves a network request if we already know the status
+      let isLocallyVerified = false;
+      if (modules.length > 0) {
+        const foundLesson = modules.flatMap(m => m.lessons || []).find(l => l.id.toString() === lessonId);
+        if (foundLesson && (foundLesson as any).is_accessible) {
+          isLocallyVerified = true;
         }
-      } catch (error) {
-        console.error('Failed to check lesson access:', error);
-        // If access check fails, continue loading (fail open for teachers/admins)
       }
 
-      const [lessonData, stepsData] = await Promise.all([
+      // Prepare promises for parallel execution
+      const promises: Promise<any>[] = [
         apiClient.getLesson(lessonId!),
-        apiClient.getLessonSteps(lessonId!)
-      ]);
+        apiClient.getLessonSteps(lessonId!),
+        apiClient.getLessonStepsProgress(lessonId!)
+      ];
+
+      // Only add access check if not locally verified
+      if (!isLocallyVerified) {
+        promises.push(apiClient.checkLessonAccess(lessonId!));
+      }
+
+      const results = await Promise.all(promises);
+      
+      const lessonData = results[0];
+      const stepsData = results[1];
+      const progressData = results[2];
+      const accessCheck = isLocallyVerified ? { accessible: true } : results[3];
+
+      // Handle access check result
+      if (!accessCheck.accessible) {
+        setError(accessCheck.reason || 'You cannot access this lesson yet.');
+        alert(accessCheck.reason || 'Please complete previous lessons first.');
+        navigate(`/courses`);
+        return;
+      }
 
       setLesson(lessonData);
       setSteps(stepsData);
-
-      // Load steps progress for current lesson
-      try {
-        const progressData = await apiClient.getLessonStepsProgress(lessonId!);
-        setStepsProgress(progressData);
-      } catch (error) {
-        console.error('Failed to load steps progress:', error);
-        setStepsProgress([]);
-      }
+      setStepsProgress(progressData || []);
 
     } catch (error) {
       console.error('Failed to load lesson data:', error);
@@ -480,6 +504,12 @@ export default function LessonPage() {
   };
 
   const markStepAsVisited = async (stepId: string, timeSpent: number = 1) => {
+    // Check if already completed locally to avoid redundant requests
+    const existingProgress = stepsProgress.find(p => p.step_id === parseInt(stepId));
+    if (existingProgress?.status === 'completed') {
+      return;
+    }
+
     try {
       await apiClient.markStepVisited(stepId, timeSpent);
 
@@ -526,11 +556,11 @@ export default function LessonPage() {
 
       console.log('Step completed. All steps done?', allStepsCompleted, 'Lesson has next_lesson_id?', !!lesson?.next_lesson_id);
 
-      if (allStepsCompleted && lesson?.next_lesson_id) {
-        // This lesson has a redirect and is now complete - reload modules to unlock target
-        console.log('Lesson completed with redirect, reloading modules...');
-        loadCourseData();
-      }
+      if (allStepsCompleted) {
+      // Lesson is now complete - reload modules to update sidebar and unlock target
+      console.log('Lesson completed, reloading modules...');
+      loadCourseData(false);
+    }
     } catch (error) {
       console.error('Failed to mark step as visited:', error);
     }
@@ -729,8 +759,27 @@ export default function LessonPage() {
   };
 
   const goToStep = (index: number) => {
-    // Mark current step as visited before moving to another step
-    if (currentStep) {
+    // Prevent moving forward if current step is not complete
+    if (index > currentStepIndex && currentStep && !canProceedToNext()) {
+      let message = '';
+      switch (currentStep.content_type) {
+        case 'video_text':
+          const videoProgressValue = videoProgress.get(currentStep.id.toString()) || 0;
+          const progressPercent = Math.round(videoProgressValue * 100);
+          message = `Пожалуйста, досмотрите видео до конца (просмотрено ${progressPercent}%, требуется 90%+) перед переходом к следующему шагу.`;
+          break;
+        case 'quiz':
+          message = 'Пожалуйста, завершите квиз перед переходом к следующему шагу.';
+          break;
+        default:
+          message = 'Пожалуйста, завершите текущий шаг перед переходом к следующему.';
+      }
+      alert(message);
+      return;
+    }
+
+    // Mark current step as visited ONLY if it satisfies completion criteria
+    if (currentStep && canProceedToNext()) {
       markStepAsVisited(currentStep.id.toString(), 2); // 2 minutes for step completion
     }
     setCurrentStepIndex(index);
@@ -1058,6 +1107,12 @@ export default function LessonPage() {
     }
   };
 
+  const handleSummaryLoad = useCallback(() => {
+    if (currentStep && !isStepCompleted(currentStep)) {
+      markStepAsVisited(currentStep.id.toString());
+    }
+  }, [currentStep, isStepCompleted, markStepAsVisited]);
+
   const renderStepContent = () => {
     if (!currentStep) return null;
 
@@ -1197,7 +1252,12 @@ export default function LessonPage() {
         }
 
       case 'summary':
-        return <SummaryStepRenderer lessonId={lessonId || ''} />;
+        return (
+          <SummaryStepRenderer 
+            lessonId={lessonId || ''} 
+            onLoad={handleSummaryLoad}
+          />
+        );
 
       default:
         return <div>Unsupported content type</div>;
@@ -1269,11 +1329,6 @@ export default function LessonPage() {
             <h1 className="font-semibold text-lg truncate max-w-[200px] sm:max-w-md">
               {lesson.title}
             </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/course/${courseId}`)}>
-              Course Overview
-            </Button>
           </div>
         </div>
 

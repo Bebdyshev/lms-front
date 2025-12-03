@@ -7,9 +7,10 @@ import type { LessonQuizSummary } from '../../types';
 
 interface SummaryStepRendererProps {
   lessonId: string;
+  onLoad?: () => void;
 }
 
-const SummaryStepRenderer = ({ lessonId }: SummaryStepRendererProps) => {
+const SummaryStepRenderer = ({ lessonId, onLoad }: SummaryStepRendererProps) => {
   const [summaryData, setSummaryData] = useState<LessonQuizSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,9 @@ const SummaryStepRenderer = ({ lessonId }: SummaryStepRendererProps) => {
         setLoading(true);
         const data = await apiClient.getLessonQuizSummary(lessonId);
         setSummaryData(data);
+        if (onLoad) {
+          onLoad();
+        }
       } catch (err) {
         console.error('Failed to load quiz summary:', err);
         setError('Failed to load quiz summary');
@@ -29,7 +33,7 @@ const SummaryStepRenderer = ({ lessonId }: SummaryStepRendererProps) => {
     };
 
     fetchSummary();
-  }, [lessonId]);
+  }, [lessonId, onLoad]);
 
   if (loading) {
     return (
