@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/api';
-import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download, Plus, Eye, Pencil, Award, ArrowBigUp } from 'lucide-react';
-import { Badge } from '../../components/ui/badge';
+import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download, Plus, Eye, Edit } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 
 interface AssignmentWithStatus {
@@ -115,18 +114,7 @@ export default function AssignmentsPage() {
     }
   });
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'graded':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'submitted':
-        return <Clock className="w-4 h-4 text-blue-600" />;
-      case 'overdue':
-        return <AlertCircle className="w-4 h-4 text-red-600" />;
-      default:
-        return <FileText className="w-4 h-4 text-gray-600" />;
-    }
-  };
+
 
   const getStatusBadge = (assignment: AssignmentWithStatus) => {
     const baseClasses = "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium";
@@ -364,7 +352,7 @@ export default function AssignmentsPage() {
                       {assignment.due_date ? (
                         <div className={`flex items-center ${isOverdue(assignment.due_date) ? 'text-red-600' : ''}`}>
                           <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(assignment.due_date).toLocaleDateString()}
+                          {new Date(assignment.due_date).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           {isOverdue(assignment.due_date) && (
                             <AlertCircle className="w-4 h-4 ml-1" />
                           )}
@@ -388,16 +376,28 @@ export default function AssignmentsPage() {
                       <div className="flex space-x-2">
                         {(user?.role === 'teacher' || user?.role === 'admin') ? (
                           <>
-                            <Button
-                              onClick={() => {
-                                console.log('Navigating to student progress:', assignment.id);
-                                navigate(`/assignment/${assignment.id}/progress`);
-                              }}
-                              variant="ghost"
-                              size="icon"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
+                              <Button
+                                onClick={() => {
+                                  console.log('Navigating to student progress:', assignment.id);
+                                  navigate(`/assignment/${assignment.id}/progress`);
+                                }}
+                                variant="ghost"
+                                size="icon"
+                                title="View Progress"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  console.log('Navigating to edit assignment:', assignment.id);
+                                  navigate(`/assignment/${assignment.id}/edit`);
+                                }}
+                                variant="ghost"
+                                size="icon"
+                                title="Edit Assignment"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
                           </>
                         ) : (
                           <Button

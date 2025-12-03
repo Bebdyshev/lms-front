@@ -182,6 +182,14 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
+          <Route path="/assignment/:assignmentId/edit" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <AssignmentBuilderPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
           <Route path="/chat" element={
             <ProtectedRoute>
               <AppLayout>

@@ -479,6 +479,7 @@ export type AssignmentType =
   | 'quiz'
   | 'essay'
   | 'coding'
+  | 'multi_task'
   | 'mixed';
 
 export type QuestionType =
@@ -505,6 +506,9 @@ export interface AssignmentSubmission {
   submitted_at: string;
   graded_at?: string;
   status: SubmissionStatus;
+  feedback?: string;
+  user_name?: string;
+  grader_name?: string;
 }
 
 export type SubmissionStatus = 'draft' | 'submitted' | 'graded' | 'needs_revision' | 'overdue';
@@ -816,29 +820,25 @@ export interface Event {
   updated_at: string;
 }
 
+// Alias for backward compatibility or convenience
+export type Submission = AssignmentSubmission;
+
 export type EventType = 'class' | 'weekly_test' | 'webinar';
 
 export interface CreateEventRequest {
   title: string;
   description?: string;
   event_type: EventType;
-  start_datetime: string;
-  end_datetime: string;
-  location?: string;
-  is_online: boolean;
-  meeting_url?: string;
-  is_recurring: boolean;
-  recurrence_pattern?: string;
-  recurrence_end_date?: string;
-  max_participants?: number;
-  group_ids: number[];
+  start_time: string;
+  end_time: string;
+  course_id?: number;
+  group_id?: number;
 }
 
 export interface UpdateEventRequest {
   title?: string;
   description?: string;
   event_type?: EventType;
-  start_datetime?: string;
   end_datetime?: string;
   location?: string;
   is_online?: boolean;
