@@ -179,7 +179,10 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly }: Co
 
 export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswers, readOnly = false, isSubmitting = false }: MultiTaskSubmissionProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers?.tasks || {});
+  // Handle both formats: { tasks: {...} } or direct object {...}
+  const [answers, setAnswers] = useState<Record<string, any>>(
+    initialAnswers?.tasks || initialAnswers || {}
+  );
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -187,6 +190,15 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
       setTasks(assignment.content.tasks);
     }
   }, [assignment]);
+
+  // Update answers when initialAnswers changes
+  useEffect(() => {
+    if (initialAnswers) {
+      const parsedAnswers = initialAnswers?.tasks || initialAnswers || {};
+      console.log('MultiTaskSubmission - Updating answers from initialAnswers:', parsedAnswers);
+      setAnswers(parsedAnswers);
+    }
+  }, [initialAnswers]);
 
   const handleTaskCompletion = (taskId: string, data: any) => {
     if (readOnly) return;

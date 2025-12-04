@@ -22,6 +22,7 @@
   import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
   import { Input } from '../../components/ui/input';
   import { Textarea } from '../../components/ui/textarea';
+  import MultiTaskSubmission from '../../components/assignments/MultiTaskSubmission';
 
   // Import API_BASE_URL from api service
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
@@ -56,6 +57,8 @@
     max_score: number;
     lesson_id: number | null;
     group_id: number | null;
+    assignment_type?: string;
+    content?: any;
   }
 
   interface SummaryStats {
@@ -564,6 +567,22 @@
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
                   {/* Left side - Student info and submission details */}
                   <div className="space-y-4 h-full overflow-auto">
+                    {/* Multi-Task Submission View */}
+                    {data?.assignment.assignment_type === 'multi_task' && (
+                      <div className="mb-6">
+                        <h3 className="text-sm font-medium text-gray-600 mb-2">Student's Work</h3>
+                        <div className="border rounded-lg p-4 bg-white">
+                          <MultiTaskSubmission 
+                            assignment={data.assignment}
+                            initialAnswers={selectedSubmission.answers}
+                            readOnly={true}
+                            onSubmit={() => {}}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* File Upload View (Legacy or mixed) */}
                     {selectedSubmission.file_url && (
                       <div className="space-y-2">
                         <div className="text-sm font-medium text-gray-600">Submitted File</div>
@@ -577,6 +596,7 @@
                               size="sm"
                               onClick={() => downloadFile(selectedSubmission.file_url, selectedSubmission.submitted_file_name || 'submission_file')}
                             >
+                              <Download className="w-4 h-4 mr-2" />
                               Download
                             </Button>
                           </div>

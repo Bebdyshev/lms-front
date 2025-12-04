@@ -32,6 +32,9 @@ export default function AssignmentPage() {
   const [status, setStatus] = useState<AssignmentStatus | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
   
+  // View mode: 'status' shows grading panel, 'details' shows actual submission
+  const [viewMode, setViewMode] = useState<'status' | 'details'>('status');
+  
   // State for legacy file upload and text submission
   const [text, setText] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
@@ -58,6 +61,7 @@ export default function AssignmentPage() {
       
       if (statusResult.submission_id) {
         try {
+           console.log('Loading submission answers:', statusResult.answers);
            setSubmission({
              id: statusResult.submission_id,
              assignment_id: assignmentId,
@@ -69,7 +73,8 @@ export default function AssignmentPage() {
              submitted_file_name: statusResult.submitted_file_name,
              answers: statusResult.answers,
              is_graded: statusResult.status === 'graded',
-             max_score: assignment?.max_score || 100
+             max_score: assignment?.max_score || 100,
+             feedback: statusResult.feedback
            } as any);
         } catch (e) {
           console.warn('Could not fetch full submission details', e);
@@ -153,11 +158,12 @@ export default function AssignmentPage() {
         submitted_file_name: fileName
       });
       
-
-      setFile(null);
-      setText('');
-      loadSubmission(id);
-      toast('Assignment submitted', 'success');
+      toast('Assignment submitted successfully!', 'success');
+      
+      // Redirect to assignments page
+      setTimeout(() => {
+        navigate('/assignments');
+      }, 1000);
     } catch (err) {
       console.error('Assignment submission error:', err);
       toast('Failed to submit assignment', 'error');
@@ -185,8 +191,12 @@ export default function AssignmentPage() {
         submitted_file_name: null
       });
       
-      toast('Assignment submitted successfully!', 'success');
-      loadSubmission(assignment.id.toString());
+      toast('✅ Assignment submitted successfully! Redirecting...', 'success');
+      
+      // Redirect to assignments page after brief delay
+      setTimeout(() => {
+        navigate('/assignments');
+      }, 1500);
     } catch (err) {
       console.error('Failed to submit assignment:', err);
       toast('Failed to submit assignment', 'error');
@@ -199,6 +209,138 @@ export default function AssignmentPage() {
   const renderContent = () => {
     if (!assignment) return null;
 
+    // If student has submitted, show status panel first
+    if (submission && (submission.status === 'submitted' || submission.status === 'graded')) {
+      if (viewMode === 'status') {
+        return (
+          <div className="space-y-6">
+            {/* Grading Status Panel */}
+            <Card className={submission.status === 'graded' ? 'border-green-200 bg-green-50/30' : 'border-blue-200 bg-blue-50/30'}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {submission.status === 'graded' ? (
+                    <>
+                      <Award className="w-5 h-5 text-green-600" />
+                      <span className="text-green-800">Graded</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-blue-800">Submitted - Awaiting Grade</span>
+                    </>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Submitted on {new Date(submission.submitted_at).toLocaleString()}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Score Display */}
+                <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                  <div>
+                    <div className="text-sm text-gray-600">Your Score</div>
+                    <div className="text-3xl font-bold">
+                      {submission.status === 'graded' ? (
+                        <span className={(submission.score || 0) >= (assignment.max_score * 0.6) ? 'text-green-600' : 'text-red-600'}>
+                          {submission.score || 0}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                      <span className="text-lg text-gray-500 font-normal"> / {assignment.max_score}</span>
+                    </div>
+                  </div>
+                  {submission.status === 'graded' && (
+                    <div className="text-right">
+                      <div className="text-sm text-gray-600">Percentage</div>
+                      <div className={`text-2xl font-bold ${(submission.score || 0) >= (assignment.max_score * 0.6) ? 'text-green-600' : 'text-red-600'}`}>
+                        {Math.round(((submission.score || 0) / assignment.max_score) * 100)}%
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Teacher Feedback */}
+                <div className="p-4 bg-white rounded-lg border">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-medium text-gray-900">Teacher Feedback</span>
+                  </div>
+                  {submission.feedback ? (
+                    <p className="text-gray-700 whitespace-pre-wrap">{submission.feedback}</p>
+                  ) : (
+                    <p className="text-gray-500 italic">No feedback provided yet</p>
+                  )}
+                </div>
+
+                {/* Action Button */}
+                <Button 
+                  onClick={() => setViewMode('details')} 
+                  variant="outline" 
+                  className="w-full"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  View My Submission
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      }
+
+      // viewMode === 'details' - Show actual submission
+      return (
+        <div className="space-y-4">
+          <Button 
+            onClick={() => setViewMode('status')} 
+            variant="ghost" 
+            size="sm"
+            className="mb-2"
+          >
+            ← Back to Results
+          </Button>
+          
+          {assignment.assignment_type === 'multi_task' ? (
+            <MultiTaskSubmission
+              assignment={assignment}
+              onSubmit={handleMultiTaskSubmit}
+              initialAnswers={submission?.answers}
+              readOnly={true}
+              isSubmitting={submitting}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Submission</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {submission.file_url && (
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded border">
+                    <div className="flex items-center">
+                      <FileText className="w-5 h-5 text-gray-500 mr-3" />
+                      <span>{submission.submitted_file_name}</span>
+                    </div>
+                    <a
+                      href={submission.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      Download
+                    </a>
+                  </div>
+                )}
+                {submission.answers?.text && (
+                  <div className="p-4 bg-gray-50 rounded border whitespace-pre-wrap">
+                    {submission.answers.text}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      );
+    }
+
+    // Not submitted yet - show submission form
     // Handle Multi-Task Assignments
     if (assignment.assignment_type === 'multi_task') {
       return (
@@ -206,7 +348,7 @@ export default function AssignmentPage() {
           assignment={assignment}
           onSubmit={handleMultiTaskSubmit}
           initialAnswers={submission?.answers}
-          readOnly={submission?.status === 'submitted' || submission?.status === 'graded'}
+          readOnly={false}
           isSubmitting={submitting}
         />
       );
@@ -399,27 +541,6 @@ export default function AssignmentPage() {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  {getAssignmentTypeIcon()}
-                </div>
-                <div>
-                  <Badge variant="outline" className="text-xs">
-                    {getAssignmentTypeLabel()}
-                  </Badge>
-                  {assignment.is_active ? (
-                    <Badge variant="default" className="ml-2 text-xs">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Active
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="ml-2 text-xs">
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Inactive
-                    </Badge>
-                  )}
-                </div>
-              </div>
               <CardTitle className="text-3xl font-bold text-gray-900">
                 <div className="flex items-center justify-between w-full">
                   <span className="pr-3 truncate">{assignment.title}</span>
