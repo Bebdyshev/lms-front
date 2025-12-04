@@ -23,6 +23,7 @@ interface MultiTaskSubmissionProps {
   initialAnswers?: any;
   readOnly?: boolean;
   isSubmitting?: boolean;
+  studentId?: string;
 }
 
 // Course Unit Task Display Component
@@ -31,9 +32,10 @@ interface CourseUnitTaskDisplayProps {
   isCompleted: boolean;
   onCompletion: (completed: boolean) => void;
   readOnly: boolean;
+  studentId?: string;
 }
 
-function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly }: CourseUnitTaskDisplayProps) {
+function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, studentId }: CourseUnitTaskDisplayProps) {
   const [courseData, setCourseData] = useState<any>(null);
   const [lessonsData, setLessonsData] = useState<any[]>([]);
   const [lessonProgress, setLessonProgress] = useState<Record<number, boolean>>({});
@@ -49,7 +51,7 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly }: Co
         setCourseData(course);
         
         // Fetch all lessons for the course
-        const modules = await apiClient.getCourseModules(task.content.course_id, true);
+        const modules = await apiClient.getCourseModules(task.content.course_id, true, studentId);
         const allLessons: any[] = [];
         
         modules.forEach((module: any) => {
@@ -132,14 +134,16 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly }: Co
                       {lesson.title}
                     </span>
                   </div>
-                  <Button 
-                    variant="link" 
-                    size="sm" 
-                    className="h-auto p-0 ml-2" 
-                    onClick={() => window.open(`/course/${task.content.course_id}/learn/lesson/${lesson.id}`, '_blank')}
-                  >
-                    Go to Lesson <ExternalLink className="w-3 h-3 ml-1" />
-                  </Button>
+                  {!readOnly && (
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="h-auto p-0 ml-2" 
+                      onClick={() => window.open(`/course/${task.content.course_id}/learn/lesson/${lesson.id}`, '_blank')}
+                    >
+                      Go to Lesson <ExternalLink className="w-3 h-3 ml-1" />
+                    </Button>
+                  )}
                 </div>
               );
             })
@@ -147,14 +151,16 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly }: Co
             task.content.lesson_ids?.map((lessonId: number) => (
               <div key={lessonId} className="text-sm flex items-center justify-between">
                 <span>Lesson #{lessonId}</span>
-                <Button 
-                  variant="link" 
-                  size="sm" 
-                  className="h-auto p-0" 
-                  onClick={() => window.open(`/course/${task.content.course_id}/learn/lesson/${lessonId}`, '_blank')}
-                >
-                  Go to Lesson <ExternalLink className="w-3 h-3 ml-1" />
-                </Button>
+                {!readOnly && (
+                  <Button 
+                    variant="link" 
+                    size="sm" 
+                    className="h-auto p-0" 
+                    onClick={() => window.open(`/course/${task.content.course_id}/learn/lesson/${lessonId}`, '_blank')}
+                  >
+                    Go to Lesson <ExternalLink className="w-3 h-3 ml-1" />
+                  </Button>
+                )}
               </div>
             ))
           )}
@@ -177,7 +183,7 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly }: Co
   );
 }
 
-export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswers, readOnly = false, isSubmitting = false }: MultiTaskSubmissionProps) {
+export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswers, readOnly = false, isSubmitting = false, studentId }: MultiTaskSubmissionProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   // Handle both formats: { tasks: {...} } or direct object {...}
   const [answers, setAnswers] = useState<Record<string, any>>(
@@ -252,9 +258,10 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
         return (
           <CourseUnitTaskDisplay 
             task={task} 
-            isCompleted={isCompleted}
+            isCompleted={!!answers[task.id]} 
             onCompletion={(completed) => handleTaskCompletion(task.id, { completed })}
             readOnly={readOnly}
+            studentId={studentId}
           />
         );
 
@@ -275,18 +282,34 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
               <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-800">{taskAnswer.file_name}</span>
+                  <span className="text-sm font-medium text-green-800">{taskAnswer.file_name || 'Uploaded File'}</span>
                 </div>
-                {!readOnly && (
+                <div className="flex items-center space-x-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleTaskCompletion(task.id, { file_url: null, file_name: null })}
-                    className="text-red-600 hover:text-red-800 h-6 w-6 p-0"
+                    onClick={() => {
+                      const url = taskAnswer.file_url.startsWith('http') 
+                        ? taskAnswer.file_url 
+                        : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + taskAnswer.file_url;
+                      window.open(url, '_blank');
+                    }}
+                    className="text-blue-600 hover:text-blue-800 h-8 px-2"
                   >
-                    <X className="w-4 h-4" />
+                    <ExternalLink className="w-4 h-4 mr-1" />
+                    Open
                   </Button>
-                )}
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleTaskCompletion(task.id, { file_url: null, file_name: null })}
+                      className="text-red-600 hover:text-red-800 h-8 w-8 p-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ) : (
               !readOnly && (

@@ -578,6 +578,7 @@
                             initialAnswers={selectedSubmission.answers}
                             readOnly={true}
                             onSubmit={() => {}}
+                            studentId={String(selectedSubmission.user_id)}
                           />
                         </div>
                       </div>

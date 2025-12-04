@@ -478,9 +478,12 @@ class LMSApiClient {
   // MODULES
   // =============================================================================
 
-  async getCourseModules(courseId: string, includeLessons: boolean = false): Promise<CourseModule[]> {
+  async getCourseModules(courseId: string, includeLessons: boolean = false, studentId?: string): Promise<CourseModule[]> {
     try {
-      const params = includeLessons ? { include_lessons: 'true' } : {};
+      const params: any = {};
+      if (includeLessons) params.include_lessons = 'true';
+      if (studentId) params.student_id = studentId;
+      
       const response = await this.api.get(`/courses/${courseId}/modules`, { params });
       return response.data;
     } catch (error) {
@@ -1305,6 +1308,8 @@ class LMSApiClient {
   fetchCourseById = (courseId: string): Promise<Course> => {
     return this.getCourse(courseId);
   }
+
+
 
   fetchModulesByCourse = (courseId: string, includeLessons: boolean = false): Promise<CourseModule[]> => {
     return this.getCourseModules(courseId, includeLessons);
