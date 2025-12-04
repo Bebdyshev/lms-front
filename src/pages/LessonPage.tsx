@@ -1140,9 +1140,20 @@ export default function LessonPage() {
       case 'text':
         return (
           <div>
+            {/* Special "Read explanation" text above everything */}
+            {currentStep.content_text && currentStep.content_text.includes("Read the explanation and make notes.") && (
+              <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
+                <p className="font-medium">Read the explanation and make notes.</p>
+              </div>
+            )}
+
             {renderAttachments(currentStep.attachments)}
             <div className="prose max-w-none">
-              <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text || '') }} />
+              <div dangerouslySetInnerHTML={{ 
+                __html: renderTextWithLatex(
+                  (currentStep.content_text || '').replace(/<p><strong>Read the explanation and make notes.<\/strong><\/p>/g, '')
+                ) 
+              }} />
             </div>
           </div>
         );
