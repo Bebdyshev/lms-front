@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../services/api';
-import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download, Plus, Eye, Edit } from 'lucide-react';
+import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download, Plus, Eye, Archive, ArchiveRestore, Edit } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { Checkbox } from '../../components/ui/checkbox';
 
 interface AssignmentWithStatus {
   id: number;
@@ -16,6 +17,7 @@ interface AssignmentWithStatus {
   file_url?: string;
   allowed_file_types?: string[];
   max_score?: number;
+  is_hidden?: boolean;
   status?: 'not_submitted' | 'submitted' | 'graded' | 'overdue';
   score?: number;
   submitted_at?: string;
@@ -30,6 +32,7 @@ export default function AssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'graded' | 'overdue'>('all');
+  const [includeHidden, setIncludeHidden] = useState(false);
 
   useEffect(() => {
     loadAssignments();
@@ -41,8 +44,12 @@ export default function AssignmentsPage() {
       setError('');
       console.log('Loading assignments for user:', user?.id, 'role:', user?.role);
 
-      // Get all assignments for the user
-      const assignmentData = await apiClient.getAssignments({});
+      // For teachers/admins, always load ALL assignments including hidden
+      const params: any = {};
+      if (user?.role === 'teacher' || user?.role === 'admin') {
+        params.include_hidden = true;
+      }
+      const assignmentData = await apiClient.getAssignments(params);
       console.log('Raw assignment data:', assignmentData);
       
       // Get user's submissions to check status
@@ -99,7 +106,14 @@ export default function AssignmentsPage() {
     }
   };
 
+  // Filter assignments by status and hidden
   const filteredAssignments = assignments.filter(assignment => {
+    // First filter by hidden status (for teachers/admins)
+    if (!includeHidden && assignment.is_hidden) {
+      return false;
+    }
+    
+    // Then filter by status
     switch (filter) {
       case 'pending':
         return assignment.status === 'not_submitted';
@@ -213,26 +227,44 @@ export default function AssignmentsPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex">
-        {[
-          { key: 'all', label: 'All', count: assignments.length },
-          { key: 'pending', label: 'Pending', count: assignments.filter(a => a.status === 'not_submitted').length },
-          { key: 'submitted', label: 'Submitted', count: assignments.filter(a => a.status === 'submitted').length },
-          { key: 'graded', label: 'Graded', count: assignments.filter(a => a.status === 'graded').length },
-          { key: 'overdue', label: 'Overdue', count: assignments.filter(a => a.status === 'overdue').length }
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key as any)}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-              filter === tab.key
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {tab.label} ({tab.count})
-          </button>
-        ))}
+      <div className="flex items-center gap-4">
+        <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex">
+          {[
+            { key: 'all', label: 'All', count: assignments.length },
+            { key: 'pending', label: 'Pending', count: assignments.filter(a => a.status === 'not_submitted').length },
+            { key: 'submitted', label: 'Submitted', count: assignments.filter(a => a.status === 'submitted').length },
+            { key: 'graded', label: 'Graded', count: assignments.filter(a => a.status === 'graded').length },
+            { key: 'overdue', label: 'Overdue', count: assignments.filter(a => a.status === 'overdue').length }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key as any)}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                filter === tab.key
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
+        
+        {(user?.role === 'teacher' || user?.role === 'admin') && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="show-hidden"
+              checked={includeHidden}
+              onCheckedChange={(checked) => setIncludeHidden(checked === true)}
+            />
+            <label
+              htmlFor="show-hidden"
+              className="text-sm text-gray-600 cursor-pointer select-none"
+            >
+              Show hidden
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -397,6 +429,22 @@ export default function AssignmentsPage() {
                                 title="Edit Assignment"
                               >
                                 <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                onClick={async () => {
+                                  try {
+                                    await apiClient.toggleAssignmentVisibility(String(assignment.id));
+                                    loadAssignments();
+                                  } catch (err) {
+                                    console.error('Failed to toggle visibility:', err);
+                                  }
+                                }}
+                                variant="ghost"
+                                size="icon"
+                                title={assignment.is_hidden ? "Restore assignment" : "Archive assignment"}
+                                className={assignment.is_hidden ? "text-orange-500 hover:text-orange-600" : "text-gray-400 hover:text-gray-600"}
+                              >
+                                {assignment.is_hidden ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                               </Button>
                           </>
                         ) : (

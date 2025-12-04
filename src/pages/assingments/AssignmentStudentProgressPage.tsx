@@ -10,6 +10,7 @@
     Calendar,
     ArrowLeft,
     Eye,
+    EyeOff,
     Award,
     Pencil,
     Download
@@ -45,6 +46,7 @@
     submitted_at: string | null;
     graded_at: string | null;
     is_overdue: boolean;
+    is_hidden?: boolean;
     assignment_source: 'course' | 'group' | 'both' | 'unknown';
     source_display: string;
   }
@@ -154,6 +156,16 @@
         alert(e?.message || 'Failed to save grade');
       } finally {
         setSavingGrade(false);
+      }
+    };
+
+    const toggleSubmissionVisibility = async (submissionId: number) => {
+      try {
+        await apiClient.toggleSubmissionVisibility(id!, String(submissionId));
+        await loadAssignmentProgress();
+      } catch (e: any) {
+        console.error('Failed to toggle submission visibility:', e);
+        alert(e?.message || 'Failed to toggle visibility');
       }
     };
 
@@ -541,6 +553,18 @@
                                   onClick={() => openGradeDialog(student.submission_id!)}
                                 >
                                   <Pencil className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {student.submission_id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title={student.is_hidden ? "Show to student" : "Hide from student"}
+                                  aria-label={student.is_hidden ? "Show to student" : "Hide from student"}
+                                  onClick={() => toggleSubmissionVisibility(student.submission_id!)}
+                                  className={student.is_hidden ? "text-orange-500 hover:text-orange-700" : ""}
+                                >
+                                  {student.is_hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                 </Button>
                               )}
                             </div>

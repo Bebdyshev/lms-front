@@ -873,6 +873,15 @@ class LMSApiClient {
     }
   }
 
+  async toggleAssignmentVisibility(assignmentId: string) {
+    try {
+      const response = await this.api.patch(`/assignments/${assignmentId}/toggle-visibility`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to toggle assignment visibility');
+    }
+  }
+
   // =============================================================================
   // FILE UPLOAD
   // =============================================================================
