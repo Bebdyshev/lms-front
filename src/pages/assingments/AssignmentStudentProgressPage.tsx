@@ -129,6 +129,7 @@
         // Fetch submissions and find the one we need
         const submissions = await apiClient.getAssignmentSubmissions(id!);
         const sub = submissions.find((s: any) => s.id === submissionId) || null;
+        
         setSelectedSubmission(sub);
         setScoreInput(sub?.score != null ? String(sub.score) : '');
         setFeedbackInput(sub?.feedback || '');
