@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward } from 'lucide-react';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -284,6 +285,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect, isCo
 };
 
 export default function LessonPage() {
+  const { user } = useAuth();
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -702,6 +704,9 @@ export default function LessonPage() {
 
   // Check if user can proceed to next step
   const canProceedToNext = (): boolean => {
+    // Teachers and admins can always proceed
+    if (user?.role === 'teacher' || user?.role === 'admin') return true;
+
     if (!currentStep) return false;
 
     const stepId = currentStep.id.toString();
@@ -788,6 +793,21 @@ export default function LessonPage() {
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.set('step', (index + 1).toString());
     setSearchParams(newSearchParams);
+  };
+
+  const skipLesson = async () => {
+    if (!lesson) return;
+    if (!confirm('Are you sure you want to skip this lesson? It will be marked as completed.')) return;
+    
+    try {
+      await apiClient.markLessonComplete(lesson.id.toString(), 0);
+      // Reload to update status
+      loadLessonData();
+      loadCourseData(false);
+    } catch (err) {
+      console.error('Failed to skip lesson:', err);
+      alert('Failed to skip lesson');
+    }
   };
 
   const getStepIcon = (step: Step) => {
@@ -1329,6 +1349,18 @@ export default function LessonPage() {
             <h1 className="font-semibold text-lg truncate max-w-[200px] sm:max-w-md">
               {lesson.title}
             </h1>
+            {(user?.role === 'teacher' || user?.role === 'admin') && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={skipLesson} 
+                title="Skip Lesson (Teacher Only)"
+                className="ml-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              >
+                <SkipForward className="w-4 h-4 mr-1" />
+                Skip
+              </Button>
+            )}
           </div>
         </div>
 

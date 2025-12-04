@@ -403,7 +403,6 @@
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
                 Assignment Distribution
               </CardTitle>
             </CardHeader>
@@ -465,7 +464,6 @@
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
               Student Progress
             </CardTitle>
           </CardHeader>
@@ -533,19 +531,10 @@
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-2 justify-end">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                asChild
-                                title="View assignment"
-                                aria-label="View assignment"
-                              >
-                                <Link to={`/assignment/${id}`}>
-                                  <Eye className="w-4 h-4" />
-                                </Link>
-                              </Button>
+                             
                               {student.submission_id && (
-                                <Button
+                                <>
+                              <Button
                                   variant="ghost"
                                   size="sm"
                                   title="Grade submission"
@@ -554,18 +543,8 @@
                                 >
                                   <Pencil className="w-4 h-4" />
                                 </Button>
-                              )}
-                              {student.submission_id && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  title={student.is_hidden ? "Show to student" : "Hide from student"}
-                                  aria-label={student.is_hidden ? "Show to student" : "Hide from student"}
-                                  onClick={() => toggleSubmissionVisibility(student.submission_id!)}
-                                  className={student.is_hidden ? "text-orange-500 hover:text-orange-700" : ""}
-                                >
-                                  {student.is_hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                </Button>
+                              </>
+                                
                               )}
                             </div>
                           </TableCell>
