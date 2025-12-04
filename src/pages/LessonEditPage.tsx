@@ -1604,19 +1604,9 @@ export default function LessonEditPage() {
                         ))}
                     </SelectContent>
                   </Select>
-                  {nextLessonId && lesson && modules.length > 0 && (() => {
-                    const currentModule = modules.find(m => String(m.id) === String(lesson.module_id));
-                    const targetLesson = courseLessons.find(l => String(l.id) === String(nextLessonId));
-                    const targetModuleId = targetLesson?.module_id;
-                    if (currentModule && targetLesson && String(targetModuleId) !== String(currentModule.id)) {
-                      return <div className="text-xs text-amber-600">Warning: selected next lesson is in another section (module).</div>;
-                    }
-                    return null;
-                  })()}
                 </div>
               </CardContent>
             </Card>
-
             {/* Steps (blue tiles) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">

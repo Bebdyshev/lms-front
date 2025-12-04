@@ -1150,6 +1150,13 @@ export default function LessonPage() {
       case 'video_text':
         return (
           <div className="space-y-4">
+            {/* Special "Watch explanations" text above video */}
+            {currentStep.content_text && currentStep.content_text.includes("Watch the explanations for the previous questions") && (
+              <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
+                <p className="font-medium">Watch the explanations for the previous questions</p>
+              </div>
+            )}
+
             {currentStep.video_url && (
               <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
                 <YouTubeVideoPlayer
@@ -1198,7 +1205,11 @@ export default function LessonPage() {
 
             {currentStep.content_text && (
               <div className="prose max-w-none">
-                <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(currentStep.content_text) }} />
+                <div dangerouslySetInnerHTML={{ 
+                  __html: renderTextWithLatex(
+                    currentStep.content_text.replace(/<p><strong>Watch the explanations for the previous questions<\/strong><\/p>/g, '')
+                  ) 
+                }} />
               </div>
             )}
           </div>
