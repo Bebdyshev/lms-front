@@ -830,16 +830,23 @@ export interface CreateEventRequest {
   title: string;
   description?: string;
   event_type: EventType;
-  start_time: string;
-  end_time: string;
-  course_id?: number;
-  group_id?: number;
+  start_datetime: string;
+  end_datetime: string;
+  location?: string;
+  is_online?: boolean;
+  meeting_url?: string;
+  is_recurring?: boolean;
+  recurrence_pattern?: string;
+  recurrence_end_date?: string;
+  max_participants?: number;
+  group_ids?: number[];
 }
 
 export interface UpdateEventRequest {
   title?: string;
   description?: string;
   event_type?: EventType;
+  start_datetime?: string;
   end_datetime?: string;
   location?: string;
   is_online?: boolean;

@@ -119,6 +119,15 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
       return 'Maximum participants must be greater than 0';
     }
 
+    if (formData.is_recurring && formData.recurrence_end_date) {
+      const recurrenceEnd = new Date(formData.recurrence_end_date);
+      const eventEnd = new Date(formData.end_datetime);
+      
+      if (recurrenceEnd <= eventEnd) {
+        return 'Recurrence end date must be after the event end date';
+      }
+    }
+
     return null;
   };
 
@@ -324,6 +333,8 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                     <SelectContent>
                       <SelectItem value="daily">Daily</SelectItem>
                       <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="biweekly">Biweekly (Every 2 weeks)</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

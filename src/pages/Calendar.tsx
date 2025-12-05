@@ -106,8 +106,20 @@ export default function Calendar() {
       date.setDate(startDate.getDate() + i);
       
       const dayEvents = events.filter(event => {
-        const eventDate = new Date(event.start_datetime);
-        return eventDate.toDateString() === date.toDateString();
+        const eventStart = new Date(event.start_datetime);
+        const eventEnd = new Date(event.end_datetime);
+        
+        // Normalize dates to compare just the day part
+        const currentDay = new Date(date);
+        currentDay.setHours(0, 0, 0, 0);
+        
+        const startDay = new Date(eventStart);
+        startDay.setHours(0, 0, 0, 0);
+        
+        const endDay = new Date(eventEnd);
+        endDay.setHours(0, 0, 0, 0);
+        
+        return currentDay >= startDay && currentDay <= endDay;
       });
 
       // Apply event type filter
