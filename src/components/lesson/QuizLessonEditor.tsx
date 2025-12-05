@@ -983,7 +983,7 @@ export default function QuizLessonEditor({
                           />
                           {(draftQuestion.content_text || '').trim() && (
                             <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border max-h-32 overflow-y-auto">
-                              Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex((draftQuestion.content_text || '').replace(/\[\[(.*?)\]\]/g, '<b>[$1]</b>')) }} />
+                              Preview: <div className="prose prose-sm max-w-none inline-block" dangerouslySetInnerHTML={{ __html: renderTextWithLatex((draftQuestion.content_text || '').replace(/\[\[(.*?)\]\]/g, '<b>[$1]</b>')) }} />
                             </div>
                           )}
                         </TabsContent>
@@ -997,7 +997,7 @@ export default function QuizLessonEditor({
                           />
                           {(draftQuestion.explanation || '').trim() && (
                             <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded border max-h-32 overflow-y-auto">
-                              Preview: <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.explanation || '') }} />
+                              Preview: <div className="prose prose-sm max-w-none inline-block" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.explanation || '') }} />
                             </div>
                           )}
                         </TabsContent>
