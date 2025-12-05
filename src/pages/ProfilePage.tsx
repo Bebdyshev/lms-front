@@ -190,7 +190,6 @@ export default function ProfilePage() {
           )}
 
           <div className="flex justify-between items-center pt-4 border-t">
-            <ResetOnboardingButton />
             <button
               onClick={handleSave}
               disabled={saving || !name.trim() || name === user?.name}

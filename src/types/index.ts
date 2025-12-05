@@ -11,7 +11,8 @@ export interface User {
   student_id?: string;
   teacher_name?: string;
   curator_name?: string;
-  group_id?: number; // ID группы, в которой состоит студент
+  group_id?: number; // ID группы, в которой состоит студент (deprecated)
+  group_ids?: number[]; // List of group IDs for students (new - supports multiple groups)
   is_active?: boolean;
   daily_streak?: number; // Current daily streak count
   last_activity_date?: string; // Last date when student was active
@@ -285,7 +286,7 @@ export interface CreateUserRequest {
   password?: string;
   role: UserRole;
   student_id?: string;
-  group_id?: number;
+  group_ids?: number[]; // Multiple groups for students
   is_active?: boolean;
 }
 
@@ -294,7 +295,7 @@ export interface UpdateUserRequest {
   email?: string;
   role?: UserRole;
   student_id?: string;
-  group_id?: number;
+  group_ids?: number[]; // Multiple groups for students
   is_active?: boolean;
   password?: string;
 }

@@ -139,7 +139,7 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
                       variant="link" 
                       size="sm" 
                       className="h-auto p-0 ml-2" 
-                      onClick={() => window.open(`/course/${task.content.course_id}/learn/lesson/${lesson.id}`, '_blank')}
+                      onClick={() => window.open(`/course/${task.content.course_id}/lesson/${lesson.id}`, '_blank')}
                     >
                       Go to Lesson <ExternalLink className="w-3 h-3 ml-1" />
                     </Button>
@@ -156,7 +156,7 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
                     variant="link" 
                     size="sm" 
                     className="h-auto p-0" 
-                    onClick={() => window.open(`/course/${task.content.course_id}/learn/lesson/${lessonId}`, '_blank')}
+                    onClick={() => window.open(`/course/${task.content.course_id}/lesson/${lessonId}`, '_blank')}
                   >
                     Go to Lesson <ExternalLink className="w-3 h-3 ml-1" />
                   </Button>
@@ -446,13 +446,32 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
         })}
       </div>
 
-      {!readOnly && (
-        <div className="flex justify-end pt-4">
-          <Button onClick={handleSubmit} size="lg" className="w-full md:w-auto" disabled={isSubmitting}>
-            {isSubmitting ? 'Submitting...' : 'Submit Assignment'}
-          </Button>
-        </div>
-      )}
+      {!readOnly && (() => {
+        // Check if all tasks are completed
+        const completedCount = tasks.filter(task => {
+          const taskAnswer = answers[task.id];
+          return taskAnswer?.completed || !!taskAnswer?.file_url || !!taskAnswer?.text_response;
+        }).length;
+        const allTasksCompleted = completedCount === tasks.length && tasks.length > 0;
+        
+        return (
+          <div className="flex flex-col items-end gap-2 pt-4">
+            {!allTasksCompleted && tasks.length > 0 && (
+              <p className="text-sm text-amber-600">
+                Complete all tasks to submit ({completedCount}/{tasks.length} done)
+              </p>
+            )}
+            <Button 
+              onClick={handleSubmit} 
+              size="lg" 
+              className="w-full md:w-auto" 
+              disabled={isSubmitting || !allTasksCompleted}
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Assignment'}
+            </Button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

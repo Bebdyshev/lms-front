@@ -450,7 +450,7 @@ export default function LessonPage() {
       if (!accessCheck.accessible) {
         setError(accessCheck.reason || 'You cannot access this lesson yet.');
         alert(accessCheck.reason || 'Please complete previous lessons first.');
-        navigate(`/courses`);
+        navigate(`/course/${courseId}`);
         return;
       }
 

@@ -1258,16 +1258,24 @@ export default function LessonEditPage() {
       const updatedLesson = await apiClient.updateLesson(lessonId, lessonUpdateData);
       setLesson(updatedLesson);
       
-      // Sync steps: delete all existing on server, then recreate from local state
+      // Sync steps: update existing, create new, delete removed
+      // This approach preserves step IDs and therefore student progress
       const existingSteps = await apiClient.getLessonSteps(lessonId);
-
-      for (const s of existingSteps) {
-        await apiClient.deleteStep(s.id.toString());
-      }
-
-      // Recreate current local steps with proper order_index
+      const existingStepIds = new Set(existingSteps.map(s => s.id));
+      
       const orderedLocal = [...mergedSteps].sort((a, b) => a.order_index - b.order_index);
-      const createdStepIds: number[] = [];
+      // Local steps with positive IDs are existing steps; negative IDs are new (temporary)
+      const localExistingStepIds = new Set(orderedLocal.filter(s => s.id > 0).map(s => s.id));
+      
+      // 1. Delete steps that exist on server but not in local state (explicitly removed by teacher)
+      for (const s of existingSteps) {
+        if (!localExistingStepIds.has(s.id)) {
+          await apiClient.deleteStep(s.id.toString());
+        }
+      }
+      
+      // 2. Update existing steps or create new ones
+      const stepIdMapping = new Map<number, number>(); // Maps old temp ID to new real ID
       
       for (const s of orderedLocal) {
         const payload: Partial<Step> = {
@@ -1278,8 +1286,19 @@ export default function LessonEditPage() {
           video_url: s.video_url || '',
           attachments: s.attachments || undefined
         };
-        const createdStep = await apiClient.createStep(lessonId, payload);
-        createdStepIds.push(createdStep.id);
+        
+        let actualStepId: number;
+        
+        if (s.id > 0 && existingStepIds.has(s.id)) {
+          // Update existing step (preserves step_id, preserves StepProgress)
+          await apiClient.updateStep(s.id.toString(), payload);
+          actualStepId = s.id;
+        } else {
+          // Create new step (only for new steps with negative temporary IDs)
+          const createdStep = await apiClient.createStep(lessonId, payload);
+          actualStepId = createdStep.id;
+          stepIdMapping.set(s.id, actualStepId);
+        }
         
         // Upload temporary files for this step if any exist
         const tempFilesForStep = tempFiles.get(s.id);
@@ -1287,9 +1306,9 @@ export default function LessonEditPage() {
         if (tempFilesForStep && tempFilesForStep.length > 0) {
           for (const file of tempFilesForStep) {
             try {
-              await apiClient.uploadStepAttachment(createdStep.id.toString(), file);
+              await apiClient.uploadStepAttachment(actualStepId.toString(), file);
             } catch (error) {
-              console.error(`Failed to upload file ${file.name} for step ${createdStep.id}:`, error);
+              console.error(`Failed to upload file ${file.name} for step ${actualStepId}:`, error);
             }
           }
           // Clear temporary files after successful upload

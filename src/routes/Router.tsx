@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { NextStepProvider, NextStepReact } from 'nextstepjs';
+import { NextStepProvider } from 'nextstepjs';
 import { AuthProvider } from '../contexts/AuthContext.tsx';
 import OnboardingManager from '../components/OnboardingManager.tsx';
 import ProtectedRoute from '../components/ProtectedRoute.tsx';
@@ -39,16 +39,13 @@ import Calendar from '../pages/Calendar.tsx';
 import LandingPage from '../pages/LandingPage.tsx';
 import AnalyticsPage from '../pages/analytics/AnalyticsPage.tsx';
 import FavoriteFlashcardsPage from '../pages/FavoriteFlashcardsPage.tsx';
-import { getAllTourSteps } from '../config/allTourSteps';
 
 export default function Router() {
-  const tourSteps = getAllTourSteps();
   
   return (
     <BrowserRouter>
       <AuthProvider>
         <NextStepProvider>
-          <NextStepReact steps={tourSteps}>
             <OnboardingManager>
               <Routes>
                 <Route path="/" element={
@@ -304,7 +301,7 @@ export default function Router() {
           <Route path="/admin/dashboard" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AppLayout>
-                <AdminDashboard />
+              <AdminDashboard />
               </AppLayout>
             </ProtectedRoute>
           } />
@@ -365,7 +362,6 @@ export default function Router() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
             </OnboardingManager>
-          </NextStepReact>
         </NextStepProvider>
       </AuthProvider>
     </BrowserRouter>

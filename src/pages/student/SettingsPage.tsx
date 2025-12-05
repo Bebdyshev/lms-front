@@ -49,15 +49,6 @@ export default function SettingsPage() {
             <Play className="w-4 h-4" />
             Restart Tour
           </Button>
-          
-          <Button
-            onClick={handleResetOnboarding}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Reset Complete Onboarding
-          </Button>
         </div>
         
         <p className="text-xs text-gray-500 mt-2">

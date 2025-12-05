@@ -6,6 +6,8 @@ import WelcomeScreens from './WelcomeScreens';
 import OnboardingTour from './OnboardingTour';
 import { storage } from '../utils/storage';
 import apiClient from '../services/api';
+import { NextStepReact } from 'nextstepjs';
+import { getAllTourSteps } from '../config/allTourSteps';
 
 interface OnboardingManagerProps {
   children: React.ReactNode;
@@ -142,7 +144,13 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
         />
       )}
       
-      {children}
+      <NextStepReact 
+        steps={getAllTourSteps()} 
+        onSkip={handleTourComplete} 
+        onComplete={handleTourComplete}
+      >
+        {children}
+      </NextStepReact>
     </>
   );
 }

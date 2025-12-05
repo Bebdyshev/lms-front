@@ -188,18 +188,6 @@ export default function ProfilePage() {
               {message}
             </div>
           )}
-
-          <div className="flex justify-between items-center pt-4 border-t">
-            <ResetOnboardingButton />
-            <button
-              onClick={handleSave}
-              disabled={saving || !name.trim() || name === user?.name}
-              className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
         </div>
       </div>
 
