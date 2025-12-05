@@ -27,12 +27,12 @@ import type { Course } from '../types';
 
 // Navigation items based on user roles
 type NavItemTuple = [to: string, label: string, Icon: LucideIcon, badge: number, roles: string[] | null, dataTour?: string];
-function getNavigationItems(_userRole: string | undefined, unreadCount: number): NavItemTuple[] {
+function getNavigationItems(_userRole: string | undefined, unreadCount: number, unseenGradedCount: number = 0): NavItemTuple[] {
   const allItems: NavItemTuple[] = [
     ['/dashboard', 'Dashboard', Home, 0, null, 'dashboard-nav'],
     ['/calendar', 'Calendar', Calendar, 0, null, 'calendar-nav'],
     ['/courses', 'My Courses', BookOpen, 0, ['student'], 'courses-nav'],
-    ['/homework', 'My Home work', ClipboardList, 0, ['student'], 'assignments-nav'],
+    ['/homework', 'My Home work', ClipboardList, unseenGradedCount, ['student'], 'assignments-nav'],
     ['/favorites', 'My Favorites', Heart, 0, ['student'], 'favorites-nav'],
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher'], 'courses-nav'],
     ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher'], 'students-nav'],
@@ -57,12 +57,33 @@ interface SidebarProps {
 
 export default function Sidebar({ variant = 'desktop', isCollapsed = false, onToggle }: SidebarProps) {
   const [unread, setUnread] = useState(0);
+  const [unseenGraded, setUnseenGraded] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isCoursesExpanded, setIsCoursesExpanded] = useState(false);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  
+  // Load unseen graded count for students
+  useEffect(() => {
+    if (!user || user.role !== 'student') return;
+    
+    const loadUnseenGradedCount = async () => {
+      try {
+        const result = await apiClient.getUnseenGradedCount();
+        setUnseenGraded(result.count);
+      } catch (error) {
+        console.warn('Failed to load unseen graded count:', error);
+      }
+    };
+    
+    loadUnseenGradedCount();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(loadUnseenGradedCount, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
   
   useEffect(() => {
     if (!user) return;
@@ -88,6 +109,19 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
 
     socket.on('unread:update', handleUnreadUpdate);
     
+    // Listen for unseen graded updates
+    const handleUnseenGradedUpdate = async () => {
+      if (user?.role === 'student') {
+        try {
+          const result = await apiClient.getUnseenGradedCount();
+          setUnseenGraded(result.count);
+        } catch (error) {
+          console.warn('Failed to update unseen graded count:', error);
+        }
+      }
+    };
+    socket.on('unseen_graded:update', handleUnseenGradedUpdate);
+    
     // Слушаем событие обновления счетчика (для совместимости)
     const handleUpdateUnreadCount = () => {
       loadUnreadCount();
@@ -96,6 +130,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
     
     return () => {
       socket.off('unread:update', handleUnreadUpdate);
+      socket.off('unseen_graded:update', handleUnseenGradedUpdate);
       window.removeEventListener('updateUnreadCount', handleUpdateUnreadCount);
     };
   }, [user]);
@@ -160,7 +195,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
       </div>
       
       <nav className="flex flex-col space-y-1 flex-1">
-        {getNavigationItems(user?.role, unread).map(([to, label, Icon, badge, roles, dataTour]) => {
+        {getNavigationItems(user?.role, unread, unseenGraded).map(([to, label, Icon, badge, roles, dataTour]) => {
           // Skip items if user doesn't have required role
           if (roles && (!user?.role || !roles.includes(user.role))) return null;
           

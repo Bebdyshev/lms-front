@@ -834,6 +834,24 @@ class LMSApiClient {
     }
   }
 
+  async getUnseenGradedCount(): Promise<{ count: number }> {
+    try {
+      const response = await this.api.get('/assignments/submissions/unseen-graded-count');
+      return response.data;
+    } catch (error) {
+      console.warn('Failed to get unseen graded count:', error);
+      return { count: 0 };
+    }
+  }
+
+  async markSubmissionSeen(submissionId: number): Promise<void> {
+    try {
+      await this.api.put(`/assignments/submissions/${submissionId}/mark-seen`);
+    } catch (error) {
+      console.warn('Failed to mark submission as seen:', error);
+    }
+  }
+
   async getAssignmentSubmissions(assignmentId: string) {
     try {
       const response = await this.api.get(`/assignments/${assignmentId}/submissions`);

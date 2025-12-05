@@ -76,6 +76,11 @@ export default function AssignmentPage() {
              max_score: assignment?.max_score || 100,
              feedback: statusResult.feedback
            } as any);
+           
+           // Mark as seen if graded - this will update the sidebar badge
+           if (statusResult.status === 'graded' && statusResult.submission_id) {
+             apiClient.markSubmissionSeen(statusResult.submission_id);
+           }
         } catch (e) {
           console.warn('Could not fetch full submission details', e);
         }
