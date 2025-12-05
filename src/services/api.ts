@@ -1506,6 +1506,15 @@ class LMSApiClient {
     }
   }
 
+  async getUserGroups(userId: number): Promise<{ user_id: number; group_ids: number[] }> {
+    try {
+      const response = await this.api.get(`/admin/users/${userId}/groups`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch user groups');
+    }
+  }
+
   async bulkAssignUsersToGroup(userIds: number[], groupId: number): Promise<void> {
     try {
       await this.api.post('/admin/users/bulk-assign-group', {

@@ -276,7 +276,9 @@ export interface UpdateGroupRequest {
   name?: string;
   description?: string;
   teacher_id?: number;
+  curator_id?: number;
   is_active?: boolean;
+  student_ids?: number[];  // Update student list
 }
 
 export interface CreateUserRequest {
@@ -285,7 +287,7 @@ export interface CreateUserRequest {
   password?: string;
   role: UserRole;
   student_id?: string;
-  group_id?: number;
+  group_ids?: number[];  // Multiple groups support
   is_active?: boolean;
 }
 
@@ -294,7 +296,7 @@ export interface UpdateUserRequest {
   email?: string;
   role?: UserRole;
   student_id?: string;
-  group_id?: number;
+  group_ids?: number[];  // Multiple groups support
   is_active?: boolean;
   password?: string;
 }
