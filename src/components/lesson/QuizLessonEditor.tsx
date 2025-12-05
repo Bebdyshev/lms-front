@@ -298,7 +298,7 @@ export default function QuizLessonEditor({
 
   const setDraftCorrect = (idx: number, checked: boolean) => {
     if (!draftQuestion) return;
-    if (draftQuestion.question_type === 'single_choice') {
+    if (draftQuestion.question_type === 'single_choice' || draftQuestion.question_type === 'media_question') {
       if (checked) applyDraftUpdate({ correct_answer: idx });
     } else if (draftQuestion.question_type === 'multiple_choice') {
       const current = Array.isArray(draftQuestion.correct_answer)
