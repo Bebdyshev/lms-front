@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, 
   Clock, 
@@ -26,8 +25,8 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
-import { createEvent, updateEvent, getAllGroups } from '../services/api';
-import type { Event, CreateEventRequest, UpdateEventRequest, EventType, Group } from '../types';
+import { createEvent, updateEvent, getAllGroups, getCourses } from '../services/api';
+import type { Event, CreateEventRequest, UpdateEventRequest, EventType, Group, Course } from '../types';
 import { EVENT_TYPE_LABELS } from '../types';
 
 interface EventFormProps {
@@ -37,9 +36,9 @@ interface EventFormProps {
 }
 
 export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
@@ -56,19 +55,26 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     recurrence_pattern: event?.recurrence_pattern || 'weekly',
     recurrence_end_date: event?.recurrence_end_date || '',
     max_participants: event?.max_participants || undefined,
-    group_ids: [] as number[]
+    group_ids: event?.group_ids || [],
+    course_ids: event?.course_ids || []
   });
 
   useEffect(() => {
-    loadGroups();
+    loadData();
   }, []);
 
-  const loadGroups = async () => {
+  const loadData = async () => {
     try {
-      const groupsData = await getAllGroups();
+      const [groupsData, coursesData] = await Promise.all([
+        getAllGroups(),
+        getCourses()
+      ]);
       setGroups(groupsData.groups || groupsData);
+      // Handle courses response structure
+      const coursesResponse = coursesData as any;
+      setCourses(Array.isArray(coursesResponse) ? coursesResponse : (coursesResponse.data || []));
     } catch (error) {
-      console.error('Failed to load groups:', error);
+      console.error('Failed to load data:', error);
     }
   };
 
@@ -88,6 +94,15 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
       group_ids: checked 
         ? [...prev.group_ids, groupId]
         : prev.group_ids.filter(id => id !== groupId)
+    }));
+  };
+
+  const handleCourseToggle = (courseId: number, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      course_ids: checked 
+        ? [...prev.course_ids, courseId]
+        : prev.course_ids.filter(id => id !== courseId)
     }));
   };
 
@@ -111,8 +126,8 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
       return 'Start time must be before end time';
     }
     
-    if (formData.group_ids.length === 0) {
-      return 'Select at least one group';
+    if (formData.group_ids.length === 0 && formData.course_ids.length === 0) {
+      return 'Select at least one group or course';
     }
     
     if (formData.event_type === 'webinar' && formData.max_participants && formData.max_participants < 1) {
@@ -157,7 +172,8 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
         recurrence_pattern: formData.is_recurring ? formData.recurrence_pattern : undefined,
         recurrence_end_date: formData.is_recurring && formData.recurrence_end_date ? formData.recurrence_end_date : undefined,
         max_participants: formData.event_type === 'webinar' ? formData.max_participants : undefined,
-        group_ids: formData.group_ids
+        group_ids: formData.group_ids,
+        course_ids: formData.course_ids
       };
 
       let savedEvent: Event;
@@ -175,28 +191,26 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     }
   };
 
-  const getEventTypeIcon = (type: EventType) => {
-    switch (type) {
-      case 'class':
-        return <Users className="w-4 h-4" />;
-      case 'weekly_test':
-        return <Clock className="w-4 h-4" />;
-      case 'webinar':
-        return <Video className="w-4 h-4" />;
-      default:
-        return <Calendar className="w-4 h-4" />;
-    }
-  };
-
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          {event ? 'Edit Event' : 'Create Event'}
-        </h1>
-        <p className="text-gray-600">
-          {event ? 'Make changes to the event' : 'Fill in information about the new event'}
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {event ? 'Edit Event' : 'Create Event'}
+          </h1>
+          <p className="text-gray-600">
+            {event ? 'Make changes to the event' : 'Fill in information about the new event'}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          <X className="w-4 h-4 mr-2" />
+          Exit
+        </Button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -429,11 +443,40 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Participant Groups *
+              Participants
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+
+            {/* Courses Selection */}
             <div className="space-y-2">
+              <Label className="text-base font-semibold">Courses</Label>
+              <p className="text-sm text-gray-500 mb-2">Assign to all students enrolled in these courses</p>
+              {courses.map(course => (
+                <div key={course.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`course-${course.id}`}
+                    checked={formData.course_ids.includes(parseInt(course.id))}
+                    onCheckedChange={(checked) => handleCourseToggle(parseInt(course.id), checked as boolean)}
+                  />
+                  <Label htmlFor={`course-${course.id}`} className="flex items-center gap-2 cursor-pointer">
+                    {course.title}
+                    {course.teacher_name && (
+                      <span className="text-xs text-gray-500">({course.teacher_name})</span>
+                    )}
+                  </Label>
+                </div>
+              ))}
+              {courses.length === 0 && (
+                <p className="text-gray-500 text-sm">No courses found</p>
+              )}
+            </div>
+            <div className="border-t pt-2"></div>
+
+            {/* Groups Selection */}
+            <div className="space-y-1">
+              <Label className="text-base font-semibold">Groups</Label>
+              <p className="text-sm text-gray-500 mb-2">Assign to specific student groups</p>
               {groups.map(group => (
                 <div key={group.id} className="flex items-center space-x-2">
                   <Checkbox
@@ -441,7 +484,7 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                     checked={formData.group_ids.includes(group.id)}
                     onCheckedChange={(checked) => handleGroupToggle(group.id, checked as boolean)}
                   />
-                  <Label htmlFor={`group-${group.id}`} className="flex items-center gap-2">
+                  <Label htmlFor={`group-${group.id}`} className="flex items-center gap-2 cursor-pointer">
                     {group.name}
                     <Badge variant="outline" className="text-xs">
                       {group.student_count} students
@@ -453,20 +496,13 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                 <p className="text-gray-500 text-sm">No groups found</p>
               )}
             </div>
+
+
           </CardContent>
         </Card>
 
         {/* Actions */}
         <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={loading}
-          >
-            <X className="w-4 h-4 mr-2" />
-            Cancel
-          </Button>
           <Button type="submit" disabled={loading}>
             <Save className="w-4 h-4 mr-2" />
             {loading ? 'Saving...' : event ? 'Update' : 'Create'}

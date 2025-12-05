@@ -1403,16 +1403,22 @@ export default function LessonPage() {
                       .map((step, index) => {
                         const isCompleted = isStepCompleted(step);
 
+                        const isClickable = user?.role !== 'student';
+
                         return (
                           <button
                             key={step.id}
-                            onClick={() => goToStep(index)}
-                            className={`aspect-square rounded-md text-white p-1 relative shadow-sm hover:shadow-md transition-all cursor-pointer ${currentStepIndex === index
+                            onClick={() => isClickable && goToStep(index)}
+                            disabled={!isClickable}
+                            className={`aspect-square rounded-md text-white p-1 relative shadow-sm transition-all ${
+                              isClickable ? 'hover:shadow-md cursor-pointer' : 'cursor-default'
+                            } ${currentStepIndex === index
                               ? 'bg-blue-800 ring-2 ring-blue-400'
                               : isCompleted
-                                ? 'bg-green-600 hover:bg-green-700'
-                                : 'bg-gray-500 hover:bg-gray-600'
+                                ? `bg-green-600 ${isClickable ? 'hover:bg-green-700' : ''}`
+                                : `bg-gray-500 ${isClickable ? 'hover:bg-gray-600' : ''}`
                               }`}
+                            style={!isClickable ? { opacity: 1 } : {}}
                           >
                             <div className="h-full w-full flex flex-col items-start justify-end">
                               <div className="absolute top-1 left-1 text-[10px] sm:text-[11px] bg-white/20 rounded px-1 py-0.5">

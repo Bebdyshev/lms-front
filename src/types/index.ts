@@ -817,6 +817,9 @@ export interface Event {
   max_participants?: number;
   participant_count: number;
   groups?: string[];
+  courses?: string[];
+  group_ids?: number[];
+  course_ids?: number[];
   created_at: string;
   updated_at: string;
 }
@@ -840,6 +843,7 @@ export interface CreateEventRequest {
   recurrence_end_date?: string;
   max_participants?: number;
   group_ids?: number[];
+  course_ids?: number[];
 }
 
 export interface UpdateEventRequest {
@@ -857,6 +861,7 @@ export interface UpdateEventRequest {
   recurrence_end_date?: string;
   max_participants?: number;
   group_ids?: number[];
+  course_ids?: number[];
 }
 
 export interface EventGroup {
