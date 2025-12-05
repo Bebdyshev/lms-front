@@ -57,18 +57,13 @@ export default function YouTubeVideoPlayer({
   // Initialize YouTube Player API
   useEffect(() => {
     if (!videoInfo.is_valid || !videoInfo.video_id) {
-      console.log('YouTubeVideoPlayer: Invalid video info', videoInfo);
       return;
     }
 
-    console.log('YouTubeVideoPlayer: Initializing for video', videoInfo.video_id);
-
     const loadYouTubeAPI = () => {
       if (window.YT && window.YT.Player) {
-        console.log('YouTubeVideoPlayer: YouTube API already loaded');
         initializePlayer();
       } else {
-        console.log('YouTubeVideoPlayer: Loading YouTube API...');
         // Load YouTube API if not already loaded
         const tag = document.createElement('script');
         tag.src = 'https://www.youtube.com/iframe_api';
@@ -76,33 +71,24 @@ export default function YouTubeVideoPlayer({
         firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
 
         window.onYouTubeIframeAPIReady = () => {
-          console.log('YouTubeVideoPlayer: YouTube API ready');
           initializePlayer();
         };
       }
     };
 
     const initializePlayer = () => {
-      console.log('YouTubeVideoPlayer: initializePlayer called');
-      console.log('YouTubeVideoPlayer: playerRef.current:', !!playerRef.current);
-      console.log('YouTubeVideoPlayer: window.YT:', !!window.YT);
-      console.log('YouTubeVideoPlayer: playerInstance:', !!playerInstanceRef.current);
-      
       // Wait for element to be rendered
       if (!playerRef.current) {
-        console.log('YouTubeVideoPlayer: playerRef not ready, retrying in 100ms...');
         setTimeout(initializePlayer, 100);
         return;
       }
       
       // Avoid creating multiple players
       if (playerInstanceRef.current) {
-        console.log('YouTubeVideoPlayer: Player already exists, skipping create');
         return;
       }
 
       if (playerRef.current && window.YT) {
-        console.log('YouTubeVideoPlayer: Creating YouTube Player...');
         try {
           playerInstanceRef.current = new window.YT.Player(playerRef.current as any, {
             videoId: videoInfo.video_id,
@@ -113,14 +99,11 @@ export default function YouTubeVideoPlayer({
             },
             events: {
               onReady: (event: any) => {
-                console.log('YouTubeVideoPlayer: Player ready');
                 setPlayer(event.target);
               },
               onStateChange: (event: any) => {
-                console.log('YouTubeVideoPlayer: State changed to', event.data);
 
                 if (event.data === window.YT.PlayerState.PLAYING) {
-                  console.log('YouTubeVideoPlayer: Video started playing, starting progress tracking');
                   // Clear any existing interval first
                   if (intervalRef.current) {
                     clearInterval(intervalRef.current);
@@ -135,21 +118,15 @@ export default function YouTubeVideoPlayer({
                         if (duration > 0) {
                           const progressFraction = Math.min(1, Math.max(0, currentTime / duration));
                           const progressPercent = progressFraction * 100;
-                          console.log('YouTubeVideoPlayer: Progress update', progressPercent.toFixed(1) + '%');
                           onProgressRef.current?.(progressFraction);
                         }
                       }
                     } catch (err) {
-                      console.error('YouTubeVideoPlayer: Error while tracking progress', err);
                     }
                   }, 1000);
 
                 } else if (event.data === window.YT.PlayerState.PAUSED) {
-                  console.log('YouTubeVideoPlayer: Video paused');
-                  // Keep the interval running when paused to maintain progress
                 } else if (event.data === window.YT.PlayerState.ENDED) {
-                  // Clear interval and report 100%
-                  console.log('YouTubeVideoPlayer: Video ended, reporting 100% progress');
                   if (intervalRef.current) {
                     clearInterval(intervalRef.current);
                     intervalRef.current = undefined;
@@ -160,12 +137,10 @@ export default function YouTubeVideoPlayer({
             }
           });
 
-          console.log('YouTubeVideoPlayer: Player created successfully');
         } catch (error) {
           console.error('YouTubeVideoPlayer: Error creating player', error);
         }
       } else {
-        console.log('YouTubeVideoPlayer: Cannot initialize - playerRef:', !!playerRef.current, 'YT:', !!window.YT);
       }
     };
 
@@ -187,11 +162,6 @@ export default function YouTubeVideoPlayer({
       }
     };
   }, [videoInfo.video_id]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('YouTubeVideoPlayer: Rendering - player:', !!player, 'playerRef:', !!playerRef.current);
-  });
 
   // Fallback UI for Zen browser or iframe errors
   if (iframeError) {
