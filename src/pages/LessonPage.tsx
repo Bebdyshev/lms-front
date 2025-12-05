@@ -313,6 +313,7 @@ export default function LessonPage() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [feedChecked, setFeedChecked] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
+  const [isQuizReady, setIsQuizReady] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('lessonSidebarCollapsed');
     return saved ? JSON.parse(saved) : false;
@@ -591,6 +592,7 @@ export default function LessonPage() {
     let isMounted = true;
 
     if (currentStep?.content_type === 'quiz') {
+      setIsQuizReady(false); // Start loading
       const loadQuizData = async () => {
         try {
           const parsedQuizData = JSON.parse(currentStep.content_text || '{}');
@@ -665,6 +667,7 @@ export default function LessonPage() {
               const passed = lastAttempt.score_percentage >= 50;
               setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
 
+              setIsQuizReady(true); // Ready!
               return; // Skip default initialization if restored
             }
           } catch (err) {
@@ -673,10 +676,29 @@ export default function LessonPage() {
 
           if (!isMounted) return;
 
-          // Default initialization if no previous attempt found
-          // Only NOW do we reset state, preventing flicker
-          setGapAnswers(init);
-          setQuizAnswers(new Map());
+          // Check localStorage for in-progress attempt
+          try {
+            const localQuizAnswers = localStorage.getItem(`quiz_answers_${currentStep.id}`);
+            const localGapAnswers = localStorage.getItem(`gap_answers_${currentStep.id}`);
+
+            if (localQuizAnswers || localGapAnswers) {
+              console.log('Restoring from localStorage');
+              if (localQuizAnswers) {
+                setQuizAnswers(new Map(JSON.parse(localQuizAnswers)));
+              }
+              if (localGapAnswers) {
+                setGapAnswers(new Map(JSON.parse(localGapAnswers)));
+              }
+            } else {
+              // Default initialization if no previous attempt found
+              setGapAnswers(init);
+              setQuizAnswers(new Map());
+            }
+          } catch (e) {
+            console.error('Failed to restore from localStorage:', e);
+            setGapAnswers(init);
+            setQuizAnswers(new Map());
+          }
 
           const displayMode = parsedQuizData.display_mode || 'one_by_one';
           console.log('Quiz display_mode:', displayMode, 'Quiz data:', parsedQuizData);
@@ -689,8 +711,10 @@ export default function LessonPage() {
 
           setCurrentQuestionIndex(0);
           setFeedChecked(false);
+          setIsQuizReady(true); // Ready!
         } catch (error) {
           console.error('Failed to parse quiz data:', error);
+          setIsQuizReady(true); // Ready even on error to show something (or handle error UI)
         }
       };
 
@@ -701,6 +725,14 @@ export default function LessonPage() {
       isMounted = false;
     };
   }, [currentStep]);
+
+  // Persist quiz progress to localStorage
+  useEffect(() => {
+    if (currentStep?.content_type === 'quiz' && (quizAnswers.size > 0 || gapAnswers.size > 0)) {
+      localStorage.setItem(`quiz_answers_${currentStep.id}`, JSON.stringify(Array.from(quizAnswers.entries())));
+      localStorage.setItem(`gap_answers_${currentStep.id}`, JSON.stringify(Array.from(gapAnswers.entries())));
+    }
+  }, [quizAnswers, gapAnswers, currentStep]);
 
   // Check if user can proceed to next step
   const canProceedToNext = (): boolean => {
@@ -869,6 +901,9 @@ export default function LessonPage() {
         setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
         if (passed) {
           markStepAsVisited(currentStep.id.toString(), 3); // 3 minutes for quiz completion
+          // Clear localStorage on success
+          localStorage.removeItem(`quiz_answers_${currentStep.id}`);
+          localStorage.removeItem(`gap_answers_${currentStep.id}`);
         }
       }
     }
@@ -885,6 +920,9 @@ export default function LessonPage() {
       setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
       if (passed) {
         markStepAsVisited(currentStep.id.toString(), 3);
+        // Clear localStorage on success
+        localStorage.removeItem(`quiz_answers_${currentStep.id}`);
+        localStorage.removeItem(`gap_answers_${currentStep.id}`);
       }
     }
   };
@@ -902,32 +940,30 @@ export default function LessonPage() {
     } else {
       setQuizState('title');
     }
-
+    setQuizAnswers(new Map());
+    
+    // Reset gap answers
+    const init = new Map<string, string[]>();
+    questions.forEach((q: any) => {
+      if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
+        const text = (q.content_text || q.question_text || '').toString();
+        const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+        const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+        init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
+      }
+    });
+    setGapAnswers(init);
+    
     setCurrentQuestionIndex(0);
-    // Don't clear answers - keep them for retry/debugging
-    // setQuizAnswers(new Map());
-    setQuizStartTime(null);
     setFeedChecked(false);
+    setQuizStartTime(Date.now());
 
-    // Reset quiz completion status for current step
+    // Clear localStorage
     if (currentStep) {
-      setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), false)));
+      localStorage.removeItem(`quiz_answers_${currentStep.id}`);
+      localStorage.removeItem(`gap_answers_${currentStep.id}`);
     }
-
-    // Don't re-initialize gap answers - keep previous answers
-    // const init = new Map<string, string[]>();
-    // (questions || []).forEach((q: any) => {
-    //   if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
-    //     const text = (q.content_text || q.question_text || '').toString();
-    //     const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-    //     const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-    //     init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
-    //   }
-    // });
-    // setGapAnswers(init);
   };
-
-  // Development helper: Auto-fill correct answers
   const autoFillCorrectAnswers = () => {
     if (import.meta.env.DEV) {
       const newQuizAnswers = new Map<string, any>();
@@ -1227,6 +1263,14 @@ export default function LessonPage() {
         );
 
       case 'quiz':
+        if (!isQuizReady) {
+          return (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          );
+        }
+
         return (
           <QuizRenderer
             quizState={quizState}

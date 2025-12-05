@@ -110,6 +110,11 @@ export const TextCompletionRenderer: React.FC<TextCompletionRendererProps> = ({
                                 maxWidth: '200px'
                             }}
                         />
+                        {isIncorrect && (
+                            <span className="text-sm font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded border border-green-200">
+                                {correctAnswer}
+                            </span>
+                        )}
                     </span>,
                     gap.container
                 );

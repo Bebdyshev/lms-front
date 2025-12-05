@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '../ui/button';
 import { CheckCircle, ChevronRight } from 'lucide-react';
 import { renderTextWithLatex } from '../../utils/latex';
@@ -64,7 +65,6 @@ const QuizRenderer = (props: QuizRendererProps) => {
     checkAnswer,
     nextQuestion,
     resetQuiz,
-    getScore,
     isCurrentAnswerCorrect,
     getCurrentQuestion,
     getCurrentUserAnswer,
@@ -72,15 +72,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
     setQuizCompleted,
     markStepAsVisited,
     currentStep,
-    saveQuizAttempt,
     setFeedChecked,
     getGapStatistics,
     setQuizAnswers,
-    steps,
-    goToStep,
-    currentStepIndex,
-    nextLessonId,
-    courseId,
     finishQuiz,
     reviewQuiz,
     autoFillCorrectAnswers,
@@ -137,13 +131,13 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
           {/* Development Helper Button */}
           {import.meta.env.DEV && (
-            <button
+            <Button
               onClick={autoFillCorrectAnswers}
               className="mt-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-semibold shadow-md transition-all"
               title="Development only: Auto-fill correct answers"
             >
               🔧 Dev: Fill Correct Answers
-            </button>
+            </Button>
           )}
         </div>
 
@@ -337,7 +331,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
         {/* Action Buttons */}
         <div className="flex justify-center pt-4">
           {!feedChecked ? (
-            <button
+            <Button
               onClick={() => {
                 setFeedChecked(true);
                 finishQuiz();
@@ -373,11 +367,11 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 return ans === undefined;
               })
                 ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg"
-                }`}
+                : "bg-blue-600 hover:bg-blue-700 text-white transition-all"
+              }`}
             >
               Check All Answers
-            </button>
+            </Button>
           ) : (() => {
             const stats = getGapStatistics();
             const totalItems = stats.totalGaps + stats.regularQuestions;
@@ -386,7 +380,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             const isPassed = scorePercentage >= 50;
 
             return (
-              <div className="space-y-4">
+              <div className="flex flex-col items-center space-y-4">
                 {!isPassed && (
                   <div className="p-4 bg-red-100 border border-red-300 rounded-lg mb-4">
                     <p className="text-red-900 font-semibold text-center">
@@ -397,7 +391,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     </p>
                   </div>
                 )}
-                <button
+                <Button
                   onClick={() => {
                     if (isPassed) {
                       // Mark quiz as completed and step as completed before going to next step
@@ -412,13 +406,10 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       setFeedChecked(false);
                     }
                   }}
-                  className={`px-8 py-3 rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 ${isPassed
-                    ? "bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
-                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
-                    }`}
+                  className="bg-green-600 hover:bg-green-700 text-white transition-all text-lg font-semibold items-center content-center"
                 >
                   {isPassed ? 'Continue to Next Step' : 'Retry Quiz'}
-                </button>
+                </Button>
               </div>
             );
           })()}
@@ -653,7 +644,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
         {/* Action Buttons */}
         <div className="flex justify-center pt-4">
-          <button
+          <Button
             onClick={checkAnswer}
             disabled={(() => {
               const ans = quizAnswers.get(q.id);
@@ -673,7 +664,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Check Answer
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -876,6 +867,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
     );
   };
 
+  const [showAllAnswers, setShowAllAnswers] = useState(false);
+
   const renderQuizCompleted = () => {
     const stats = getGapStatistics();
 
@@ -885,6 +878,153 @@ const QuizRenderer = (props: QuizRendererProps) => {
     const percentage = totalItems > 0 ? Math.round((correctItems / totalItems) * 100) : 0;
     const isPassed = percentage >= 50;
 
+    if (showAllAnswers) {
+      return (
+        <div className="max-w-3xl mx-auto space-y-6 p-4">
+          <div className="text-center space-y-2 mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Correct Answers</h2>
+            <p className="text-gray-600">Review your answers below</p>
+          </div>
+
+          <div className="space-y-6">
+            {questions.map((q, idx) => {
+              const userAnswer = quizAnswers.get(q.id);
+              const displayNumber = getQuestionDisplayNumber(idx);
+              const questionGaps = (q.question_type === 'fill_blank' || q.question_type === 'text_completion')
+                ? (q.content_text || q.question_text || '').match(/\[\[(.*?)\]\]/g)?.length || 1
+                : 1;
+
+              return (
+                <div key={q.id} className="bg-white rounded-xl border">
+                  <div className="p-6">
+                    {/* Question Number Badge */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                        {displayNumber}
+                      </div>
+                      <span className="text-sm font-medium text-gray-500">
+                        Question{questionGaps > 1 ? 's' : ''} {displayNumber}{questionGaps > 1 ? `-${displayNumber + questionGaps - 1}` : ''} of {totalQuestionCount}
+                      </span>
+                    </div>
+
+                    {/* Media Attachment for Media Questions */}
+                    {q.question_type === 'media_question' && q.media_url && (
+                      <div className="mb-4">
+                        {q.media_type === 'pdf' ? (
+                          <iframe
+                            src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                            className="w-full h-64 border rounded-lg"
+                            title="Question PDF"
+                          />
+                        ) : (
+                          <img
+                            src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
+                            alt="Question media"
+                            className="w-full max-h-64 object-contain rounded-lg border"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Content Text */}
+                    {q.content_text && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && q.question_type !== 'long_text' && (
+                      <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
+                        <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
+                      </div>
+                    )}
+
+                    {/* Question */}
+                    {q.question_type !== 'text_completion' && (
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">
+                        <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text.replace(/\[\[([^\]]+)\]\]/g, '[[blank]]')) }} />
+                      </h3>
+                    )}
+
+                    {q.question_type === 'text_completion' && (
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">
+                        Fill in the blanks:
+                      </h3>
+                    )}
+
+                    {/* Answer Input Based on Question Type - ALWAYS SHOW RESULT */}
+                    {q.question_type === 'long_text' ? (
+                      <LongTextQuestion
+                        question={q}
+                        value={userAnswer}
+                        onChange={() => {}}
+                        disabled={true}
+                      />
+                    ) : q.question_type === 'short_answer' ? (
+                      <ShortAnswerQuestion
+                        question={q}
+                        value={userAnswer}
+                        onChange={() => {}}
+                        disabled={true}
+                        showResult={true}
+                      />
+                    ) : q.question_type === 'text_completion' ? (
+                      <TextCompletionQuestion
+                        question={q}
+                        answers={gapAnswers.get(q.id.toString()) || []}
+                        onAnswerChange={() => {}}
+                        disabled={true}
+                        showResult={true}
+                      />
+                    ) : q.question_type === 'single_choice' || q.question_type === 'multiple_choice' || q.question_type === 'media_question' ? (
+                      <ChoiceQuestion
+                        question={q}
+                        value={userAnswer}
+                        onChange={() => {}}
+                        disabled={true}
+                        showResult={true}
+                      />
+                    ) : (
+                      <FillInBlankQuestion
+                        question={q}
+                        answers={gapAnswers.get(q.id.toString()) || []}
+                        onAnswerChange={() => {}}
+                        disabled={true}
+                        showResult={true}
+                      />
+                    )}
+
+                    {/* Result Indicator */}
+                    {(() => {
+                      let isCorrect = false;
+                      if (q.question_type === 'fill_blank') {
+                        const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
+                        const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
+                        isCorrect = current.every((val, idx) => (val || '').toString().trim().toLowerCase() === (answers[idx] || '').toString().trim().toLowerCase());
+                      } else {
+                        isCorrect = userAnswer === q.correct_answer;
+                      }
+                      return isCorrect ? (
+                        <div className="mt-4 flex items-center gap-2">
+                          <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                            <CheckCircle className="w-4 h-4" />
+                            Correct!
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-center pt-6 pb-10">
+            <Button
+              onClick={() => setShowAllAnswers(false)}
+              className="px-8 py-3 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              Back to Results
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-2xl mx-auto text-center space-y-6 p-6">
         {/* Header */}
@@ -893,7 +1033,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
         </h1>
 
         {/* Results Card */}
-        <div className={`p-8 rounded-2xl border shadow-lg ${isPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+        <div className={`p-8 rounded-2xl border ${isPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
           }`}>
           <div className="space-y-6">
             {/* Score Display */}
@@ -946,43 +1086,33 @@ const QuizRenderer = (props: QuizRendererProps) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row justify-center gap-4">
+        <div className="flex flex-col sm:flex-row justify-center gap-4 flex-wrap">
           {quizData?.display_mode === 'all_at_once' && (
-            <button
+            <Button
               onClick={reviewQuiz}
-              className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 hover:border-gray-400 px-6 py-3 rounded-lg text-base font-semibold shadow-sm hover:shadow-md transition-all duration-200"
+              variant="outline"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
             >
               Review Answers
-            </button>
+            </Button>
           )}
-
-          <button
-            onClick={resetQuiz}
-            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 hover:border-gray-400 px-6 py-3 rounded-lg text-base font-semibold shadow-sm hover:shadow-md transition-all duration-200"
-          >
-            Retake Quiz
-          </button>
 
           {isPassed && (
-            <button
-              onClick={() => {
-                // Mark quiz as completed and step as completed before going to next step
-                if (currentStep) {
-                  setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-                  markStepAsVisited(currentStep.id.toString(), 5); // 5 minutes for quiz completion
-                }
-                // Go directly to next step without checking canProceedToNext()
-                if (currentStepIndex < steps.length - 1) {
-                  goToStep(currentStepIndex + 1);
-                } else if (nextLessonId) {
-                  navigate(`/course/${courseId}/lesson/${nextLessonId}`);
-                }
-              }}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-3 rounded-lg text-base font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+            <Button
+              onClick={() => setShowAllAnswers(true)}
+              className="bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transition-all"
             >
-              Continue
-            </button>
+              Show Correct Answers
+            </Button>
           )}
+
+          <Button
+            onClick={resetQuiz}
+            variant="ghost"
+            className="text-gray-500 border hover:text-gray-700 hover:bg-gray-100"
+          >
+            Retake Quiz
+          </Button>
         </div>
       </div>
     );
