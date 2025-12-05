@@ -33,7 +33,7 @@ const studentTourSteps: TourStep[] = [
     target: '[data-tour="streak-display"]',
     title: 'Daily Streak 🔥',
     content: 'Keep your learning streak alive! Study every day to maintain and increase your streak count.',
-    placement: 'bottom',
+    placement: 'left',
   },
   {
     target: '[data-tour="recent-courses"]',

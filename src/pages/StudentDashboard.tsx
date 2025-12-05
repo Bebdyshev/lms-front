@@ -183,6 +183,9 @@ export default function StudentDashboard({
   // Get current and relevant assignments (due soon or recent)
   const relevantAssignments = assignments
     .filter(assignment => {
+      const submission = submissions.find(sub => sub.assignment_id === assignment.id);
+      if (!showCompleted && submission?.is_graded) return false;
+
       if (!assignment.due_date) return false;
       const dueDate = new Date(assignment.due_date);
       const now = new Date();
@@ -304,7 +307,7 @@ export default function StudentDashboard({
           </CardContent>
         </Card>
 
-        <Card className="h-fit" data-tour="streak-display">
+        <Card className="h-fit">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="rounded-md bg-amber-100 text-amber-700 p-3">
               <Clock className="h-6 w-6" />

@@ -171,7 +171,7 @@ const StreakIcon: React.FC = () => {
   const { days, monthName } = generateCalendarDays();
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div className="relative" ref={popoverRef} data-tour="streak-display">
       <div 
         className={`relative overflow-hidden w-10 h-10 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 ${getStreakColor()}`}
         onClick={() => setShowCalendar(!showCalendar)}
