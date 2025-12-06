@@ -121,15 +121,65 @@ export default function QuizLessonEditor({
 
         const questionNumber = numberMatch[2] ? `${numberMatch[1]}.${numberMatch[2]}` : numberMatch[1];
 
-        // Split by newlines to extract passage and options
-        const lines = trimmed.split('\n');
-        const firstLine = lines[0];
+        // Remove the question number from the text
+        const contentWithoutNumber = trimmed.substring(numberMatch[0].length).trim();
 
-        // Extract passage text (first line after question number)
-        const passageText = firstLine.substring(numberMatch[0].length).trim();
+        // Find where options start (A), B), C), D))
+        const optionsStartMatch = contentWithoutNumber.match(/\n\s*A\)/);
+        
+        if (!optionsStartMatch || optionsStartMatch.index === undefined) {
+          errors.push(`Question ${questionNumber}: Could not find options (A), B), C), D))`);
+          continue;
+        }
 
-        // Extract options (remaining non-empty lines)
-        const optionLines = lines.slice(1).filter(line => line.trim() !== '');
+        const textBeforeOptions = contentWithoutNumber.substring(0, optionsStartMatch.index).trim();
+        const optionsText = contentWithoutNumber.substring(optionsStartMatch.index).trim();
+
+        // Split passage and question text
+        // Look for common question starters like "Which choice", "What", "How does", etc.
+        const questionPatterns = [
+          /Which choice/i,
+          /What function/i,
+          /What is the/i,
+          /What does/i,
+          /How does/i,
+          /Based on/i,
+          /According to/i,
+          /The main purpose/i,
+          /The author/i,
+          /In context/i,
+          /The passage/i
+        ];
+
+        let passageText = '';
+        let questionText = textBeforeOptions;
+
+        // Try to find where the question starts
+        for (const pattern of questionPatterns) {
+          const match = textBeforeOptions.match(pattern);
+          if (match && match.index !== undefined) {
+            passageText = textBeforeOptions.substring(0, match.index).trim();
+            questionText = textBeforeOptions.substring(match.index).trim();
+            break;
+          }
+        }
+
+        // If no question pattern found, use the whole text as question
+        if (!passageText && questionText === textBeforeOptions) {
+          // Check if there's a sentence break that could indicate passage vs question
+          const lastSentenceMatch = textBeforeOptions.match(/([.!?])\s+([A-Z])/g);
+          if (lastSentenceMatch && lastSentenceMatch.length > 0) {
+            // Find the last sentence break
+            const lastBreakIndex = textBeforeOptions.lastIndexOf(lastSentenceMatch[lastSentenceMatch.length - 1]);
+            if (lastBreakIndex > 0) {
+              passageText = textBeforeOptions.substring(0, lastBreakIndex + 1).trim();
+              questionText = textBeforeOptions.substring(lastBreakIndex + 2).trim();
+            }
+          }
+        }
+
+        // Parse options
+        const optionLines = optionsText.split('\n').filter(line => line.trim() !== '');
 
         if (optionLines.length !== 4) {
           errors.push(`Question ${questionNumber}: Expected 4 options, found ${optionLines.length}`);
@@ -146,9 +196,9 @@ export default function QuizLessonEditor({
           let text = line.replace(/^[A-D]\)\s*/, '').trim();
 
           // Check if this option is marked as correct with "+"
-          const isCorrect = text.endsWith('+');
+          const isCorrect = text.endsWith('+') || text.includes(' +');
           if (isCorrect) {
-            text = text.slice(0, -1).trim(); // Remove the "+" marker
+            text = text.replace(/\s*\+\s*$/, '').trim(); // Remove the "+" marker
             correctIndex = index;
             console.log(`Found correct answer: ${letter}) ${text} (index: ${index})`);
           }
@@ -167,14 +217,14 @@ export default function QuizLessonEditor({
         const question: Question = {
           id: `bulk_${Date.now()}_${questionNumber.replace(/\./g, '_')}`,
           assignment_id: '',
-          question_text: `Question ${questionNumber}`,
+          question_text: questionText || `Question ${questionNumber}`,
           question_type: 'single_choice',
           options: options,
           correct_answer: correctIndex,
           points: 1,
           order_index: questions.length,
           is_sat_question: true,
-          content_text: passageText
+          content_text: passageText || undefined
         };
 
         questions.push(question);
@@ -1472,24 +1522,27 @@ export default function QuizLessonEditor({
 
               <div className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  Paste your questions in the format below. Each question should be numbered (e.g., 1.1, 2.1) followed by the question text with a blank (___), and then four options labeled A) through D).
+                  Paste your questions in the format below. Each question should be numbered (e.g., 1., 2.) followed by the passage text, then the question, and four options labeled A) through D). Mark the correct answer with a <strong>+</strong> at the end.
                 </p>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
                   <div className="font-medium text-blue-900 mb-2">Example Format:</div>
                   <pre className="text-xs text-gray-700 whitespace-pre-wrap">
-                    {`1.1 Along with her ___ Coretta Scott King played an important role...
-A) husband Martin Luther King,
+                    {`1. The following text is adapted from Emily Dickinson's poem, With a Flower, published after her death in 1886. I hide myself within my flower, That wearing on your breast, You, unsuspecting, wear me too And angels know the rest. Which choice best describes the overall structure of the text?
+A) demonstrate the appeal of a season by making a series of comparisons.
+B) evoke a vivid impression of a particular setting with striking sensory imagery. +
+C) describe the ways in which certain aspects of daily life alter throughout the year.
+D) emphasize the symbolic importance of the dangers present in the natural world
+
+2. Along with her ___ Coretta Scott King played an important role in the civil rights movement. Which choice completes the text correctly?
+A) husband Martin Luther King, +
 B) husband Martin Luther King;
 C) husband, Martin Luther King,
-D) husband, Martin Luther King
-
-2.1 Some animal trainers claim that most obedience programs...
-A) dog, that has undergone obedience training
-B) dog that has undergone obedience training
-C) dog that, has undergone obedience training
-D) dog, that has undergone obedience training`}
+D) husband, Martin Luther King`}
                   </pre>
+                  <p className="text-xs text-blue-700 mt-2">
+                    <strong>Note:</strong> The passage text goes before "Which choice..." and becomes the content. Everything from "Which choice..." is the question text.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
