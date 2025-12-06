@@ -48,8 +48,8 @@ export const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
             disabled={disabled}
             className={buttonClass}
           >
-            <div className="flex items-center space-x-3">
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+            <div className="flex items-start space-x-3">
+              <div className={`w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
                 showResult
                   ? isCorrectOption
                     ? "bg-green-500 border-green-500"
@@ -71,7 +71,7 @@ export const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
                 )}
               </div>
               
-              <span className={`text-base font-bold ${
+              <span className={`text-base font-bold flex-shrink-0 ${
                 showResult
                   ? isCorrectOption ? "text-green-700" : isSelected ? "text-red-700" : "text-gray-600"
                   : isSelected ? "text-blue-700" : "text-gray-600"
@@ -79,11 +79,23 @@ export const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
                 {option.letter}.
               </span>
               
-              <span className={`text-base flex-1 ${
-                showResult
-                  ? isCorrectOption ? "text-green-800" : isSelected ? "text-red-800" : "text-gray-700"
-                  : isSelected ? "text-gray-900" : "text-gray-700"
-              }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
+              <div className="flex-1">
+                {option.text && (
+                  <span className={`text-base block ${
+                    showResult
+                      ? isCorrectOption ? "text-green-800" : isSelected ? "text-red-800" : "text-gray-700"
+                      : isSelected ? "text-gray-900" : "text-gray-700"
+                  }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
+                )}
+                
+                {option.image_url && (
+                  <img
+                    src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + option.image_url}
+                    alt={`Option ${option.letter}`}
+                    className="mt-2 max-h-32 rounded border"
+                  />
+                )}
+              </div>
             </div>
           </button>
         );

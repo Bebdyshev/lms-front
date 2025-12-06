@@ -1360,30 +1360,99 @@ export default function QuizLessonEditor({
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label>Options (4)</Label>
+                          <span className="text-xs text-gray-500">Drag & drop or click to add images</span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {(draftQuestion.options || []).slice(0, 4).map((opt, idx) => (
-                            <div key={opt.id} className="flex items-center gap-2 p-2 border rounded-md bg-white">
-                              {draftQuestion.question_type === 'multiple_choice' ? (
-                                <input
-                                  type="checkbox"
-                                  checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
-                                  onChange={(e) => setDraftCorrect(idx, e.target.checked)}
+                            <div 
+                              key={opt.id} 
+                              className="p-3 border rounded-lg bg-white space-y-2"
+                              onDrop={async (e) => {
+                                e.preventDefault();
+                                const file = e.dataTransfer.files?.[0];
+                                if (file && file.type.startsWith('image/')) {
+                                  const result = await uploadQuestionMedia(file);
+                                  if (result) {
+                                    const options = [...(draftQuestion.options || [])];
+                                    options[idx] = { ...options[idx], image_url: result.file_url };
+                                    applyDraftUpdate({ options });
+                                  }
+                                }
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                            >
+                              <div className="flex items-center gap-2">
+                                {draftQuestion.question_type === 'multiple_choice' ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.includes(idx)}
+                                    onChange={(e) => setDraftCorrect(idx, e.target.checked)}
+                                    className="w-4 h-4"
+                                  />
+                                ) : (
+                                  <input
+                                    type="radio"
+                                    name="draft-correct"
+                                    checked={draftQuestion.correct_answer === idx}
+                                    onChange={() => setDraftCorrect(idx, true)}
+                                    className="w-4 h-4"
+                                  />
+                                )}
+                                <span className="font-bold text-gray-600 w-6">{opt.letter || ['A', 'B', 'C', 'D'][idx]}.</span>
+                                <Input
+                                  value={opt.text}
+                                  onChange={(e) => updateDraftOptionText(idx, e.target.value)}
+                                  placeholder={`Option ${idx + 1} text`}
+                                  className="flex-1"
                                 />
-                              ) : (
-                                <input
-                                  type="radio"
-                                  name="draft-correct"
-                                  checked={draftQuestion.correct_answer === idx}
-                                  onChange={() => setDraftCorrect(idx, true)}
-                                />
-                              )}
-                              <Input
-                                value={opt.text}
-                                onChange={(e) => updateDraftOptionText(idx, e.target.value)}
-                                placeholder={`Option ${idx + 1}`}
-                                className="flex-1"
-                              />
+                              </div>
+                              
+                              {/* Image Upload Section */}
+                              <div className="ml-10">
+                                {opt.image_url ? (
+                                  <div className="relative inline-block">
+                                    <img
+                                      src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + opt.image_url}
+                                      alt={`Option ${idx + 1}`}
+                                      className="max-h-24 rounded border"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const options = [...(draftQuestion.options || [])];
+                                        options[idx] = { ...options[idx], image_url: undefined };
+                                        applyDraftUpdate({ options });
+                                      }}
+                                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="cursor-pointer">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const result = await uploadQuestionMedia(file);
+                                          if (result) {
+                                            const options = [...(draftQuestion.options || [])];
+                                            options[idx] = { ...options[idx], image_url: result.file_url };
+                                            applyDraftUpdate({ options });
+                                          }
+                                        }
+                                      }}
+                                    />
+                                    <span className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 border border-dashed border-blue-300 rounded px-2 py-1 hover:bg-blue-50 transition-colors">
+                                      <Image className="w-3 h-3" />
+                                      Add image
+                                    </span>
+                                  </label>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
