@@ -1414,7 +1414,7 @@ export default function QuizLessonEditor({
                                     <img
                                       src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + opt.image_url}
                                       alt={`Option ${idx + 1}`}
-                                      className="max-h-24 rounded border"
+                                      className="max-h-40 rounded border"
                                     />
                                     <button
                                       type="button"

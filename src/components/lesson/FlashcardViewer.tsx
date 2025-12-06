@@ -233,7 +233,7 @@ export default function FlashcardViewer({ flashcardSet, onComplete, onProgress, 
                   <img 
                     src={currentCard.front_image_url} 
                     alt="Front" 
-                    className="max-w-full max-h-48 object-contain rounded mb-4"
+                    className="max-w-full max-h-80 object-contain rounded mb-4"
                   />
                 )}
                 <div className="text-xl font-medium text-gray-900">
@@ -248,7 +248,7 @@ export default function FlashcardViewer({ flashcardSet, onComplete, onProgress, 
                   <img 
                     src={currentCard.back_image_url} 
                     alt="Back" 
-                    className="max-w-full max-h-48 object-contain rounded mb-4"
+                    className="max-w-full max-h-80 object-contain rounded mb-4"
                   />
                 )}
                 <div className="text-xl font-medium text-gray-900">

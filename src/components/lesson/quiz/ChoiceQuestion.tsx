@@ -100,7 +100,7 @@ export const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
                   <img
                     src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + option.image_url}
                     alt={`Option ${option.letter}`}
-                    className="mt-2 max-h-32 rounded border"
+                    className="mt-2 max-h-64 rounded border"
                   />
                 )}
               </div>
