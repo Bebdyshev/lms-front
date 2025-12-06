@@ -303,6 +303,7 @@ export default function LessonPage() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [videoProgress, setVideoProgress] = useState<Map<string, number>>(new Map());
   const [quizCompleted, setQuizCompleted] = useState<Map<string, boolean>>(new Map());
+  const [furthestStepIndex, setFurthestStepIndex] = useState(0);
 
   // Quiz state
   const [quizAnswers, setQuizAnswers] = useState<Map<string, any>>(new Map());
@@ -323,6 +324,13 @@ export default function LessonPage() {
   useEffect(() => {
     localStorage.setItem('lessonSidebarCollapsed', JSON.stringify(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
+
+  // Track the furthest step the student has reached
+  useEffect(() => {
+    if (currentStepIndex > furthestStepIndex) {
+      setFurthestStepIndex(currentStepIndex);
+    }
+  }, [currentStepIndex, furthestStepIndex]);
 
   // Load Course Data (Sidebar structure) - Only when courseId changes
   useEffect(() => {
@@ -458,6 +466,22 @@ export default function LessonPage() {
       setLesson(lessonData);
       setSteps(stepsData);
       setStepsProgress(progressData || []);
+
+      // Initialize furthestStepIndex based on existing progress
+      // Find the highest step index that has been visited/started
+      if (stepsData && stepsData.length > 0 && progressData) {
+        const sortedSteps = [...stepsData].sort((a: any, b: any) => a.order_index - b.order_index);
+        let maxReachedIndex = 0;
+        sortedSteps.forEach((step: any, index: number) => {
+          const stepProgress = progressData.find((p: any) => p.step_id === step.id);
+          if (stepProgress && (stepProgress.status === 'completed' || stepProgress.status === 'in_progress')) {
+            maxReachedIndex = index;
+          }
+        });
+        setFurthestStepIndex(maxReachedIndex);
+      } else {
+        setFurthestStepIndex(0);
+      }
 
     } catch (error) {
       console.error('Failed to load lesson data:', error);
@@ -1453,29 +1477,40 @@ export default function LessonPage() {
                       .map((step, index) => {
                         const isCompleted = isStepCompleted(step);
 
-                        const isClickable = user?.role !== 'student';
+                        // Teachers/admins can click on any step
+                        // Students can click on completed steps OR any step up to the furthest step they've reached
+                        const isClickable = user?.role !== 'student' || isCompleted || index <= furthestStepIndex;
 
                         return (
                           <button
                             key={step.id}
                             onClick={() => isClickable && goToStep(index)}
                             disabled={!isClickable}
+                            title={!isClickable ? 'Завершите предыдущие шаги, чтобы открыть' : step.title || `Шаг ${step.order_index}`}
                             className={`aspect-square rounded-md text-white p-1 relative shadow-sm transition-all ${
-                              isClickable ? 'hover:shadow-md cursor-pointer' : 'cursor-default'
+                              isClickable ? 'hover:shadow-md cursor-pointer' : 'cursor-not-allowed opacity-50'
                             } ${currentStepIndex === index
                               ? 'bg-blue-800 ring-2 ring-blue-400'
                               : isCompleted
                                 ? `bg-green-600 ${isClickable ? 'hover:bg-green-700' : ''}`
                                 : `bg-gray-500 ${isClickable ? 'hover:bg-gray-600' : ''}`
                               }`}
-                            style={!isClickable ? { opacity: 1 } : {}}
                           >
+                            {/* Striped overlay for locked steps */}
+                            {!isClickable && (
+                              <div 
+                                className="absolute inset-0 rounded-md opacity-30"
+                                style={{
+                                  background: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.3) 3px, rgba(0,0,0,0.3) 6px)'
+                                }}
+                              />
+                            )}
                             <div className="h-full w-full flex flex-col items-start justify-end">
                               <div className="absolute top-1 left-1 text-[10px] sm:text-[11px] bg-white/20 rounded px-1 py-0.5">
                                 {step.order_index}
                               </div>
                               <div className="flex items-center gap-1 opacity-90">
-                                {getStepIcon(step)}
+                                {!isClickable ? <Lock className="w-4 h-4" /> : getStepIcon(step)}
                               </div>
                             </div>
                           </button>
