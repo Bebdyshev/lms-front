@@ -710,6 +710,13 @@ const QuizRenderer = (props: QuizRendererProps) => {
         {/* Question Review */}
         <div className="bg-white rounded-2xl overflow-hidden">
           <div className="p-8">
+            {/* Content Text / Passage */}
+            {question.content_text && question.content_text.trim() && question.question_type !== 'text_completion' && question.question_type !== 'fill_blank' && (
+              <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
+                <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.content_text) }} />
+              </div>
+            )}
+
             {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' && (
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.question_text.replace(/\[\[.*?\]\]/g, '')) }} />
@@ -729,62 +736,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
             )}
 
             {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' ? (
-              /* Options Review */
-              <div className="space-y-4">
-                {question.options?.map((option: any, optionIndex: number) => {
-                  const isSelected = userAnswer === optionIndex;
-                  const isCorrectOption = optionIndex === question.correct_answer;
-
-                  return (
-                    <div key={option.id} className={`p-6 rounded-xl border-2 transition-all duration-300 ${isCorrectOption
-                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-md'
-                      : isSelected && !isCorrect
-                        ? 'bg-gradient-to-r from-red-50 to-pink-50 border-red-300 shadow-md'
-                        : 'bg-gray-50 border-gray-200'
-                      }`}>
-                      <div className="flex items-center space-x-4">
-                        {/* Status Icon */}
-                        <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isCorrectOption
-                          ? "bg-green-500 border-green-500 shadow-lg"
-                          : isSelected && !isCorrect
-                            ? "bg-red-500 border-red-500 shadow-lg"
-                            : "border-gray-300 bg-white"
-                          }`}>
-                          {isCorrectOption ? (
-                            <CheckCircle className="w-5 h-5 text-white" />
-                          ) : isSelected && !isCorrect ? (
-                            <div className="text-white text-lg font-bold">✗</div>
-                          ) : null}
-                        </div>
-
-                        {/* Option Content */}
-                        <div className="flex-1">
-                          <div className="flex items-start gap-3">
-                            <span className={`text-xl font-bold ${isCorrectOption ? 'text-green-700' :
-                              isSelected && !isCorrect ? 'text-red-700' : 'text-gray-600'
-                              }`}>
-                              {option.letter}.
-                            </span>
-                            <span className={`text-lg leading-relaxed ${isCorrectOption ? 'text-green-800 font-medium' :
-                              isSelected && !isCorrect ? 'text-red-800' : 'text-gray-700'
-                              }`} dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
-                          </div>
-
-                          {/* Status Label */}
-                          {(isCorrectOption || (isSelected && !isCorrect)) && (
-                            <div className="mt-2">
-                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${isCorrectOption ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
-                                }`}>
-                                {isCorrectOption ? '✓ Correct Answer' : '✗ Your Answer'}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              /* Options Review - Use the same component for consistency */
+              <ChoiceQuestion
+                question={question}
+                value={userAnswer}
+                onChange={() => {}}
+                disabled={true}
+                showResult={true}
+              />
             ) : (
               /* Fill-in-the-gaps Review */
               <div className="p-6 rounded-xl border-2 bg-gray-50 border-gray-200">
