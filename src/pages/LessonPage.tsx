@@ -878,7 +878,13 @@ export default function LessonPage() {
   };
 
   const checkAnswer = () => {
-    // Always show result first, regardless of step position
+    // For long_text questions, skip result screen and go directly to next question
+    const question = questions[currentQuestionIndex];
+    if (question?.question_type === 'long_text') {
+      nextQuestion();
+      return;
+    }
+    // For other question types, show result first
     setQuizState('result');
   };
 
