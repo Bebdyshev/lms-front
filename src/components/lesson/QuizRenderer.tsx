@@ -227,7 +227,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                         <img
                           src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
                           alt="Question media"
-                          className="w-full max-h-64 object-contain rounded-lg border"
+                          className="w-full max-h-96 object-contain rounded-lg border"
                         />
                       )}
                     </div>
@@ -564,7 +564,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                   <img
                     src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
                     alt="Question media"
-                    className="w-full max-h-64 object-contain rounded-lg border"
+                    className="w-full max-h-96 object-contain rounded-lg border"
                   />
                 )}
               </div>
@@ -912,7 +912,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                           <img
                             src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
                             alt="Question media"
-                            className="w-full max-h-64 object-contain rounded-lg border"
+                            className="w-full max-h-96 object-contain rounded-lg border"
                           />
                         )}
                       </div>
