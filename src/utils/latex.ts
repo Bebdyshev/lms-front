@@ -15,16 +15,49 @@ export interface LatexMatch {
 export function findLatexFormulas(text: string): LatexMatch[] {
   const matches: LatexMatch[] = [];
   
+  // First, skip patterns that look like escaped dollar signs (currency)
+  // $\$ patterns are meant to be literal dollar signs, not LaTeX
+  // Also skip patterns like $500 which are clearly currency
+  
   // Inline формулы: $...$
+  // Skip if the content looks like escaped $ (\$) or is just a number (currency)
   const inlineRegex = /\$([^$\n]+?)\$/g;
   let match;
   while ((match = inlineRegex.exec(text)) !== null) {
+    const content = match[1];
+    
+    // Skip if content is ONLY an escaped dollar sign (like $\$$ which is meant to render as $)
+    // But allow valid LaTeX that starts with backslash commands like \begin, \frac, etc.
+    if (content === '\\$' || content.startsWith('\\$ ') || content.startsWith('\\$\n')) {
+      continue;
+    }
+    
+    // Skip if content is just a number (likely currency like $500$)
+    if (/^\s*\d+\s*$/.test(content)) {
+      continue;
+    }
+    
+    // Skip if content contains HTML tags (likely broken match across paragraphs)
+    if (/<[^>]+>/.test(content)) {
+      continue;
+    }
+    
+    // Skip if content is too long (> 200 chars) - likely not real LaTeX
+    if (content.length > 200) {
+      continue;
+    }
+    
+    // Skip if content starts with a number followed by space (currency like "$24 coming to me")
+    if (/^\d+\s/.test(content)) {
+      continue;
+    }
+    
     matches.push({
       type: 'inline',
       start: match.index,
       end: match.index + match[0].length,
       content: match[0],
-      latex: match[1]
+      latex: content
     });
   }
   
