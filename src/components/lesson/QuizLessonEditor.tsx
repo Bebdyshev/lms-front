@@ -1618,7 +1618,6 @@ D) dog, that has undergone obedience training`}
                 {/* Passage/Content */}
                 {draftQuestion.content_text && (
                   <div className="bg-gray-50 p-4 rounded-lg border">
-                    <div className="text-sm font-medium text-gray-600 mb-2">Passage:</div>
                     <div className="text-gray-800 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(draftQuestion.content_text) }} />
                   </div>
                 )}

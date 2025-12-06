@@ -232,7 +232,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                   )}
 
                   {/* Content Text */}
-                  {q.content_text && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && q.question_type !== 'long_text' && (
+                  {q.content_text && q.content_text.trim() && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
                     <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                       <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
                     </div>
@@ -569,7 +569,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             )}
 
             {/* Content Text */}
-            {q.content_text && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && q.question_type !== 'long_text' && (
+            {q.content_text && q.content_text.trim() && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
               <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                 <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
               </div>
@@ -927,7 +927,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     )}
 
                     {/* Content Text */}
-                    {q.content_text && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && q.question_type !== 'long_text' && (
+                    {q.content_text && q.content_text.trim() && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
                       <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                         <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
                       </div>
