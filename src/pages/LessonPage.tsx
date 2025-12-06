@@ -319,6 +319,7 @@ export default function LessonPage() {
   const [feedChecked, setFeedChecked] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
   const [isQuizReady, setIsQuizReady] = useState(false);
+  const [quizAttempt, setQuizAttempt] = useState<any>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('lessonSidebarCollapsed');
     return saved ? JSON.parse(saved) : false;
@@ -685,6 +686,7 @@ export default function LessonPage() {
             if (attempts && attempts.length > 0) {
               const lastAttempt = attempts[0]; // Get the most recent attempt
               console.log('Restoring quiz attempt:', lastAttempt);
+              setQuizAttempt(lastAttempt);
 
               // Restore answers
               if (lastAttempt.answers) {
@@ -1117,6 +1119,10 @@ export default function LessonPage() {
         sampleAnswers: answersToSave.slice(0, 3)
       });
 
+      // Check if quiz needs manual grading
+      const hasLongText = questions.some(q => q.question_type === 'long_text');
+      const isGraded = !hasLongText;
+
       const attemptData = {
         step_id: parseInt(currentStep.id.toString()),
         course_id: parseInt(courseId),
@@ -1126,10 +1132,12 @@ export default function LessonPage() {
         correct_answers: score,
         score_percentage: totalQuestions > 0 ? (score / totalQuestions) * 100 : 0,
         answers: JSON.stringify(answersToSave),
-        time_spent_seconds: timeSpentSeconds
+        time_spent_seconds: timeSpentSeconds,
+        is_graded: isGraded
       };
 
-      await apiClient.saveQuizAttempt(attemptData);
+      const savedAttempt = await apiClient.saveQuizAttempt(attemptData);
+      setQuizAttempt(savedAttempt);
       console.log('Quiz attempt saved successfully');
     } catch (error) {
       console.error('Failed to save quiz attempt:', error);
@@ -1386,6 +1394,7 @@ export default function LessonPage() {
             finishQuiz={finishQuiz}
             reviewQuiz={reviewQuiz}
             autoFillCorrectAnswers={autoFillCorrectAnswers}
+            quizAttempt={quizAttempt}
           />
         );
 

@@ -2092,12 +2092,57 @@ class LMSApiClient {
     score_percentage: number;
     answers?: string;
     time_spent_seconds?: number;
+    is_graded?: boolean;
   }): Promise<any> {
     try {
       const response = await this.api.post('/progress/quiz-attempt', attemptData);
       return response.data;
     } catch (error) {
       console.error('Failed to save quiz attempt:', error);
+      throw error;
+    }
+  }
+
+  async gradeQuizAttempt(attemptId: number, gradeData: {
+    score_percentage: number;
+    correct_answers: number;
+    feedback?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.api.put(`/progress/quiz-attempts/${attemptId}/grade`, gradeData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to grade quiz attempt:', error);
+      throw error;
+    }
+  }
+
+  async deleteQuizAttempt(attemptId: number): Promise<void> {
+    try {
+      await this.api.delete(`/progress/quiz-attempts/${attemptId}`);
+    } catch (error) {
+      console.error('Failed to delete quiz attempt:', error);
+      throw error;
+    }
+  }
+
+
+  async getUngradedQuizAttempts(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/progress/quiz-attempts/ungraded');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get ungraded quiz attempts:', error);
+      throw error;
+    }
+  }
+
+  async getGradedQuizAttempts(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/progress/quiz-attempts/ungraded?graded=true');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get graded quiz attempts:', error);
       throw error;
     }
   }
@@ -2230,6 +2275,9 @@ export const submitQuiz = apiClient.submitQuiz.bind(apiClient);
 export const getPendingSubmissions = apiClient.getPendingSubmissions.bind(apiClient);
 export const gradeSubmission = apiClient.gradeSubmission.bind(apiClient);
 export const allowResubmission = apiClient.allowResubmission.bind(apiClient);
+export const gradeQuizAttempt = apiClient.gradeQuizAttempt.bind(apiClient);
+export const deleteQuizAttempt = apiClient.deleteQuizAttempt.bind(apiClient);
+export const getUngradedQuizAttempts = apiClient.getUngradedQuizAttempts.bind(apiClient);
 export const fetchModules = apiClient.fetchModules.bind(apiClient);
 export const fetchLectures = apiClient.fetchLectures.bind(apiClient);
 export const fetchLecturesByModule = apiClient.fetchLecturesByModule.bind(apiClient);

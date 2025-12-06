@@ -48,6 +48,7 @@ interface QuizRendererProps {
   finishQuiz: () => void;
   reviewQuiz: () => void;
   autoFillCorrectAnswers: () => void;
+  quizAttempt?: any;
 }
 
 const QuizRenderer = (props: QuizRendererProps) => {
@@ -78,6 +79,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
     finishQuiz,
     reviewQuiz,
     autoFillCorrectAnswers,
+    quizAttempt,
   } = props;
 
   const navigate = useNavigate();
@@ -825,12 +827,47 @@ const QuizRenderer = (props: QuizRendererProps) => {
   const [showAllAnswers, setShowAllAnswers] = useState(false);
 
   const renderQuizCompleted = () => {
+    // Check for long text questions
+    const hasLongText = questions.some(q => q.question_type === 'long_text');
+    
+    // Determine if grading is pending
+    // If it has long text and (no attempt record OR attempt is not graded), it's pending
+    const isPending = hasLongText && (!quizAttempt || !quizAttempt.is_graded);
+
+    if (isPending) {
+      return (
+        <div className="max-w-2xl mx-auto text-center space-y-6 p-6">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Submission Received
+          </h1>
+          <div className="p-8 rounded-2xl border bg-yellow-50 border-yellow-200">
+             <div className="text-6xl mb-4">📝</div>
+             <h2 className="text-xl font-bold text-yellow-800 mb-2">Pending Teacher Review</h2>
+             <p className="text-yellow-700">
+               Your quiz includes long text questions that require manual grading. 
+               Your score will be updated once the teacher reviews your answers.
+             </p>
+          </div>
+          <div className="flex justify-center">
+             <Button onClick={goToNextStep} className="bg-blue-600 hover:bg-blue-700 text-white">
+               Continue to Next Step
+             </Button>
+          </div>
+        </div>
+      );
+    }
+
     const stats = getGapStatistics();
 
     // Calculate total "items" (gaps + regular questions)
     const totalItems = stats.totalGaps + stats.regularQuestions;
     const correctItems = stats.correctGaps + stats.correctRegular;
-    const percentage = totalItems > 0 ? Math.round((correctItems / totalItems) * 100) : 0;
+    
+    // For graded quizzes (especially long text), use the teacher-assigned score
+    // Otherwise calculate from correct/total
+    const percentage = (quizAttempt && quizAttempt.is_graded && quizAttempt.score_percentage !== undefined)
+      ? Math.round(quizAttempt.score_percentage)
+      : (totalItems > 0 ? Math.round((correctItems / totalItems) * 100) : 0);
     const isPassed = percentage >= 50;
 
     if (showAllAnswers) {
@@ -1040,6 +1077,16 @@ const QuizRenderer = (props: QuizRendererProps) => {
           </div>
         </div>
 
+        {/* Feedback Section */}
+        {quizAttempt && quizAttempt.feedback && (
+          <div className="max-w-2xl mx-auto mt-6 p-6 bg-blue-50 border border-blue-200 rounded-xl text-left">
+            <h3 className="text-lg font-bold text-blue-900 mb-2">Teacher Feedback</h3>
+            <div className="text-blue-800 prose max-w-none">
+              <p>{quizAttempt.feedback}</p>
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row justify-center gap-4 flex-wrap">
           {quizData?.display_mode === 'all_at_once' && (
@@ -1061,13 +1108,15 @@ const QuizRenderer = (props: QuizRendererProps) => {
             </Button>
           )}
 
-          <Button
-            onClick={resetQuiz}
-            variant="ghost"
-            className="text-gray-500 border hover:text-gray-700 hover:bg-gray-100"
-          >
-            Retake Quiz
-          </Button>
+          {!hasLongText && (
+            <Button
+              onClick={resetQuiz}
+              variant="ghost"
+              className="text-gray-500 border hover:text-gray-700 hover:bg-gray-100"
+            >
+              Retake Quiz
+            </Button>
+          )}
         </div>
       </div>
     );

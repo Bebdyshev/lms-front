@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import { toast } from '../components/Toast';
@@ -11,7 +10,8 @@ import {
   Clock,
   CheckCircle,
   Eye,
-  Filter
+  Filter,
+  Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -19,6 +19,16 @@ import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '../components/ui/dialog';
+import { Textarea } from '../components/ui/textarea';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 interface TeacherStats {
   total_courses: number;
@@ -64,16 +74,27 @@ interface Submission {
 }
 
 export default function TeacherDashboard() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<TeacherStats | null>(null);
   const [pendingSubmissions, setPendingSubmissions] = useState<Submission[]>([]);
   const [recentSubmissions, setRecentSubmissions] = useState<Submission[]>([]);
+  const [ungradedQuizAttempts, setUngradedQuizAttempts] = useState<any[]>([]);
+  const [gradedQuizAttempts, setGradedQuizAttempts] = useState<any[]>([]);
   const [studentsProgress, setStudentsProgress] = useState<StudentProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState('all');
   const [activeGroup, setActiveGroup] = useState('all');
+  
+  // Quiz grading modal state
+  const [selectedQuizAttempt, setSelectedQuizAttempt] = useState<any>(null);
+  const [isQuizGradeModalOpen, setIsQuizGradeModalOpen] = useState(false);
+  const [quizGradeScore, setQuizGradeScore] = useState<number>(0);
+  const [quizGradeFeedback, setQuizGradeFeedback] = useState<string>('');
+
+  // Student progress pagination
+  const [studentPage, setStudentPage] = useState(1);
+  const studentsPerPage = 10;
 
   useEffect(() => {
     loadTeacherData();
@@ -132,6 +153,24 @@ export default function TeacherDashboard() {
         setStudentsProgress([]);
       }
 
+      // Load ungraded quiz attempts
+      try {
+        const quizAttempts = await apiClient.getUngradedQuizAttempts();
+        setUngradedQuizAttempts(quizAttempts);
+      } catch (quizError) {
+        console.warn('Failed to load ungraded quiz attempts:', quizError);
+        setUngradedQuizAttempts([]);
+      }
+
+      // Load graded quiz attempts
+      try {
+        const gradedAttempts = await apiClient.getGradedQuizAttempts();
+        setGradedQuizAttempts(gradedAttempts);
+      } catch (gradedError) {
+        console.warn('Failed to load graded quiz attempts:', gradedError);
+        setGradedQuizAttempts([]);
+      }
+
     } catch (err) {
       setError('Failed to load teacher dashboard data');
       console.error('Teacher dashboard error:', err);
@@ -155,24 +194,96 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Merge and filter submissions
+  // Quiz grading handlers
+  const handleGradeQuizClick = (attempt: any) => {
+    setSelectedQuizAttempt(attempt);
+    setQuizGradeScore(0);
+    setQuizGradeFeedback('');
+    setIsQuizGradeModalOpen(true);
+  };
+
+  const handleSubmitQuizGrade = async () => {
+    if (!selectedQuizAttempt) return;
+    try {
+      await apiClient.gradeQuizAttempt(selectedQuizAttempt.quiz_attempt_id, {
+        score_percentage: quizGradeScore,
+        correct_answers: selectedQuizAttempt.long_text_answers?.length || 1,
+        feedback: quizGradeFeedback
+      });
+      setIsQuizGradeModalOpen(false);
+      toast('Quiz graded successfully', 'success');
+      loadTeacherData();
+    } catch (error) {
+      toast('Failed to grade quiz', 'error');
+      console.error('Quiz grading error:', error);
+    }
+  };
+
+  const handleDeleteQuizAttempt = async (attemptId: number) => {
+    if (!confirm('Are you sure? The student will be able to resubmit.')) return;
+    try {
+      await apiClient.deleteQuizAttempt(attemptId);
+      toast('Quiz attempt deleted', 'info');
+      loadTeacherData();
+    } catch (error) {
+      toast('Failed to delete quiz attempt', 'error');
+      console.error('Delete quiz attempt error:', error);
+    }
+  };
+
+  // Merge and filter submissions (including quiz attempts)
   const unifiedSubmissions = useMemo(() => {
-    // Start with all pending submissions
-    const all = [...pendingSubmissions];
+    // Start with all pending assignment submissions
+    const all: any[] = [...pendingSubmissions.map(s => ({ ...s, type: 'assignment' }))];
     
     // Add recent submissions that are NOT in the pending list (i.e., graded ones)
-    // We use a Set of IDs to avoid duplicates if any overlap occurs
     const pendingIds = new Set(pendingSubmissions.map(s => s.id));
-    
     recentSubmissions.forEach(sub => {
       if (!pendingIds.has(sub.id)) {
-        all.push(sub);
+        all.push({ ...sub, type: 'assignment' });
       }
+    });
+
+    // Add ungraded quiz attempts
+    ungradedQuizAttempts.forEach(attempt => {
+      all.push({
+        id: `quiz-${attempt.id}`,
+        quiz_attempt_id: attempt.id,
+        type: 'quiz',
+        student_name: attempt.user_name,
+        student_email: attempt.user_email,
+        assignment_title: attempt.quiz_title || 'Quiz',
+        course_title: attempt.course_title,
+        lesson_title: attempt.lesson_title,
+        submitted_at: attempt.created_at,
+        is_graded: false,
+        score: null,
+        long_text_answers: attempt.long_text_answers
+      });
+    });
+
+    // Add graded quiz attempts
+    gradedQuizAttempts.forEach(attempt => {
+      all.push({
+        id: `quiz-${attempt.id}`,
+        quiz_attempt_id: attempt.id,
+        type: 'quiz',
+        student_name: attempt.user_name,
+        student_email: attempt.user_email,
+        assignment_title: attempt.quiz_title || 'Quiz',
+        course_title: attempt.course_title,
+        lesson_title: attempt.lesson_title,
+        submitted_at: attempt.created_at,
+        is_graded: true,
+        score: attempt.score_percentage,
+        feedback: attempt.feedback,
+        long_text_answers: attempt.long_text_answers
+      });
     });
 
     // Sort by date desc
     return all.sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
-  }, [pendingSubmissions, recentSubmissions]);
+  }, [pendingSubmissions, recentSubmissions, ungradedQuizAttempts, gradedQuizAttempts]);
 
   const filteredSubmissions = useMemo(() => {
     if (activeTab === 'pending') {
@@ -197,6 +308,18 @@ export default function TeacherDashboard() {
     if (activeGroup === 'all') return studentsProgress;
     return studentsProgress.filter(s => s.group_name === activeGroup);
   }, [studentsProgress, activeGroup]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setStudentPage(1);
+  }, [activeGroup]);
+
+  // Calculate paginated students
+  const totalStudentPages = Math.ceil(filteredStudents.length / studentsPerPage);
+  const paginatedStudents = useMemo(() => {
+    const start = (studentPage - 1) * studentsPerPage;
+    return filteredStudents.slice(start, start + studentsPerPage);
+  }, [filteredStudents, studentPage]);
 
   if (loading) {
     return (
@@ -337,7 +460,8 @@ export default function TeacherDashboard() {
                 <thead className="bg-gray-50/80 text-gray-600 border-b border-gray-100">
                   <tr>
                     <th className="text-left px-6 py-3 font-semibold">Student</th>
-                    <th className="text-left px-6 py-3 font-semibold">Assignment</th>
+                    <th className="text-left px-6 py-3 font-semibold">Type</th>
+                    <th className="text-left px-6 py-3 font-semibold">Title</th>
                     <th className="text-left px-6 py-3 font-semibold">Status</th>
                     <th className="text-left px-6 py-3 font-semibold">Submitted</th>
                     <th className="text-left px-6 py-3 font-semibold">Score</th>
@@ -357,6 +481,16 @@ export default function TeacherDashboard() {
                             <div className="text-xs text-gray-500">{submission.student_email}</div>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge 
+                          variant="outline"
+                          className={submission.type === 'quiz' 
+                            ? "bg-purple-50 text-purple-700 border-purple-200" 
+                            : "bg-blue-50 text-blue-700 border-blue-200"}
+                        >
+                          {submission.type === 'quiz' ? 'Quiz' : 'Homework'}
+                        </Badge>
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">{submission.assignment_title}</div>
@@ -382,39 +516,75 @@ export default function TeacherDashboard() {
                       </td>
                       <td className="px-6 py-4 font-medium">
                         {submission.is_graded ? (
-                          <span className={
-                            (submission.score || 0) >= (submission.max_score || 100) * 0.8 
-                              ? "text-green-600" 
-                              : (submission.score || 0) >= (submission.max_score || 100) * 0.5 
-                                ? "text-yellow-600" 
-                                : "text-red-600"
-                          }>
-                            {submission.score} / {submission.max_score}
-                          </span>
+                          submission.type === 'quiz' ? (
+                            <span className={
+                              (submission.score || 0) >= 80 
+                                ? "text-green-600" 
+                                : (submission.score || 0) >= 50 
+                                  ? "text-yellow-600" 
+                                  : "text-red-600"
+                            }>
+                              {Math.round(submission.score || 0)}%
+                            </span>
+                          ) : (
+                            <span className={
+                              (submission.score || 0) >= (submission.max_score || 100) * 0.8 
+                                ? "text-green-600" 
+                                : (submission.score || 0) >= (submission.max_score || 100) * 0.5 
+                                  ? "text-yellow-600" 
+                                  : "text-red-600"
+                            }>
+                              {submission.score} / {submission.max_score}
+                            </span>
+                          )
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant={submission.is_graded ? "ghost" : "default"}
-                            className={submission.is_graded ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50" : "bg-blue-600 hover:bg-blue-700"}
-                            onClick={() => handleGradeSubmission(submission.assignment_id)}
-                          >
-                            {submission.is_graded ? <Eye className="w-4 h-4 mr-1" /> : <ClipboardCheck className="w-4 h-4 mr-1" />}
-                            {submission.is_graded ? 'View' : 'Grade'}
-                          </Button>
-                          {!submission.is_graded && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-gray-500 hover:text-gray-700"
-                              onClick={() => handleAllowResubmission(submission.id)}
-                            >
-                              Resubmit
-                            </Button>
+                          {submission.type === 'quiz' ? (
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-purple-600 hover:bg-purple-700"
+                                onClick={() => handleGradeQuizClick(submission)}
+                              >
+                                <ClipboardCheck className="w-4 h-4 mr-1" />
+                                Grade
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-gray-500 hover:text-red-600"
+                                onClick={() => handleDeleteQuizAttempt(submission.quiz_attempt_id)}
+                                title="Allow Resubmission"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant={submission.is_graded ? "ghost" : "default"}
+                                className={submission.is_graded ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50" : "bg-blue-600 hover:bg-blue-700"}
+                                onClick={() => handleGradeSubmission(submission.assignment_id)}
+                              >
+                                {submission.is_graded ? <Eye className="w-4 h-4 mr-1" /> : <ClipboardCheck className="w-4 h-4 mr-1" />}
+                                {submission.is_graded ? 'View' : 'Grade'}
+                              </Button>
+                              {!submission.is_graded && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-gray-500 hover:text-gray-700"
+                                  onClick={() => handleAllowResubmission(submission.id)}
+                                >
+                                  Resubmit
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -475,7 +645,7 @@ export default function TeacherDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredStudents.map((student, index) => (
+                  {paginatedStudents.map((student, index) => (
                     <tr key={`${student.student_id}-${student.course_id}-${index}`} className="hover:bg-gray-50/80 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center">
@@ -547,8 +717,136 @@ export default function TeacherDashboard() {
               </table>
             </div>
           )}
+          
+          {/* Pagination Controls */}
+          {filteredStudents.length > studentsPerPage && (
+            <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+              <div className="text-sm text-gray-500">
+                Showing {((studentPage - 1) * studentsPerPage) + 1} to {Math.min(studentPage * studentsPerPage, filteredStudents.length)} of {filteredStudents.length} students
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStudentPage(p => Math.max(1, p - 1))}
+                  disabled={studentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-600 px-2">
+                  Page {studentPage} of {totalStudentPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStudentPage(p => Math.min(totalStudentPages, p + 1))}
+                  disabled={studentPage >= totalStudentPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Quiz Grading Modal */}
+      <Dialog open={isQuizGradeModalOpen} onOpenChange={setIsQuizGradeModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Grade Quiz Submission</DialogTitle>
+          </DialogHeader>
+          
+          {selectedQuizAttempt && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-lg">
+                <div>
+                  <span className="font-semibold text-gray-500">Student:</span>
+                  <p className="text-gray-900">{selectedQuizAttempt.student_name}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-500">Quiz:</span>
+                  <p className="text-gray-900">{selectedQuizAttempt.assignment_title}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-500">Lesson:</span>
+                  <p className="text-gray-900">{selectedQuizAttempt.lesson_title}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-500">Course:</span>
+                  <p className="text-gray-900">{selectedQuizAttempt.course_title}</p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-3 text-gray-900">Long Text Answers</h3>
+                {selectedQuizAttempt.long_text_answers?.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedQuizAttempt.long_text_answers.map((item: any, idx: number) => (
+                      <div key={idx} className="border rounded-lg overflow-hidden">
+                        {/* Passage (if exists) */}
+                        {item.content_text && (
+                          <div className="p-4 bg-amber-50 border-b border-amber-200">
+                            <p className="text-xs font-semibold text-amber-600 uppercase mb-1">Passage</p>
+                            <div 
+                              className="text-gray-800 prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ __html: item.content_text }}
+                            />
+                          </div>
+                        )}
+                        {/* Question */}
+                        <div className="p-4 bg-gray-100 border-b">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Question {idx + 1}</p>
+                          <p className="text-gray-900 font-medium">{item.question_text}</p>
+                        </div>
+                        {/* Student Answer */}
+                        <div className="p-4 bg-white">
+                          <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Student's Answer</p>
+                          <div className="text-gray-800 whitespace-pre-wrap bg-blue-50 p-3 rounded border border-blue-100">
+                            {item.student_answer || <span className="text-gray-400 italic">No answer provided</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No long text answers found</p>
+                )}
+              </div>
+
+              <div className="grid gap-4 border-t pt-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="quizScore">Score (0-100)</Label>
+                  <Input
+                    id="quizScore"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={quizGradeScore}
+                    onChange={(e) => setQuizGradeScore(Number(e.target.value))}
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="quizFeedback">Feedback</Label>
+                  <Textarea
+                    id="quizFeedback"
+                    placeholder="Enter feedback for the student..."
+                    value={quizGradeFeedback}
+                    onChange={(e) => setQuizGradeFeedback(e.target.value)}
+                    rows={4}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsQuizGradeModalOpen(false)}>Cancel</Button>
+            <Button className="bg-purple-600 hover:bg-purple-700" onClick={handleSubmitQuizGrade}>Submit Grade</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
