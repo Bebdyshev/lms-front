@@ -624,9 +624,10 @@ class LMSApiClient {
   // STEP MANAGEMENT
   // =============================================================================
 
-  async getLessonSteps(lessonId: string): Promise<Step[]> {
+  async getLessonSteps(lessonId: string, includeContent: boolean = true): Promise<Step[]> {
     try {
-      const response = await this.api.get(`/courses/lessons/${lessonId}/steps`);
+      const params = { include_content: includeContent };
+      const response = await this.api.get(`/courses/lessons/${lessonId}/steps`, { params });
       return response.data;
     } catch (error) {
       throw new Error('Failed to get lesson steps');

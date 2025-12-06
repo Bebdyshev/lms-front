@@ -11,14 +11,15 @@ interface YouTubeVideoPlayerProps {
 
 export default function YouTubeVideoPlayer({ 
   url, 
-  title = "YouTube Video", 
+  title = "YouTube Video", // Kept for prop interface compatibility, but marked as unused if needed
   className = "",
   onError,
   onProgress 
 }: YouTubeVideoPlayerProps) {
   const [iframeError, setIframeError] = useState(false);
   const [player, setPlayer] = useState<any>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isPlayerActive, setIsPlayerActive] = useState(false);
+  // iframeRef removed
   const playerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<number>();
   const playerInstanceRef = useRef<any>(null);
@@ -41,9 +42,7 @@ export default function YouTubeVideoPlayer({
     );
   }
 
-  const handleIframeError = () => {
-    setIframeError(true);
-  };
+  // handleIframeError removed
 
   const openInNewWindow = () => {
     window.open(videoInfo.clean_url, '_blank', 'noopener,noreferrer');
@@ -56,7 +55,7 @@ export default function YouTubeVideoPlayer({
 
   // Initialize YouTube Player API
   useEffect(() => {
-    if (!videoInfo.is_valid || !videoInfo.video_id) {
+    if (!videoInfo.is_valid || !videoInfo.video_id || !isPlayerActive) {
       return;
     }
 
@@ -93,7 +92,7 @@ export default function YouTubeVideoPlayer({
           playerInstanceRef.current = new window.YT.Player(playerRef.current as any, {
             videoId: videoInfo.video_id,
             playerVars: {
-              autoplay: 0,
+              autoplay: 1, // Autoplay when activated
               modestbranding: 1,
               rel: 0
             },
@@ -161,7 +160,7 @@ export default function YouTubeVideoPlayer({
         playerInstanceRef.current = null;
       }
     };
-  }, [videoInfo.video_id]);
+  }, [videoInfo.video_id, isPlayerActive]);
 
   // Fallback UI for Zen browser or iframe errors
   if (iframeError) {
@@ -190,21 +189,38 @@ export default function YouTubeVideoPlayer({
   return (
     <div className={`bg-gray-900 rounded-lg overflow-hidden relative youtube-iframe-container ${className}`}>
       {/* Educational overlay */}
-      <div className="aspect-video w-full">
-        {/* Always render playerRef div for YouTube API initialization */}
-        <div ref={playerRef} className="w-full h-full" />
-        
-        {/* Fallback iframe when YouTube API is not ready */}
-        {!player && (
-          <iframe
-            ref={iframeRef}
-            src={videoInfo.embed_url}
-            className="w-full h-full youtube-iframe"
-            allowFullScreen={false}
-            title={title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            onError={handleIframeError}
-          />
+      <div className="aspect-video w-full relative group">
+        {!isPlayerActive ? (
+          /* Thumbnail and Play Button */
+          <div 
+            className="w-full h-full relative cursor-pointer"
+            onClick={() => setIsPlayerActive(true)}
+          >
+            <img 
+              src={videoInfo.thumbnail_url} 
+              alt={title} 
+              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Player Container */
+          <>
+            <div ref={playerRef} className="w-full h-full" />
+            
+            {/* Loading spinner while player is initializing */}
+            {!player && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+              </div>
+            )}
+          </>
         )}
         {/* Debug info - removed console.log from JSX */}
       </div>

@@ -301,6 +301,10 @@ export default function LessonPage() {
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  
+  // Optimization: Track which steps have their content loaded
+  const [loadedStepIds, setLoadedStepIds] = useState<Set<number>>(new Set());
+  const [isStepContentLoading, setIsStepContentLoading] = useState(false);
   const [videoProgress, setVideoProgress] = useState<Map<string, number>>(new Map());
   const [quizCompleted, setQuizCompleted] = useState<Map<string, boolean>>(new Map());
   const [furthestStepIndex, setFurthestStepIndex] = useState(0);
@@ -439,7 +443,7 @@ export default function LessonPage() {
       // Prepare promises for parallel execution
       const promises: Promise<any>[] = [
         apiClient.getLesson(lessonId!),
-        apiClient.getLessonSteps(lessonId!),
+        apiClient.getLessonSteps(lessonId!, false), // Fetch lightweight steps initially
         apiClient.getLessonStepsProgress(lessonId!)
       ];
 
@@ -466,7 +470,10 @@ export default function LessonPage() {
       setLesson(lessonData);
       setSteps(stepsData);
       setStepsProgress(progressData || []);
-
+      
+      // Reset loaded steps when lesson changes
+      setLoadedStepIds(new Set());
+      
       // Initialize furthestStepIndex based on existing progress
       // Find the highest step index that has been visited/started
       if (stepsData && stepsData.length > 0 && progressData) {
@@ -600,6 +607,38 @@ export default function LessonPage() {
     const stepProgress = stepsProgress.find(p => p.step_id === step.id);
     return stepProgress?.status === 'completed';
   };
+
+  // Load step content on demand
+  useEffect(() => {
+    const loadStepContent = async () => {
+      if (!currentStep) return;
+      
+      // If content is already loaded or being loaded, skip
+      if (loadedStepIds.has(currentStep.id) || isStepContentLoading) return;
+      
+      // Check if step actually needs content (some types might not)
+      // But generally we want to ensure we have the full step object
+      
+      try {
+        setIsStepContentLoading(true);
+        console.log(`Loading content for step ${currentStep.id}...`);
+        
+        const fullStep = await apiClient.getStep(currentStep.id.toString());
+        
+        setSteps(prevSteps => 
+          prevSteps.map(s => s.id === fullStep.id ? fullStep : s)
+        );
+        
+        setLoadedStepIds(prev => new Set(prev).add(fullStep.id));
+      } catch (error) {
+        console.error('Failed to load step content:', error);
+      } finally {
+        setIsStepContentLoading(false);
+      }
+    };
+
+    loadStepContent();
+  }, [currentStepIndex, currentStep, loadedStepIds, isStepContentLoading]);
 
   // Mark current step as started when it changes
   useEffect(() => {
@@ -1202,6 +1241,16 @@ export default function LessonPage() {
   const renderStepContent = () => {
     if (!currentStep) return null;
 
+    // Show loader if content is loading or not yet loaded
+    if (isStepContentLoading || !loadedStepIds.has(currentStep.id)) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground">Loading step content...</p>
+        </div>
+      );
+    }
+
     switch (currentStep.content_type) {
       case 'text':
         return (
@@ -1237,6 +1286,7 @@ export default function LessonPage() {
             {currentStep.video_url && (
               <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
                 <YouTubeVideoPlayer
+                  key={currentStep.id}
                   url={currentStep.video_url}
                   title={currentStep.title || 'Lesson Video'}
                   className="w-full h-full"
