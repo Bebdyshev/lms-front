@@ -783,11 +783,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                               : 'bg-red-200 text-red-800 border-2 border-red-300'
                               }`}>
                               {userAnswer || `[Gap ${idx + 1}]`}
-                              {!isCorrectGap && (
-                                <span className="ml-2 text-sm">
-                                  (Correct: <strong>{correctAnswer}</strong>)
-                                </span>
-                              )}
+                              {/* Correct answer hidden */}
                             </span>
                           );
                         })}

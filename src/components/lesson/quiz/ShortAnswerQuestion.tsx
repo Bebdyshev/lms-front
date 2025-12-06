@@ -32,9 +32,6 @@ export const ShortAnswerQuestion: React.FC<ShortAnswerQuestionProps> = ({
           ) : (
             <div className="text-red-700">
               <div>Incorrect answer.</div>
-              <div className="mt-1">
-                <strong>Correct answer:</strong> {question.correct_answer}
-              </div>
             </div>
           )}
         </div>
