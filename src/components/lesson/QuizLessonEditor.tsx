@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import apiClient from '../../services/api';
 import { renderTextWithLatex } from '../../utils/latex';
 import RichTextEditor from '../RichTextEditor';
-import { Upload, FileText, Image } from 'lucide-react';
+import { Upload, FileText, Image, Plus, Trash2 } from 'lucide-react';
 import { FillInBlankRenderer } from './FillInBlankRenderer';
 import { TextCompletionRenderer } from './TextCompletionRenderer';
 import { parseGap } from '../../utils/gapParser';
@@ -287,8 +287,8 @@ export default function QuizLessonEditor({
       if (answers.length === 0) {
         errors.push('Please add at least one gap [[answer]] in the passage');
       }
-    } else if (question.question_type === 'short_answer') {
-      // Short answer questions need a correct answer
+    } else if (question.question_type === 'short_answer' || question.question_type === 'media_open_question') {
+      // Short answer and media_open_question need a correct answer
       if (!question.correct_answer || (typeof question.correct_answer === 'string' && !question.correct_answer.trim())) {
         errors.push('Please provide the correct answer');
       }
@@ -888,6 +888,7 @@ export default function QuizLessonEditor({
                               q.question_type === 'text_completion' ? 'Text Completion' :
                                 q.question_type === 'long_text' ? 'Long Text Answer' :
                                   q.question_type === 'media_question' ? 'Media Question' :
+                                    q.question_type === 'media_open_question' ? 'Open Media Question' :
                                     q.question_type
                     }
                   </div>
@@ -899,7 +900,7 @@ export default function QuizLessonEditor({
                       Has passage text
                     </div>
                   )}
-                  {q.question_type === 'media_question' && q.media_url && (
+                  {(q.question_type === 'media_question' || q.question_type === 'media_open_question') && q.media_url && (
                     <div className="text-xs text-gray-500">
                       Has {q.media_type} attachment
                     </div>
@@ -1133,6 +1134,10 @@ export default function QuizLessonEditor({
                             next.question_type = 'long_text';
                             next.correct_answer = '';
                             next.options = undefined; // Clear options for long_text
+                          } else if (val === 'media_open_question') {
+                            next.question_type = val;
+                            next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
+                            next.options = undefined; // No options for open answer
                           }
                           setDraftQuestion(next);
                         }}
@@ -1147,13 +1152,14 @@ export default function QuizLessonEditor({
                           <SelectItem value="text_completion">Text completion</SelectItem>
                           <SelectItem value="long_text">Long text answer</SelectItem>
                           <SelectItem value="media_question">Media-based question</SelectItem>
+                          <SelectItem value="media_open_question">Open media question</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
                   {/* Media Upload for Media Questions */}
-                  {draftQuestion.question_type === 'media_question' && (
+                  {(draftQuestion.question_type === 'media_question' || draftQuestion.question_type === 'media_open_question') && (
                     <div className="space-y-2">
                       <Label>Media Attachment</Label>
                       <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
@@ -1239,20 +1245,64 @@ export default function QuizLessonEditor({
                   )}
 
                   {/* Short Answer Configuration */}
-                  {draftQuestion.question_type === 'short_answer' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="correct-answer">Correct Answer</Label>
-                      <Input
-                        id="correct-answer"
-                        type="text"
-                        value={draftQuestion.correct_answer || ''}
-                        onChange={(e) => applyDraftUpdate({ correct_answer: e.target.value })}
-                        placeholder="Enter the correct answer"
-                      />
-                      <p className="text-xs text-gray-500">
-                        Students will need to type this exact answer (case-insensitive matching)
-                      </p>
-                    </div>
+                  {(draftQuestion.question_type === 'short_answer' || draftQuestion.question_type === 'media_open_question') && (
+                      <div className="space-y-3">
+                        <Label>Correct Answer(s)</Label>
+                        {(() => {
+                          const answers = (draftQuestion.correct_answer || '').toString().split('|');
+                          // Ensure at least one input
+                          if (answers.length === 0 && !draftQuestion.correct_answer) answers.push('');
+                          
+                          return (
+                            <div className="space-y-2">
+                              {answers.map((ans: string, idx: number) => (
+                                <div key={idx} className="flex gap-2">
+                                  <Input
+                                    type="text"
+                                    value={ans}
+                                    onChange={(e) => {
+                                      const newAnswers = [...answers];
+                                      newAnswers[idx] = e.target.value;
+                                      applyDraftUpdate({ correct_answer: newAnswers.join('|') });
+                                    }}
+                                    placeholder={`Variation ${idx + 1}`}
+                                    className="flex-1"
+                                  />
+                                  {answers.length > 1 && (
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => {
+                                        const newAnswers = answers.filter((_: string, i: number) => i !== idx);
+                                        applyDraftUpdate({ correct_answer: newAnswers.join('|') });
+                                      }}
+                                      className="shrink-0"
+                                    >
+                                      <Trash2 className="w-4 h-4 text-red-500" />
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const currentAnswers = (draftQuestion.correct_answer || '').toString().split('|');
+                                  currentAnswers.push('');
+                                  applyDraftUpdate({ correct_answer: currentAnswers.join('|') });
+                                }}
+                                className="mt-2"
+                              >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add Variation
+                              </Button>
+                            </div>
+                          );
+                        })()}
+                        <p className="text-xs text-gray-500">
+                          Students can enter any of these variations to get the answer correct (case-insensitive).
+                        </p>
+                      </div>
                   )}
 
                   {/* Text Completion Configuration */}
@@ -1851,18 +1901,6 @@ D) husband, Martin Luther King`}
                         showNumbering={draftQuestion.show_numbering || false}
                       />
                     </div>
-                    {Array.isArray(draftQuestion.correct_answer) && draftQuestion.correct_answer.length > 0 && (
-                      <div className="text-sm bg-green-50 border border-green-200 rounded p-3">
-                        <span className="font-medium text-green-700">Correct answers:</span>
-                        <div className="mt-1 space-y-1">
-                          {draftQuestion.correct_answer.map((answer, idx) => (
-                            <div key={idx} className="text-gray-700">
-                              Gap {idx + 1}: <span className="font-medium">{answer}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 

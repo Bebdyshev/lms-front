@@ -10,6 +10,17 @@ import { ChoiceQuestion } from './quiz/ChoiceQuestion';
 import { TextCompletionQuestion } from './quiz/TextCompletionQuestion';
 import { FillInBlankQuestion } from './quiz/FillInBlankQuestion';
 
+// Helper to check if content text has visible content
+const hasVisibleContent = (html: string | undefined | null): boolean => {
+  if (!html) return false;
+  // If it contains media tags, it has content
+  if (html.match(/<(img|iframe|video|audio|object|embed)/i)) return true;
+  
+  // Otherwise strip tags and check for text
+  const stripped = html.replace(/<[^>]*>/g, '');
+  return stripped.replace(/&nbsp;/g, ' ').trim().length > 0;
+};
+
 // Define a more specific type for quiz questions if possible
 type QuizQuestion = any;
 type QuizData = any;
@@ -215,7 +226,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                   </div>
 
                   {/* Media Attachment for Media Questions */}
-                  {q.question_type === 'media_question' && q.media_url && (
+                  {(q.question_type === 'media_question' || q.question_type === 'media_open_question') && q.media_url && (
                     <div className="mb-4">
                       {q.media_type === 'pdf' ? (
                         <iframe
@@ -234,7 +245,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                   )}
 
                   {/* Content Text */}
-                  {q.content_text && q.content_text.trim() && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
+                  {hasVisibleContent(q.content_text) && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
                     <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                       <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
                     </div>
@@ -261,7 +272,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       onChange={(val) => setQuizAnswers(prev => new Map(prev.set(q.id.toString(), val)))}
                       disabled={feedChecked}
                     />
-                  ) : q.question_type === 'short_answer' ? (
+                  ) : (q.question_type === 'short_answer' || q.question_type === 'media_open_question') ? (
                     <ShortAnswerQuestion
                       question={q}
                       value={userAnswer}
@@ -313,7 +324,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
                       isCorrect = current.every((val, idx) => (val || '').toString().trim().toLowerCase() === (answers[idx] || '').toString().trim().toLowerCase());
                     } else {
-                      isCorrect = userAnswer === q.correct_answer;
+                      const answers = (q.correct_answer || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
+                      isCorrect = answers.includes((userAnswer || '').toString().trim().toLowerCase());
                     }
                     return isCorrect ? (
                       <div className="mt-4 flex items-center gap-2">
@@ -552,7 +564,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
         <div className="bg-white rounded-xl">
           <div className="p-6">
             {/* Media Attachment for Media Questions */}
-            {q.question_type === 'media_question' && q.media_url && (
+            {(q.question_type === 'media_question' || q.question_type === 'media_open_question') && q.media_url && (
               <div className="mb-4">
                 {q.media_type === 'pdf' ? (
                   <iframe
@@ -571,7 +583,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             )}
 
             {/* Content Text */}
-            {q.content_text && q.content_text.trim() && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
+            {hasVisibleContent(q.content_text) && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
               <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                 <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
               </div>
@@ -598,7 +610,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 onChange={(val) => handleQuizAnswer(q.id.toString(), val)}
                 disabled={false}
               />
-            ) : q.question_type === 'short_answer' ? (
+            ) : (q.question_type === 'short_answer' || q.question_type === 'media_open_question') ? (
               <ShortAnswerQuestion
                 question={q}
                 value={userAnswer}
@@ -709,11 +721,80 @@ const QuizRenderer = (props: QuizRendererProps) => {
         </div>
 
 
+
+        {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
+        {quizData?.quiz_media_url && (
+          <div className="bg-white rounded-lg border p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">
+              {quizData.quiz_media_type === 'audio' ? 'Audio Material' :
+                quizData.quiz_media_type === 'text' ? 'Reading Passage' :
+                  'Reference Material'}
+            </h3>
+            {quizData.quiz_media_type === 'audio' ? (
+              <audio
+                controls
+                src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
+                className="w-full"
+              />
+            ) : quizData.quiz_media_type === 'text' ? (
+              <div className="prose prose-lg max-w-none bg-gray-50 p-6 rounded-lg border">
+                <div dangerouslySetInnerHTML={{ __html: renderTextWithLatex(quizData.quiz_media_url) }} />
+              </div>
+            ) : quizData.quiz_media_type === 'pdf' ? (
+              // Check if it's actually a PDF or an image
+              quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <img
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                    alt="Reference material"
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this image to answer the questions below.
+                  </p>
+                </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <div className="w-full h-[800px] border rounded-lg">
+                    <iframe
+                      src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                      className="w-full h-full"
+                      title="Question PDF"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Reference this document to answer the questions below.
+                  </p>
+                </div>
+              )
+            ) : null}
+          </div>
+        )}
+
         {/* Question Review */}
         <div className="bg-white rounded-2xl overflow-hidden">
           <div className="p-8">
+            {/* Media Attachment for Media Questions */}
+            {(question.question_type === 'media_question' || question.question_type === 'media_open_question') && question.media_url && (
+              <div className="mb-4">
+                {question.media_type === 'pdf' ? (
+                  <iframe
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${question.media_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                    className="w-full h-64 border rounded-lg"
+                    title="Question PDF"
+                  />
+                ) : (
+                  <img
+                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${question.media_url}`}
+                    alt="Question media"
+                    className="w-full max-h-96 object-contain rounded-lg border"
+                  />
+                )}
+              </div>
+            )}
+
             {/* Content Text / Passage */}
-            {question.content_text && question.content_text.trim() && question.question_type !== 'text_completion' && question.question_type !== 'fill_blank' && (
+            {hasVisibleContent(question.content_text) && question.question_type !== 'text_completion' && question.question_type !== 'fill_blank' && (
               <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                 <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(question.content_text) }} />
               </div>
@@ -737,7 +818,15 @@ const QuizRenderer = (props: QuizRendererProps) => {
               </h3>
             )}
 
-            {question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' ? (
+            {question.question_type === 'short_answer' || question.question_type === 'media_open_question' ? (
+              <ShortAnswerQuestion
+                question={question}
+                value={userAnswer}
+                onChange={() => {}}
+                disabled={true}
+                showResult={true}
+              />
+            ) : question.question_type !== 'fill_blank' && question.question_type !== 'text_completion' ? (
               /* Options Review - Use the same component for consistency */
               <ChoiceQuestion
                 question={question}
@@ -900,7 +989,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     </div>
 
                     {/* Media Attachment for Media Questions */}
-                    {q.question_type === 'media_question' && q.media_url && (
+                    {(q.question_type === 'media_question' || q.question_type === 'media_open_question') && q.media_url && (
                       <div className="mb-4">
                         {q.media_type === 'pdf' ? (
                           <iframe
@@ -919,7 +1008,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     )}
 
                     {/* Content Text */}
-                    {q.content_text && q.content_text.trim() && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
+                    {hasVisibleContent(q.content_text) && q.question_type !== 'text_completion' && q.question_type !== 'fill_blank' && (
                       <div className="bg-gray-50 p-4 rounded-lg mb-4 border-l-3 border-blue-400">
                         <div className="text-gray-700 prose max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.content_text) }} />
                       </div>
@@ -946,7 +1035,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                         onChange={() => {}}
                         disabled={true}
                       />
-                    ) : q.question_type === 'short_answer' ? (
+                    ) : (q.question_type === 'short_answer' || q.question_type === 'media_open_question') ? (
                       <ShortAnswerQuestion
                         question={q}
                         value={userAnswer}
@@ -988,7 +1077,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
                         const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
                         isCorrect = current.every((val, idx) => (val || '').toString().trim().toLowerCase() === (answers[idx] || '').toString().trim().toLowerCase());
                       } else {
-                        isCorrect = userAnswer === q.correct_answer;
+                        const answers = (q.correct_answer || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
+                        isCorrect = answers.includes((userAnswer || '').toString().trim().toLowerCase());
                       }
                       return isCorrect ? (
                         <div className="mt-4 flex items-center gap-2">

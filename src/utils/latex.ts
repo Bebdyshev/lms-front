@@ -1,5 +1,5 @@
 import katex from 'katex';
-import 'katex/dist/katex.min.css';
+// CSS is imported in main.tsx
 
 export interface LatexMatch {
   type: 'inline' | 'block';
@@ -15,15 +15,37 @@ export interface LatexMatch {
 export function findLatexFormulas(text: string): LatexMatch[] {
   const matches: LatexMatch[] = [];
   
-  // First, skip patterns that look like escaped dollar signs (currency)
-  // $\$ patterns are meant to be literal dollar signs, not LaTeX
-  // Also skip patterns like $500 which are clearly currency
-  
-  // Inline формулы: $...$
-  // Skip if the content looks like escaped $ (\$) or is just a number (currency)
-  const inlineRegex = /\$([^$\n]+?)\$/g;
+  // 1. Сначала ищем Block формулы: $$...$$
+  // Они имеют приоритет, так как захватывают $$
+  const blockRegex = /\$\$([\s\S]*?)\$\$/g;
   let match;
+  while ((match = blockRegex.exec(text)) !== null) {
+    matches.push({
+      type: 'block',
+      start: match.index,
+      end: match.index + match[0].length,
+      content: match[0],
+      latex: match[1]
+    });
+  }
+  
+  // 2. Затем ищем Inline формулы: $...$
+  const inlineRegex = /\$([^$\n]+?)\$/g;
   while ((match = inlineRegex.exec(text)) !== null) {
+    const start = match.index;
+    const end = match.index + match[0].length;
+    
+    // Проверяем, не пересекается ли с уже найденными блочными формулами
+    // Это предотвращает дублирование, когда $$...$$ распознается и как блок, и как инлайн
+    const isOverlapping = matches.some(m => 
+      (start >= m.start && start < m.end) || 
+      (end > m.start && end <= m.end)
+    );
+    
+    if (isOverlapping) {
+      continue;
+    }
+
     const content = match[1];
     
     // Skip if content is ONLY an escaped dollar sign (like $\$$ which is meant to render as $)
@@ -54,22 +76,10 @@ export function findLatexFormulas(text: string): LatexMatch[] {
     
     matches.push({
       type: 'inline',
-      start: match.index,
-      end: match.index + match[0].length,
+      start: start,
+      end: end,
       content: match[0],
       latex: content
-    });
-  }
-  
-  // Block формулы: $$...$$
-  const blockRegex = /\$\$([\s\S]*?)\$\$/g;
-  while ((match = blockRegex.exec(text)) !== null) {
-    matches.push({
-      type: 'block',
-      start: match.index,
-      end: match.index + match[0].length,
-      content: match[0],
-      latex: match[1]
     });
   }
   
@@ -192,27 +202,39 @@ export function renderMarkdown(text: string): string {
  * Преобразует текст с LaTeX формулами в HTML
  */
 export function renderTextWithLatex(text: string): string {
-  // Сначала обрабатываем markdown форматирование
-  const markdownText = renderMarkdown(text);
+  // 1. Сначала автоматически оборачиваем LaTeX команды (если они не обернуты)
+  const wrappedText = autoWrapLatex(text);
   
-  // Затем автоматически оборачиваем LaTeX команды
-  const wrappedText = autoWrapLatex(markdownText);
-  
+  // 2. Находим все LaTeX формулы
   const matches = findLatexFormulas(wrappedText);
+  
   if (matches.length === 0) {
-    return wrappedText;
+    // Если формул нет, просто рендерим markdown
+    return renderMarkdown(wrappedText);
   }
+  
+  // 3. Заменяем формулы на уникальные плейсхолдеры
+  const latexPlaceholder = 'XLATEXFORMULAX';
+  const formulas: string[] = [];
+  
+  // Обрабатываем с конца, чтобы не сбить индексы (хотя здесь мы используем replace по контенту, но лучше быть аккуратным)
+  // Но так как мы заменяем в строке, индексы сдвинутся.
+  // Проще собрать новую строку.
   
   let result = '';
   let lastIndex = 0;
   
-  for (const match of matches) {
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    
     // Добавляем текст до формулы
     result += wrappedText.slice(lastIndex, match.start);
     
-    // Рендерим формулу
-    const rendered = renderLatex(match.latex, match.type === 'block');
-    result += rendered;
+    // Добавляем плейсхолдер
+    result += `${latexPlaceholder}${i}${latexPlaceholder}`;
+    
+    // Рендерим формулу и сохраняем
+    formulas.push(renderLatex(match.latex, match.type === 'block'));
     
     lastIndex = match.end;
   }
@@ -220,7 +242,15 @@ export function renderTextWithLatex(text: string): string {
   // Добавляем оставшийся текст
   result += wrappedText.slice(lastIndex);
   
-  return result;
+  // 4. Рендерим markdown в тексте с плейсхолдерами
+  const markdownRendered = renderMarkdown(result);
+  
+  // 5. Восстанавливаем отрендеренные формулы
+  const finalResult = markdownRendered.replace(new RegExp(`${latexPlaceholder}(\\d+)${latexPlaceholder}`, 'g'), (_, index) => {
+    return formulas[parseInt(index, 10)];
+  });
+  
+  return finalResult;
 }
 
 /**

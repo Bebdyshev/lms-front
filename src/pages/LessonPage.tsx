@@ -1186,6 +1186,12 @@ export default function LessonPage() {
           if (answer && answer.toString().trim() !== '') {
             correctRegular++;
           }
+        } else if (question.question_type === 'short_answer' || question.question_type === 'media_open_question') {
+          const correctAnswers = (question.correct_answer || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
+          const userVal = (answer || '').toString().trim().toLowerCase();
+          if (correctAnswers.includes(userVal)) {
+            correctRegular++;
+          }
         } else {
           // For other question types, check if answer is correct
           if (answer !== undefined && answer === question.correct_answer) {

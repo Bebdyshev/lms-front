@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import 'katex/dist/katex.min.css';
 import Router from "./routes/Router";
 
 // Suppress NextStep.js navigation warning for React SPA
