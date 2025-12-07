@@ -255,7 +255,7 @@
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={() => navigate('/homework')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home work
+              Back to Homework
             </Button>
             <h1 className="text-3xl font-bold">Student Progress</h1>
           </div>
@@ -281,7 +281,7 @@
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={() => navigate('/homework')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home work
+              Back to Homework
             </Button>
             <h1 className="text-3xl font-bold">Student Progress</h1>
           </div>
@@ -301,7 +301,7 @@
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={() => navigate('/homework')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home work
+              Back to Homework
             </Button>
             <div>
               <h1 className="text-3xl font-bold">{data.assignment.title}</h1>

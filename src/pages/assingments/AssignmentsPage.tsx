@@ -189,7 +189,7 @@ export default function AssignmentsPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Home work</h1>
+        <h1 className="text-3xl font-bold">Homework</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center">
             <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
@@ -213,7 +213,7 @@ export default function AssignmentsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold flex items-center">
           <ClipboardList className="w-8 h-8 mr-3 text-blue-600" />
-          Home work
+          Homework
         </h1>
         {user?.role === 'teacher' || user?.role === 'admin' ? (
           <Button
@@ -221,7 +221,7 @@ export default function AssignmentsPage() {
             className="flex items-center"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Create Home work
+            Create Homework
           </Button>
         ) : null}
       </div>
@@ -334,12 +334,12 @@ export default function AssignmentsPage() {
           <div className="p-12 text-center">
             <ClipboardList className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {filter === 'all' ? 'No home work yet' : `No ${filter} home work`}
+              {filter === 'all' ? 'No homework yet' : `No ${filter} homework`}
             </h3>
             <p className="text-gray-600">
               {filter === 'all' 
-                ? 'Home work will appear here when they are created by your teachers.'
-                : `You don't have any ${filter} home work at the moment.`
+                ? 'Homework will appear here when they are created by your teachers.'
+                : `You don't have any ${filter} homework at the moment.`
               }
             </p>
           </div>
@@ -348,7 +348,7 @@ export default function AssignmentsPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <th className="text-left px-6 py-3 font-medium">Home work</th>
+                  <th className="text-left px-6 py-3 font-medium">Homework</th>
                   <th className="text-left px-6 py-3 font-medium">Group</th>
                   <th className="text-left px-6 py-3 font-medium">Due Date</th>
                   <th className="text-left px-6 py-3 font-medium">Status</th>
