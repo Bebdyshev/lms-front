@@ -55,9 +55,10 @@ export function findLatexFormulas(text: string): LatexMatch[] {
     }
     
     // Skip if content is just a number (likely currency like $500$)
-    if (/^\s*\d+\s*$/.test(content)) {
-      continue;
-    }
+    // REMOVED: User wants numbers to be rendered as LaTeX for consistency
+    // if (/^\s*\d+\s*$/.test(content)) {
+    //   continue;
+    // }
     
     // Skip if content contains HTML tags (likely broken match across paragraphs)
     if (/<[^>]+>/.test(content)) {
