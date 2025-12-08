@@ -1860,7 +1860,7 @@ D) husband, Martin Luther King`}
                 >
                   <input
                     type="file"
-                    accept="image/*,.pdf"
+                    accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,image/*"
                     onChange={handleSatImageUpload}
                     className="hidden"
                     id="sat-image-upload"
@@ -1873,7 +1873,7 @@ D) husband, Martin Luther King`}
                         {isAnalyzingImage ? 'Analyzing...' : 'Click to upload or drag & drop'}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Supports PDF, JPG, PNG
+                        Supports PDF, PNG, JPG, JPEG, GIF, WEBP
                       </div>
                     </div>
                   </label>
