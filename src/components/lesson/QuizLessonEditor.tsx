@@ -53,6 +53,8 @@ export default function QuizLessonEditor({
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [showSatImageModal, setShowSatImageModal] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [correctAnswersText, setCorrectAnswersText] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -447,10 +449,10 @@ export default function QuizLessonEditor({
     }
   }, [setQuizMediaUrl, setQuizMediaType, setQuizDisplayMode]);
 
-  const analyzeImageFile = React.useCallback(async (file: File) => {
+  const analyzeImageFile = React.useCallback(async (file: File, correctAnswers?: string) => {
     setIsAnalyzingImage(true);
     try {
-      const result = await apiClient.analyzeSatImage(file);
+      const result = await apiClient.analyzeSatImage(file, correctAnswers);
       console.log('SAT analysis result:', result);
 
       if (!result || result.success === false) {
@@ -478,15 +480,22 @@ export default function QuizLessonEditor({
             if (idx >= 0) correctIndex = idx;
           }
 
+          // Ensure options are properly formatted with all required fields
+          const formattedOptions = Array.isArray(options) && options.length > 0 
+            ? options.map((opt: any, optIdx: number) => ({
+                id: Date.now().toString() + '_' + index + '_opt_' + optIdx,
+                text: opt.text || opt || '',
+                is_correct: opt.is_correct || false,
+                letter: opt.letter || ['A', 'B', 'C', 'D'][optIdx] || ''
+              }))
+            : [];
+
           return {
             id: Date.now().toString() + '_' + index + '_' + Math.random().toString(36).substr(2, 9),
             assignment_id: '',
             question_text: q.question_text || '',
-            question_type: 'single_choice',
-            options: options.map((opt: any, optIdx: number) => ({
-              ...opt,
-              id: Date.now().toString() + '_' + index + '_opt_' + optIdx
-            })),
+            question_type: q.question_type || 'single_choice',
+            options: formattedOptions,
             correct_answer: correctIndex,
             points: 1,
             order_index: quizQuestions.length + index,
@@ -540,11 +549,16 @@ export default function QuizLessonEditor({
     }
   }, [quizQuestions.length]);
 
-  const handleSatImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSatImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    await analyzeImageFile(file);
+    setUploadedFile(file);
+  };
+
+  const handleAnalyzeClick = async () => {
+    if (!uploadedFile) return;
+    await analyzeImageFile(uploadedFile, correctAnswersText);
   };
 
   // Global paste handler for the entire component
@@ -562,7 +576,7 @@ export default function QuizLessonEditor({
           const file = item.getAsFile();
           if (file) {
             event.preventDefault();
-            await analyzeImageFile(file);
+            setUploadedFile(file);
             break;
           }
         }
@@ -573,7 +587,7 @@ export default function QuizLessonEditor({
     return () => {
       document.removeEventListener('paste', handleGlobalPaste);
     };
-  }, [showSatImageModal, analyzeImageFile]);
+  }, [showSatImageModal, analyzeImageFile, correctAnswersText]);
 
   // Keyboard shortcut for Preview (Cmd+O or Ctrl+O)
   React.useEffect(() => {
@@ -1774,7 +1788,31 @@ D) husband, Martin Luther King`}
                   Upload a PDF document or Image of a test (e.g., SAT) to automatically extract questions, options, and correct answers using AI.
                 </p>
 
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <div 
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center transition-colors"
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
+                      setUploadedFile(file);
+                    }
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                  }}
+                >
                   <input
                     type="file"
                     accept="image/*,.pdf"
@@ -1787,7 +1825,7 @@ D) husband, Martin Luther King`}
                     <div className="space-y-2">
                       <div className="text-4xl">📄</div>
                       <div className="text-sm font-medium">
-                        {isAnalyzingImage ? 'Analyzing...' : 'Click to upload PDF or Image'}
+                        {isAnalyzingImage ? 'Analyzing...' : 'Click to upload or drag & drop'}
                       </div>
                       <div className="text-xs text-gray-500">
                         Supports PDF, JPG, PNG
@@ -1796,12 +1834,49 @@ D) husband, Martin Luther King`}
                   </label>
                 </div>
 
-                <div className="text-center">
-                  <div className="text-sm text-gray-500 mb-2">or</div>
-                  <div className="text-sm text-gray-600">
-                    Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Ctrl+V</kbd> to paste from clipboard
+                {uploadedFile && (
+                  <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="text-2xl">📄</div>
+                      <div>
+                        <div className="text-sm font-medium text-green-900">{uploadedFile.name}</div>
+                        <div className="text-xs text-green-700">{(uploadedFile.size / 1024).toFixed(1)} KB</div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUploadedFile(null)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </Button>
                   </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="correct-answers">Correct Answers (Optional)</Label>
+                  <textarea
+                    id="correct-answers"
+                    value={correctAnswersText}
+                    onChange={(e) => setCorrectAnswersText(e.target.value)}
+                    placeholder="Enter correct answers (e.g., 1.A 2.B 3.C 4.D or A,B,C,D)"
+                    className="w-full h-24 p-3 border rounded-lg font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isAnalyzingImage}
+                  />
+                  <p className="text-xs text-gray-500">
+                    If provided, these answers will be used instead of AI-detected answers.
+                  </p>
                 </div>
+
+                <Button
+                  onClick={handleAnalyzeClick}
+                  disabled={!uploadedFile || isAnalyzingImage}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  size="lg"
+                >
+                  {isAnalyzingImage ? 'Analyzing...' : 'Analyze Questions'}
+                </Button>
 
                 {isAnalyzingImage && (
                   <div className="text-center py-4">

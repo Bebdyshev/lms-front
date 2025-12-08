@@ -710,10 +710,13 @@ class LMSApiClient {
   }
 
   // SAT Image Analysis
-  async analyzeSatImage(imageFile: File): Promise<any> {
+  async analyzeSatImage(imageFile: File, correctAnswers?: string): Promise<any> {
     try {
       const formData = new FormData();
       formData.append('image', imageFile);
+      if (correctAnswers) {
+        formData.append('correct_answers', correctAnswers);
+      }
       
       const response = await this.api.post('/courses/analyze-sat-image', formData, {
         headers: {
