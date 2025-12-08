@@ -455,42 +455,86 @@ export default function QuizLessonEditor({
 
       if (!result || result.success === false) {
         const message = (result && (result.explanation || result.error)) || 'Analysis returned no data';
-        alert(`Failed to analyze image. ${message}`);
+        alert(`Failed to analyze file. ${message}`);
         return;
       }
 
+      // Check if we have a list of questions (new format)
+      const questions = result.questions || [];
+      
+      if (questions.length > 0) {
+        // Bulk import
+        const newQuestions = questions.map((q: any, index: number) => {
+          // Ensure options are properly formatted
+          const options = Array.isArray(q.options) ? q.options : [];
+          
+          // Determine correct answer index
+          let correctIndex = 0;
+          if (typeof q.correct_answer === 'number') {
+            correctIndex = q.correct_answer;
+          } else if (typeof q.correct_answer === 'string') {
+            // Try to match by letter if backend returns letter
+            const idx = options.findIndex((opt: any) => opt.letter === q.correct_answer);
+            if (idx >= 0) correctIndex = idx;
+          }
 
-      // Convert SAT format to our Question format
-      const optionsArray = Array.isArray(result.options) ? result.options : [];
-      const correctIndex = optionsArray.findIndex((opt: any) => opt.letter === result.correct_answer);
+          return {
+            id: Date.now().toString() + '_' + index + '_' + Math.random().toString(36).substr(2, 9),
+            assignment_id: '',
+            question_text: q.question_text || '',
+            question_type: 'single_choice',
+            options: options.map((opt: any, optIdx: number) => ({
+              ...opt,
+              id: Date.now().toString() + '_' + index + '_opt_' + optIdx
+            })),
+            correct_answer: correctIndex,
+            points: 1,
+            order_index: quizQuestions.length + index,
+            explanation: q.explanation || '',
+            original_image_url: result.file_url, // Use the uploaded file URL
+            is_sat_question: true,
+            content_text: q.content_text || '',
+            needs_image: q.needs_image
+          };
+        });
 
-      const satQuestion: Question = {
-        id: Date.now().toString(),
-        assignment_id: '',
-        question_text: result.question_text || '',
-        question_type: 'single_choice',
-        options: optionsArray.map((opt: any, index: number) => ({
-          id: Date.now().toString() + '_' + index,
-          text: opt.text || '',
-          is_correct: opt.letter === result.correct_answer,
-          letter: opt.letter
-        })) || [],
-        correct_answer: correctIndex >= 0 ? correctIndex : 0,
-        points: 1,
-        order_index: quizQuestions.length,
-        explanation: result.explanation || '',
-        original_image_url: result.image_url,
-        is_sat_question: true,
-        content_text: result.content_text || ''
-      };
-
-      setDraftQuestion(satQuestion);
-      setEditingQuestionIndex(null);
-      setShowSatImageModal(false);
-      setShowQuestionModal(true);
+        setQuizQuestions([...quizQuestions, ...newQuestions]);
+        setShowSatImageModal(false);
+        alert(`Successfully imported ${newQuestions.length} questions!`);
+      } else {
+        // Fallback for single question (old format or single result)
+        // Convert SAT format to our Question format
+        const optionsArray = Array.isArray(result.options) ? result.options : [];
+        const correctIndex = optionsArray.findIndex((opt: any) => opt.letter === result.correct_answer);
+  
+        const satQuestion: Question = {
+          id: Date.now().toString(),
+          assignment_id: '',
+          question_text: result.question_text || '',
+          question_type: 'single_choice',
+          options: optionsArray.map((opt: any, index: number) => ({
+            id: Date.now().toString() + '_' + index,
+            text: opt.text || '',
+            is_correct: opt.letter === result.correct_answer,
+            letter: opt.letter
+          })) || [],
+          correct_answer: correctIndex >= 0 ? correctIndex : 0,
+          points: 1,
+          order_index: quizQuestions.length,
+          explanation: result.explanation || '',
+          original_image_url: result.image_url,
+          is_sat_question: true,
+          content_text: result.content_text || ''
+        };
+  
+        setDraftQuestion(satQuestion);
+        setEditingQuestionIndex(null);
+        setShowSatImageModal(false);
+        setShowQuestionModal(true);
+      }
     } catch (error) {
-      console.error('Error analyzing SAT image:', error);
-      alert('Failed to analyze image. Please try again.');
+      console.error('Error analyzing file:', error);
+      alert('Failed to analyze file. Please try again.');
     } finally {
       setIsAnalyzingImage(false);
     }
@@ -1721,19 +1765,19 @@ D) husband, Martin Luther King`}
               tabIndex={0}
             >
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Import SAT Image</h3>
+                <h3 className="text-lg font-semibold">Import Questions (PDF/Image)</h3>
                 <Button variant="outline" onClick={() => setShowSatImageModal(false)}>Close</Button>
               </div>
 
               <div className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  Upload an image of a SAT question to automatically extract the question text, options, and correct answer.
+                  Upload a PDF document or Image of a test (e.g., SAT) to automatically extract questions, options, and correct answers using AI.
                 </p>
 
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.pdf"
                     onChange={handleSatImageUpload}
                     className="hidden"
                     id="sat-image-upload"
@@ -1741,12 +1785,12 @@ D) husband, Martin Luther King`}
                   />
                   <label htmlFor="sat-image-upload" className="cursor-pointer">
                     <div className="space-y-2">
-                      <div className="text-4xl">📷</div>
+                      <div className="text-4xl">📄</div>
                       <div className="text-sm font-medium">
-                        {isAnalyzingImage ? 'Analyzing...' : 'Click to upload image'}
+                        {isAnalyzingImage ? 'Analyzing...' : 'Click to upload PDF or Image'}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Supports JPG, PNG, GIF
+                        Supports PDF, JPG, PNG
                       </div>
                     </div>
                   </label>
@@ -1762,7 +1806,7 @@ D) husband, Martin Luther King`}
                 {isAnalyzingImage && (
                   <div className="text-center py-4">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="text-sm text-gray-600 mt-2">Analyzing image with AI...</p>
+                    <p className="text-sm text-gray-600 mt-2">Analyzing file with Gemini AI... This may take a minute.</p>
                   </div>
                 )}
               </div>

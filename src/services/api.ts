@@ -719,10 +719,12 @@ class LMSApiClient {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 120000, // 2 minutes for Gemini processing
       });
       return response.data;
-    } catch (error) {
-      throw new Error('Failed to analyze SAT image');
+    } catch (error: any) {
+      console.error('analyzeSatImage error:', error);
+      throw new Error(`Failed to analyze SAT image: ${error.message || error}`);
     }
   }
 

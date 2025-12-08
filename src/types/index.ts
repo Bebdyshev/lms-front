@@ -381,6 +381,7 @@ export interface Question {
   keywords?: string[]; // For auto-grading long text answers
   gap_separator?: string; // Custom separator for fill_blank questions (default: ',')
   show_numbering?: boolean; // Show numbering before input fields in text_completion (e.g., "1. [input] 2. [input]")
+  needs_image?: boolean; // Flag to indicate if the question requires an image (from Gemini parser)
 }
 
 export interface QuizData {
