@@ -413,6 +413,35 @@ export default function QuizLessonEditor({
     }
   }, []);
 
+  // Handle paste from clipboard for media
+  const handleMediaPaste = React.useCallback(async (
+    e: React.ClipboardEvent,
+    onSuccess: (url: string) => void
+  ) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          try {
+            const result = await uploadQuestionMedia(file);
+            if (result?.file_url) {
+              onSuccess(result.file_url);
+            }
+          } catch (error) {
+            console.error('Error uploading pasted image:', error);
+            alert('Failed to upload image from clipboard');
+          }
+          break;
+        }
+      }
+    }
+  }, [uploadQuestionMedia]);
+
   const uploadQuizMedia = React.useCallback(async (file: File) => {
     setIsUploadingMedia(true);
     try {
@@ -1265,10 +1294,20 @@ export default function QuizLessonEditor({
                             }}
                             onDragOver={(e) => e.preventDefault()}
                             onDragEnter={(e) => e.preventDefault()}
+                            onPaste={(e) => handleMediaPaste(e, (url) => {
+                              applyDraftUpdate({
+                                media_url: url,
+                                media_type: 'image'
+                              });
+                            })}
+                            tabIndex={0}
                           >
                             <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                             <div className="text-sm text-gray-600 mb-2">
                               Drag & drop or click to upload PDF or image
+                            </div>
+                            <div className="text-xs text-gray-500 mb-3">
+                              Or press Ctrl+V to paste from clipboard
                             </div>
                             <input
                               type="file"
@@ -1488,6 +1527,12 @@ export default function QuizLessonEditor({
                                 }
                               }}
                               onDragOver={(e) => e.preventDefault()}
+                              onPaste={(e) => handleMediaPaste(e, (url) => {
+                                const options = [...(draftQuestion.options || [])];
+                                options[idx] = { ...options[idx], image_url: url };
+                                applyDraftUpdate({ options });
+                              })}
+                              tabIndex={0}
                             >
                               <div className="flex items-center gap-2">
                                 {draftQuestion.question_type === 'multiple_choice' ? (
@@ -1556,7 +1601,7 @@ export default function QuizLessonEditor({
                                     />
                                     <span className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 border border-dashed border-blue-300 rounded px-2 py-1 hover:bg-blue-50 transition-colors">
                                       <Image className="w-3 h-3" />
-                                      Add image
+                                      Add image (or Ctrl+V)
                                     </span>
                                   </label>
                                 )}
