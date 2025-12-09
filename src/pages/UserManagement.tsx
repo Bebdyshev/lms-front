@@ -108,6 +108,18 @@ export default function UserManagement() {
     groupId: null,
     studentIds: []
   });
+  
+  // Bulk text upload state
+  const [showBulkTextModal, setShowBulkTextModal] = useState(false);
+  const [bulkTextFormData, setBulkTextFormData] = useState<{ text: string; groupIds: number[] }>({
+    text: '',
+    groupIds: []
+  });
+  const [bulkTextResults, setBulkTextResults] = useState<{
+    created: Array<{ user: User; generated_password?: string }>;
+    failed: Array<{ email: string; error: string }>;
+  } | null>(null);
+  const [isBulkTextLoading, setIsBulkTextLoading] = useState(false);
 
   const handleBulkAddStudents = async () => {
     if (!bulkAddFormData.groupId) {
@@ -129,6 +141,55 @@ export default function UserManagement() {
       console.error('Failed to bulk add students:', error);
       setToast({ message: 'Failed to add students to group', type: 'error' });
     }
+  };
+
+  const handleBulkTextUpload = async () => {
+    if (!bulkTextFormData.text.trim()) {
+      setToast({ message: 'Please paste student data', type: 'error' });
+      return;
+    }
+
+    setIsBulkTextLoading(true);
+    setBulkTextResults(null);
+
+    try {
+      const result = await apiClient.bulkCreateUsersFromText(
+        bulkTextFormData.text,
+        bulkTextFormData.groupIds.length > 0 ? bulkTextFormData.groupIds : undefined,
+        'student'
+      );
+      
+      setBulkTextResults({
+        created: result.created_users,
+        failed: result.failed_users
+      });
+
+      if (result.created_users.length > 0) {
+        setToast({ 
+          message: `Successfully created ${result.created_users.length} students`, 
+          type: 'success' 
+        });
+        loadUsers();
+        loadGroups();
+      }
+      
+      if (result.failed_users.length > 0 && result.created_users.length === 0) {
+        setToast({ 
+          message: `Failed to create students. Check the results below.`, 
+          type: 'error' 
+        });
+      }
+    } catch (error: any) {
+      console.error('Failed to bulk create students:', error);
+      setToast({ message: error.message || 'Failed to create students', type: 'error' });
+    } finally {
+      setIsBulkTextLoading(false);
+    }
+  };
+
+  const resetBulkTextForm = () => {
+    setBulkTextFormData({ text: '', groupIds: [] });
+    setBulkTextResults(null);
   };
   
   // Form data
@@ -667,6 +728,14 @@ export default function UserManagement() {
           >
             <Users className="w-4 h-4" />
             Bulk Add Students
+          </Button>
+          <Button
+            onClick={() => setShowBulkTextModal(true)}
+            variant="outline"
+            className="flex items-center gap-2 w-full sm:w-auto"
+          >
+            <Upload className="w-4 h-4" />
+            Import from Text
           </Button>
         </div>
       </div>
@@ -1318,6 +1387,26 @@ export default function UserManagement() {
         />
       </Modal>
 
+      {/* Bulk Text Upload Modal */}
+      <Modal
+        open={showBulkTextModal}
+        onClose={() => {
+          setShowBulkTextModal(false);
+          resetBulkTextForm();
+        }}
+        title="Import Students from Text"
+        onSubmit={handleBulkTextUpload}
+        submitText={isBulkTextLoading ? "Importing..." : "Import Students"}
+      >
+        <BulkTextUploadForm
+          formData={bulkTextFormData}
+          setFormData={setBulkTextFormData}
+          groups={groups}
+          results={bulkTextResults}
+          isLoading={isBulkTextLoading}
+        />
+      </Modal>
+
       {/* Toast */}
       {toast && (
         <div className={`fixed bottom-6 right-6 px-4 py-2 rounded-lg shadow-card z-50 ${
@@ -1790,6 +1879,160 @@ function BulkAddStudentsForm({ formData, setFormData, groups, students, errors =
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Bulk Text Upload Form Component
+interface BulkTextUploadFormProps {
+  formData: { text: string; groupIds: number[] };
+  setFormData: (data: { text: string; groupIds: number[] }) => void;
+  groups: GroupWithDetails[];
+  results: {
+    created: Array<{ user: User; generated_password?: string }>;
+    failed: Array<{ email: string; error: string }>;
+  } | null;
+  isLoading: boolean;
+}
+
+function BulkTextUploadForm({ formData, setFormData, groups, results, isLoading }: BulkTextUploadFormProps) {
+  const exampleText = `Ибрагим Саида Асланкызы\t87756486372\tноябрь, декабрь\tDecember 3 2025\tibragim.saida@mail.ru
+Кокорев Руслан Владимирович\t87077492110\tмарт\tDecember 3 2025\trkokorev73@gmail.com`;
+
+  return (
+    <div className="space-y-4">
+      <div className="p-1">
+        <Label className="text-sm font-medium">Student Data (Tab-separated)</Label>
+        <p className="text-xs text-gray-500 mt-1 mb-2">
+          Paste data with columns: Name, Phone, Months, Date, Email (separated by tabs)
+        </p>
+        <textarea
+          value={formData.text}
+          onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+          placeholder={exampleText}
+          className="w-full h-48 p-3 border rounded-md text-sm font-mono resize-y focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          disabled={isLoading}
+        />
+        <div className="flex justify-between items-center mt-1">
+          <p className="text-xs text-gray-500">
+            {formData.text.trim().split('\n').filter(l => l.trim()).length} lines detected
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setFormData({ ...formData, text: '' })}
+            className="h-6 text-xs"
+            type="button"
+            disabled={isLoading}
+          >
+            Clear
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-1">
+        <Label className="text-sm font-medium">Assign to Groups (Optional)</Label>
+        <div className="mt-2 max-h-32 overflow-y-auto space-y-2 border rounded-md p-3">
+          {groups && groups.length > 0 ? (
+            groups.map((group) => (
+              <div key={group.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`bulk-text-group-${group.id}`}
+                  checked={formData.groupIds.includes(group.id)}
+                  disabled={isLoading}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setFormData({
+                        ...formData,
+                        groupIds: [...formData.groupIds, group.id]
+                      });
+                    } else {
+                      setFormData({
+                        ...formData,
+                        groupIds: formData.groupIds.filter(id => id !== group.id)
+                      });
+                    }
+                  }}
+                />
+                <Label htmlFor={`bulk-text-group-${group.id}`} className="text-sm font-normal cursor-pointer">
+                  {group.name}
+                </Label>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-500">No groups available</p>
+          )}
+        </div>
+        {formData.groupIds.length > 0 && (
+          <p className="text-xs text-gray-500 mt-1">
+            Selected: {formData.groupIds.length} group(s)
+          </p>
+        )}
+      </div>
+
+      {/* Results Section */}
+      {results && (
+        <div className="space-y-3 border-t pt-4">
+          <h4 className="font-medium text-sm">Import Results</h4>
+          
+          {results.created.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-md p-3">
+              <div className="flex justify-between items-center mb-2">
+                <h5 className="text-green-800 font-medium text-sm">
+                  ✓ Successfully created ({results.created.length})
+                </h5>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  type="button"
+                  onClick={() => {
+                    const text = results.created
+                      .map(item => `${item.user.name}\t${item.user.email}\t${item.generated_password || ''}`)
+                      .join('\n');
+                    navigator.clipboard.writeText(text);
+                    alert('Скопировано! Формат: Имя, Email, Пароль (через Tab)');
+                  }}
+                >
+                  📋 Копировать все
+                </Button>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {results.created.map((item, idx) => (
+                  <div key={idx} className="text-xs text-green-700 flex justify-between items-center bg-white p-2 rounded">
+                    <span>{item.user.name} ({item.user.email})</span>
+                    {item.generated_password && (
+                      <code className="bg-green-100 px-2 py-0.5 rounded text-green-800 cursor-pointer hover:bg-green-200"
+                        onClick={() => {
+                          navigator.clipboard.writeText(item.generated_password!);
+                        }}
+                        title="Нажмите чтобы скопировать"
+                      >
+                        {item.generated_password}
+                      </code>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.failed.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <h5 className="text-red-800 font-medium text-sm mb-2">
+                ✗ Failed ({results.failed.length})
+              </h5>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {results.failed.map((item, idx) => (
+                  <div key={idx} className="text-xs text-red-700 bg-white p-2 rounded">
+                    <span className="font-medium">{item.email}:</span> {item.error}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

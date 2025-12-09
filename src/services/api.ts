@@ -15,6 +15,7 @@ import type {
   UpdateGroupRequest,
   CreateUserRequest,
   UpdateUserRequest,
+  BulkCreateUsersResponse,
   Step,
   StepProgress,
   CourseStepsProgress,
@@ -1630,6 +1631,24 @@ class LMSApiClient {
     }
   }
 
+  async bulkCreateUsersFromText(
+    text: string, 
+    groupIds?: number[], 
+    role: string = 'student'
+  ): Promise<BulkCreateUsersResponse> {
+    try {
+      const response = await this.api.post('/admin/users/bulk-text', {
+        text,
+        group_ids: groupIds,
+        role,
+        generate_passwords: true
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to bulk create users from text');
+    }
+  }
+
   async resetUserPassword(userId: number): Promise<{ new_password: string; user_email: string }> {
     try {
       const response = await this.api.post(`/admin/reset-password/${userId}`);
@@ -2319,6 +2338,7 @@ export const assignTeacherToGroup = apiClient.assignTeacherToGroup.bind(apiClien
 export const getGroupStudents = apiClient.getGroupStudents.bind(apiClient);
 export const getStudentProgress = apiClient.getStudentProgress.bind(apiClient);
 export const createUser = apiClient.createUser.bind(apiClient);
+export const bulkCreateUsersFromText = apiClient.bulkCreateUsersFromText.bind(apiClient);
 export const resetUserPassword = apiClient.resetUserPassword.bind(apiClient);
 export const markStepStarted = apiClient.markStepStarted.bind(apiClient);
 export const markStepVisited = apiClient.markStepVisited.bind(apiClient);

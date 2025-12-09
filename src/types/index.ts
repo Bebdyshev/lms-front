@@ -300,6 +300,17 @@ export interface UpdateUserRequest {
   password?: string;
 }
 
+export interface BulkCreateUsersResponse {
+  created_users: Array<{
+    user: User;
+    generated_password?: string;
+  }>;
+  failed_users: Array<{
+    email: string;
+    error: string;
+  }>;
+}
+
 export interface CourseModule {
   id: number;
   course_id: string;
