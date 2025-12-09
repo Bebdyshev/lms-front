@@ -205,6 +205,98 @@ const DraggableModule = ({
   );
 };
 
+interface DraggableLessonProps {
+  lesson: Lesson;
+  index: number;
+  courseId: string | undefined;
+  onRemove: (lessonId: string) => void;
+}
+
+const DraggableLesson = ({ 
+  lesson, 
+  index, 
+  courseId,
+  onRemove
+}: DraggableLessonProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: lesson.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const navigate = useNavigate();
+
+  // Helper function to get lesson type and icon
+  const getLessonTypeIcon = (type: LessonContentType) => {
+    switch (type) {
+      case 'video':
+        return <Video className="w-4 h-4 text-purple-600" />;
+      case 'quiz':
+        return <HelpCircle className="w-4 h-4 text-green-600" />;
+      default:
+        return <FileText className="w-4 h-4 text-blue-600" />;
+    }
+  };
+
+  const getLessonType = (lesson: any): LessonContentType => {
+    if (lesson.steps && lesson.steps.length > 0) {
+      const firstStep = lesson.steps[0];
+      return firstStep.content_type || 'text';
+    }
+    return 'text';
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style}
+      className={`flex items-center justify-between p-3 bg-gray-50 rounded-lg ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      <div className="flex items-center gap-3">
+        <div 
+          {...attributes}
+          {...listeners}
+          className="cursor-grab hover:cursor-grabbing p-1 hover:bg-gray-200 rounded"
+        >
+          <GripVertical className="w-4 h-4 text-gray-400" />
+        </div>
+        <div className="flex items-center justify-center w-8 h-8 bg-white rounded-md">
+          {getLessonTypeIcon(getLessonType(lesson))}
+        </div>
+        <div>
+          <div className="font-medium text-gray-900 text-sm">{lesson?.title || 'Untitled'}</div>
+          <div className="text-xs text-gray-500 capitalize">
+            {getLessonType(lesson)} • {index + 1}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button 
+          onClick={() => navigate(`/teacher/course/${courseId}/lesson/${lesson?.id}/edit`)} 
+          className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
+        >
+          Edit
+        </button>
+        <button 
+          onClick={() => onRemove(lesson?.id)} 
+          className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function CourseBuilderPage() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
@@ -227,6 +319,7 @@ export default function CourseBuilderPage() {
   const [openDropdown, setOpenDropdown] = useState<number | string | null>(null);
   const [moduleLectures, setModuleLectures] = useState<Map<number, Lesson[]>>(new Map());
   const [moduleOrder, setModuleOrder] = useState<Array<number | string>>([]);
+  const [lessonOrders, setLessonOrders] = useState<Map<number, string[]>>(new Map()); // moduleId -> lesson IDs in order
   const [activeSection, setActiveSection] = useState<'overview' | 'description' | 'content'>('overview');
   const [showInlineLectureForm, setShowInlineLectureForm] = useState<string | null>(null);
   const [inlineLectureData, setInlineLectureData] = useState({ title: '', type: 'text' as LessonContentType, videoUrl: '' });
@@ -466,12 +559,26 @@ export default function CourseBuilderPage() {
         const displayModules = getDisplayModules();
         for (let i = 0; i < displayModules.length; i++) {
           const module = displayModules[i];
-          if (!module.id.startsWith('temp-')) {
+          if (!module.id.toString().startsWith('temp-')) {
             await apiClient.updateModule(courseId, module.id, {
               title: module.title,
               description: module.description,
               order_index: i
             });
+          }
+        }
+      }
+      
+      // Update lesson orders if they have changed
+      for (const [moduleId, lessonIds] of lessonOrders.entries()) {
+        for (let i = 0; i < lessonIds.length; i++) {
+          const lessonId = lessonIds[i];
+          try {
+            await apiClient.updateLesson(lessonId, {
+              order_index: i
+            });
+          } catch (error) {
+            console.error(`Failed to update lesson ${lessonId} order:`, error);
           }
         }
       }
@@ -483,6 +590,7 @@ export default function CourseBuilderPage() {
       setPendingUpdates([]);
       setPendingLectures([]);
       setModuleOrder([]);
+      setLessonOrders(new Map());
       setHasUnsavedChanges(false);
       
       // Refresh modules with lessons from server
@@ -535,6 +643,32 @@ export default function CourseBuilderPage() {
     }
   };
 
+  const handleLessonDragEnd = (event: DragEndEvent, moduleId: number) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const lessons = moduleLectures.get(moduleId) || [];
+      const oldIndex = lessons.findIndex(lesson => lesson.id === active.id);
+      const newIndex = lessons.findIndex(lesson => lesson.id === over?.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newLessonOrder = arrayMove(lessons, oldIndex, newIndex);
+        
+        // Update the lessons in moduleLectures
+        const updatedModuleLectures = new Map(moduleLectures);
+        updatedModuleLectures.set(moduleId, newLessonOrder);
+        setModuleLectures(updatedModuleLectures);
+        
+        // Track the new order for saving
+        const newLessonOrders = new Map(lessonOrders);
+        newLessonOrders.set(moduleId, newLessonOrder.map(lesson => lesson.id));
+        setLessonOrders(newLessonOrders);
+        
+        setHasUnsavedChanges(true);
+      }
+    }
+  };
+
   const handleUpdatePendingModule = (moduleId: number | string, field: string, value: string) => {
     if (field === 'title') {
       if (typeof moduleId === 'string' && moduleId.startsWith('temp-')) {
@@ -570,35 +704,26 @@ export default function CourseBuilderPage() {
     if (lectures.length > 0) {
       return (
         <div className="space-y-3">
-          {lectures.filter(l => l).map((l, lecIndex) => (
-            <div key={l?.id || lecIndex} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-white rounded-md">
-                  {getLessonTypeIcon(getLessonType(l))}
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900 text-sm">{l?.title || 'Untitled'}</div>
-                  <div className="text-xs text-gray-500 capitalize">
-                    {getLessonType(l)} • {lecIndex + 1}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => navigate(`/teacher/course/${courseId}/lesson/${l?.id}/edit`)} 
-                  className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
-                >
-                  Edit
-                </button>
-                <button 
-                  onClick={() => onRemoveLecture(l?.id)} 
-                  className="px-3 py-1 text-sm text-red-600 hover:bg-red-100 rounded"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={(event) => handleLessonDragEnd(event, moduleId)}
+          >
+            <SortableContext
+              items={lectures.map(l => l.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {lectures.filter(l => l).map((l, lecIndex) => (
+                <DraggableLesson
+                  key={l?.id || lecIndex}
+                  lesson={l}
+                  index={lecIndex}
+                  courseId={courseId}
+                  onRemove={onRemoveLecture}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
           
           {/* Pending Lectures */}
           {pendingLectures.filter(l => l && l.module_id === moduleId).map((l: any, lecIndex: number) => (
