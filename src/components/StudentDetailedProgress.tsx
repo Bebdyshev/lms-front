@@ -267,31 +267,55 @@ export default function StudentDetailedProgress({
                           {lessonData.lesson_info.title}
                         </h5>
                         
-                        <div className="ml-6 space-y-2">
-                          {lessonData.steps.map((step: StepProgress) => (
-                            <div key={step.step_id} className="flex items-center justify-between p-3 border rounded-lg">
-                              <div className="flex items-center gap-3">
-                                {getStepIcon(step.content_type)}
-                                <div>
-                                  <p className="font-medium">{step.step_title}</p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Type: {step.content_type} • Time: {step.progress.time_spent_minutes} min
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                {getStatusBadge(step.progress.status)}
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {step.progress.status === 'completed' 
-                                    ? `Completed: ${formatDateTime(step.progress.completed_at)}`
-                                    : step.progress.started_at 
-                                      ? `Started: ${formatDateTime(step.progress.started_at)}`
-                                      : 'Not started'
-                                  }
-                                </p>
-                              </div>
-                            </div>
-                          ))}
+                        <div className="ml-6">
+                          <div className="border rounded-md overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-muted/50">
+                                <tr className="text-left border-b">
+                                  <th className="p-2 font-medium w-12">#</th>
+                                  <th className="p-2 font-medium">Step</th>
+                                  <th className="p-2 font-medium">Type</th>
+                                  <th className="p-2 font-medium">Time</th>
+                                  <th className="p-2 font-medium">Status</th>
+                                  <th className="p-2 font-medium text-right">Date</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {lessonData.steps
+                                  .sort((a: StepProgress, b: StepProgress) => a.step_order - b.step_order)
+                                  .map((step: StepProgress) => (
+                                  <tr key={step.step_id} className="border-b last:border-0 hover:bg-muted/20">
+                                    <td className="p-2 text-muted-foreground">{step.step_order}</td>
+                                    <td className="p-2 font-medium">{step.step_title}</td>
+                                    <td className="p-2 flex items-center gap-2">
+                                      {getStepIcon(step.content_type)}
+                                      <span className="capitalize">{step.content_type.replace('_', ' ')}</span>
+                                    </td>
+                                    <td className="p-2">{step.progress.time_spent_minutes}m</td>
+                                    <td className="p-2">
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        step.progress.status === 'completed' 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : step.progress.status === 'in_progress'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {step.progress.status === 'completed' ? 'Done' : step.progress.status.replace('_', ' ')}
+                                      </span>
+                                    </td>
+                                    <td className="p-2 text-right text-muted-foreground text-xs">
+                                      {step.progress.status === 'completed' 
+                                        ? formatDateTime(step.progress.completed_at)
+                                        : step.progress.started_at 
+                                          ? formatDateTime(step.progress.started_at)
+                                          : '-'
+                                      }
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -315,52 +339,47 @@ export default function StudentDetailedProgress({
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {learningPath.learning_path.map((step: LearningPathStep, index: number) => (
-                    <div key={step.sequence_number} className="flex items-start gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-bold">
-                          {step.sequence_number}
-                        </div>
-                        {index < learningPath.learning_path.length - 1 && (
-                          <div className="w-0.5 h-12 bg-border mt-2"></div>
-                        )}
-                      </div>
-                      
-                      <div className="flex-1 pb-8">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">{step.step_info.title}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {step.module_info.title} → {step.lesson_info.title}
-                            </p>
-                          </div>
-                          {getStatusBadge(step.progress_info.status)}
-                        </div>
-                        
-                        <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Started:</span>
-                            <p>{formatDateTime(step.progress_info.started_at || step.progress_info.visited_at)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Completed:</span>
-                            <p>{formatDateTime(step.progress_info.completed_at)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Time:</span>
-                            <p>{step.progress_info.time_spent_minutes} min</p>
-                          </div>
-                          {step.progress_info.time_since_previous_step_minutes && (
-                            <div>
-                              <span className="text-muted-foreground">Break:</span>
-                              <p>{formatDuration(step.progress_info.time_since_previous_step_minutes)}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr className="text-left border-b">
+                        <th className="p-2 font-medium w-12">#</th>
+                        <th className="p-2 font-medium">Step</th>
+                        <th className="p-2 font-medium">Location</th>
+                        <th className="p-2 font-medium">Time</th>
+                        <th className="p-2 font-medium">Status</th>
+                        <th className="p-2 font-medium text-right">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {learningPath.learning_path.map((step: LearningPathStep) => (
+                        <tr key={step.sequence_number} className="border-b last:border-0 hover:bg-muted/20">
+                          <td className="p-2 text-muted-foreground">{step.sequence_number}</td>
+                          <td className="p-2 font-medium">{step.step_info.title}</td>
+                          <td className="p-2 text-muted-foreground">
+                            {step.module_info.title} → {step.lesson_info.title}
+                          </td>
+                          <td className="p-2">
+                            {step.progress_info.time_spent_minutes}m
+                            {step.progress_info.time_since_previous_step_minutes && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                (+{formatDuration(step.progress_info.time_since_previous_step_minutes)} break)
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2">
+                            {getStatusBadge(step.progress_info.status)}
+                          </td>
+                          <td className="p-2 text-right text-muted-foreground text-xs">
+                            {step.progress_info.status === 'completed' 
+                              ? formatDateTime(step.progress_info.completed_at)
+                              : formatDateTime(step.progress_info.started_at || step.progress_info.visited_at)
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>

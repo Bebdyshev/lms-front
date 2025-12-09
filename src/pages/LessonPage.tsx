@@ -1106,22 +1106,29 @@ export default function LessonPage() {
   const saveQuizAttempt = async (score: number, totalQuestions: number) => {
     if (!currentStep || !courseId || !lessonId) return;
 
+    // Check if quiz needs manual grading
+    const hasLongText = questions.some(q => q.question_type === 'long_text');
+    
+    // Only save attempt if there are long_text questions requiring teacher review
+    if (!hasLongText) {
+      console.log('Quiz has no long_text questions, skipping save to backend');
+      return;
+    }
+
     try {
       const timeSpentSeconds = quizStartTime
         ? Math.floor((Date.now() - quizStartTime) / 1000)
         : undefined;
 
       const answersToSave = Array.from(new Map([...quizAnswers, ...gapAnswers]).entries());
-      console.log('Saving quiz attempt:', {
+      console.log('Saving quiz attempt with long_text questions:', {
         score,
         totalQuestions,
         answersCount: answersToSave.length,
         sampleAnswers: answersToSave.slice(0, 3)
       });
 
-      // Check if quiz needs manual grading
-      const hasLongText = questions.some(q => q.question_type === 'long_text');
-      const isGraded = !hasLongText;
+      const isGraded = false; // Always false since we only save when hasLongText is true
 
       const attemptData = {
         step_id: parseInt(currentStep.id.toString()),

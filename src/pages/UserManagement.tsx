@@ -103,6 +103,33 @@ export default function UserManagement() {
   const [showEditGroupModal, setShowEditGroupModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<GroupWithDetails | null>(null);
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
+  const [bulkAddFormData, setBulkAddFormData] = useState<{ groupId: number | null; studentIds: number[] }>({
+    groupId: null,
+    studentIds: []
+  });
+
+  const handleBulkAddStudents = async () => {
+    if (!bulkAddFormData.groupId) {
+      setToast({ message: 'Please select a group', type: 'error' });
+      return;
+    }
+    if (bulkAddFormData.studentIds.length === 0) {
+      setToast({ message: 'Please select at least one student', type: 'error' });
+      return;
+    }
+
+    try {
+      await apiClient.bulkAddStudentsToGroup(bulkAddFormData.groupId, bulkAddFormData.studentIds);
+      setToast({ message: 'Students added successfully', type: 'success' });
+      setShowBulkAddModal(false);
+      setBulkAddFormData({ groupId: null, studentIds: [] });
+      loadGroups(); // Refresh groups to show updated counts
+    } catch (error) {
+      console.error('Failed to bulk add students:', error);
+      setToast({ message: 'Failed to add students to group', type: 'error' });
+    }
+  };
   
   // Form data
   const [formData, setFormData] = useState<UserFormData>({
@@ -147,18 +174,11 @@ export default function UserManagement() {
     loadTeachersAndCurators();
   }, [currentPage, roleFilter, groupFilter, statusFilter, searchQuery]);
 
-  // Force refresh when component mounts or when data changes
+  // Force refresh when component mounts
   useEffect(() => {
-    const refreshData = () => {
-      loadUsers();
-      loadGroups();
-      loadTeachersAndCurators();
-    };
-    
-    // Refresh data every 30 seconds to ensure we have latest data
-    const interval = setInterval(refreshData, 30000);
-    
-    return () => clearInterval(interval);
+    loadUsers();
+    loadGroups();
+    loadTeachersAndCurators();
   }, []);
 
   // Update URL params when role filter changes to student by default
@@ -420,9 +440,10 @@ export default function UserManagement() {
       setShowDeleteModal(false);
       setSelectedUser(null);
       loadUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to deactivate user:', error);
-      showToast('error', 'Failed to deactivate user');
+      const errorMessage = error.response?.data?.detail || 'Failed to deactivate user';
+      showToast('error', errorMessage);
     }
   };
 
@@ -638,6 +659,14 @@ export default function UserManagement() {
           >
             <UserPlus className="w-4 h-4" />
             Add User
+          </Button>
+          <Button
+            onClick={() => setShowBulkAddModal(true)}
+            variant="secondary"
+            className="flex items-center gap-2 w-full sm:w-auto"
+          >
+            <Users className="w-4 h-4" />
+            Bulk Add Students
           </Button>
         </div>
       </div>
@@ -992,14 +1021,6 @@ export default function UserManagement() {
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex items-center justify-end gap-2">
                               <Button
-                                onClick={() => handleResetPassword(Number(user.id))}
-                                variant="ghost"
-                                size="sm"
-                                title="Reset Password"
-                              >
-                                <RefreshCw className="w-4 h-4" />
-                              </Button>
-                              <Button
                                 onClick={() => openEditModal(user)}
                                 variant="ghost"
                                 size="sm"
@@ -1279,6 +1300,22 @@ export default function UserManagement() {
             )}
           </p>
         </div>
+      </Modal>
+
+      {/* Bulk Add Students Modal */}
+      <Modal
+        open={showBulkAddModal}
+        onClose={() => setShowBulkAddModal(false)}
+        title="Bulk Add Students to Group"
+        onSubmit={handleBulkAddStudents}
+        submitText="Add Students"
+      >
+        <BulkAddStudentsForm
+          formData={bulkAddFormData}
+          setFormData={setBulkAddFormData}
+          groups={groups}
+          students={students}
+        />
       </Modal>
 
       {/* Toast */}
@@ -1608,6 +1645,150 @@ function GroupForm({ formData, setFormData, teachers, curators, students, errors
         <Label htmlFor="group_is_active" className="text-sm">
           Active
         </Label>
+      </div>
+    </div>
+  );
+}
+
+// Bulk Add Students Form Component
+interface BulkAddStudentsFormProps {
+  formData: { groupId: number | null; studentIds: number[] };
+  setFormData: (data: { groupId: number | null; studentIds: number[] }) => void;
+  groups: GroupWithDetails[];
+  students: User[];
+  errors?: { [key: string]: string };
+}
+
+function BulkAddStudentsForm({ formData, setFormData, groups, students, errors = {} }: BulkAddStudentsFormProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Filter students based on search term
+  const filteredStudents = students.filter(student => 
+    (student.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     student.email?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    student.role === 'student' &&
+    student.is_active
+  );
+
+  // Toggle student selection
+  const toggleStudent = (studentId: number) => {
+    if (formData.studentIds.includes(studentId)) {
+      setFormData({
+        ...formData,
+        studentIds: formData.studentIds.filter(id => id !== studentId)
+      });
+    } else {
+      setFormData({
+        ...formData,
+        studentIds: [...formData.studentIds, studentId]
+      });
+    }
+  };
+
+  // Select all filtered students
+  const selectAllFiltered = () => {
+    const newIds = [...formData.studentIds];
+    filteredStudents.forEach(student => {
+      if (!newIds.includes(Number(student.id))) {
+        newIds.push(Number(student.id));
+      }
+    });
+    setFormData({ ...formData, studentIds: newIds });
+  };
+
+  // Deselect all filtered students
+  const deselectAllFiltered = () => {
+    const filteredIds = filteredStudents.map(s => Number(s.id));
+    setFormData({
+      ...formData,
+      studentIds: formData.studentIds.filter(id => !filteredIds.includes(id))
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="p-1">
+        <Label htmlFor="group" className="text-sm font-medium">Select Group</Label>
+        <Select
+          value={formData.groupId?.toString() || ''}
+          onValueChange={(value) => setFormData({ ...formData, groupId: parseInt(value) })}
+        >
+          <SelectTrigger className={errors.groupId ? 'border-red-500' : ''}>
+            <SelectValue placeholder="Select a group" />
+          </SelectTrigger>
+          <SelectContent className="z-[1100]">
+            {groups.map((group) => (
+              <SelectItem key={group.id} value={group.id.toString()}>
+                {group.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.groupId && (
+          <p className="text-red-500 text-xs mt-1">{errors.groupId}</p>
+        )}
+      </div>
+
+      <div className="p-1">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm font-medium">Select Students</Label>
+          <div className="flex gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={selectAllFiltered}
+              className="h-6 text-xs"
+              type="button"
+            >
+              Select All
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={deselectAllFiltered}
+              className="h-6 text-xs"
+              type="button"
+            >
+              Deselect All
+            </Button>
+          </div>
+        </div>
+        
+        <Input
+          placeholder="Search students..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="mb-2"
+        />
+
+        <div className="mt-2 max-h-60 overflow-y-auto border rounded-md p-2 space-y-2">
+          {filteredStudents.length === 0 ? (
+            <p className="text-gray-500 text-sm text-center py-4">No students found</p>
+          ) : (
+            filteredStudents.map((student) => (
+              <div key={student.id} className="flex items-center space-x-2 hover:bg-gray-50 p-1 rounded">
+                <Checkbox
+                  id={`bulk-student-${student.id}`}
+                  checked={formData.studentIds.includes(Number(student.id))}
+                  onCheckedChange={() => toggleStudent(Number(student.id))}
+                />
+                <Label htmlFor={`bulk-student-${student.id}`} className="text-sm cursor-pointer flex-1">
+                  <div className="font-medium">{student.name || student.full_name}</div>
+                  <div className="text-xs text-gray-500">{student.email}</div>
+                </Label>
+              </div>
+            ))
+          )}
+        </div>
+        
+        <div className="flex justify-between items-center mt-2">
+          <p className="text-sm text-gray-600">
+            Selected: {formData.studentIds.length} student(s)
+          </p>
+          {errors.studentIds && (
+            <p className="text-red-500 text-xs">{errors.studentIds}</p>
+          )}
+        </div>
       </div>
     </div>
   );

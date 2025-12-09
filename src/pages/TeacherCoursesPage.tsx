@@ -167,16 +167,18 @@ export default function TeacherCoursesPage() {
           <BookOpen className="w-8 h-8 mr-3 text-blue-600" />
           My Courses
         </h1>
-        <div className="flex gap-3">
-          <Button 
-            onClick={() => setCreateOpen(true)}
-            variant="outline"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Course
-          </Button>
-        </div>
+        {user?.role === 'admin' && (
+          <div className="flex gap-3">
+            <Button 
+              onClick={() => setCreateOpen(true)}
+              variant="outline"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Course
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Summary Stats */}
@@ -291,17 +293,19 @@ export default function TeacherCoursesPage() {
                             <Eye className="w-4 h-4" />
                           </Link>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                          title="Edit course"
-                          aria-label="Edit course"
-                        >
-                          <Link to={`/teacher/course/${course.id}`}>
-                            <Pencil className="w-4 h-4" />
-                          </Link>
-                        </Button>
+                        {user?.role === 'admin' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            title="Edit course"
+                            aria-label="Edit course"
+                          >
+                            <Link to={`/teacher/course/${course.id}`}>
+                              <Pencil className="w-4 h-4" />
+                            </Link>
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

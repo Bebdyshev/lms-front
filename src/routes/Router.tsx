@@ -245,7 +245,7 @@ export default function Router() {
           } />
 
           <Route path="/teacher/course/new" element={
-            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+            <ProtectedRoute allowedRoles={['admin']}>
               <AppLayout>
                 <CreateCourseWizard />
               </AppLayout>
@@ -253,7 +253,7 @@ export default function Router() {
           } />
 
           <Route path="/teacher/course/:courseId" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['admin']}>
               <AppLayout>
                 <CourseBuilderPage />
               </AppLayout>
@@ -278,7 +278,7 @@ export default function Router() {
           } />
 
           <Route path="/teacher/course/:courseId/lesson/:lessonId/edit" element={
-            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+            <ProtectedRoute allowedRoles={['admin']}>
               <LessonEditPage />
             </ProtectedRoute>
           } />

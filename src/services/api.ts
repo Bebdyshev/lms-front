@@ -1933,9 +1933,10 @@ class LMSApiClient {
     }
   }
 
-  async getAllStudentsAnalytics(): Promise<any> {
+  async getAllStudentsAnalytics(courseId?: string): Promise<any> {
     try {
-      const response = await this.api.get('/analytics/students/all');
+      const params = courseId ? `?course_id=${courseId}` : '';
+      const response = await this.api.get(`/analytics/students/all${params}`);
       return response.data;
     } catch (error) {
       console.error('Failed to get all students analytics:', error);
@@ -1963,9 +1964,10 @@ class LMSApiClient {
     }
   }
 
-  async getGroupStudentsAnalytics(groupId: string): Promise<any> {
+  async getGroupStudentsAnalytics(groupId: string, courseId?: string): Promise<any> {
     try {
-      const response = await this.api.get(`/analytics/group/${groupId}/students`);
+      const params = courseId ? `?course_id=${courseId}` : '';
+      const response = await this.api.get(`/analytics/group/${groupId}/students${params}`);
       return response.data;
     } catch (error) {
       console.error('Failed to get group students analytics:', error);

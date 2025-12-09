@@ -190,13 +190,13 @@ export default function AnalyticsPage() {
     } else if (selectedView === 'groups') {
       loadGroups();
     }
-  }, [selectedView]);
+  }, [selectedView, selectedCourse]);
 
   useEffect(() => {
     if (selectedGroup && selectedView === 'groups') {
       loadGroupStudents();
     }
-  }, [selectedGroup, selectedView]);
+  }, [selectedGroup, selectedView, selectedCourse]);
 
   const loadCourses = async () => {
     try {
@@ -290,7 +290,8 @@ export default function AnalyticsPage() {
   const loadAllStudents = async () => {
     try {
       setIsLoading(true);
-      const data = await getAllStudentsAnalytics();
+      // Pass selectedCourse to filter last_lesson by the selected course
+      const data = await getAllStudentsAnalytics(selectedCourse || undefined);
       setAllStudents(data.students || []);
     } catch (error) {
       console.error('Failed to load all students:', error);
@@ -328,7 +329,8 @@ export default function AnalyticsPage() {
     
     try {
       setIsLoading(true);
-      const data = await getGroupStudentsAnalytics(selectedGroup);
+      // Pass selectedCourse to filter last_lesson by the selected course
+      const data = await getGroupStudentsAnalytics(selectedGroup, selectedCourse || undefined);
       setGroupStudents(data.students || []);
     } catch (error) {
       console.error('Failed to load group students:', error);

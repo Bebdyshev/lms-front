@@ -231,7 +231,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                       courses.slice(0, 5).map((course) => (
                         <NavLink
                           key={course.id}
-                          to={user?.role === 'teacher' ? `/teacher/course/${course.id}` : `/course/${course.id}`}
+                          to={`/course/${course.id}`}
                           className={({ isActive }) =>
                             `flex items-center rounded-lg text-gray-600 hover:bg-gray-100 transition-colors px-3 py-2 text-sm ${isActive ? 'bg-blue-50 text-blue-700 border-l-2 border-blue-500' : ''}`
                           }

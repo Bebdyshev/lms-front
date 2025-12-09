@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import { toast } from '../components/Toast';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   BookOpen, 
   Users, 
@@ -75,6 +76,7 @@ interface Submission {
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [stats, setStats] = useState<TeacherStats | null>(null);
   const [pendingSubmissions, setPendingSubmissions] = useState<Submission[]>([]);
   const [recentSubmissions, setRecentSubmissions] = useState<Submission[]>([]);
@@ -83,7 +85,7 @@ export default function TeacherDashboard() {
   const [studentsProgress, setStudentsProgress] = useState<StudentProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('pending');
   const [activeGroup, setActiveGroup] = useState('all');
   
   // Quiz grading modal state
@@ -355,13 +357,15 @@ export default function TeacherDashboard() {
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
-        <Button
-          onClick={() => navigate('/teacher/courses')}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          <BookOpen className="w-4 h-4 mr-2" />
-          Manage Courses
-        </Button>
+        {user?.role === 'admin' && (
+          <Button
+            onClick={() => navigate('/teacher/courses')}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <BookOpen className="w-4 h-4 mr-2" />
+            Manage Courses
+          </Button>
+        )}
       </div>
 
       {/* Key Stats - Simplified */}
@@ -436,9 +440,9 @@ export default function TeacherDashboard() {
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
               <TabsList className="grid w-full grid-cols-3 sm:w-[300px]">
-                <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="graded">Graded</TabsTrigger>
+                <TabsTrigger value="all">All</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
