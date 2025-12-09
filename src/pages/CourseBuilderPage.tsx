@@ -571,14 +571,21 @@ export default function CourseBuilderPage() {
       
       // Update lesson orders if they have changed
       for (const [moduleId, lessonIds] of lessonOrders.entries()) {
+        const lessons = moduleLectures.get(moduleId) || [];
         for (let i = 0; i < lessonIds.length; i++) {
           const lessonId = lessonIds[i];
-          try {
-            await apiClient.updateLesson(lessonId, {
-              order_index: i
-            });
-          } catch (error) {
-            console.error(`Failed to update lesson ${lessonId} order:`, error);
+          const lesson = lessons.find(l => l.id === lessonId);
+          if (lesson) {
+            try {
+              await apiClient.updateLesson(lessonId, {
+                title: lesson.title,
+                description: lesson.description || '',
+                duration_minutes: lesson.duration_minutes || 0,
+                order_index: i
+              });
+            } catch (error) {
+              console.error(`Failed to update lesson ${lessonId} order:`, error);
+            }
           }
         }
       }
