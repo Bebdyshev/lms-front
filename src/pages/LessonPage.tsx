@@ -1108,12 +1108,6 @@ export default function LessonPage() {
 
     // Check if quiz needs manual grading
     const hasLongText = questions.some(q => q.question_type === 'long_text');
-    
-    // Only save attempt if there are long_text questions requiring teacher review
-    if (!hasLongText) {
-      console.log('Quiz has no long_text questions, skipping save to backend');
-      return;
-    }
 
     try {
       const timeSpentSeconds = quizStartTime
@@ -1121,14 +1115,17 @@ export default function LessonPage() {
         : undefined;
 
       const answersToSave = Array.from(new Map([...quizAnswers, ...gapAnswers]).entries());
-      console.log('Saving quiz attempt with long_text questions:', {
+      console.log('Saving quiz attempt:', {
         score,
         totalQuestions,
         answersCount: answersToSave.length,
+        hasLongText,
         sampleAnswers: answersToSave.slice(0, 3)
       });
 
-      const isGraded = false; // Always false since we only save when hasLongText is true
+      // If quiz has long_text questions, it needs teacher grading
+      // Otherwise, it's auto-graded
+      const isGraded = !hasLongText;
 
       const attemptData = {
         step_id: parseInt(currentStep.id.toString()),
