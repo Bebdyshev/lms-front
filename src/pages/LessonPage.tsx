@@ -677,83 +677,34 @@ export default function LessonPage() {
             }
           });
 
-          // Check for previous attempts BEFORE resetting state
-          try {
-            const attempts = await apiClient.getStepQuizAttempts(currentStep.id);
-
-            if (!isMounted) return;
-
-            if (attempts && attempts.length > 0) {
-              const lastAttempt = attempts[0]; // Get the most recent attempt
-              console.log('Restoring quiz attempt:', lastAttempt);
-              setQuizAttempt(lastAttempt);
-
-              // Restore answers
-              if (lastAttempt.answers) {
-                try {
-                  const savedAnswers = JSON.parse(lastAttempt.answers);
-                  console.log('Parsed saved answers:', savedAnswers);
-
-                  // Handle both Map-like array [[key, val], ...] and object {key: val} formats
-                  let answersMap: Map<string, any>;
-                  if (Array.isArray(savedAnswers)) {
-                    answersMap = new Map(savedAnswers) as Map<string, any>;
-                  } else {
-                    answersMap = new Map(Object.entries(savedAnswers)) as Map<string, any>;
-                  }
-
-                  console.log('Restored answers map keys:', Array.from(answersMap.keys()));
-                  setQuizAnswers(answersMap);
-
-                  // Restore gap answers
-                  const newGapAnswers = new Map(init);
-
-                  (parsedQuizData.questions || []).forEach((q: any) => {
-                    if ((q.question_type === 'fill_blank' || q.question_type === 'text_completion') && answersMap.has(q.id.toString())) {
-                      const savedGapAns = answersMap.get(q.id.toString());
-                      console.log(`Restoring gap answer for Q ${q.id}:`, savedGapAns);
-                      if (Array.isArray(savedGapAns)) {
-                        newGapAnswers.set(q.id.toString(), savedGapAns);
-                      }
-                    }
-                  });
-
-                  setGapAnswers(newGapAnswers);
-
-                } catch (e) {
-                  console.error('Failed to parse saved answers:', e);
-                }
-              }
-
-              // Restore state
-              setQuizState('completed');
-
-              // Mark as completed if passed
-              const passed = lastAttempt.score_percentage >= 50;
-              setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
-
-              setIsQuizReady(true); // Ready!
-              return; // Skip default initialization if restored
-            }
-          } catch (err) {
-            console.error('Failed to load quiz attempts:', err);
-          }
-
-          if (!isMounted) return;
-
-          // Check localStorage for in-progress attempt
+          // Check localStorage for in-progress attempt FIRST
+          // If we have local progress, we prefer it over the backend "completed" state
+          // This handles the "Retake" scenario where we want to continue editing
+          let hasLocalProgress = false;
           try {
             const localQuizAnswers = localStorage.getItem(`quiz_answers_${currentStep.id}`);
             const localGapAnswers = localStorage.getItem(`gap_answers_${currentStep.id}`);
 
             if (localQuizAnswers || localGapAnswers) {
               console.log('Restoring from localStorage');
+              hasLocalProgress = true;
+              
               if (localQuizAnswers) {
                 setQuizAnswers(new Map(JSON.parse(localQuizAnswers)));
               }
               if (localGapAnswers) {
                 setGapAnswers(new Map(JSON.parse(localGapAnswers)));
               }
+              
+              // If we have local progress, we are NOT in 'completed' state
+              const displayMode = parsedQuizData.display_mode || 'one_by_one';
+              if (displayMode === 'all_at_once') {
+                setQuizState('feed');
+              } else {
+                setQuizState('title');
+              }
+              
+              setIsQuizReady(true);
             } else {
               // Default initialization if no previous attempt found
               setGapAnswers(init);
@@ -765,18 +716,87 @@ export default function LessonPage() {
             setQuizAnswers(new Map());
           }
 
-          const displayMode = parsedQuizData.display_mode || 'one_by_one';
-          console.log('Quiz display_mode:', displayMode, 'Quiz data:', parsedQuizData);
+          // Only check for backend attempts if we didn't find local progress
+          if (!hasLocalProgress) {
+            try {
+              const attempts = await apiClient.getStepQuizAttempts(currentStep.id);
 
-          if (displayMode === 'all_at_once') {
-            setQuizState('feed');
-          } else {
-            setQuizState('title');
+              if (!isMounted) return;
+
+              if (attempts && attempts.length > 0) {
+                const lastAttempt = attempts[0]; // Get the most recent attempt
+                console.log('Restoring quiz attempt:', lastAttempt);
+                setQuizAttempt(lastAttempt);
+
+                // Restore answers
+                if (lastAttempt.answers) {
+                  try {
+                    const savedAnswers = JSON.parse(lastAttempt.answers);
+                    console.log('Parsed saved answers:', savedAnswers);
+
+                    // Handle both Map-like array [[key, val], ...] and object {key: val} formats
+                    let answersMap: Map<string, any>;
+                    if (Array.isArray(savedAnswers)) {
+                      answersMap = new Map(savedAnswers) as Map<string, any>;
+                    } else {
+                      answersMap = new Map(Object.entries(savedAnswers)) as Map<string, any>;
+                    }
+
+                    console.log('Restored answers map keys:', Array.from(answersMap.keys()));
+                    setQuizAnswers(answersMap);
+
+                    // Restore gap answers
+                    const newGapAnswers = new Map(init);
+
+                    (parsedQuizData.questions || []).forEach((q: any) => {
+                      if ((q.question_type === 'fill_blank' || q.question_type === 'text_completion') && answersMap.has(q.id.toString())) {
+                        const savedGapAns = answersMap.get(q.id.toString());
+                        console.log(`Restoring gap answer for Q ${q.id}:`, savedGapAns);
+                        if (Array.isArray(savedGapAns)) {
+                          newGapAnswers.set(q.id.toString(), savedGapAns);
+                        }
+                      }
+                    });
+
+                    setGapAnswers(newGapAnswers);
+
+                  } catch (e) {
+                    console.error('Failed to parse saved answers:', e);
+                  }
+                }
+
+                // Restore state
+                setQuizState('completed');
+
+                // Mark as completed if passed
+                const passed = lastAttempt.score_percentage >= 50;
+                setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
+
+                setIsQuizReady(true); // Ready!
+                return; // Skip default initialization if restored
+              }
+            } catch (err) {
+              console.error('Failed to load quiz attempts:', err);
+            }
           }
 
-          setCurrentQuestionIndex(0);
-          setFeedChecked(false);
-          setIsQuizReady(true); // Ready!
+          if (!isMounted) return;
+
+          // If we reached here, it means we either loaded from localStorage (and set state there)
+          // or we didn't find anything in localStorage AND didn't find anything in backend
+          // In the latter case, we need to set initial state
+          if (!hasLocalProgress) {
+             const displayMode = parsedQuizData.display_mode || 'one_by_one';
+             if (displayMode === 'all_at_once') {
+               setQuizState('feed');
+             } else {
+               setQuizState('title');
+             }
+             setCurrentQuestionIndex(0);
+             setFeedChecked(false);
+             setIsQuizReady(true);
+          }
+
         } catch (error) {
           console.error('Failed to parse quiz data:', error);
           setIsQuizReady(true); // Ready even on error to show something (or handle error UI)
@@ -1004,6 +1024,9 @@ export default function LessonPage() {
   };
 
   const resetQuiz = () => {
+    // Clear quiz attempt state (new attempt will be saved when quiz is completed)
+    setQuizAttempt(null);
+    
     // For "all at once", return to feed; for "one by one", return to title screen
     const displayMode = quizData?.display_mode || 'one_by_one';
     if (displayMode === 'all_at_once') {
@@ -1011,29 +1034,25 @@ export default function LessonPage() {
     } else {
       setQuizState('title');
     }
-    setQuizAnswers(new Map());
     
-    // Reset gap answers
-    const init = new Map<string, string[]>();
-    questions.forEach((q: any) => {
-      if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
-        const text = (q.content_text || q.question_text || '').toString();
-        const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
-        const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-        init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
-      }
-    });
-    setGapAnswers(init);
+    // We keep the previous answers so the user can edit them instead of starting from scratch
+    // setQuizAnswers(new Map());
+    // setGapAnswers(init);
     
     setCurrentQuestionIndex(0);
     setFeedChecked(false);
     setQuizStartTime(Date.now());
-
-    // Clear localStorage
+    
+    // Reset quiz completion status for this step
     if (currentStep) {
-      localStorage.removeItem(`quiz_answers_${currentStep.id}`);
-      localStorage.removeItem(`gap_answers_${currentStep.id}`);
+      setQuizCompleted(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(currentStep.id.toString());
+        return newMap;
+      });
     }
+
+    // Don't clear localStorage so answers persist
   };
   const autoFillCorrectAnswers = () => {
     if (import.meta.env.DEV) {
