@@ -200,6 +200,7 @@ export interface Course {
   created_at: string;
   updated_at: string;
   progress?: number; // For student view
+  is_linear?: boolean;
 }
 
 export interface Group {
@@ -743,6 +744,7 @@ export interface CourseCreateData {
   title: string;
   description: string;
   teacher_id?: string;
+  is_linear?: boolean;
 }
 
 export interface ModuleCreateData {
