@@ -1,4 +1,4 @@
-import React from 'react'; // eslint-disable-line @typescript-eslint/no-unused-vars
+
 import Header from '../components/landing/Header';
 import HeroSection from '../components/landing/HeroSection';
 // import TestimonialsSection from '../components/landing/TestimonialsSection';
