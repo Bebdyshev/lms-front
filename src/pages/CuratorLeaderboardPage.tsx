@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
-import { Trophy, ChevronLeft, ChevronRight, Loader2, Users } from 'lucide-react';
-import apiClient from '../services/api';
+import { 
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
+} from '../components/ui/table';
+import { Skeleton } from '../components/ui/skeleton';
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '../components/ui/select';
+import { Trophy, ChevronLeft, ChevronRight, Loader2, Save } from 'lucide-react';
+import apiClient, { getCuratorGroups } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { cn } from '../lib/utils';
+import { toast } from '../components/Toast';
 
 interface LeaderboardEntry {
   student_id: number;
@@ -34,19 +40,45 @@ interface Group {
     name: string;
 }
 
+// Configuration
+const MAX_SCORES = {
+    lesson: 10,
+    hw: 15,
+    curator_hour: 20,
+    mock_exam: 20,
+    study_buddy: 15,
+    self_reflection_journal: 14,
+    weekly_evaluation: 10,
+    extra_points: 0,
+};
+
+const WEEK_TOTAL_MAX = 
+    (MAX_SCORES.lesson * 5) + 
+    (MAX_SCORES.hw * 5) + 
+    MAX_SCORES.curator_hour + 
+    MAX_SCORES.mock_exam + 
+    MAX_SCORES.study_buddy + 
+    MAX_SCORES.self_reflection_journal + 
+    MAX_SCORES.weekly_evaluation;
+
+const getOptions = (max: number) => Array.from({ length: max + 1 }, (_, i) => i);
+
 export default function CuratorLeaderboardPage() {
   const { user } = useAuth();
   const [currentWeek, setCurrentWeek] = useState(1);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
+  
+  // Data states
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<LeaderboardEntry[]>([]);
-  const [savingMap, setSavingMap] = useState<Record<string, boolean>>({});
+  const [changedEntries, setChangedEntries] = useState<Set<number>>(new Set());
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const loadGroups = async () => {
         try {
-            const myGroups = await apiClient.getGroups();
+            const myGroups = await getCuratorGroups();
             setGroups(myGroups);
             if (myGroups.length > 0) {
                 setSelectedGroupId(myGroups[0].id);
@@ -67,11 +99,13 @@ export default function CuratorLeaderboardPage() {
   const loadLeaderboard = async () => {
     if (!selectedGroupId) return;
     setLoading(true);
+    setChangedEntries(new Set()); 
     try {
         const result = await apiClient.getGroupLeaderboard(selectedGroupId, currentWeek);
         setData(result);
     } catch (e) {
         console.error("Failed to load leaderboard", e);
+        toast("Failed to load leaderboard", "error");
     } finally {
         setLoading(false);
     }
@@ -82,250 +116,322 @@ export default function CuratorLeaderboardPage() {
         entry.hw_lesson_1, entry.hw_lesson_2, entry.hw_lesson_3, 
         entry.hw_lesson_4, entry.hw_lesson_5
     ];
-    
-    // Treat null as 0 for HW
     const hwTotal = hwScores.reduce((acc, val) => (acc || 0) + (val || 0), 0) || 0;
-    
-    // Add manual lesson scores
     const lessonsTotal = 
-        entry.lesson_1 + 
-        entry.lesson_2 + 
-        entry.lesson_3 + 
-        entry.lesson_4 + 
-        entry.lesson_5;
-
+        entry.lesson_1 + entry.lesson_2 + entry.lesson_3 + entry.lesson_4 + entry.lesson_5;
     const manualTotal = 
-        entry.curator_hour + 
-        entry.mock_exam + 
-        entry.study_buddy + 
-        entry.self_reflection_journal + 
-        entry.weekly_evaluation + 
-        entry.extra_points;
+        entry.curator_hour + entry.mock_exam + entry.study_buddy + 
+        entry.self_reflection_journal + entry.weekly_evaluation + entry.extra_points;
         
     return hwTotal + lessonsTotal + manualTotal;
   };
   
   const calculatePercent = (entry: LeaderboardEntry) => {
-      // Assuming max score is roughly 600-700? 
-      // HW: 500 max (assuming 100 each)
-      // Lessons: 50 max (assuming 10 each?) or 100? Let's say 10.
-      // Other manual: ~100?
-      // For now, just return a percentage based on an arbitrary max or just the total if max is unknown.
-      // Let's assume max possible is 600 for now.
       const total = calculateTotal(entry);
-      return Math.round((total / 600) * 100); 
+      return Math.round((total / WEEK_TOTAL_MAX) * 100); 
+  };
+
+  const getPercentColor = (percent: number) => {
+      // Using solid bg colors for flatness
+      if (percent >= 90) return "bg-[#e6f4ea] text-[#137333]"; // Green
+      if (percent >= 75) return "bg-[#e8f0fe] text-[#1967d2]"; // Blue
+      if (percent >= 50) return "bg-[#fef7e0] text-[#ea8600]"; // Orange
+      return "bg-[#fce8e6] text-[#c5221f]"; // Red
   };
 
   const handleScoreChange = (studentId: number, field: keyof LeaderboardEntry, value: string) => {
     const numValue = parseFloat(value) || 0;
+    
     setData(prev => prev.map(item => 
         item.student_id === studentId ? { ...item, [field]: numValue } : item
     ));
+    
+    setChangedEntries(prev => new Set(prev).add(studentId));
   };
 
-  const handleBlur = async (studentId: number, field: keyof LeaderboardEntry, value: number) => {
-    if (!selectedGroupId) return;
-    const key = `${studentId}-${field}`;
-    setSavingMap(prev => ({ ...prev, [key]: true }));
+  const handleSaveChanges = async () => {
+    if (!selectedGroupId || changedEntries.size === 0) return;
     
-    try {
-        await apiClient.updateLeaderboardEntry({
-            user_id: studentId,
-            group_id: selectedGroupId,
-            week_number: currentWeek,
-            [field]: value
-        });
-    } catch (e) {
-        console.error("Failed to save score", e);
-    } finally {
-        setSavingMap(prev => ({ ...prev, [key]: false }));
+    setIsSaving(true);
+    let successCount = 0;
+    const entriesToSave = data.filter(s => changedEntries.has(s.student_id));
+    
+    for (const entry of entriesToSave) {
+        try {
+            await apiClient.updateLeaderboardEntry({
+                user_id: entry.student_id,
+                group_id: selectedGroupId,
+                week_number: currentWeek,
+                lesson_1: entry.lesson_1,
+                lesson_2: entry.lesson_2,
+                lesson_3: entry.lesson_3,
+                lesson_4: entry.lesson_4,
+                lesson_5: entry.lesson_5,
+                curator_hour: entry.curator_hour,
+                mock_exam: entry.mock_exam,
+                study_buddy: entry.study_buddy,
+                self_reflection_journal: entry.self_reflection_journal,
+                weekly_evaluation: entry.weekly_evaluation,
+                extra_points: entry.extra_points
+            });
+            successCount++;
+        } catch (e) {
+            console.error(`Failed to save for student ${entry.student_id}`, e);
+        }
+    }
+    
+    setIsSaving(false);
+    if (successCount === entriesToSave.length) {
+        toast("All changes saved successfully", "success");
+        setChangedEntries(new Set());
+    } else {
+        toast(`Saved ${successCount}/${entriesToSave.length} entries. Please try again.`, "error");
     }
   };
 
+  const ScoreSelect = ({ 
+      value, 
+      max, 
+      onChange,
+  }: { 
+      value: number, 
+      max: number, 
+      onChange: (val: string) => void,
+  }) => (
+    <Select value={value.toString()} onValueChange={onChange}>
+        <SelectTrigger className={cn(
+            "h-full w-full border-none focus:ring-0 px-1 text-center justify-center rounded-none",
+            "hover:bg-black/5" 
+        )}>
+            <span className="truncate text-xs text-gray-900">{value}</span>
+        </SelectTrigger>
+        <SelectContent>
+            {getOptions(max).map(v => (
+                <SelectItem key={v} value={v.toString()} className="justify-center text-xs">
+                    {v}
+                </SelectItem>
+            ))}
+        </SelectContent>
+    </Select>
+  );
+
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 w-full h-full bg-white space-y-4">
+      {/* Header Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Trophy className="w-8 h-8 text-yellow-500" />
+          <h1 className="text-xl font-semibold flex items-center gap-2 text-gray-800">
             Class Leaderboard
           </h1>
-          <p className="text-gray-500">Track weekly performance and engagement</p>
         </div>
         
-        <div className="flex items-center gap-4">
-            {/* Group Selector */}
-            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border shadow-sm">
-                <Users className="w-4 h-4 text-gray-500" />
-                <select 
-                    className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer"
-                    value={selectedGroupId || ''}
-                    onChange={(e) => setSelectedGroupId(Number(e.target.value))}
-                >
-                    {groups.map(g => (
-                        <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                </select>
-            </div>
-
-            {/* Week Selector */}
-            <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border shadow-sm">
+        <div className="flex items-center gap-3">
+             <div className="flex items-center border rounded-md overflow-hidden bg-white h-8">
                 <Button 
                     variant="ghost" 
-                    size="sm" 
+                    size="icon"
+                    className="h-full w-8 rounded-none border-r hover:bg-gray-50"
                     onClick={() => setCurrentWeek(Math.max(1, currentWeek - 1))}
                     disabled={currentWeek <= 1}
                 >
                     <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <div className="font-medium min-w-[80px] text-center">Week {currentWeek}</div>
+                <div className="px-3 text-sm font-medium min-w-[3rem] text-center">W{currentWeek}</div>
                 <Button 
                     variant="ghost" 
-                    size="sm" 
+                    size="icon"
+                    className="h-full w-8 rounded-none border-l hover:bg-gray-50"
                     onClick={() => setCurrentWeek(currentWeek + 1)}
                 >
                     <ChevronRight className="w-4 h-4" />
                 </Button>
             </div>
+
+            <div className=" w-[200px]">
+                <Select 
+                    value={selectedGroupId?.toString() || ''} 
+                    onValueChange={(value) => setSelectedGroupId(Number(value))}
+                >
+                    <SelectTrigger className="h-8 rounded-md border-gray-300">
+                        <SelectValue placeholder="Select group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {groups.map(g => (
+                            <SelectItem key={g.id} value={g.id.toString()}>
+                                {g.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            
+            <Button 
+                onClick={handleSaveChanges} 
+                disabled={changedEntries.size === 0 || isSaving}
+                size="sm"
+                className={cn(
+                    "h-8 transition-colors rounded-md font-medium",
+                    changedEntries.size > 0 ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-100 text-gray-400"
+                )}
+            >
+                {isSaving ? (
+                    <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> Saving</>
+                ) : (
+                    <><Save className="w-3 h-3 mr-2" /> Save ({changedEntries.size})</>
+                )}
+            </Button>
         </div>
       </div>
 
-      <Card className="overflow-hidden border-0 shadow-lg">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
+      {/* Spreadsheet Table */}
+      <div className="border border-gray-300 overflow-x-auto">
             {loading ? (
-                <div className="p-12 flex justify-center text-gray-400">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                </div>
+                <Table className="border-collapse w-full text-xs">
+                    <TableHeader className="bg-gray-100 sticky top-0 z-30">
+                        <TableRow className="h-auto border-b border-gray-300 hover:bg-gray-100">
+                             <TableHead className="w-48 sticky left-0 z-40 bg-gray-100 p-2 border-r border-gray-300"><Skeleton className="h-4 w-20 bg-gray-200" /></TableHead>
+                             {[1, 2, 3, 4, 5].map(i => (
+                                <TableHead key={i} className="p-0 border-r border-gray-300 h-12 min-w-[100px] align-middle bg-gray-100">
+                                   <div className="p-1 flex justify-center"><Skeleton className="h-3 w-12 bg-gray-200" /></div>
+                                </TableHead>
+                            ))}
+                            {/* Manual Columns Skeletons */}
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <TableHead key={`manual-${i}`} className="p-2 w-20 bg-gray-100 border-r border-gray-300"><Skeleton className="h-8 w-16 bg-gray-200" /></TableHead>
+                            ))}
+                            <TableHead className="p-2 w-16 bg-gray-100 border-r border-gray-300"><Skeleton className="h-4 w-8 bg-gray-200" /></TableHead>
+                            <TableHead className="p-2 w-16 sticky right-0 z-40 bg-gray-100"><Skeleton className="h-4 w-8 bg-gray-200" /></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {Array.from({ length: 10 }).map((_, idx) => (
+                            <TableRow key={idx} className="border-b border-gray-300 h-8">
+                                <TableCell className="p-2 sticky left-0 z-30 bg-white border-r border-gray-300">
+                                    <div className="flex items-center gap-2">
+                                        <Skeleton className="h-3 w-4 bg-gray-100" />
+                                        <Skeleton className="h-3 w-32 bg-gray-100" />
+                                    </div>
+                                </TableCell>
+                                {[1, 2, 3, 4, 5].map(i => (
+                                    <TableCell key={i} className="p-0 border-r border-gray-300">
+                                        <div className="flex w-full h-full p-1 gap-1">
+                                            <Skeleton className="h-6 flex-1 bg-gray-50" />
+                                            <Skeleton className="h-6 flex-1 bg-gray-50" />
+                                        </div>
+                                    </TableCell>
+                                ))}
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <TableCell key={`cell-${i}`} className="p-0 border-r border-gray-300">
+                                         <div className="p-1"><Skeleton className="h-6 w-full bg-gray-50" /></div>
+                                    </TableCell>
+                                ))}
+                                <TableCell className="p-2 border-r border-gray-300"><Skeleton className="h-4 w-8 mx-auto bg-gray-100" /></TableCell>
+                                <TableCell className="p-2 sticky right-0 z-30 bg-white"><Skeleton className="h-4 w-8 mx-auto bg-gray-100" /></TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
             ) : (
-            <table className="w-full text-sm border-collapse">
-              <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
-                <tr>
-                    <th className="p-3 text-left font-semibold sticky left-0 bg-gray-50 z-10 w-48 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Student</th>
+            <Table className="border-collapse w-full text-xs">
+              <TableHeader className="bg-gray-100 sticky top-0 z-30">
+                <TableRow className="h-auto border-b border-gray-300 hover:bg-gray-100">
+                    <TableHead className="w-48 sticky left-0 z-40 bg-gray-100 font-semibold text-gray-700 p-2 border-r border-gray-300 text-left align-middle">
+                        Student
+                    </TableHead>
                     {/* Lesson & Homework Columns */}
                     {[1, 2, 3, 4, 5].map(i => (
-                        <th key={`lesson-${i}`} className="p-0 text-center border-r border-gray-200">
-                            <div className="border-b border-gray-200 bg-gray-100 py-1 text-xs font-semibold text-gray-500">
-                                Lesson {i}
+                        <TableHead key={`lesson-${i}`} className="p-0 text-center border-r border-gray-300 h-auto min-w-[100px] align-top bg-gray-100">
+                            <div className="flex flex-col h-full">
+                                <div className="py-1 border-b border-gray-300 font-semibold text-gray-700 bg-gray-200/50">
+                                    Lesson {i}
+                                </div>
+                                <div className="flex flex-1">
+                                    <div className="flex-1 py-1 text-[10px] font-medium text-gray-500 border-r border-gray-300">
+                                        Class
+                                    </div>
+                                    <div className="flex-1 py-1 text-[10px] font-medium text-gray-500 bg-gray-50">
+                                        HW
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex divide-x divide-gray-200">
-                                <div className="w-16 py-2 text-xs font-medium bg-orange-50/30 text-orange-800 text-center">Class</div>
-                                <div className="w-16 py-2 text-xs font-medium bg-gray-50 text-gray-600 text-center">HW</div>
-                            </div>
-                        </th>
+                        </TableHead>
                     ))}
                     {/* Manual Columns */}
-                    <th className="p-3 text-center font-medium w-24 bg-orange-50/50">Curator Hour</th>
-                    <th className="p-3 text-center font-medium w-24 bg-orange-50/50">Mock Exam</th>
-                    <th className="p-3 text-center font-medium w-24 bg-orange-50/50">Study Buddy</th>
-                    <th className="p-3 text-center font-medium w-24 bg-orange-50/50">Journal</th>
-                    <th className="p-3 text-center font-medium w-24 bg-orange-50/50">Weekly Eval</th>
-                    <th className="p-3 text-center font-medium w-24 bg-orange-50/50">Extra Pts</th>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Curator<br/>Hour</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Mock<br/>Exam</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Study<br/>Buddy</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Journal</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Weekly<br/>Eval</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Extra</TableHead>
                     
-                    <th className="p-3 text-center font-bold bg-gray-100 w-24">Overall</th>
-                    <th className="p-3 text-center font-bold sticky right-0 bg-gray-100 z-10 w-24 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">%</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {data.map((student) => (
-                    <tr key={student.student_id} className="hover:bg-gray-50/50 group">
-                        <td className="p-3 sticky left-0 bg-white group-hover:bg-gray-50/50 z-10 border-r border-gray-100 font-medium text-gray-900">
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs text-blue-700 font-bold">
-                                    {student.student_name.charAt(0)}
-                                </div>
-                                <span className="truncate max-w-[140px]" title={student.student_name}>{student.student_name}</span>
+                    <TableHead className="text-center font-bold p-2 w-16 text-gray-800 bg-gray-100 border-r border-gray-300 align-middle">Total</TableHead>
+                    <TableHead className="text-center font-bold p-2 w-16 sticky right-0 z-40 bg-gray-100 align-middle shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((student, index) => {
+                    const percent = calculatePercent(student);
+                    return (
+                    <TableRow key={student.student_id} className="hover:bg-blue-50/50 border-b border-gray-300 h-8">
+                        <TableCell className="p-2 sticky left-0 z-30 bg-white border-r border-gray-300">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-400 w-4 text-right font-mono">{index + 1}</span>
+                                <span className="truncate max-w-[150px] font-medium text-gray-900" title={student.student_name}>{student.student_name}</span>
                             </div>
-                        </td>
+                        </TableCell>
                         
-                        {/* Lesson & Homework Scores */}
                         {[1, 2, 3, 4, 5].map(i => {
                             const lessonKey = `lesson_${i}` as keyof LeaderboardEntry;
                             const hwKey = `hw_lesson_${i}` as keyof LeaderboardEntry;
                             const hwScore = student[hwKey] as number | null;
                             
                             return (
-                                <td key={i} className="p-0 border-r border-gray-100">
-                                    <div className="flex h-full min-h-[40px] divide-x divide-gray-100">
-                                        {/* Manual Lesson Score */}
-                                        <div className="w-16 bg-orange-50/10">
-                                             <div className="relative h-full flex items-center justify-center">
-                                                <Input 
-                                                    type="number" 
-                                                    className="h-full w-full text-center bg-transparent border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 transition-all p-0 text-gray-700"
-                                                    value={student[lessonKey] as number || ''}
-                                                    onChange={(e) => handleScoreChange(student.student_id, lessonKey, e.target.value)}
-                                                    onBlur={(e) => handleBlur(student.student_id, lessonKey, parseFloat(e.target.value) || 0)}
-                                                    placeholder="-"
-                                                />
-                                                {savingMap[`${student.student_id}-${lessonKey}`] && (
-                                                    <div className="absolute right-0 top-0">
-                                                        <Loader2 className="w-2 h-2 animate-spin text-blue-500" />
-                                                    </div>
-                                                )}
+                                <TableCell key={i} className="p-0 border-r border-gray-300">
+                                    <div className="flex w-full h-full items-stretch">
+                                        <div className="flex-1 p-0">
+                                            <ScoreSelect 
+                                                value={student[lessonKey] as number}
+                                                max={MAX_SCORES.lesson}
+                                                onChange={(val) => handleScoreChange(student.student_id, lessonKey, val)}
+                                            /></div>
+                                        <div className="flex-1 border-l border-gray-300 bg-gray-50 flex items-center justify-center p-0">
+                                            <div className={cn(
+                                                "w-full text-center text-xs",
+                                                hwScore && hwScore >= 80 ? "text-green-700 font-medium" : "text-gray-400"
+                                            )}>
+                                                {hwScore !== null ? hwScore : '-'}
                                             </div>
                                         </div>
-                                        
-                                        {/* Auto HW Score */}
-                                        <div className="w-16 flex items-center justify-center bg-white">
-                                            {hwScore !== null ? (
-                                                <span className={`text-sm font-medium ${hwScore >= 80 ? "text-green-600" : "text-gray-600"}`}>
-                                                    {hwScore}
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-300 text-xs">-</span>
-                                            )}
-                                        </div>
                                     </div>
-                                </td>
+                                </TableCell>
                             );
                         })}
 
-                        {/* Manual Scores (Editable) */}
-                        {[
-                            'curator_hour', 'mock_exam', 'study_buddy', 
-                            'self_reflection_journal', 'weekly_evaluation', 'extra_points'
-                        ].map((field) => (
-                            <td key={field} className="p-2 text-center bg-orange-50/10 border-r border-orange-100/50">
-                                <div className="relative">
-                                    <Input 
-                                        type="number" 
-                                        className="h-8 text-center bg-transparent border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 transition-all p-1"
-                                        value={student[field as keyof LeaderboardEntry] as number || ''}
-                                        onChange={(e) => handleScoreChange(student.student_id, field as keyof LeaderboardEntry, e.target.value)}
-                                        onBlur={(e) => handleBlur(student.student_id, field as keyof LeaderboardEntry, parseFloat(e.target.value) || 0)}
-                                        placeholder="0"
-                                    />
-                                    {savingMap[`${student.student_id}-${field}`] && (
-                                        <div className="absolute right-1 top-2">
-                                            <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
-                                        </div>
-                                    )}
-                                </div>
-                            </td>
-                        ))}
+                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleScoreChange(student.student_id, 'curator_hour', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.study_buddy} max={MAX_SCORES.study_buddy} onChange={(v) => handleScoreChange(student.student_id, 'study_buddy', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.self_reflection_journal} max={MAX_SCORES.self_reflection_journal} onChange={(v) => handleScoreChange(student.student_id, 'self_reflection_journal', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.weekly_evaluation} max={MAX_SCORES.weekly_evaluation} onChange={(v) => handleScoreChange(student.student_id, 'weekly_evaluation', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300">
+                            <ScoreSelect value={student.extra_points} max={10} onChange={(v) => handleScoreChange(student.student_id, 'extra_points', v)} />
+                        </TableCell>
 
-                        <td className="p-3 text-center font-bold text-gray-700 bg-gray-50 border-l border-gray-200">
+                        <TableCell className="p-2 text-center font-semibold text-gray-900 border-r border-gray-300 bg-white">
                             {calculateTotal(student)}
-                        </td>
-                         <td className="p-3 text-center font-bold text-blue-700 sticky right-0 bg-gray-50 group-hover:bg-gray-100/80 z-10 border-l border-gray-200">
-                            {calculatePercent(student)}%
-                        </td>
-                    </tr>
-                ))}
-                {data.length === 0 && (
-                    <tr>
-                        <td colSpan={18} className="p-12 text-center text-gray-400">
-                            No students found in this group.
-                        </td>
-                    </tr>
-                )}
-              </tbody>
-            </table>
+                        </TableCell>
+                         <TableCell className={cn(
+                             "p-2 text-center font-bold sticky right-0 z-30 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]",
+                             getPercentColor(percent)
+                         )}>
+                            {percent}%
+                        </TableCell>
+                    </TableRow>
+                    );
+                })}
+              </TableBody>
+            </Table>
             )}
-          </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

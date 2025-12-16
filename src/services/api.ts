@@ -2270,6 +2270,16 @@ class LMSApiClient {
   }
 
   // Leaderboard Methods
+  async getCuratorGroups(): Promise<Group[]> {
+    try {
+      const response = await this.api.get('/leaderboard/curator/groups');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to load curator groups:', error);
+      throw error;
+    }
+  }
+
   async getGroupLeaderboard(groupId: number, weekNumber: number): Promise<any[]> {
     try {
       const response = await this.api.get(`/leaderboard/curator/leaderboard/${groupId}`, {
@@ -2461,6 +2471,7 @@ export const getCuratorStudentsProgress = apiClient.getCuratorStudentsProgress.b
 export const getCuratorAssignmentsAnalytics = apiClient.getCuratorAssignmentsAnalytics.bind(apiClient);
 
 // Leaderboard
+export const getCuratorGroups = apiClient.getCuratorGroups.bind(apiClient);
 export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
 export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);
 

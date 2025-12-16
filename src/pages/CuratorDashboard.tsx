@@ -369,7 +369,7 @@ export default function CuratorDashboard() {
                 onClick={() => navigate('/curator/homeworks')}
               >
                 <FileText className="w-4 h-4 mr-2 text-purple-600" />
-                Homework Performance
+                Homework
               </Button>
               <Button 
                 className="w-full justify-start" 
