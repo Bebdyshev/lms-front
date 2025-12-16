@@ -98,6 +98,10 @@ export default function TeacherDashboard() {
     if (selectedQuizAttempt) {
       console.log('Selected Quiz Attempt:', selectedQuizAttempt);
       console.log('Quiz Answers:', selectedQuizAttempt.quiz_answers);
+      console.log('Quiz Media:', {
+        type: selectedQuizAttempt.quiz_media_type,
+        url: selectedQuizAttempt.quiz_media_url
+      });
     }
   }, [selectedQuizAttempt]);
   // Student progress pagination
@@ -267,6 +271,8 @@ export default function TeacherDashboard() {
         is_graded: false,
         score: null,
         quiz_answers: attempt.quiz_answers,
+        quiz_media_type: attempt.quiz_media_type,
+        quiz_media_url: attempt.quiz_media_url,
         long_text_answers: attempt.long_text_answers // Keep for backward compat if needed, though quiz_answers is preferred
       });
     });
@@ -287,6 +293,8 @@ export default function TeacherDashboard() {
         score: attempt.score_percentage,
         feedback: attempt.feedback,
         quiz_answers: attempt.quiz_answers,
+        quiz_media_type: attempt.quiz_media_type,
+        quiz_media_url: attempt.quiz_media_url,
         long_text_answers: attempt.long_text_answers
       });
     });
@@ -789,6 +797,50 @@ export default function TeacherDashboard() {
                   <p className="text-gray-900">{selectedQuizAttempt.course_title}</p>
                 </div>
               </div>
+
+              {/* Quiz Reference Material */}
+              {selectedQuizAttempt.quiz_media_url && (
+                <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h4 className="font-semibold mb-3 text-gray-900 flex items-center">
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    Reference Material
+                  </h4>
+                  
+                  {selectedQuizAttempt.quiz_media_type === 'pdf' ? (
+                    <div className="aspect-[16/9] w-full">
+                       <iframe 
+                         src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + selectedQuizAttempt.quiz_media_url} 
+                         className="w-full h-full rounded border bg-white"
+                         title="Reference PDF"
+                       />
+                       <div className="mt-2 text-right">
+                         <a 
+                           href={selectedQuizAttempt.quiz_media_url} 
+                           target="_blank" 
+                           rel="noreferrer"
+                           className="text-sm text-blue-600 hover:underline"
+                         >
+                           Open PDF in new tab
+                         </a>
+                       </div>
+                    </div>
+                  ) : selectedQuizAttempt.quiz_media_type === 'image' ? (
+                    <div className="flex justify-center">
+                      <img 
+                        src={selectedQuizAttempt.quiz_media_url} 
+                        alt="Reference" 
+                        className="max-h-96 rounded shadow-sm object-contain"
+                      />
+                    </div>
+                  ) : (
+                    // Default/Text fallback
+                    <div 
+                      className="prose prose-sm max-w-none text-gray-800"
+                      dangerouslySetInnerHTML={{ __html: selectedQuizAttempt.quiz_media_url }}
+                    />
+                  )}
+                </div>
+              )}
 
               <div>
                 <h3 className="font-semibold mb-3 text-gray-900">Quiz Answers</h3>
