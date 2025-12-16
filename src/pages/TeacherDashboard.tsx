@@ -802,7 +802,7 @@ export default function TeacherDashboard() {
                       }`}>
                         {/* Header with Type and Status */}
                         <div className="p-3 bg-gray-50 border-b flex items-center justify-between">
-                          <span className="text-xs font-semibold text-gray-500 uppercase">Question {idx + 1}</span>
+                          <span className="text-xs font-semibold text-gray-500">Question {idx + 1}</span>
                           <div className="flex gap-2">
                              <span className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 capitalize">
                                {item.question_type?.replace('_', ' ') || 'Question'}
@@ -819,10 +819,10 @@ export default function TeacherDashboard() {
 
                         {/* Passage (if exists) */}
                         {item.content_text && (
-                          <div className="p-4 bg-amber-50 border-b border-amber-200">
-                            <p className="text-xs font-semibold text-amber-600 uppercase mb-1">Passage</p>
+                          <div className="p-4 border-b">
+                            <p className="text-[14px] font-semibold text-black-600 bold mb-1">Passage</p>
                             <div 
-                              className="text-gray-800 prose prose-sm max-w-none"
+                              className="text-gray-800 prose prose-sm max-w-none text-[14px]"
                               dangerouslySetInnerHTML={{ __html: item.content_text }}
                             />
                           </div>
@@ -837,7 +837,7 @@ export default function TeacherDashboard() {
                         <div className="p-4 bg-gray-50">
                           <div className="grid gap-4">
                             <div>
-                               <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Student's Answer</p>
+                               <p className="text-[12px] font-semibold text-blue-600 mb-1">{selectedQuizAttempt?.student_name}'s Answer</p>
                                <div className={`text-gray-800 whitespace-pre-wrap p-3 rounded border ${
                                  item.question_type === 'long_text' 
                                    ? 'bg-blue-50 border-blue-100' 
@@ -850,7 +850,7 @@ export default function TeacherDashboard() {
                             {/* Correct Answer Display (if incorrect and not long_text) */}
                             {item.question_type !== 'long_text' && !item.is_correct && (
                                <div>
-                                  <p className="text-xs font-semibold text-green-600 uppercase mb-1">Correct Answer</p>
+                                  <p className="text-[12px] font-semibold text-green-600 uppercase mb-1">Correct Answer</p>
                                   <div className="text-gray-800 p-3 rounded border bg-green-50 border-green-100">
                                     {item.correct_answer || 'N/A'}
                                   </div>
