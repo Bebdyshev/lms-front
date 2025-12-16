@@ -93,7 +93,13 @@ export default function TeacherDashboard() {
   const [isQuizGradeModalOpen, setIsQuizGradeModalOpen] = useState(false);
   const [quizGradeScore, setQuizGradeScore] = useState<number>(0);
   const [quizGradeFeedback, setQuizGradeFeedback] = useState<string>('');
-
+  // Debug logging
+  useEffect(() => {
+    if (selectedQuizAttempt) {
+      console.log('Selected Quiz Attempt:', selectedQuizAttempt);
+      console.log('Quiz Answers:', selectedQuizAttempt.quiz_answers);
+    }
+  }, [selectedQuizAttempt]);
   // Student progress pagination
   const [studentPage, setStudentPage] = useState(1);
   const studentsPerPage = 10;
@@ -260,7 +266,8 @@ export default function TeacherDashboard() {
         submitted_at: attempt.created_at,
         is_graded: false,
         score: null,
-        long_text_answers: attempt.long_text_answers
+        quiz_answers: attempt.quiz_answers,
+        long_text_answers: attempt.long_text_answers // Keep for backward compat if needed, though quiz_answers is preferred
       });
     });
 
@@ -279,6 +286,7 @@ export default function TeacherDashboard() {
         is_graded: true,
         score: attempt.score_percentage,
         feedback: attempt.feedback,
+        quiz_answers: attempt.quiz_answers,
         long_text_answers: attempt.long_text_answers
       });
     });
@@ -783,11 +791,32 @@ export default function TeacherDashboard() {
               </div>
 
               <div>
-                <h3 className="font-semibold mb-3 text-gray-900">Long Text Answers</h3>
-                {selectedQuizAttempt.long_text_answers?.length > 0 ? (
-                  <div className="space-y-4">
-                    {selectedQuizAttempt.long_text_answers.map((item: any, idx: number) => (
-                      <div key={idx} className="border rounded-lg overflow-hidden">
+                <h3 className="font-semibold mb-3 text-gray-900">Quiz Answers</h3>
+                {selectedQuizAttempt.quiz_answers?.length > 0 ? (
+                  <div className="space-y-6">
+                    {selectedQuizAttempt.quiz_answers.map((item: any, idx: number) => (
+                      <div key={idx} className={`border rounded-lg overflow-hidden ${
+                        item.question_type !== 'long_text' 
+                          ? (item.is_correct ? 'border-green-200' : 'border-red-200')
+                          : 'border-gray-200'
+                      }`}>
+                        {/* Header with Type and Status */}
+                        <div className="p-3 bg-gray-50 border-b flex items-center justify-between">
+                          <span className="text-xs font-semibold text-gray-500 uppercase">Question {idx + 1}</span>
+                          <div className="flex gap-2">
+                             <span className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 capitalize">
+                               {item.question_type?.replace('_', ' ') || 'Question'}
+                             </span>
+                             {item.question_type !== 'long_text' && (
+                               <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                 item.is_correct ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                               }`}>
+                                 {item.is_correct ? 'Correct' : 'Incorrect'}
+                               </span>
+                             )}
+                          </div>
+                        </div>
+
                         {/* Passage (if exists) */}
                         {item.content_text && (
                           <div className="p-4 bg-amber-50 border-b border-amber-200">
@@ -798,23 +827,42 @@ export default function TeacherDashboard() {
                             />
                           </div>
                         )}
-                        {/* Question */}
-                        <div className="p-4 bg-gray-100 border-b">
-                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Question {idx + 1}</p>
+                        
+                        {/* Question Text */}
+                        <div className="p-4 bg-white border-b">
                           <p className="text-gray-900 font-medium">{item.question_text}</p>
                         </div>
-                        {/* Student Answer */}
-                        <div className="p-4 bg-white">
-                          <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Student's Answer</p>
-                          <div className="text-gray-800 whitespace-pre-wrap bg-blue-50 p-3 rounded border border-blue-100">
-                            {item.student_answer || <span className="text-gray-400 italic">No answer provided</span>}
+
+                        {/* Answer Section */}
+                        <div className="p-4 bg-gray-50">
+                          <div className="grid gap-4">
+                            <div>
+                               <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Student's Answer</p>
+                               <div className={`text-gray-800 whitespace-pre-wrap p-3 rounded border ${
+                                 item.question_type === 'long_text' 
+                                   ? 'bg-blue-50 border-blue-100' 
+                                   : (item.is_correct ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100')
+                               }`}>
+                                 {item.student_answer || <span className="text-gray-400 italic">No answer provided</span>}
+                               </div>
+                            </div>
+                            
+                            {/* Correct Answer Display (if incorrect and not long_text) */}
+                            {item.question_type !== 'long_text' && !item.is_correct && (
+                               <div>
+                                  <p className="text-xs font-semibold text-green-600 uppercase mb-1">Correct Answer</p>
+                                  <div className="text-gray-800 p-3 rounded border bg-green-50 border-green-100">
+                                    {item.correct_answer || 'N/A'}
+                                  </div>
+                               </div>
+                            )}
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">No long text answers found</p>
+                  <p className="text-gray-500">No answers found</p>
                 )}
               </div>
 
