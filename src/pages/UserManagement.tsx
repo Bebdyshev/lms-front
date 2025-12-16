@@ -18,7 +18,8 @@ import {
   GraduationCap,
   UserCheck,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Copy
 } from 'lucide-react';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
@@ -108,6 +109,10 @@ export default function UserManagement() {
     groupId: null,
     studentIds: []
   });
+  
+  // Generated password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   
   // Bulk text upload state
   const [showBulkTextModal, setShowBulkTextModal] = useState(false);
@@ -450,6 +455,13 @@ export default function UserManagement() {
       
       setShowCreateModal(false);
       resetForm();
+      
+      // Show password modal if password was generated
+      if (newUser.generated_password) {
+        setGeneratedPassword(newUser.generated_password);
+        setShowPasswordModal(true);
+      }
+      
       loadUsers();
     } catch (error) {
       console.error('Failed to create user:', error);
@@ -1307,6 +1319,51 @@ export default function UserManagement() {
           submitText="Update User"
           errors={formErrors}
         />
+
+      </Modal>
+
+      {/* Generated Password Modal */}
+      <Modal
+        open={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title="User Created Successfully"
+        onSubmit={() => setShowPasswordModal(false)}
+        submitText="Done"
+      >
+        <div className="space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+            <p className="text-green-800 text-sm">
+              The user has been created with an auto-generated password.
+            </p>
+          </div>
+          
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">Generated Password</Label>
+            <div className="flex items-center gap-2">
+              <div className="bg-gray-100 border border-gray-200 rounded-md p-3 flex-1 font-mono text-lg tracking-wider text-center select-all">
+                {generatedPassword}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-[54px] w-[54px]"
+                onClick={() => {
+                  if (generatedPassword) {
+                    navigator.clipboard.writeText(generatedPassword);
+                    showToast('success', 'Password copied to clipboard');
+                  }
+                }}
+                title="Copy Password"
+              >
+                <Copy className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+          
+          <p className="text-xs text-gray-500 mt-2">
+            Please copy and share this password with the user. It will not be shown again.
+          </p>
+        </div>
       </Modal>
 
       {/* Create Group Modal */}
