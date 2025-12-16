@@ -482,7 +482,40 @@ export default function StudentDashboard({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  // Get unique teachers from all courses
+                  // If we have group teachers, display them first
+                  if (progressData.group_teachers && progressData.group_teachers.length > 0) {
+                    return (
+                      <div className="space-y-3">
+                        {progressData.group_teachers.map(teacher => (
+                          <div key={teacher.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-medium">
+                                {teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </div>
+                              <div>
+                                <div className="font-medium text-sm">{teacher.name}</div>
+                                <div className="text-xs text-gray-500">Group Teacher</div>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                // Navigate to chat and start conversation with teacher
+                                navigate('/chat', { state: { contactUserId: teacher.id } });
+                              }}
+                              className="flex items-center gap-1"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              Contact
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  // Fallback: Get unique teachers from all courses
                   const uniqueTeachers = Array.from(
                     new Map(
                       progressData.courses.map(course => [

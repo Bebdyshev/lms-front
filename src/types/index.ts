@@ -155,6 +155,7 @@ export interface StudentProgressOverview {
   daily_streak?: number; // Current daily streak count
   last_activity_date?: string; // Last date when student was active
   courses: StudentCourseProgress[];
+  group_teachers?: { id: number; name: string }[];
 }
 
 export interface StudentCourseProgress {
