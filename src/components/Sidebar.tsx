@@ -21,6 +21,8 @@ import {
   Calendar,
   BarChart3,
   Heart,
+  FileText,
+  Trophy,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Course } from '../types';
@@ -37,6 +39,8 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number, 
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher'], 'courses-nav'],
     ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher'], 'students-nav'],
     ['/analytics', 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin'], 'analytics-nav'],
+    ['/curator/homeworks', 'Homework Performance', FileText, 0, ['curator'], 'homework-analytics-nav'],
+    ['/curator/leaderboard', 'Leaderboard', Trophy, 0, ['curator'], 'leaderboard-nav'],
     ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin'], 'courses-management'],
     ['/admin/users', 'Manage Users', Users, 0, ['admin'], 'users-management'],
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management'],

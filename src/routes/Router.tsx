@@ -39,6 +39,8 @@ import Calendar from '../pages/Calendar.tsx';
 import LandingPage from '../pages/LandingPage.tsx';
 import AnalyticsPage from '../pages/analytics/AnalyticsPage.tsx';
 import FavoriteFlashcardsPage from '../pages/FavoriteFlashcardsPage.tsx';
+import CuratorHomeworksPage from '../pages/CuratorHomeworksPage.tsx';
+import CuratorLeaderboardPage from '../pages/CuratorLeaderboardPage.tsx';
 
 export default function Router() {
   
@@ -354,6 +356,22 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin']}>
               <AppLayout>
                 <AnalyticsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/curator/homeworks" element={
+            <ProtectedRoute allowedRoles={['curator', 'admin']}>
+              <AppLayout>
+                <CuratorHomeworksPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/curator/leaderboard" element={
+            <ProtectedRoute allowedRoles={['curator', 'admin']}>
+              <AppLayout>
+                <CuratorLeaderboardPage />
               </AppLayout>
             </ProtectedRoute>
           } />

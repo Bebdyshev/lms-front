@@ -10,7 +10,6 @@ import type {
   CourseGroupAccess,
   AdminDashboard,
   UserListResponse,
-  GroupListResponse,
   CreateGroupRequest,
   UpdateGroupRequest,
   CreateUserRequest,
@@ -24,7 +23,8 @@ import type {
   Event,
   CreateEventRequest,
   UpdateEventRequest,
-  EventType
+  EventType,
+  StudentProgress
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -2226,6 +2226,77 @@ class LMSApiClient {
     }
   }
 
+  // Curator Dashboard Methods
+  async getCuratorPendingSubmissions(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/dashboard/curator/pending-submissions');
+      return response.data.pending_submissions || [];
+    } catch (error) {
+      console.error('Failed to load curator pending submissions:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorRecentSubmissions(limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.api.get('/dashboard/curator/recent-submissions', {
+        params: { limit }
+      });
+      return response.data.recent_submissions || [];
+    } catch (error) {
+      console.error('Failed to load curator recent submissions:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorStudentsProgress(): Promise<StudentProgress[]> {
+    try {
+      const response = await this.api.get('/dashboard/curator/students-progress');
+      return response.data.students_progress || [];
+    } catch (error) {
+      console.error('Failed to load curator students progress:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorAssignmentsAnalytics(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/dashboard/curator/assignments-analytics');
+      return response.data.assignments || [];
+    } catch (error) {
+      console.error('Failed to load curator assignments analytics:', error);
+      throw error;
+    }
+  }
+
+  // Leaderboard Methods
+  async getGroupLeaderboard(groupId: number, weekNumber: number): Promise<any[]> {
+    try {
+      const response = await this.api.get(`/leaderboard/curator/leaderboard/${groupId}`, {
+        params: { week_number: weekNumber }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error);
+      throw error;
+    }
+  }
+
+  async updateLeaderboardEntry(data: {
+      user_id: number;
+      group_id: number;
+      week_number: number;
+      [key: string]: number;
+  }): Promise<any> {
+    try {
+        const response = await this.api.post('/leaderboard/curator/leaderboard', data);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to update leaderboard entry:', error);
+        throw error;
+    }
+  }
+
 }
 
 // =============================================================================
@@ -2235,8 +2306,6 @@ class LMSApiClient {
 const apiClient = new LMSApiClient();
 
 // Also export individual methods for easier migration
-// Экспортируем экземпляр API клиента
-export default apiClient;
 
 // Экспортируем отдельные методы, привязанные к контексту
 export const login = apiClient.login.bind(apiClient);
@@ -2384,3 +2453,15 @@ export const getFavoriteFlashcards = apiClient.getFavoriteFlashcards.bind(apiCli
 export const removeFavoriteFlashcard = apiClient.removeFavoriteFlashcard.bind(apiClient);
 export const removeFavoriteByCardId = apiClient.removeFavoriteByCardId.bind(apiClient);
 export const checkIsFavorite = apiClient.checkIsFavorite.bind(apiClient);
+
+// Curator Dashboard
+export const getCuratorPendingSubmissions = apiClient.getCuratorPendingSubmissions.bind(apiClient);
+export const getCuratorRecentSubmissions = apiClient.getCuratorRecentSubmissions.bind(apiClient);
+export const getCuratorStudentsProgress = apiClient.getCuratorStudentsProgress.bind(apiClient);
+export const getCuratorAssignmentsAnalytics = apiClient.getCuratorAssignmentsAnalytics.bind(apiClient);
+
+// Leaderboard
+export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
+export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);
+
+export default apiClient;
