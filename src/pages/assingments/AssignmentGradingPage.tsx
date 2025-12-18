@@ -21,7 +21,7 @@ export default function AssignmentGradingPage() {
   const [loading, setLoading] = useState(true);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [isGradingModalOpen, setIsGradingModalOpen] = useState(false);
-  const [gradingScore, setGradingScore] = useState<number>(0);
+  const [gradingScore, setGradingScore] = useState<number | string>(''); // Allow empty string for better UX
   const [gradingFeedback, setGradingFeedback] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,9 +46,16 @@ export default function AssignmentGradingPage() {
 
   const handleGradeSubmission = async () => {
     if (!selectedSubmission || !id) return;
+    
+    // Validation: Score must be present
+    if (gradingScore === '' || gradingScore === null || gradingScore === undefined) {
+      toast('Please enter a grade score', 'error');
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
-      await apiClient.gradeSubmission(id, selectedSubmission.id.toString(), gradingScore, gradingFeedback);
+      await apiClient.gradeSubmission(id, selectedSubmission.id.toString(), Number(gradingScore), gradingFeedback);
       toast('Submission graded successfully', 'success');
       setIsGradingModalOpen(false);
       await loadData();
@@ -61,7 +68,9 @@ export default function AssignmentGradingPage() {
 
   const openGradingModal = (submission: Submission) => {
     setSelectedSubmission(submission);
-    setGradingScore(submission.score || 0);
+    // Use nullish coalescing to strictly check for null/undefined, preserving 0 as a valid score
+    // If score is null/undefined, set to '' (empty) so input is empty
+    setGradingScore(submission.score ?? '');
     setGradingFeedback(submission.feedback || '');
     setIsGradingModalOpen(true);
   };
@@ -189,7 +198,15 @@ export default function AssignmentGradingPage() {
                   min="0"
                   max={assignment?.max_score || 100}
                   value={gradingScore}
-                  onChange={(e) => setGradingScore(Math.min(parseInt(e.target.value) || 0, assignment?.max_score || 100))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      setGradingScore('');
+                    } else {
+                      setGradingScore(Math.min(parseInt(val) || 0, assignment?.max_score || 100));
+                    }
+                  }}
+                  placeholder="Enter score"
                 />
               </div>
               <div className="space-y-2 md:col-span-2">

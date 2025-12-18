@@ -51,7 +51,9 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
         setCourseData(course);
         
         // Fetch all lessons for the course
-        const modules = await apiClient.getCourseModules(task.content.course_id, true, studentId);
+        // Pass studentId if provided, or 'me' if student is viewing their own assignment
+        const fetchStudentId = studentId || (!readOnly ? 'me' : undefined);
+        const modules = await apiClient.getCourseModules(task.content.course_id, true, fetchStudentId);
         const allLessons: any[] = [];
         
         modules.forEach((module: any) => {
@@ -94,7 +96,7 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
     } else {
       setLoading(false);
     }
-  }, [task.content.course_id, task.content.lesson_ids]);
+  }, [task.content.course_id, task.content.lesson_ids, studentId, readOnly]);
 
   if (loading) {
     return (

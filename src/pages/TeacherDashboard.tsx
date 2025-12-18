@@ -12,7 +12,9 @@ import {
   CheckCircle,
   Eye,
   Filter,
-  Trash2
+  Trash2,
+  Download,
+  FileText
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -26,8 +28,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '../components/ui/dialog';
 import { Textarea } from '../components/ui/textarea';
+import MultiTaskSubmission from '../components/assignments/MultiTaskSubmission';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 
@@ -72,6 +76,10 @@ interface Submission {
   score?: number;
   max_score?: number;
   is_graded: boolean;
+  file_url?: string;
+  submitted_file_name?: string;
+  answers?: any;
+  feedback?: string;
 }
 
 export default function TeacherDashboard() {
@@ -91,9 +99,18 @@ export default function TeacherDashboard() {
   // Quiz grading modal state
   const [selectedQuizAttempt, setSelectedQuizAttempt] = useState<any>(null);
   const [isQuizGradeModalOpen, setIsQuizGradeModalOpen] = useState(false);
-  const [quizGradeScore, setQuizGradeScore] = useState<number>(0);
+  const [quizGradeScore, setQuizGradeScore] = useState<number | string>(0);
   const [quizGradeFeedback, setQuizGradeFeedback] = useState<string>('');
-  // Debug logging
+  const [isQuizDataLoaded, setIsQuizDataLoaded] = useState(false);
+
+  // Assignment grading modal state
+  const [isGradingModalOpen, setIsGradingModalOpen] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [gradingScore, setGradingScore] = useState<number | string>('');
+  const [gradingFeedback, setGradingFeedback] = useState<string>('');
+  const [currentAssignment, setCurrentAssignment] = useState<any>(null);
+  const [isAssignmentDataLoaded, setIsAssignmentDataLoaded] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   useEffect(() => {
     if (selectedQuizAttempt) {
       console.log('Selected Quiz Attempt:', selectedQuizAttempt);
@@ -191,8 +208,84 @@ export default function TeacherDashboard() {
     }
   };
 
-  const handleGradeSubmission = (assignmentId: number) => {
-    navigate(`/assignment/${assignmentId}/grade`);
+  const handleGradeSubmission = async (submission: any) => {
+    setIsGradingModalOpen(true);
+    setSelectedSubmission(submission); // Set basic info immediately
+    setIsAssignmentDataLoaded(false); // Reset flag when opening new assignment
+    
+    // Load draft if exists, otherwise use existing data or defaults
+    const draftKey = getAssignmentAutoSaveKey(submission.id);
+    const savedDraft = localStorage.getItem(draftKey);
+    
+    if (savedDraft) {
+      try {
+        const parsed = JSON.parse(savedDraft);
+        setGradingScore(parsed.score ?? '');
+        setGradingFeedback(parsed.feedback || '');
+      } catch (e) {
+        setGradingScore(submission.score ?? '');
+        setGradingFeedback(submission.feedback || '');
+      }
+    } else {
+      setGradingScore(submission.score ?? '');
+      setGradingFeedback(submission.feedback || '');
+    }
+
+    try {
+      // Fetch full assignment details (for max score, content, etc.)
+      const assignmentData = await apiClient.getAssignment(String(submission.assignment_id));
+      setCurrentAssignment(assignmentData);
+
+      // If it's a multi-task assignment, we need to fetch the submission with full answers
+      if (assignmentData.assignment_type === 'multi_task') {
+        const fullSubmissionData = await apiClient.getSubmission(
+          String(submission.assignment_id),
+          String(submission.id)
+        );
+        // Merge with existing data to ensure all fields are present
+        setSelectedSubmission(prev => ({ ...prev, ...fullSubmissionData }));
+      }
+      
+      // Set flag after data is loaded
+      setTimeout(() => setIsAssignmentDataLoaded(true), 100);
+    } catch (error) {
+      console.error('Failed to load assignment/submission details:', error);
+      toast('Failed to load details for grading', 'error');
+      handleCloseGradingModal(); // Close modal if data fails to load
+    }
+  };
+
+  const handleSubmitGrade = async () => {
+    if (!selectedSubmission || !currentAssignment) return;
+
+    // Validation
+    if (gradingScore === '' || gradingScore === null || gradingScore === undefined) {
+      toast('Please enter a grade score', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await apiClient.gradeSubmission(
+        String(selectedSubmission.assignment_id), 
+        String(selectedSubmission.id), 
+        Number(gradingScore), 
+        gradingFeedback
+      );
+      
+      // Clear draft on success
+      const draftKey = getAssignmentAutoSaveKey(selectedSubmission.id);
+      localStorage.removeItem(draftKey);
+      
+      toast('Submission graded successfully', 'success');
+      handleCloseGradingModal();
+      loadTeacherData(); // Refresh list
+    } catch (error) {
+      toast('Failed to grade submission', 'error');
+      console.error('Grading error:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAllowResubmission = async (submissionId: number) => {
@@ -207,22 +300,104 @@ export default function TeacherDashboard() {
   };
 
   // Quiz grading handlers
+  // Auto-save key generator for quiz
+  const getAutoSaveKey = (attemptId: number) => `quiz_grading_draft_${attemptId}`;
+  
+  // Auto-save key generator for assignment
+  const getAssignmentAutoSaveKey = (submissionId: number) => `assignment_grading_draft_${submissionId}`;
+
   const handleGradeQuizClick = (attempt: any) => {
+    console.log('handleGradeQuizClick called with attempt:', attempt);
+    console.log('attempt.is_graded:', attempt.is_graded);
+    console.log('attempt.score:', attempt.score);
+    console.log('attempt.score_percentage:', attempt.score_percentage);
+    console.log('attempt.feedback:', attempt.feedback);
+    
     setSelectedQuizAttempt(attempt);
-    setQuizGradeScore(0);
-    setQuizGradeFeedback('');
+    setIsQuizDataLoaded(false); // Reset flag when opening new quiz
+    
+    // For already graded quizzes, always load from attempt data, not from draft
+    if (attempt.is_graded) {
+      // Use nullish coalescing to avoid 0 being treated as false/empty
+      // Check both 'score' (from unified list) and 'score_percentage' (from API)
+      const existingScore = attempt.score ?? attempt.score_percentage ?? '';
+      console.log('Setting quiz score to:', existingScore);
+      setQuizGradeScore(existingScore);
+      setQuizGradeFeedback(attempt.feedback || '');
+    } else {
+      // For ungraded quizzes, check for draft first
+      const draftKey = getAutoSaveKey(attempt.quiz_attempt_id);
+      const savedDraft = localStorage.getItem(draftKey);
+      
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft);
+          setQuizGradeScore(parsed.score ?? '');
+          setQuizGradeFeedback(parsed.feedback || '');
+          toast('Restored draft from local storage', 'info');
+        } catch (e) {
+          setQuizGradeScore('');
+          setQuizGradeFeedback('');
+        }
+      } else {
+        // No draft and not graded yet - start fresh
+        setQuizGradeScore('');
+        setQuizGradeFeedback('');
+      }
+    }
+    
     setIsQuizGradeModalOpen(true);
+    // Set flag after a short delay to allow state to settle
+    setTimeout(() => setIsQuizDataLoaded(true), 100);
   };
+
+  // Auto-save effect for quiz grading
+  useEffect(() => {
+    if (isQuizGradeModalOpen && selectedQuizAttempt && isQuizDataLoaded) {
+      const draftKey = getAutoSaveKey(selectedQuizAttempt.quiz_attempt_id);
+      const draftData = {
+        score: quizGradeScore,
+        feedback: quizGradeFeedback,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+    }
+  }, [quizGradeScore, quizGradeFeedback, isQuizGradeModalOpen, selectedQuizAttempt, isQuizDataLoaded]);
+
+  // Auto-save effect for assignment grading
+  useEffect(() => {
+    if (isGradingModalOpen && selectedSubmission && isAssignmentDataLoaded) {
+      const draftKey = getAssignmentAutoSaveKey(selectedSubmission.id);
+      const draftData = {
+        score: gradingScore,
+        feedback: gradingFeedback,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+    }
+  }, [gradingScore, gradingFeedback, isGradingModalOpen, selectedSubmission, isAssignmentDataLoaded]);
 
   const handleSubmitQuizGrade = async () => {
     if (!selectedQuizAttempt) return;
+    
+    // Validation
+    if (quizGradeScore === '' || quizGradeScore === null || quizGradeScore === undefined) {
+      toast('Please enter a score', 'error');
+      return;
+    }
+
     try {
       await apiClient.gradeQuizAttempt(selectedQuizAttempt.quiz_attempt_id, {
-        score_percentage: quizGradeScore,
+        score_percentage: Number(quizGradeScore),
         correct_answers: selectedQuizAttempt.long_text_answers?.length || 1,
         feedback: quizGradeFeedback
       });
-      setIsQuizGradeModalOpen(false);
+      
+      // Clear draft on success
+      const draftKey = getAutoSaveKey(selectedQuizAttempt.quiz_attempt_id);
+      localStorage.removeItem(draftKey);
+      
+      handleCloseQuizGradeModal();
       toast('Quiz graded successfully', 'success');
       loadTeacherData();
     } catch (error) {
@@ -241,6 +416,17 @@ export default function TeacherDashboard() {
       toast('Failed to delete quiz attempt', 'error');
       console.error('Delete quiz attempt error:', error);
     }
+  };
+
+  // Close modal handlers with state reset
+  const handleCloseQuizGradeModal = () => {
+    setIsQuizGradeModalOpen(false);
+    setIsQuizDataLoaded(false);
+  };
+
+  const handleCloseGradingModal = () => {
+    setIsGradingModalOpen(false);
+    setIsAssignmentDataLoaded(false);
   };
 
   // Merge and filter submissions (including quiz attempts)
@@ -589,7 +775,7 @@ export default function TeacherDashboard() {
                                 size="sm"
                                 variant={submission.is_graded ? "ghost" : "default"}
                                 className={submission.is_graded ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50" : "bg-blue-600 hover:bg-blue-700"}
-                                onClick={() => handleGradeSubmission(submission.assignment_id)}
+                                onClick={() => handleGradeSubmission(submission)}
                               >
                                 {submission.is_graded ? <Eye className="w-4 h-4 mr-1" /> : <ClipboardCheck className="w-4 h-4 mr-1" />}
                                 {submission.is_graded ? 'View' : 'Grade'}
@@ -771,7 +957,7 @@ export default function TeacherDashboard() {
       </Card>
 
       {/* Quiz Grading Modal */}
-      <Dialog open={isQuizGradeModalOpen} onOpenChange={setIsQuizGradeModalOpen}>
+      <Dialog open={isQuizGradeModalOpen} onOpenChange={(open) => !open && handleCloseQuizGradeModal()}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Grade Quiz Submission</DialogTitle>
@@ -927,7 +1113,11 @@ export default function TeacherDashboard() {
                     min="0"
                     max="100"
                     value={quizGradeScore}
-                    onChange={(e) => setQuizGradeScore(Number(e.target.value))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') setQuizGradeScore('');
+                      else setQuizGradeScore(Number(val));
+                    }}
                   />
                 </div>
                 
@@ -946,8 +1136,122 @@ export default function TeacherDashboard() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsQuizGradeModalOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={handleCloseQuizGradeModal}>Cancel</Button>
             <Button className="bg-purple-600 hover:bg-purple-700" onClick={handleSubmitQuizGrade}>Submit Grade</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assignment Grading Modal */}
+      <Dialog open={isGradingModalOpen} onOpenChange={(open) => !open && handleCloseGradingModal()}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Grade Submission</DialogTitle>
+            <DialogDescription>
+              Review the student's work and provide a score and feedback.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 my-4">
+            {/* Left side - Submission Content View (2/3 width) */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-slate-50 p-6 rounded-lg border">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Student's Work
+                </h3>
+                
+                {currentAssignment?.assignment_type === 'multi_task' && selectedSubmission ? (
+                  <MultiTaskSubmission 
+                    assignment={currentAssignment} 
+                    initialAnswers={selectedSubmission.answers} 
+                    readOnly={true}
+                    onSubmit={() => {}}
+                    studentId={String(selectedSubmission.user_id)}
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    {selectedSubmission?.file_url && (
+                      <div className="flex items-center p-3 bg-white rounded border">
+                        <FileText className="w-5 h-5 text-blue-600 mr-3" />
+                        <div className="flex-1">
+                          <div className="font-medium">{selectedSubmission.submitted_file_name || 'Attached File'}</div>
+                        </div>
+                        <a 
+                           href={(selectedSubmission.file_url.startsWith('http') ? '' : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000')) + selectedSubmission.file_url}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm font-medium flex items-center"
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </a>
+                      </div>
+                    )}
+                    
+                    {selectedSubmission?.answers?.text && (
+                      <div className="bg-white p-4 rounded border whitespace-pre-wrap">
+                        {selectedSubmission.answers.text}
+                      </div>
+                    )}
+                    
+                    {!selectedSubmission?.file_url && !selectedSubmission?.answers?.text && currentAssignment?.assignment_type !== 'multi_task' && (
+                      <div className="text-gray-500 italic">No content to display.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right side - Grading Controls (1/3 width) */}
+            <div className="lg:col-span-1 space-y-4">
+              <div className="bg-white p-4 border rounded-lg sticky top-4">
+                <h3 className="font-semibold text-gray-900 mb-4">Grading</h3>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="gradeScore">Score (Max: {currentAssignment?.max_score})</Label>
+                    <Input
+                      id="gradeScore"
+                      type="number"
+                      min="0"
+                      max={currentAssignment?.max_score || 100}
+                      value={gradingScore}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setGradingScore('');
+                        } else {
+                          setGradingScore(Math.min(parseInt(val) || 0, currentAssignment?.max_score || 100));
+                        }
+                      }}
+                      placeholder="Enter score"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="gradeFeedback">Feedback</Label>
+                    <Textarea
+                      id="gradeFeedback"
+                      value={gradingFeedback}
+                      onChange={(e) => setGradingFeedback(e.target.value)}
+                      placeholder="Provide feedback to the student..."
+                      className="min-h-[200px]"
+                      rows={8}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseGradingModal}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitGrade} disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Grade'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

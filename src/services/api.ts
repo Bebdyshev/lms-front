@@ -868,6 +868,15 @@ class LMSApiClient {
     }
   }
 
+  async getSubmission(assignmentId: string, submissionId: string) {
+    try {
+      const response = await this.api.get(`/assignments/${assignmentId}/submissions/${submissionId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load submission details');
+    }
+  }
+
   async debugSubmissions(assignmentId: string) {
     try {
       const response = await this.api.get(`/assignments/${assignmentId}/debug-submissions`);
@@ -1222,9 +1231,14 @@ class LMSApiClient {
 
 
 
-  allowResubmission = async (_submissionId: string): Promise<any> => {
-    console.warn('allowResubmission needs to be implemented in the backend');
-    return { success: true };
+  allowResubmission = async (submissionId: string | number): Promise<any> => {
+    try {
+      const response = await this.api.put(`/assignments/submissions/${submissionId}/allow-resubmit`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to allow resubmission:', error);
+      throw error;
+    }
   }
 
   // =============================================================================

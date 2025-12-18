@@ -742,7 +742,6 @@ export default function LessonPage() {
                       answersMap = new Map(Object.entries(savedAnswers)) as Map<string, any>;
                     }
 
-                    console.log('Restored answers map keys:', Array.from(answersMap.keys()));
                     setQuizAnswers(answersMap);
 
                     // Restore gap answers
