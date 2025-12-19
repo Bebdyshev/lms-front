@@ -483,7 +483,12 @@ class LMSApiClient {
     try {
       const params: any = {};
       if (includeLessons) params.include_lessons = 'true';
-      if (studentId) params.student_id = studentId;
+      
+      // Only add student_id param if it's a valid number (not 'me')
+      // When studentId is 'me' or not provided, backend will use current user's progress
+      if (studentId && studentId !== 'me') {
+        params.student_id = studentId;
+      }
       
       const response = await this.api.get(`/courses/${courseId}/modules`, { params });
       return response.data;

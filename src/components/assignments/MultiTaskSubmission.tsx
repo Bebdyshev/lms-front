@@ -40,63 +40,72 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
   const [lessonsData, setLessonsData] = useState<any[]>([]);
   const [lessonProgress, setLessonProgress] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchCourseAndLessons = async () => {
+    try {
+      setRefreshing(true);
+      
+      // Fetch course details
+      const course = await apiClient.getCourse(task.content.course_id);
+      setCourseData(course);
+      
+      // Fetch all lessons for the course
+      // Pass studentId if provided, or 'me' if student is viewing their own assignment
+      const fetchStudentId = studentId || (!readOnly ? 'me' : undefined);
+      
+      const modules = await apiClient.getCourseModules(task.content.course_id, true, fetchStudentId);
+      
+      const allLessons: any[] = [];
+      
+      modules.forEach((module: any) => {
+        if (module.lessons) {
+          allLessons.push(...module.lessons);
+        }
+      });
+      
+      // Filter to only the lessons in this task
+      const taskLessons = allLessons.filter((lesson: any) => 
+        task.content.lesson_ids?.includes(lesson.id)
+      );
+      
+      setLessonsData(taskLessons);
+      
+      // Check completion status for each lesson
+      const progressMap: Record<number, boolean> = {};
+      for (const lessonId of task.content.lesson_ids || []) {
+        const lesson = taskLessons.find((l: any) => l.id === lessonId);
+        if (lesson) {
+          progressMap[lessonId] = lesson.is_completed || false;
+        }
+      }
+      setLessonProgress(progressMap);
+      
+      // Auto-complete if all lessons are completed
+      const allCompleted = Object.values(progressMap).every(completed => completed);
+      
+      if (allCompleted && !isCompleted && task.content.lesson_ids?.length > 0) {
+        onCompletion(true);
+      }
+      
+    } catch (error) {
+      console.error('Failed to fetch course data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchCourseAndLessons = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch course details
-        const course = await apiClient.getCourse(task.content.course_id);
-        setCourseData(course);
-        
-        // Fetch all lessons for the course
-        // Pass studentId if provided, or 'me' if student is viewing their own assignment
-        const fetchStudentId = studentId || (!readOnly ? 'me' : undefined);
-        const modules = await apiClient.getCourseModules(task.content.course_id, true, fetchStudentId);
-        const allLessons: any[] = [];
-        
-        modules.forEach((module: any) => {
-          if (module.lessons) {
-            allLessons.push(...module.lessons);
-          }
-        });
-        
-        // Filter to only the lessons in this task
-        const taskLessons = allLessons.filter((lesson: any) => 
-          task.content.lesson_ids?.includes(lesson.id)
-        );
-        setLessonsData(taskLessons);
-        
-        // Check completion status for each lesson
-        const progressMap: Record<number, boolean> = {};
-        for (const lessonId of task.content.lesson_ids || []) {
-          const lesson = taskLessons.find((l: any) => l.id === lessonId);
-          if (lesson) {
-            progressMap[lessonId] = lesson.is_completed || false;
-          }
-        }
-        setLessonProgress(progressMap);
-        
-        // Auto-complete if all lessons are completed
-        const allCompleted = Object.values(progressMap).every(completed => completed);
-        if (allCompleted && !isCompleted && task.content.lesson_ids?.length > 0) {
-          onCompletion(true);
-        }
-        
-      } catch (error) {
-        console.error('Failed to fetch course data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     if (task.content.course_id && task.content.lesson_ids?.length > 0) {
+      setLoading(true);
       fetchCourseAndLessons();
     } else {
       setLoading(false);
     }
-  }, [task.content.course_id, task.content.lesson_ids, studentId, readOnly]);
+    // Only re-fetch when course_id or lesson_ids actually change, not on every studentId/readOnly change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.content.course_id, JSON.stringify(task.content.lesson_ids)]);
 
   if (loading) {
     return (
@@ -108,12 +117,13 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
 
   const completedCount = Object.values(lessonProgress).filter(c => c).length;
   const totalCount = task.content.lesson_ids?.length || 0;
-  const allLessonsCompleted = completedCount === totalCount && totalCount > 0;
 
   return (
     <div className="space-y-3">
-      <div className="text-sm text-gray-600">
-        Complete the following lessons:
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-gray-600">
+          Complete the following lessons:
+        </div>
       </div>
       <div className="bg-gray-50 p-3 rounded-md">
         <div className="flex items-center space-x-2 mb-2">

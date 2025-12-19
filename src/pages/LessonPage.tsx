@@ -926,6 +926,47 @@ export default function LessonPage() {
     }
   };
 
+  // Dev mode: Auto-complete all steps quickly
+  const autoCompleteAllSteps = async () => {
+    if (!lesson || !steps.length) return;
+    
+    const confirmMsg = `🚀 DEV MODE: Auto-complete all ${steps.length} steps in this lesson?\n\nThis will:\n✓ Mark all steps as completed\n✓ Auto-fill quiz answers\n✓ Mark lesson as complete\n\n⚠️ This is for development/testing only!`;
+    
+    if (!confirm(confirmMsg)) return;
+    
+    try {
+      // Auto-complete all steps
+      for (const step of steps) {
+        const stepId = step.id.toString();
+        
+        // Mark step as visited/completed
+        await markStepAsVisited(stepId, 0);
+        
+        // If it's a quiz, auto-complete it
+        if (step.content_type === 'quiz') {
+          setQuizCompleted(prev => new Map(prev).set(stepId, true));
+        }
+        
+        // If it's a video, mark as fully watched
+        if (step.content_type === 'video_text') {
+          setVideoProgress(prev => new Map(prev).set(stepId, 1.0));
+        }
+      }
+      
+      // Mark lesson as complete
+      await apiClient.markLessonComplete(lesson.id.toString(), 0);
+      
+      // Reload data
+      await loadLessonData();
+      await loadCourseData(false);
+      
+      alert('✅ All steps completed! Lesson marked as done.');
+    } catch (err) {
+      console.error('Failed to auto-complete steps:', err);
+      alert('❌ Failed to auto-complete steps');
+    }
+  };
+
   const getStepIcon = (step: Step) => {
     switch (step.content_type) {
       case 'video_text':
@@ -1542,6 +1583,17 @@ export default function LessonPage() {
               >
                 <SkipForward className="w-4 h-4 mr-1" />
                 Skip
+              </Button>
+            )}
+            {import.meta.env.DEV && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={autoCompleteAllSteps} 
+                title="DEV: Auto-complete all steps"
+                className="ml-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-mono text-xs"
+              >
+                🚀 Auto-Complete
               </Button>
             )}
           </div>
