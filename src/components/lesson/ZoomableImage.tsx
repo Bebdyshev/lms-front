@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ZoomIn, ZoomOut, X, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '../ui/button';
 
@@ -18,8 +18,10 @@ export const ZoomableImage = ({ src, alt = 'Image', className = '', caption }: Z
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenZoom, setFullscreenZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [inlinePosition, setInlinePosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleZoomIn = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -39,7 +41,14 @@ export const ZoomableImage = ({ src, alt = 'Image', className = '', caption }: Z
         setPosition({ x: 0, y: 0 });
       }
     } else {
-      setZoom(prev => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+      setZoom(prev => {
+        const newZoom = Math.max(prev - ZOOM_STEP, MIN_ZOOM);
+        // Reset inline position when zooming out to 1 or less
+        if (newZoom <= 1) {
+          setInlinePosition({ x: 0, y: 0 });
+        }
+        return newZoom;
+      });
     }
   }, [isFullscreen, fullscreenZoom]);
 
@@ -50,6 +59,7 @@ export const ZoomableImage = ({ src, alt = 'Image', className = '', caption }: Z
       setPosition({ x: 0, y: 0 });
     } else {
       setZoom(1);
+      setInlinePosition({ x: 0, y: 0 });
     }
   }, [isFullscreen]);
 
@@ -89,7 +99,7 @@ export const ZoomableImage = ({ src, alt = 'Image', className = '', caption }: Z
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, closeFullscreen]);
 
-  // Drag handlers for panning zoomed image
+  // Drag handlers for panning zoomed image (fullscreen)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (fullscreenZoom > 1) {
       setIsDragging(true);
@@ -108,6 +118,52 @@ export const ZoomableImage = ({ src, alt = 'Image', className = '', caption }: Z
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
+  }, []);
+
+  // Drag handlers for panning zoomed image (inline)
+  const handleInlineMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoom > 1) {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - inlinePosition.x, y: e.clientY - inlinePosition.y });
+    }
+  }, [zoom, inlinePosition]);
+
+  const handleInlineMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDragging && zoom > 1) {
+      const newX = e.clientX - dragStart.x;
+      const newY = e.clientY - dragStart.y;
+      
+      // Limit panning based on zoom level to keep image mostly in view
+      const maxOffset = (zoom - 1) * 150; // Adjust this value as needed
+      setInlinePosition({
+        x: Math.max(-maxOffset, Math.min(maxOffset, newX)),
+        y: Math.max(-maxOffset, Math.min(maxOffset, newY))
+      });
+    }
+  }, [isDragging, dragStart, zoom]);
+
+  const handleInlineMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Handle wheel zoom for inline image
+  const handleInlineWheel = useCallback((e: React.WheelEvent) => {
+    // Only handle if Ctrl key is pressed (standard zoom gesture)
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    
+    if (e.deltaY < 0) {
+      setZoom(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+    } else {
+      setZoom(prev => {
+        const newZoom = Math.max(prev - ZOOM_STEP, MIN_ZOOM);
+        if (newZoom <= 1) {
+          setInlinePosition({ x: 0, y: 0 });
+        }
+        return newZoom;
+      });
+    }
   }, []);
 
   // Handle wheel zoom in fullscreen
@@ -136,20 +192,35 @@ export const ZoomableImage = ({ src, alt = 'Image', className = '', caption }: Z
       {/* Inline Image with Zoom Controls */}
       <div className="relative group">
         <div 
+          ref={containerRef}
           className="overflow-hidden rounded-lg border bg-gray-50"
           style={{ maxHeight: '500px' }}
+          onMouseDown={handleInlineMouseDown}
+          onMouseMove={handleInlineMouseMove}
+          onMouseUp={handleInlineMouseUp}
+          onMouseLeave={handleInlineMouseUp}
+          onWheel={handleInlineWheel}
         >
           <img
             src={src}
             alt={alt}
-            className={`w-full h-auto transition-transform duration-200 ease-out ${className}`}
+            className={`w-full h-auto select-none ${className}`}
             style={{ 
-              transform: `scale(${zoom})`,
+              transform: `scale(${zoom}) translate(${inlinePosition.x / zoom}px, ${inlinePosition.y / zoom}px)`,
               transformOrigin: 'center center',
-              cursor: zoom > 1 ? 'grab' : 'default'
+              cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+              transition: isDragging ? 'none' : 'transform 0.2s ease-out'
             }}
+            draggable={false}
           />
         </div>
+
+        {/* Drag hint when zoomed */}
+        {zoom > 1 && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-gray-500 bg-white/90 px-2 py-1 rounded-full shadow-sm">
+            Drag to pan • Ctrl+Scroll to zoom
+          </div>
+        )}
 
         {/* Zoom Controls - Always visible */}
         <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border p-1 z-10">
