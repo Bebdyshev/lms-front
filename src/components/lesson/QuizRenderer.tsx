@@ -9,6 +9,7 @@ import { ShortAnswerQuestion } from './quiz/ShortAnswerQuestion';
 import { ChoiceQuestion } from './quiz/ChoiceQuestion';
 import { TextCompletionQuestion } from './quiz/TextCompletionQuestion';
 import { FillInBlankQuestion } from './quiz/FillInBlankQuestion';
+import { ZoomableImage } from './ZoomableImage';
 
 // Helper to check if content text has visible content
 const hasVisibleContent = (html: string | undefined | null): boolean => {
@@ -175,16 +176,11 @@ const QuizRenderer = (props: QuizRendererProps) => {
             ) : quizData.quiz_media_type === 'pdf' ? (
               // Check if it's actually a PDF or an image
               quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  <img
-                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
-                    alt="Reference material"
-                    className="w-full h-auto rounded-lg"
-                  />
-                  <p className="text-sm text-gray-600 mt-2">
-                    Reference this image to answer the questions below.
-                  </p>
-                </div>
+                <ZoomableImage
+                  src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                  alt="Reference material"
+                  caption="Reference this image to answer the questions below."
+                />
               ) : (
                 <div className="border rounded-lg p-4 bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
@@ -235,10 +231,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                           title="Question PDF"
                         />
                       ) : (
-                        <img
+                        <ZoomableImage
                           src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
                           alt="Question media"
-                          className="w-full max-h-96 object-contain rounded-lg border"
                         />
                       )}
                     </div>
@@ -533,16 +528,11 @@ const QuizRenderer = (props: QuizRendererProps) => {
             ) : quizData.quiz_media_type === 'pdf' ? (
               // Check if it's actually a PDF or an image
               quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  <img
-                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
-                    alt="Reference material"
-                    className="w-full h-auto rounded-lg"
-                  />
-                  <p className="text-sm text-gray-600 mt-2">
-                    Reference this image to answer the questions below.
-                  </p>
-                </div>
+                <ZoomableImage
+                  src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                  alt="Reference material"
+                  caption="Reference this image to answer the questions below."
+                />
               ) : (
                 <div className="border rounded-lg p-4 bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
@@ -573,10 +563,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     title="Question PDF"
                   />
                 ) : (
-                  <img
+                  <ZoomableImage
                     src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
                     alt="Question media"
-                    className="w-full max-h-96 object-contain rounded-lg border"
                   />
                 )}
               </div>
@@ -743,16 +732,11 @@ const QuizRenderer = (props: QuizRendererProps) => {
             ) : quizData.quiz_media_type === 'pdf' ? (
               // Check if it's actually a PDF or an image
               quizData.quiz_media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                <div className="border rounded-lg p-4 bg-gray-50">
-                  <img
-                    src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
-                    alt="Reference material"
-                    className="w-full h-auto rounded-lg"
-                  />
-                  <p className="text-sm text-gray-600 mt-2">
-                    Reference this image to answer the questions below.
-                  </p>
-                </div>
+                <ZoomableImage
+                  src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
+                  alt="Reference material"
+                  caption="Reference this image to answer the questions below."
+                />
               ) : (
                 <div className="border rounded-lg p-4 bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
@@ -784,10 +768,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     title="Question PDF"
                   />
                 ) : (
-                  <img
+                  <ZoomableImage
                     src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${question.media_url}`}
                     alt="Question media"
-                    className="w-full max-h-96 object-contain rounded-lg border"
                   />
                 )}
               </div>
@@ -998,10 +981,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                             title="Question PDF"
                           />
                         ) : (
-                          <img
+                          <ZoomableImage
                             src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
                             alt="Question media"
-                            className="w-full max-h-96 object-contain rounded-lg border"
                           />
                         )}
                       </div>
