@@ -134,11 +134,10 @@ export const ZoomableImage = ({ src, alt = 'Image', className = '', caption }: Z
       const newX = e.clientX - dragStart.x;
       const newY = e.clientY - dragStart.y;
       
-      // Limit panning based on zoom level to keep image mostly in view
-      const maxOffset = (zoom - 1) * 150; // Adjust this value as needed
+      // Free panning without limits
       setInlinePosition({
-        x: Math.max(-maxOffset, Math.min(maxOffset, newX)),
-        y: Math.max(-maxOffset, Math.min(maxOffset, newY))
+        x: newX,
+        y: newY
       });
     }
   }, [isDragging, dragStart, zoom]);
