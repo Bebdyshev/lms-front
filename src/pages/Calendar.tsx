@@ -171,9 +171,15 @@ export default function Calendar() {
           </div>
           
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {user?.role === 'admin' && (
+            {(user?.role === 'admin' || user?.role === 'curator') && (
               <Button 
-                onClick={() => navigate('/admin/events/create')}
+                onClick={() => {
+                  if (user?.role === 'admin') {
+                    navigate('/admin/events/create');
+                  } else {
+                    navigate('/curator/events/create');
+                  }
+                }}
                 className="flex items-center gap-2 w-full sm:w-auto"
                 size="sm"
               >

@@ -772,7 +772,7 @@ export default function LessonPage() {
                 setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
 
                 setIsQuizReady(true); // Ready!
-                return; // Skip default initialization if restored
+               return; // Skip default initialization if restored
               }
             } catch (err) {
               console.error('Failed to load quiz attempts:', err);

@@ -376,6 +376,14 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
+          <Route path="/curator/events/create" element={
+            <ProtectedRoute allowedRoles={['curator', 'admin']}>
+              <AppLayout>
+                <CreateEvent />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

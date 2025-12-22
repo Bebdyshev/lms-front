@@ -1,19 +1,26 @@
 import { useNavigate } from 'react-router-dom';
 import EventForm from '../components/EventForm';
 import type { Event } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CreateEvent() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const handleSave = (event: Event) => {
-    // Navigate back to events list after successful creation
-    navigate('/admin/events', {
+    // Navigate back to calendar after successful creation
+    navigate('/calendar', {
       state: { message: `Event "${event.title}" created successfully` }
     });
   };
 
   const handleCancel = () => {
-    navigate('/admin/events');
+    // Navigate back to appropriate page based on role
+    if (user?.role === 'admin') {
+      navigate('/admin/events');
+    } else {
+      navigate('/calendar');
+    }
   };
 
   return (

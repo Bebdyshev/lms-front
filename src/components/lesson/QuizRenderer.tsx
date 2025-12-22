@@ -432,7 +432,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
     return (
       <div className="min-h-[500px] relative flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 -mx-4 -my-4 p-8 rounded-lg overflow-hidden">
         {/* Logo in bottom-left corner */}
-        <div className="absolute bottom-0 left-0">
+        <div className="absolute bottom-0 left-0 pointer-events-none z-0">
           <img
             src="/logo-half.svg"
             alt="Logo"
@@ -441,7 +441,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
         </div>
 
         {/* Logo in bottom-right corner */}
-        <div className="absolute bottom-0 right-0">
+        <div className="absolute bottom-0 right-0 pointer-events-none z-0">
           <img
             src="/logo-half.svg"
             alt="Logo"
@@ -450,7 +450,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
         </div>
 
         {/* Logo at top center - showing only bottom half */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0">
           <img
             src="/logo.svg"
             alt="Logo"
@@ -458,7 +458,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
           />
         </div>
 
-        <div className="text-center space-y-6 max-w-2xl">
+        <div className="text-center space-y-6 max-w-2xl relative z-10">
           {/* Title */}
           <div className="space-y-3">
             <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight">
@@ -472,7 +472,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
           <div className="flex flex-col items-center gap-4">
             <Button
               onClick={startQuiz}
-              className="px-10 py-4 bg-white text-blue-900 text-lg font-bold hover:bg-blue-50"
+              className="px-10 py-4 bg-white text-blue-900 text-lg font-bold hover:bg-blue-50 relative z-20"
             >
               Start Practice
             </Button>

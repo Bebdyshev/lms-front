@@ -42,15 +42,17 @@ interface Group {
 
 // Configuration
 const MAX_SCORES = {
-    lesson: 10,
+    lesson: 10, // Attendance: 0 (absent) or 10 (present)
     hw: 15,
     curator_hour: 20,
     mock_exam: 20,
-    study_buddy: 15,
+    study_buddy: 15, // 0 (no) or 15 (yes)
     self_reflection_journal: 14,
     weekly_evaluation: 10,
     extra_points: 0,
 };
+
+const ATTENDANCE_FIELDS = ['lesson_1', 'lesson_2', 'lesson_3', 'lesson_4', 'lesson_5', 'study_buddy'] as const;
 
 const WEEK_TOTAL_MAX = 
     (MAX_SCORES.lesson * 5) + 
@@ -214,6 +216,50 @@ export default function CuratorLeaderboardPage() {
         </SelectContent>
     </Select>
   );
+
+  // Radio button toggle for attendance (lesson_1-5 and study_buddy)
+  const AttendanceToggle = ({
+      value,
+      onChange,
+      maxScore,
+  }: {
+      value: number,
+      onChange: (val: string) => void,
+      maxScore: number,
+  }) => {
+    const isPresent = value === maxScore;
+    
+    return (
+      <div className="flex items-center justify-center gap-2 h-full">
+        <button
+          type="button"
+          onClick={() => onChange(maxScore.toString())}
+          className={cn(
+            "flex items-center justify-center w-8 h-6 rounded text-[10px] font-medium transition-colors",
+            isPresent 
+              ? "bg-green-500 text-white shadow-sm" 
+              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+          )}
+          title="Present"
+        >
+          ✓
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("0")}
+          className={cn(
+            "flex items-center justify-center w-8 h-6 rounded text-[10px] font-medium transition-colors",
+            !isPresent 
+              ? "bg-red-500 text-white shadow-sm" 
+              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+          )}
+          title="Absent"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 w-full h-full bg-white space-y-4">
@@ -388,12 +434,13 @@ export default function CuratorLeaderboardPage() {
                             return (
                                 <TableCell key={i} className="p-0 border-r border-gray-300">
                                     <div className="flex w-full h-full items-stretch">
-                                        <div className="flex-1 p-0">
-                                            <ScoreSelect 
+                                        <div className="flex-1 p-1">
+                                            <AttendanceToggle 
                                                 value={student[lessonKey] as number}
-                                                max={MAX_SCORES.lesson}
+                                                maxScore={MAX_SCORES.lesson}
                                                 onChange={(val) => handleScoreChange(student.student_id, lessonKey, val)}
-                                            /></div>
+                                            />
+                                        </div>
                                         <div className="flex-1 border-l border-gray-300 bg-gray-50 flex items-center justify-center p-0">
                                             <div className={cn(
                                                 "w-full text-center text-xs",
@@ -409,7 +456,13 @@ export default function CuratorLeaderboardPage() {
 
                         <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleScoreChange(student.student_id, 'curator_hour', v)} /></TableCell>
                         <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
-                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.study_buddy} max={MAX_SCORES.study_buddy} onChange={(v) => handleScoreChange(student.student_id, 'study_buddy', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300">
+                            <AttendanceToggle 
+                                value={student.study_buddy} 
+                                maxScore={MAX_SCORES.study_buddy}
+                                onChange={(v) => handleScoreChange(student.student_id, 'study_buddy', v)} 
+                            />
+                        </TableCell>
                         <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.self_reflection_journal} max={MAX_SCORES.self_reflection_journal} onChange={(v) => handleScoreChange(student.student_id, 'self_reflection_journal', v)} /></TableCell>
                         <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.weekly_evaluation} max={MAX_SCORES.weekly_evaluation} onChange={(v) => handleScoreChange(student.student_id, 'weekly_evaluation', v)} /></TableCell>
                         <TableCell className="p-0 border-r border-gray-300">

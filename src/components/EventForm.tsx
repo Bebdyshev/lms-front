@@ -25,9 +25,10 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
-import { createEvent, updateEvent, getAllGroups, getCourses } from '../services/api';
+import { createEvent, updateEvent, getAllGroups, getCourses, createCuratorEvent, getCuratorGroups } from '../services/api';
 import type { Event, CreateEventRequest, UpdateEventRequest, EventType, Group, Course } from '../types';
 import { EVENT_TYPE_LABELS } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface EventFormProps {
   event?: Event;
@@ -36,6 +37,7 @@ interface EventFormProps {
 }
 
 export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -65,10 +67,21 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
 
   const loadData = async () => {
     try {
-      const [groupsData, coursesData] = await Promise.all([
-        getAllGroups(),
-        getCourses()
-      ]);
+      let groupsData;
+      let coursesData;
+      
+      // Load groups based on role
+      if (user?.role === 'curator') {
+        // Curators only see their own groups
+        groupsData = await getCuratorGroups();
+      } else {
+        // Admins see all groups
+        groupsData = await getAllGroups();
+      }
+      
+      // Load courses (available to all)
+      coursesData = await getCourses();
+      
       setGroups(groupsData.groups || groupsData);
       // Handle courses response structure
       const coursesResponse = coursesData as any;
@@ -180,7 +193,12 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
       if (event) {
         savedEvent = await updateEvent(event.id, eventData);
       } else {
-        savedEvent = await createEvent(eventData as CreateEventRequest);
+        // Use curator-specific endpoint for curators, admin endpoint for admins
+        if (user?.role === 'curator') {
+          savedEvent = await createCuratorEvent(eventData as CreateEventRequest);
+        } else {
+          savedEvent = await createEvent(eventData as CreateEventRequest);
+        }
       }
 
       onSave(savedEvent);

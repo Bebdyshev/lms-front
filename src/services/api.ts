@@ -1761,6 +1761,15 @@ class LMSApiClient {
     }
   }
 
+  async createCuratorEvent(eventData: CreateEventRequest): Promise<Event> {
+    try {
+      const response = await this.api.post('/events/curator/create', eventData);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to create event');
+    }
+  }
+
   async updateEvent(eventId: number, eventData: UpdateEventRequest): Promise<Event> {
     try {
       const response = await this.api.put(`/admin/events/${eventId}`, eventData);
@@ -2449,6 +2458,7 @@ export const getDailyStreak = apiClient.getDailyStreak.bind(apiClient);
 export const uploadFile = apiClient.uploadFile.bind(apiClient);
 export const getAllEvents = apiClient.getAllEvents.bind(apiClient);
 export const createEvent = apiClient.createEvent.bind(apiClient);
+export const createCuratorEvent = apiClient.createCuratorEvent.bind(apiClient);
 export const updateEvent = apiClient.updateEvent.bind(apiClient);
 export const deleteEvent = apiClient.deleteEvent.bind(apiClient);
 export const createBulkEvents = apiClient.createBulkEvents.bind(apiClient);
