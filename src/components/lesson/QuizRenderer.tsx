@@ -137,7 +137,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
     if (!questions || questions.length === 0) return null;
 
     return (
-      <div className="max-w-3xl mx-auto space-y-6 p-4">
+      <div className="w-full md:max-w-3xl md:mx-auto space-y-4 md:space-y-6 md:p-4">
         {/* Header */}
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold text-gray-900">Quick Practice</h2>
@@ -157,7 +157,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-lg border p-6 mb-6">
+          <div className="bg-white rounded-none md:rounded-lg border-t border-b md:border p-2 md:p-6 mb-4 md:mb-6">
             <h3 className="text-lg font-semibold mb-4">
               {quizData.quiz_media_type === 'audio' ? 'Audio Material' :
                 quizData.quiz_media_type === 'text' ? 'Reading Passage' :
@@ -209,8 +209,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
               : 1;
 
             return (
-              <div key={q.id} className="bg-white rounded-xl border">
-                <div className="p-6">
+              <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+                <div className="p-2 md:p-6">
                   {/* Question Number Badge */}
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
@@ -498,7 +498,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
       : 1;
 
     return (
-      <div className="max-w-3xl mx-auto space-y-6 p-4">
+      <div className="w-full md:max-w-3xl md:mx-auto space-y-4 md:space-y-6 md:p-4">
         {/* Header */}
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold text-gray-900">Quiz Question</h2>
@@ -509,7 +509,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-lg border p-6 mb-6">
+          <div className="bg-white rounded-none md:rounded-lg border-t border-b md:border p-2 md:p-6 mb-4 md:mb-6">
             <h3 className="text-lg font-semibold mb-4">
               {quizData.quiz_media_type === 'audio' ? 'Audio Material' :
                 quizData.quiz_media_type === 'text' ? 'Reading Passage' :
@@ -551,8 +551,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
           </div>
         )}
 
-        <div className="bg-white rounded-xl">
-          <div className="p-6">
+        <div className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+          <div className="p-2 md:p-6">
             {/* Media Attachment for Media Questions */}
             {(q.question_type === 'media_question' || q.question_type === 'media_open_question') && q.media_url && (
               <div className="mb-4">
@@ -689,7 +689,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
     const progress = (currentEndNumber / totalQuestionCount) * 100;
 
     return (
-      <div className="max-w-4xl mx-auto space-y-8 p-6">
+      <div className="w-full md:max-w-4xl md:mx-auto space-y-4 md:space-y-8 md:p-6">
         {/* Progress Header */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -713,7 +713,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-lg border p-6 mb-6">
+          <div className="bg-white rounded-none md:rounded-lg border-t border-b md:border p-2 md:p-6 mb-4 md:mb-6">
             <h3 className="text-lg font-semibold mb-4">
               {quizData.quiz_media_type === 'audio' ? 'Audio Material' :
                 quizData.quiz_media_type === 'text' ? 'Reading Passage' :
@@ -756,8 +756,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
         )}
 
         {/* Question Review */}
-        <div className="bg-white rounded-2xl overflow-hidden">
-          <div className="p-8">
+        <div className="bg-white rounded-none md:rounded-2xl overflow-hidden border-t border-b md:border">
+          <div className="p-3 md:p-8">
             {/* Media Attachment for Media Questions */}
             {(question.question_type === 'media_question' || question.question_type === 'media_open_question') && question.media_url && (
               <div className="mb-4">
@@ -908,11 +908,11 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
     if (isPending) {
       return (
-        <div className="max-w-2xl mx-auto text-center space-y-6 p-6">
+        <div className="w-full md:max-w-2xl md:mx-auto text-center space-y-6 md:p-6">
           <h1 className="text-3xl font-bold text-gray-900">
             Submission Received
           </h1>
-          <div className="p-8 rounded-2xl border bg-yellow-50 border-yellow-200">
+          <div className="p-4 md:p-8 rounded-2xl border bg-yellow-50 border-yellow-200">
              <div className="text-6xl mb-4">📝</div>
              <h2 className="text-xl font-bold text-yellow-800 mb-2">Pending Teacher Review</h2>
              <p className="text-yellow-700">
@@ -944,7 +944,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
 
     if (showAllAnswers) {
       return (
-        <div className="max-w-3xl mx-auto space-y-6 p-4">
+        <div className="w-full md:max-w-3xl md:mx-auto space-y-4 md:space-y-6 md:p-4">
           <div className="text-center space-y-2 mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Correct Answers</h2>
             <p className="text-gray-600">Review your answers below</p>
@@ -959,8 +959,8 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 : 1;
 
               return (
-                <div key={q.id} className="bg-white rounded-xl border">
-                  <div className="p-6">
+                <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+                  <div className="p-2 md:p-6">
                     {/* Question Number Badge */}
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
@@ -1090,14 +1090,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
     }
 
     return (
-      <div className="max-w-2xl mx-auto text-center space-y-6 p-6">
+      <div className="w-full md:max-w-2xl md:mx-auto text-center space-y-6 md:p-6">
         {/* Header */}
         <h1 className="text-3xl font-bold text-gray-900">
           Quiz Complete!
         </h1>
 
         {/* Results Card */}
-        <div className={`p-8 rounded-2xl border ${isPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+        <div className={`p-4 md:p-8 rounded-2xl border ${isPassed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
           }`}>
           <div className="space-y-6">
             {/* Score Display */}
