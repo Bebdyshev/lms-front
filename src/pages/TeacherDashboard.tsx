@@ -700,7 +700,6 @@ export default function TeacherDashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">{submission.assignment_title}</div>
-                        <div className="text-xs text-gray-500">{submission.course_title}</div>
                       </td>
                       <td className="px-6 py-4">
                         <Badge 
