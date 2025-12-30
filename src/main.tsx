@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import 'katex/dist/katex.min.css';
 import Router from "./routes/Router";
+import Snowfall from 'react-snowfall';
 
 // Suppress NextStep.js navigation warning for React SPA
 // This runs before React mounts to catch the warning early
@@ -24,6 +25,17 @@ if (!rootElement) throw new Error('Root element not found');
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
+    <Snowfall 
+      color="#e8e8e8ff"
+      snowflakeCount={100}
+      style={{
+        position: 'fixed',
+        width: '100vw',
+        height: '100vh',
+        zIndex: 9999,
+        pointerEvents: 'none'
+      }}
+    />
     <Router />
   </React.StrictMode>
 );
