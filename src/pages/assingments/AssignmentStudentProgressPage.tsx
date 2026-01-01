@@ -1,6 +1,7 @@
   import { useEffect, useState } from 'react';
   import { useParams, useNavigate, Link } from 'react-router-dom';
   import apiClient from '../../services/api';
+  import { toast } from '../../components/Toast';
   import { 
     Users, 
     Clock, 
@@ -20,10 +21,12 @@
   import { Badge } from '../../components/ui/badge';
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-  import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+  import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../../components/ui/dialog';
   import { Input } from '../../components/ui/input';
   import { Textarea } from '../../components/ui/textarea';
+  import { Label } from '../../components/ui/label';
   import MultiTaskSubmission from '../../components/assignments/MultiTaskSubmission';
+  import type { AssignmentExtension } from '../../types/index';
 
   // Import API_BASE_URL from api service
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
@@ -102,6 +105,17 @@
     const [loadingSubmission, setLoadingSubmission] = useState<boolean>(false);
     const [savingGrade, setSavingGrade] = useState<boolean>(false);
 
+    // Extension management
+    const [extensions, setExtensions] = useState<AssignmentExtension[]>([]);
+    const [extensionDialog, setExtensionDialog] = useState<{ open: boolean; studentId: number | null; studentName: string }>({
+      open: false,
+      studentId: null,
+      studentName: ''
+    });
+    const [extensionDeadline, setExtensionDeadline] = useState<string>('');
+    const [extensionReason, setExtensionReason] = useState<string>('');
+    const [savingExtension, setSavingExtension] = useState<boolean>(false);
+
     useEffect(() => {
       if (id) {
         loadAssignmentProgress();
@@ -116,11 +130,65 @@
         const progressData = await apiClient.getAssignmentStudentProgress(id!);
         console.log('Received progress data:', progressData);
         setData(progressData);
+        
+        // Load extensions
+        try {
+          const extensionsData = await apiClient.getAssignmentExtensions(id!);
+          setExtensions(extensionsData);
+        } catch (err) {
+          console.warn('Failed to load extensions:', err);
+        }
       } catch (err: any) {
         console.error('Failed to load assignment progress:', err);
         setError(err.message || 'Failed to load assignment progress');
       } finally {
         setLoading(false);
+      }
+    };
+
+    const openExtensionDialog = (studentId: number, studentName: string) => {
+      const existing = extensions.find(ext => ext.student_id === studentId);
+      if (existing) {
+        const deadlineDate = new Date(existing.extended_deadline);
+        setExtensionDeadline(deadlineDate.toISOString().slice(0, 16));
+        setExtensionReason(existing.reason || '');
+      } else if (data?.assignment.due_date) {
+        const defaultDeadline = new Date(data.assignment.due_date);
+        defaultDeadline.setDate(defaultDeadline.getDate() + 7);
+        setExtensionDeadline(defaultDeadline.toISOString().slice(0, 16));
+        setExtensionReason('');
+      }
+      setExtensionDialog({ open: true, studentId, studentName });
+    };
+
+    const handleGrantExtension = async () => {
+      if (!id || !extensionDialog.studentId || !extensionDeadline) return;
+
+      try {
+        setSavingExtension(true);
+        await apiClient.grantExtension(id, extensionDialog.studentId, extensionDeadline, extensionReason);
+        toast('Extension granted successfully', 'success');
+        setExtensionDialog({ open: false, studentId: null, studentName: '' });
+        loadAssignmentProgress(); // Reload to get updated extensions
+      } catch (error) {
+        toast('Failed to grant extension', 'error');
+      } finally {
+        setSavingExtension(false);
+      }
+    };
+
+    const handleRevokeExtension = async (studentId: number) => {
+      if (!id) return;
+      
+      if (!confirm('Are you sure you want to revoke this extension?')) return;
+
+      try {
+        await apiClient.revokeExtension(id, studentId);
+        toast('Extension revoked successfully', 'success');
+        setExtensionDialog({ open: false, studentId: null, studentName: '' });
+        loadAssignmentProgress(); // Reload
+      } catch (error) {
+        toast('Failed to revoke extension', 'error');
       }
     };
 
@@ -496,12 +564,21 @@
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredStudents.map((student) => (
+                      filteredStudents.map((student) => {
+                        const studentExtension = extensions.find(ext => ext.student_id === student.id);
+                        return (
                         <TableRow key={student.id}>
                           <TableCell>
                             <div>
                               <div className="font-medium">{student.name}</div>
                               <div className="text-sm text-gray-600">{student.email}</div>
+                              {studentExtension && (
+                                <div className="text-sm text-green-600 flex items-center mt-1">
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  Extended: {new Date(studentExtension.extended_deadline).toLocaleDateString()}
+                                  {studentExtension.reason && ` - ${studentExtension.reason}`}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -531,7 +608,16 @@
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-2 justify-end">
-                             
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                title={studentExtension ? "Edit extension" : "Grant extension"}
+                                aria-label={studentExtension ? "Edit extension" : "Grant extension"}
+                                onClick={() => openExtensionDialog(student.id, student.name)}
+                              >
+                                <Calendar className="w-4 h-4 mr-1" />
+                                {studentExtension ? 'Edit' : 'Extend'}
+                              </Button>
                               {student.submission_id && (
                                 <>
                               <Button
@@ -549,7 +635,8 @@
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -700,6 +787,61 @@
                 <div className="text-sm text-gray-500">Select a submission to grade.</div>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Extension Dialog */}
+        <Dialog open={extensionDialog.open} onOpenChange={(open) => setExtensionDialog({ ...extensionDialog, open })}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Grant Deadline Extension</DialogTitle>
+              <DialogDescription>
+                Set a new deadline for {extensionDialog.studentName} to submit their work.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="extension-deadline">Extended Deadline</Label>
+                <Input
+                  id="extension-deadline"
+                  type="datetime-local"
+                  value={extensionDeadline}
+                  onChange={(e) => setExtensionDeadline(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="extension-reason">Reason (Optional)</Label>
+                <Textarea
+                  id="extension-reason"
+                  value={extensionReason}
+                  onChange={(e) => setExtensionReason(e.target.value)}
+                  placeholder="Reason for the extension..."
+                  className="min-h-[80px]"
+                />
+              </div>
+              {extensionDialog.studentId && extensions.find(ext => ext.student_id === extensionDialog.studentId) && (
+                <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                  <span className="text-sm text-yellow-800">This student already has an extension</span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleRevokeExtension(extensionDialog.studentId!)}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExtensionDialog({ open: false, studentId: null, studentName: '' })}>
+                Cancel
+              </Button>
+              <Button onClick={handleGrantExtension} disabled={savingExtension || !extensionDeadline}>
+                {savingExtension ? 'Saving...' : 'Grant Extension'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

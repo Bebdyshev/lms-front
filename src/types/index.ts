@@ -550,6 +550,29 @@ export interface AssignmentStatus {
   late?: boolean;
   score?: number;
   feedback?: string;
+  extended_deadline?: string; // If student has an extension
+}
+
+// =============================================================================
+// ASSIGNMENT EXTENSION TYPES
+// =============================================================================
+
+export interface AssignmentExtension {
+  id: number;
+  assignment_id: number;
+  student_id: number;
+  student_name?: string;
+  extended_deadline: string;
+  reason?: string;
+  granted_by: number;
+  granter_name?: string;
+  created_at: string;
+}
+
+export interface GrantExtensionRequest {
+  student_id: number;
+  extended_deadline: string;
+  reason?: string;
 }
 
 // =============================================================================

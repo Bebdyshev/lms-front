@@ -23,6 +23,8 @@ interface AssignmentWithStatus {
   submitted_at?: string;
   graded_at?: string;
   has_file_submission?: boolean;
+  extended_deadline?: string;
+  extension_reason?: string;
 }
 
 export default function AssignmentsPage() {
@@ -61,6 +63,22 @@ export default function AssignmentsPage() {
         console.warn('Could not load user submissions:', err);
       }
       
+      // Get user's extensions if student
+      const extensionsMap = new Map();
+      if (user?.role === 'student') {
+        try {
+          // Load extensions for all assignments
+          for (const assignment of assignmentData) {
+            const extension = await apiClient.getMyExtension(String(assignment.id));
+            if (extension) {
+              extensionsMap.set(assignment.id, extension);
+            }
+          }
+        } catch (err) {
+          console.warn('Could not load extensions:', err);
+        }
+      }
+      
       // Enhance assignments with status information
       const assignmentsWithStatus = assignmentData.map((assignment: any) => {
         let status = 'not_submitted';
@@ -72,6 +90,10 @@ export default function AssignmentsPage() {
         // Find submission for this assignment
         const submission = userSubmissions.find((sub: any) => sub.assignment_id === assignment.id);
         
+        // Check for extension
+        const extension = extensionsMap.get(assignment.id);
+        const effectiveDeadline = extension?.extended_deadline || assignment.due_date;
+        
         if (submission) {
           if (submission.is_graded && submission.score !== null) {
             status = 'graded';
@@ -82,7 +104,7 @@ export default function AssignmentsPage() {
           }
           submitted_at = submission.submitted_at;
           has_file_submission = !!submission.file_url;
-        } else if (assignment.due_date && new Date(assignment.due_date) < new Date()) {
+        } else if (effectiveDeadline && new Date(effectiveDeadline) < new Date()) {
           status = 'overdue';
         }
 
@@ -92,7 +114,9 @@ export default function AssignmentsPage() {
           score,
           submitted_at,
           graded_at,
-          has_file_submission
+          has_file_submission,
+          extended_deadline: extension?.extended_deadline,
+          extension_reason: extension?.reason
         };
       });
 
@@ -375,17 +399,30 @@ export default function AssignmentsPage() {
                             {assignment.description}
                           </div>
                         )}
+                        {assignment.extended_deadline && (
+                          <div className="text-sm text-green-600 flex items-center mt-1">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            Extended to: {new Date(assignment.extended_deadline).toLocaleDateString()}
+                            {assignment.extension_reason && ` - ${assignment.extension_reason}`}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-600">
                       {assignment.group_name || `Group #${assignment.group_id}`}
                     </td>
                     <td className="px-6 py-4 text-gray-600">
-                      {assignment.due_date ? (
-                        <div className={`flex items-center ${isOverdue(assignment.due_date) ? 'text-red-600' : ''}`}>
+                      {assignment.extended_deadline ? (
+                        <div className="flex items-center text-green-600">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          {new Date(assignment.extended_deadline).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          <span className="ml-1 text-xs">(Extended)</span>
+                        </div>
+                      ) : assignment.due_date ? (
+                        <div className={`flex items-center ${isOverdue(assignment.due_date) && !assignment.extended_deadline ? 'text-red-600' : ''}`}>
                           <Calendar className="w-4 h-4 mr-1" />
                           {new Date(assignment.due_date).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          {isOverdue(assignment.due_date) && (
+                          {isOverdue(assignment.due_date) && !assignment.extended_deadline && (
                             <AlertCircle className="w-4 h-4 ml-1" />
                           )}
                         </div>

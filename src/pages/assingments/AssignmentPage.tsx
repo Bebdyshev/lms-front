@@ -31,6 +31,7 @@ export default function AssignmentPage() {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [status, setStatus] = useState<AssignmentStatus | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
+  const [extension, setExtension] = useState<any>(null);
   
   // View mode: 'status' shows grading panel, 'details' shows actual submission
   const [viewMode, setViewMode] = useState<'status' | 'details'>('status');
@@ -46,6 +47,12 @@ export default function AssignmentPage() {
     try {
       const assignmentData = await apiClient.getAssignment(assignmentId);
       setAssignment(assignmentData);
+      
+      // Load extension if student
+      if (user?.role === 'student') {
+        const extensionData = await apiClient.getMyExtension(assignmentId);
+        setExtension(extensionData);
+      }
     } catch (err) {
       console.error('Failed to load assignment:', err);
       toast('Failed to load assignment', 'error');
@@ -587,10 +594,21 @@ export default function AssignmentPage() {
         <CardContent>
           <div className="flex items-center space-x-6 text-sm text-gray-600">
             {assignment.due_date && (
-              <div className={`flex items-center space-x-2 ${isOverdue ? 'text-red-600' : ''}`}>
+              <div className={`flex items-center space-x-2 ${isOverdue && !extension ? 'text-red-600' : ''}`}>
                 <Calendar className="w-4 h-4" />
                 <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
-                {isOverdue && <AlertCircle className="w-4 h-4" />}
+                {isOverdue && !extension && <AlertCircle className="w-4 h-4" />}
+              </div>
+            )}
+            {extension && (
+              <div className="flex items-center space-x-2 text-green-600">
+                <Calendar className="w-4 h-4" />
+                <span className="font-semibold">
+                  Extended Deadline: {new Date(extension.extended_deadline).toLocaleDateString()} {new Date(extension.extended_deadline).toLocaleTimeString()}
+                </span>
+                {extension.reason && (
+                  <span className="text-xs text-gray-500">({extension.reason})</span>
+                )}
               </div>
             )}
             {assignment.time_limit_minutes && (

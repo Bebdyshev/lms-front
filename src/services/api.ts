@@ -922,6 +922,51 @@ class LMSApiClient {
   }
 
   // =============================================================================
+  // ASSIGNMENT EXTENSIONS (DEADLINE MANAGEMENT)
+  // =============================================================================
+
+  async grantExtension(assignmentId: string, studentId: number, extendedDeadline: string, reason?: string) {
+    try {
+      const response = await this.api.post(`/assignments/${assignmentId}/extensions`, {
+        student_id: studentId,
+        extended_deadline: extendedDeadline,
+        reason
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to grant extension');
+    }
+  }
+
+  async getAssignmentExtensions(assignmentId: string) {
+    try {
+      const response = await this.api.get(`/assignments/${assignmentId}/extensions`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to load extensions');
+    }
+  }
+
+  async revokeExtension(assignmentId: string, studentId: number) {
+    try {
+      const response = await this.api.delete(`/assignments/${assignmentId}/extensions/${studentId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to revoke extension');
+    }
+  }
+
+  async getMyExtension(assignmentId: string) {
+    try {
+      const response = await this.api.get(`/assignments/${assignmentId}/my-extension`);
+      return response.data;
+    } catch (error) {
+      // Extension might not exist, return null instead of throwing
+      return null;
+    }
+  }
+
+  // =============================================================================
   // FILE UPLOAD
   // =============================================================================
 
