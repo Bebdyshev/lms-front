@@ -193,7 +193,7 @@ class LMSApiClient {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor for token refresh
+    // Response interceptor for token refresh with race condition protection
     this.api.interceptors.response.use(
       (response) => response,
       async (error) => {
@@ -201,6 +201,18 @@ class LMSApiClient {
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
+
+          // If already refreshing, wait for the refresh to complete
+          if (this.isRefreshing) {
+            return new Promise((resolve) => {
+              this.addRefreshSubscriber((token: string) => {
+                originalRequest.headers.Authorization = `Bearer ${token}`;
+                resolve(this.api(originalRequest));
+              });
+            });
+          }
+
+          this.isRefreshing = true;
 
           try {
             const refreshToken = this.tokenManager.getRefreshToken();
@@ -212,11 +224,16 @@ class LMSApiClient {
               const { access_token, refresh_token } = response.data;
               this.tokenManager.setTokens(access_token, refresh_token);
 
+              this.isRefreshing = false;
+              this.onRefreshed(access_token);
+
               // Retry original request with new token
               originalRequest.headers.Authorization = `Bearer ${access_token}`;
               return this.api(originalRequest);
             }
           } catch (refreshError) {
+            this.isRefreshing = false;
+            this.refreshSubscribers = [];
             // Refresh failed, logout user and avoid redirect loop on /login
             this.logout();
             if (window.location.pathname !== '/login') {
