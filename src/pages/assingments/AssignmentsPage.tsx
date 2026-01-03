@@ -137,6 +137,16 @@ export default function AssignmentsPage() {
       return false;
     }
     
+    // For students: hide graded assignments that are past deadline ONLY in "all" view
+    // When viewing "graded" filter specifically, show all graded assignments
+    if (user?.role === 'student' && filter === 'all') {
+      const effectiveDeadline = assignment.extended_deadline || assignment.due_date;
+      const isPastDeadline = effectiveDeadline && new Date(effectiveDeadline) < new Date();
+      if (assignment.status === 'graded' && isPastDeadline) {
+        return false;
+      }
+    }
+    
     // Then filter by status
     switch (filter) {
       case 'pending':
@@ -419,10 +429,10 @@ export default function AssignmentsPage() {
                           <span className="ml-1 text-xs">(Extended)</span>
                         </div>
                       ) : assignment.due_date ? (
-                        <div className={`flex items-center ${isOverdue(assignment.due_date) && !assignment.extended_deadline ? 'text-red-600' : ''}`}>
+                        <div className={`flex items-center ${isOverdue(assignment.due_date) && !assignment.extended_deadline && assignment.status !== 'graded' && assignment.status !== 'submitted' ? 'text-red-600' : ''}`}>
                           <Calendar className="w-4 h-4 mr-1" />
                           {new Date(assignment.due_date).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          {isOverdue(assignment.due_date) && !assignment.extended_deadline && (
+                          {isOverdue(assignment.due_date) && !assignment.extended_deadline && assignment.status !== 'graded' && assignment.status !== 'submitted' && (
                             <AlertCircle className="w-4 h-4 ml-1" />
                           )}
                         </div>

@@ -9,6 +9,7 @@ import { ShortAnswerQuestion } from './quiz/ShortAnswerQuestion';
 import { ChoiceQuestion } from './quiz/ChoiceQuestion';
 import { TextCompletionQuestion } from './quiz/TextCompletionQuestion';
 import { FillInBlankQuestion } from './quiz/FillInBlankQuestion';
+import { MatchingQuestion } from './quiz/MatchingQuestion';
 import { ZoomableImage } from './ZoomableImage';
 
 // Helper to check if content text has visible content
@@ -292,6 +293,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     <ChoiceQuestion
                       question={q}
                       value={userAnswer}
+                      onChange={(val) => setQuizAnswers(prev => new Map(prev.set(q.id.toString(), val)))}
+                      disabled={feedChecked}
+                      showResult={feedChecked}
+                    />
+                  ) : q.question_type === 'matching' ? (
+                    <MatchingQuestion
+                      question={q}
+                      value={quizAnswers.get(q.id.toString())}
                       onChange={(val) => setQuizAnswers(prev => new Map(prev.set(q.id.toString(), val)))}
                       disabled={feedChecked}
                       showResult={feedChecked}
@@ -628,6 +637,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 disabled={false}
                 showResult={false}
               />
+            ) : q.question_type === 'matching' ? (
+              <MatchingQuestion
+                question={q}
+                value={quizAnswers.get(q.id.toString())}
+                onChange={(val) => handleQuizAnswer(q.id.toString(), val)}
+                disabled={false}
+                showResult={false}
+              />
             ) : (
               <FillInBlankQuestion
                 question={q}
@@ -805,6 +822,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
               <ShortAnswerQuestion
                 question={question}
                 value={userAnswer}
+                onChange={() => {}}
+                disabled={true}
+                showResult={true}
+              />
+            ) : question.question_type === 'matching' ? (
+              <MatchingQuestion
+                question={question}
+                value={quizAnswers.get(question.id.toString())}
                 onChange={() => {}}
                 disabled={true}
                 showResult={true}
@@ -1037,6 +1062,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       <ChoiceQuestion
                         question={q}
                         value={userAnswer}
+                        onChange={() => {}}
+                        disabled={true}
+                        showResult={true}
+                      />
+                    ) : q.question_type === 'matching' ? (
+                      <MatchingQuestion
+                        question={q}
+                        value={quizAnswers.get(q.id.toString())}
                         onChange={() => {}}
                         disabled={true}
                         showResult={true}

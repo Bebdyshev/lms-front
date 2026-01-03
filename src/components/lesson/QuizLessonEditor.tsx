@@ -99,139 +99,176 @@ export default function QuizLessonEditor({
     setDraftQuestion({ ...draftQuestion, ...patch });
   };
 
-  // Parse bulk upload text format
+  // Parse bulk upload text format - supports flexible number of options
+  // Format 1 (Simple MCQ):
+  // 1. Question text
+  // A) Option 1
+  // B) Option 2 +
+  // C) Option 3
+  //
+  // Format 2 (Matching):
+  // [MATCHING]
+  // Left 1 = Right 1
+  // Left 2 = Right 2
+  // Left 3 = Right 3
+  //
   const parseBulkQuestions = (text: string): { questions: Question[]; errors: string[] } => {
     const errors: string[] = [];
     const questions: Question[] = [];
 
-    // Split by question numbers (supports both "1.1 text" and "32. text" formats)
-    // Look for number(s), dot, optional number(s), space
-    const questionBlocks = text.split(/(?=^\d+\.(?:\d+\s|\s))/m);
+    // Split by blank lines to separate questions
+    const blocks = text.split(/\n\s*\n/).filter(b => b.trim());
 
-    for (const block of questionBlocks) {
-      const trimmed = block.trim();
-      if (!trimmed) continue;
+    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+      const block = blocks[blockIndex].trim();
+      if (!block) continue;
 
       try {
-        // Extract question number (e.g., "1.1" or "32")
-        // Match: digits, dot, optional digits (for sub-questions like 9.1)
-        const numberMatch = trimmed.match(/^(\d+)\.(\d+)?\s/) || trimmed.match(/^(\d+)\.\s/);
-        if (!numberMatch) {
-          // Skip blocks without valid question numbers (like headers, instructions, etc.)
-          continue;
-        }
-
-        const questionNumber = numberMatch[2] ? `${numberMatch[1]}.${numberMatch[2]}` : numberMatch[1];
-
-        // Remove the question number from the text
-        const contentWithoutNumber = trimmed.substring(numberMatch[0].length).trim();
-
-        // Find where options start (A), B), C), D))
-        const optionsStartMatch = contentWithoutNumber.match(/\n\s*A\)/);
+        // Check if this is a matching question
+        const isMatching = block.toUpperCase().startsWith('[MATCHING]') || 
+                          block.toUpperCase().startsWith('MATCHING:') ||
+                          /^\d+\.\s*MATCHING/i.test(block);
         
-        if (!optionsStartMatch || optionsStartMatch.index === undefined) {
-          errors.push(`Question ${questionNumber}: Could not find options (A), B), C), D))`);
-          continue;
-        }
-
-        const textBeforeOptions = contentWithoutNumber.substring(0, optionsStartMatch.index).trim();
-        const optionsText = contentWithoutNumber.substring(optionsStartMatch.index).trim();
-
-        // Split passage and question text
-        // Look for common question starters like "Which choice", "What", "How does", etc.
-        const questionPatterns = [
-          /Which choice/i,
-          /What function/i,
-          /What is the/i,
-          /What does/i,
-          /How does/i,
-          /Based on/i,
-          /According to/i,
-          /The main purpose/i,
-          /The author/i,
-          /In context/i,
-          /The passage/i
-        ];
-
-        let passageText = '';
-        let questionText = textBeforeOptions;
-
-        // Try to find where the question starts
-        for (const pattern of questionPatterns) {
-          const match = textBeforeOptions.match(pattern);
-          if (match && match.index !== undefined) {
-            passageText = textBeforeOptions.substring(0, match.index).trim();
-            questionText = textBeforeOptions.substring(match.index).trim();
-            break;
+        if (isMatching) {
+          // Remove the MATCHING prefix and get lines
+          let matchingContent = block;
+          if (block.toUpperCase().startsWith('[MATCHING]')) {
+            matchingContent = block.slice('[MATCHING]'.length);
+          } else if (block.toUpperCase().startsWith('MATCHING:')) {
+            matchingContent = block.slice('MATCHING:'.length);
+          } else {
+            // Remove number prefix like "1. MATCHING:"
+            matchingContent = block.replace(/^\d+\.\s*MATCHING:?\s*/i, '');
           }
-        }
-
-        // If no question pattern found, use the whole text as question
-        if (!passageText && questionText === textBeforeOptions) {
-          // Check if there's a sentence break that could indicate passage vs question
-          const lastSentenceMatch = textBeforeOptions.match(/([.!?])\s+([A-Z])/g);
-          if (lastSentenceMatch && lastSentenceMatch.length > 0) {
-            // Find the last sentence break
-            const lastBreakIndex = textBeforeOptions.lastIndexOf(lastSentenceMatch[lastSentenceMatch.length - 1]);
-            if (lastBreakIndex > 0) {
-              passageText = textBeforeOptions.substring(0, lastBreakIndex + 1).trim();
-              questionText = textBeforeOptions.substring(lastBreakIndex + 2).trim();
+          
+          const lines = matchingContent.split('\n').filter(l => l.trim());
+          const pairs: { left: string; right: string }[] = [];
+          let questionTitle = 'Match the items in the left column with the correct items in the right column.';
+          
+          for (const line of lines) {
+            const match = line.match(/^(.+?)\s*=\s*(.+)$/);
+            if (match) {
+              pairs.push({ left: match[1].trim(), right: match[2].trim() });
+            } else if (pairs.length === 0 && line.trim()) {
+              // First non-pair line is the question title
+              questionTitle = line.trim();
             }
           }
-        }
+          
+          for (const line of lines) {
+            const match = line.match(/^(.+?)\s*=\s*(.+)$/);
+            if (match) {
+              pairs.push({ left: match[1].trim(), right: match[2].trim() });
+            } else if (pairs.length === 0 && line.trim() && !line.includes('=')) {
+              // First non-pair line could be the question title (update it)
+              questionTitle = line.trim();
+            }
+          }
+          
+          if (pairs.length < 2) {
+            errors.push(`Matching block ${blockIndex + 1}: Need at least 2 pairs`);
+            continue;
+          }
 
-        // Parse options
-        const optionLines = optionsText.split('\n').filter(line => line.trim() !== '');
-
-        if (optionLines.length !== 4) {
-          errors.push(`Question ${questionNumber}: Expected 4 options, found ${optionLines.length}`);
+          const question: Question = {
+            id: `bulk_${Date.now()}_matching_${blockIndex}`,
+            assignment_id: '',
+            question_text: questionTitle,
+            question_type: 'matching',
+            matching_pairs: pairs,
+            correct_answer: pairs.map((_, i) => i), // Correct order is original order
+            points: pairs.length,
+            order_index: questions.length,
+          };
+          questions.push(question);
           continue;
         }
 
+        // Regular MCQ parsing
+        const lines = block.split('\n').map(l => l.trim()).filter(l => l);
+        
+        // Find where options start (look for A), B), a), b), 1), 2), etc.)
+        let questionTextLines: string[] = [];
+        let optionLines: string[] = [];
+        let foundOptions = false;
+        
+        for (const line of lines) {
+          // Check if line starts with option marker
+          if (/^[A-Za-z]\)|^\d+\)/.test(line)) {
+            foundOptions = true;
+          }
+          
+          if (foundOptions) {
+            optionLines.push(line);
+          } else {
+            questionTextLines.push(line);
+          }
+        }
+
+        // Remove question number from first line if present (e.g., "1. Question" or "1.1 Question")
+        let questionText = questionTextLines.join(' ').trim();
+        questionText = questionText.replace(/^\d+\.?\d*\s*\.?\s*/, '');
+
+        if (!questionText) {
+          errors.push(`Block ${blockIndex + 1}: Could not find question text`);
+          continue;
+        }
+
+        if (optionLines.length < 2) {
+          errors.push(`Block ${blockIndex + 1}: Need at least 2 options`);
+          continue;
+        }
+
+        // Parse options - flexible number
         const options: { id: string; text: string; is_correct: boolean; letter: string }[] = [];
-        const letters = ['A', 'B', 'C', 'D'];
-        let correctIndex = 0; // Default to A
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+        let correctIndices: number[] = [];
 
         optionLines.forEach((line, index) => {
-          const letter = letters[index];
-          // Remove letter prefix if it exists (e.g., "A) option" -> "option")
-          let text = line.replace(/^[A-D]\)\s*/, '').trim();
-
-          // Check if this option is marked as correct with "+"
-          const isCorrect = text.endsWith('+') || text.includes(' +');
+          // Remove option prefix (A), B), 1), 2), etc.)
+          let text = line.replace(/^[A-Za-z0-9]\)\s*/, '').trim();
+          
+          // Check if this option is marked as correct with "+" or "*"
+          const isCorrect = text.endsWith('+') || text.endsWith('*') || text.includes(' +') || text.includes(' *');
           if (isCorrect) {
-            text = text.replace(/\s*\+\s*$/, '').trim(); // Remove the "+" marker
-            correctIndex = index;
-            console.log(`Found correct answer: ${letter}) ${text} (index: ${index})`);
+            text = text.replace(/\s*[\+\*]\s*$/, '').trim();
+            correctIndices.push(index);
           }
 
           options.push({
-            id: `${Date.now()}_${letter}_${Math.random()}`,
+            id: `${Date.now()}_${letters[index] || index}_${Math.random()}`,
             text: text,
             is_correct: false,
-            letter: letter
+            letter: letters[index] || String(index + 1)
           });
         });
 
-        // Set the correct answer
-        options[correctIndex].is_correct = true;
+        // If no correct answer marked, default to first option
+        if (correctIndices.length === 0) {
+          correctIndices = [0];
+        }
+
+        // Mark correct options
+        correctIndices.forEach(idx => {
+          if (options[idx]) options[idx].is_correct = true;
+        });
+
+        const questionType = correctIndices.length > 1 ? 'multiple_choice' : 'single_choice';
 
         const question: Question = {
-          id: `bulk_${Date.now()}_${questionNumber.replace(/\./g, '_')}`,
+          id: `bulk_${Date.now()}_${blockIndex}`,
           assignment_id: '',
-          question_text: questionText || `Question ${questionNumber}`,
-          question_type: 'single_choice',
+          question_text: questionText,
+          question_type: questionType,
           options: options,
-          correct_answer: correctIndex,
+          correct_answer: questionType === 'multiple_choice' ? correctIndices : correctIndices[0],
           points: 1,
           order_index: questions.length,
-          is_sat_question: true,
-          content_text: passageText || undefined
         };
 
         questions.push(question);
       } catch (error) {
-        errors.push(`Error parsing block: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        errors.push(`Block ${blockIndex + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
@@ -314,14 +351,22 @@ export default function QuizLessonEditor({
         // For long text, we just need some placeholder for correct_answer
         errors.push('Please provide sample answer or grading criteria');
       }
+    } else if (question.question_type === 'matching') {
+      // Matching questions require pairs
+      if (!question.matching_pairs || question.matching_pairs.length < 2) {
+        errors.push('At least 2 matching pairs are required');
+      }
+      if (question.matching_pairs?.some(pair => !pair.left.trim() || !pair.right.trim())) {
+        errors.push('All matching pairs must have both left and right values');
+      }
     } else if (question.question_type === 'single_choice' || question.question_type === 'multiple_choice' || question.question_type === 'media_question') {
       // single_choice, multiple_choice, media_question - require options
       const hasOptionContent = question.options?.some(opt => opt.text.trim());
       if (hasOptionContent && (typeof question.correct_answer !== 'number' || question.correct_answer < 0)) {
         errors.push('Please select a correct answer');
       }
-      if (!question.options || question.options.length !== 4) {
-        errors.push('Exactly 4 options are required');
+      if (!question.options || question.options.length < 2) {
+        errors.push('At least 2 options are required');
       }
       if (hasOptionContent && question.options?.some(opt => !opt.text.trim())) {
         errors.push('All options must have text');
@@ -1225,6 +1270,17 @@ export default function QuizLessonEditor({
                             next.question_type = val;
                             next.correct_answer = typeof draftQuestion.correct_answer === 'string' ? draftQuestion.correct_answer : '';
                             next.options = undefined; // No options for open answer
+                          } else if (val === 'matching') {
+                            next.question_type = 'matching';
+                            next.options = undefined; // No options for matching
+                            // Initialize matching pairs if not present
+                            if (!next.matching_pairs || next.matching_pairs.length === 0) {
+                              next.matching_pairs = [
+                                { left: '', right: '' },
+                                { left: '', right: '' },
+                              ];
+                            }
+                            next.correct_answer = next.matching_pairs.map((_: { left: string; right: string }, i: number) => i);
                           }
                           setDraftQuestion(next);
                         }}
@@ -1240,6 +1296,7 @@ export default function QuizLessonEditor({
                           <SelectItem value="long_text">Long text answer</SelectItem>
                           <SelectItem value="media_question">Media-based question</SelectItem>
                           <SelectItem value="media_open_question">Open media question</SelectItem>
+                          <SelectItem value="matching">Matching</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1506,11 +1563,33 @@ export default function QuizLessonEditor({
                     draftQuestion.question_type === 'media_question') && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label>Options (4)</Label>
-                          <span className="text-xs text-gray-500">Drag & drop or click to add images</span>
+                          <Label>Options ({draftQuestion.options?.length || 0})</Label>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Drag & drop or click to add images</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const options = [...(draftQuestion.options || [])];
+                                const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                                const newLetter = letters[options.length] || `${options.length + 1}`;
+                                options.push({
+                                  id: `opt_${Date.now()}_${options.length}`,
+                                  text: '',
+                                  is_correct: false,
+                                  letter: newLetter
+                                });
+                                applyDraftUpdate({ options });
+                              }}
+                              className="text-xs h-7"
+                            >
+                              + Add Option
+                            </Button>
+                          </div>
                         </div>
                         <div className="space-y-3">
-                          {(draftQuestion.options || []).slice(0, 4).map((opt, idx) => (
+                          {(draftQuestion.options || []).map((opt, idx) => (
                             <div 
                               key={opt.id} 
                               className="p-3 border rounded-lg bg-white space-y-2"
@@ -1551,13 +1630,38 @@ export default function QuizLessonEditor({
                                     className="w-4 h-4"
                                   />
                                 )}
-                                <span className="font-bold text-gray-600 w-6">{opt.letter || ['A', 'B', 'C', 'D'][idx]}.</span>
+                                <span className="font-bold text-gray-600 w-6">{opt.letter || 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[idx] || `${idx + 1}`}.</span>
                                 <Input
                                   value={opt.text}
                                   onChange={(e) => updateDraftOptionText(idx, e.target.value)}
                                   placeholder={`Option ${idx + 1} text`}
                                   className="flex-1"
                                 />
+                                {(draftQuestion.options?.length || 0) > 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const options = [...(draftQuestion.options || [])];
+                                      options.splice(idx, 1);
+                                      // Re-assign letters
+                                      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                                      options.forEach((o, i) => { o.letter = letters[i] || `${i + 1}`; });
+                                      // Adjust correct_answer if needed
+                                      let newCorrect = draftQuestion.correct_answer;
+                                      if (draftQuestion.question_type === 'multiple_choice' && Array.isArray(newCorrect)) {
+                                        newCorrect = newCorrect.filter(i => i !== idx).map(i => i > idx ? i - 1 : i);
+                                      } else if (typeof newCorrect === 'number') {
+                                        if (newCorrect === idx) newCorrect = 0;
+                                        else if (newCorrect > idx) newCorrect = newCorrect - 1;
+                                      }
+                                      applyDraftUpdate({ options, correct_answer: newCorrect });
+                                    }}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                    title="Remove option"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                               
                               {/* Image Upload Section */}
@@ -1709,6 +1813,78 @@ export default function QuizLessonEditor({
                       </div>
                     </div>
                   )}
+
+                  {/* Matching Question Editor */}
+                  {draftQuestion.question_type === 'matching' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Matching Pairs</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const pairs = [...(draftQuestion.matching_pairs || [])];
+                            pairs.push({ left: '', right: '' });
+                            applyDraftUpdate({ matching_pairs: pairs });
+                          }}
+                          className="text-xs h-7"
+                        >
+                          + Add Pair
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Create pairs that students will need to match. The right side will be shuffled.
+                      </p>
+                      <div className="space-y-2">
+                        {(draftQuestion.matching_pairs || []).map((pair, idx) => (
+                          <div key={idx} className="flex items-center gap-2 p-3 border rounded-lg bg-white">
+                            <span className="font-bold text-gray-500 w-6">{idx + 1}.</span>
+                            <Input
+                              value={pair.left}
+                              onChange={(e) => {
+                                const pairs = [...(draftQuestion.matching_pairs || [])];
+                                pairs[idx] = { ...pairs[idx], left: e.target.value };
+                                applyDraftUpdate({ matching_pairs: pairs });
+                              }}
+                              placeholder="Left side (e.g., Term)"
+                              className="flex-1"
+                            />
+                            <span className="text-gray-400">↔</span>
+                            <Input
+                              value={pair.right}
+                              onChange={(e) => {
+                                const pairs = [...(draftQuestion.matching_pairs || [])];
+                                pairs[idx] = { ...pairs[idx], right: e.target.value };
+                                applyDraftUpdate({ matching_pairs: pairs });
+                              }}
+                              placeholder="Right side (e.g., Definition)"
+                              className="flex-1"
+                            />
+                            {(draftQuestion.matching_pairs?.length || 0) > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const pairs = [...(draftQuestion.matching_pairs || [])];
+                                  pairs.splice(idx, 1);
+                                  applyDraftUpdate({ matching_pairs: pairs });
+                                }}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Remove pair"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {(!draftQuestion.matching_pairs || draftQuestion.matching_pairs.length === 0) && (
+                        <div className="text-center py-4 text-gray-500">
+                          <p>No pairs yet. Click "+ Add Pair" to start.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1744,26 +1920,34 @@ export default function QuizLessonEditor({
 
               <div className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  Paste your questions in the format below. Each question should be numbered (e.g., 1., 2.) followed by the passage text, then the question, and four options labeled A) through D). Mark the correct answer with a <strong>+</strong> at the end.
+                  Paste your questions in the format below. Supports any number of options (A-Z). Mark correct answers with <strong>+</strong> at the end. For multiple correct answers, mark each with +.
                 </p>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-                  <div className="font-medium text-blue-900 mb-2">Example Format:</div>
-                  <pre className="text-xs text-gray-700 whitespace-pre-wrap">
-                    {`1. The following text is adapted from Emily Dickinson's poem, With a Flower, published after her death in 1886. I hide myself within my flower, That wearing on your breast, You, unsuspecting, wear me too And angels know the rest. Which choice best describes the overall structure of the text?
-A) demonstrate the appeal of a season by making a series of comparisons.
-B) evoke a vivid impression of a particular setting with striking sensory imagery. +
-C) describe the ways in which certain aspects of daily life alter throughout the year.
-D) emphasize the symbolic importance of the dangers present in the natural world
+                  <div className="font-medium text-blue-900 mb-2">MCQ Format (any number of options):</div>
+                  <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-2 rounded border">
+{`1. What is the capital of France?
+A) London
+B) Paris +
+C) Berlin
+D) Madrid
 
-2. Along with her ___ Coretta Scott King played an important role in the civil rights movement. Which choice completes the text correctly?
-A) husband Martin Luther King, +
-B) husband Martin Luther King;
-C) husband, Martin Luther King,
-D) husband, Martin Luther King`}
-                  </pre>
+2. Which are primary colors? (multiple choice)
+A) Red +
+B) Orange
+C) Blue +
+D) Green
+E) Yellow +`}</pre>
+
+                  <div className="font-medium text-blue-900 mb-2 mt-4">Matching Format:</div>
+                  <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-2 rounded border">
+{`3. MATCHING: Match the countries with capitals
+France = Paris
+Germany = Berlin
+Spain = Madrid
+Italy = Rome`}</pre>
                   <p className="text-xs text-blue-700 mt-2">
-                    <strong>Note:</strong> The passage text goes before "Which choice..." and becomes the content. Everything from "Which choice..." is the question text.
+                    <strong>Tip:</strong> Use "MATCHING:" prefix for matching questions. Pairs are separated by "=" sign.
                   </p>
                 </div>
 
@@ -2091,6 +2275,31 @@ D) husband, Martin Luther King`}
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Matching Question Preview */}
+                {draftQuestion.question_type === 'matching' && (
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium text-gray-700">Matching Pairs:</div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-gray-500 uppercase">Left Side</div>
+                        {draftQuestion.matching_pairs?.map((pair, idx) => (
+                          <div key={idx} className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <span className="font-medium text-blue-900">{idx + 1}.</span> {pair.left}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-gray-500 uppercase">Right Side (shuffled for students)</div>
+                        {draftQuestion.matching_pairs?.map((pair, idx) => (
+                          <div key={idx} className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            {pair.right}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 

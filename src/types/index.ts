@@ -377,7 +377,7 @@ export interface Question {
   id: string;
   assignment_id: string;
   question_text: string;
-  question_type: 'single_choice' | 'multiple_choice' | 'short_answer' | 'fill_blank' | 'text_completion' | 'long_text' | 'media_question' | 'media_open_question';
+  question_type: 'single_choice' | 'multiple_choice' | 'short_answer' | 'fill_blank' | 'text_completion' | 'long_text' | 'media_question' | 'media_open_question' | 'matching';
   options?: QuestionOption[];
   correct_answer: any; // Use any to avoid complex type issues
   points: number;
@@ -395,6 +395,8 @@ export interface Question {
   gap_separator?: string; // Custom separator for fill_blank questions (default: ',')
   show_numbering?: boolean; // Show numbering before input fields in text_completion (e.g., "1. [input] 2. [input]")
   needs_image?: boolean; // Flag to indicate if the question requires an image (from Gemini parser)
+  // Matching question fields
+  matching_pairs?: { left: string; right: string }[]; // Pairs for matching questions
 }
 
 export interface QuizData {

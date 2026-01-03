@@ -88,8 +88,8 @@ class TokenManager {
     
     if (oldAccessToken && oldRefreshToken) {
       // Перемещаем в cookies
-      CookieUtils.setCookie('access_token', oldAccessToken, 1); // Access token на 1 день
-      CookieUtils.setCookie('refresh_token', oldRefreshToken, 7); // Refresh token на 7 дней
+      CookieUtils.setCookie('access_token', oldAccessToken, 7); // Access token на 7 дней
+      CookieUtils.setCookie('refresh_token', oldRefreshToken, 30); // Refresh token на 30 дней
       
       // Удаляем из localStorage
       localStorage.removeItem('access_token');
@@ -105,8 +105,8 @@ class TokenManager {
     this.refreshToken = refreshToken;
     
     // Сохраняем в cookies с разными сроками жизни
-    CookieUtils.setCookie('access_token', accessToken, 1); // Access token на 1 день
-    CookieUtils.setCookie('refresh_token', refreshToken, 7); // Refresh token на 7 дней
+    CookieUtils.setCookie('access_token', accessToken, 7); // Access token на 7 дней (будет обновляться через refresh)
+    CookieUtils.setCookie('refresh_token', refreshToken, 30); // Refresh token на 30 дней
   }
 
   getAccessToken(): string | null {
@@ -152,11 +152,22 @@ class LMSApiClient {
   private tokenManager: TokenManager;
   private api!: AxiosInstance;
   private currentUser: User | null = null;
+  private isRefreshing: boolean = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
 
   constructor() {
     this.tokenManager = new TokenManager();
     this.setupAxios();
     this.currentUser = this.getCurrentUserFromStorage();
+  }
+
+  private onRefreshed(token: string): void {
+    this.refreshSubscribers.forEach(callback => callback(token));
+    this.refreshSubscribers = [];
+  }
+
+  private addRefreshSubscriber(callback: (token: string) => void): void {
+    this.refreshSubscribers.push(callback);
   }
 
   private setupAxios(): void {
@@ -2187,17 +2198,37 @@ class LMSApiClient {
     lesson_id: number;
     quiz_title?: string;
     total_questions: number;
-    correct_answers: number;
-    score_percentage: number;
+    correct_answers?: number;
+    score_percentage?: number;
     answers?: string;
     time_spent_seconds?: number;
     is_graded?: boolean;
+    is_draft?: boolean;
+    current_question_index?: number;
   }): Promise<any> {
     try {
       const response = await this.api.post('/progress/quiz-attempt', attemptData);
       return response.data;
     } catch (error) {
       console.error('Failed to save quiz attempt:', error);
+      throw error;
+    }
+  }
+
+  async updateQuizAttempt(attemptId: number, updateData: {
+    answers?: string;
+    current_question_index?: number;
+    time_spent_seconds?: number;
+    is_draft?: boolean;
+    correct_answers?: number;
+    score_percentage?: number;
+    is_graded?: boolean;
+  }): Promise<any> {
+    try {
+      const response = await this.api.patch(`/progress/quiz-attempts/${attemptId}`, updateData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update quiz attempt:', error);
       throw error;
     }
   }

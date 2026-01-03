@@ -74,6 +74,31 @@ const extractCorrectAnswersFromGaps = (text: string, separator: string = ','): s
   });
 };
 
+// Helper functions to serialize/deserialize quiz answers with nested Maps
+// Maps are not JSON serializable, so we need to convert them to arrays/objects
+const serializeQuizAnswers = (answers: Map<string, any>): [string, any][] => {
+  return Array.from(answers.entries()).map(([key, value]) => {
+    // If value is a Map (for matching questions), convert to array of entries
+    if (value instanceof Map) {
+      return [key, { __type: 'Map', data: Array.from(value.entries()) }];
+    }
+    return [key, value];
+  });
+};
+
+const deserializeQuizAnswers = (data: [string, any][]): Map<string, any> => {
+  const map = new Map<string, any>();
+  for (const [key, value] of data) {
+    // If value was a serialized Map, reconstruct it
+    if (value && typeof value === 'object' && value.__type === 'Map') {
+      map.set(key, new Map(value.data));
+    } else {
+      map.set(key, value);
+    }
+  }
+  return map;
+};
+
 interface LessonSidebarProps {
   course: Course | null;
   modules: CourseModule[];
@@ -690,7 +715,7 @@ export default function LessonPage() {
               hasLocalProgress = true;
               
               if (localQuizAnswers) {
-                setQuizAnswers(new Map(JSON.parse(localQuizAnswers)));
+                setQuizAnswers(deserializeQuizAnswers(JSON.parse(localQuizAnswers)));
               }
               if (localGapAnswers) {
                 setGapAnswers(new Map(JSON.parse(localGapAnswers)));
@@ -737,7 +762,8 @@ export default function LessonPage() {
                     // Handle both Map-like array [[key, val], ...] and object {key: val} formats
                     let answersMap: Map<string, any>;
                     if (Array.isArray(savedAnswers)) {
-                      answersMap = new Map(savedAnswers) as Map<string, any>;
+                      // Use deserialize to handle nested Maps (for matching questions)
+                      answersMap = deserializeQuizAnswers(savedAnswers);
                     } else {
                       answersMap = new Map(Object.entries(savedAnswers)) as Map<string, any>;
                     }
@@ -764,15 +790,30 @@ export default function LessonPage() {
                   }
                 }
 
-                // Restore state
-                setQuizState('completed');
+                // Check if this is a draft (in-progress) or completed attempt
+                if (lastAttempt.is_draft) {
+                  // Draft - restore to in-progress state
+                  console.log('Restoring draft quiz attempt');
+                  const displayMode = parsedQuizData.display_mode || 'one_by_one';
+                  if (displayMode === 'all_at_once') {
+                    setQuizState('feed');
+                  } else {
+                    // Restore to the question they were on
+                    setCurrentQuestionIndex(lastAttempt.current_question_index || 0);
+                    setQuizState('question');
+                  }
+                  setQuizStartTime(Date.now() - (lastAttempt.time_spent_seconds || 0) * 1000);
+                } else {
+                  // Completed attempt - show completed state
+                  setQuizState('completed');
 
-                // Mark as completed if passed
-                const passed = lastAttempt.score_percentage >= 50;
-                setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
+                  // Mark as completed if passed
+                  const passed = lastAttempt.score_percentage >= 50;
+                  setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
+                }
 
                 setIsQuizReady(true); // Ready!
-               return; // Skip default initialization if restored
+                return; // Skip default initialization if restored
               }
             } catch (err) {
               console.error('Failed to load quiz attempts:', err);
@@ -813,10 +854,64 @@ export default function LessonPage() {
   // Persist quiz progress to localStorage
   useEffect(() => {
     if (currentStep?.content_type === 'quiz' && (quizAnswers.size > 0 || gapAnswers.size > 0)) {
-      localStorage.setItem(`quiz_answers_${currentStep.id}`, JSON.stringify(Array.from(quizAnswers.entries())));
+      localStorage.setItem(`quiz_answers_${currentStep.id}`, JSON.stringify(serializeQuizAnswers(quizAnswers)));
       localStorage.setItem(`gap_answers_${currentStep.id}`, JSON.stringify(Array.from(gapAnswers.entries())));
     }
   }, [quizAnswers, gapAnswers, currentStep]);
+
+  // Auto-save quiz progress to server (debounced)
+  useEffect(() => {
+    if (!currentStep?.content_type || currentStep.content_type !== 'quiz') return;
+    if (!courseId || !lessonId) return;
+    if (quizState === 'completed' || quizState === 'title') return;
+    if (quizAnswers.size === 0 && gapAnswers.size === 0) return;
+
+    const saveToServer = async () => {
+      try {
+        // Combine quiz and gap answers, serializing Maps properly
+        const combinedAnswers = new Map([...quizAnswers, ...gapAnswers]);
+        const answersToSave = serializeQuizAnswers(combinedAnswers);
+        const timeSpentSeconds = quizStartTime
+          ? Math.floor((Date.now() - quizStartTime) / 1000)
+          : undefined;
+
+        const attemptData = {
+          step_id: parseInt(currentStep.id.toString()),
+          course_id: parseInt(courseId),
+          lesson_id: parseInt(lessonId),
+          quiz_title: quizData?.title || 'Quiz',
+          total_questions: questions.length,
+          correct_answers: 0,
+          score_percentage: 0,
+          answers: JSON.stringify(answersToSave),
+          time_spent_seconds: timeSpentSeconds,
+          is_draft: true,
+          current_question_index: currentQuestionIndex
+        };
+
+        if (quizAttempt?.id && quizAttempt.is_draft) {
+          // Update existing draft
+          await apiClient.updateQuizAttempt(quizAttempt.id, {
+            answers: JSON.stringify(answersToSave),
+            current_question_index: currentQuestionIndex,
+            time_spent_seconds: timeSpentSeconds
+          });
+          console.log('Quiz draft updated on server');
+        } else if (!quizAttempt) {
+          // Create new draft
+          const savedAttempt = await apiClient.saveQuizAttempt(attemptData);
+          setQuizAttempt(savedAttempt);
+          console.log('Quiz draft saved to server');
+        }
+      } catch (error) {
+        console.error('Failed to auto-save quiz progress:', error);
+      }
+    };
+
+    // Debounce: save after 3 seconds of no changes
+    const timer = setTimeout(saveToServer, 3000);
+    return () => clearTimeout(timer);
+  }, [quizAnswers, gapAnswers, currentQuestionIndex, currentStep, courseId, lessonId, quizState, quizData, questions.length, quizStartTime, quizAttempt]);
 
   // Check if user can proceed to next step
   const canProceedToNext = (): boolean => {
@@ -1032,9 +1127,7 @@ export default function LessonPage() {
         setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
         if (passed) {
           markStepAsVisited(currentStep.id.toString(), 3); // 3 minutes for quiz completion
-          // Clear localStorage on success
-          localStorage.removeItem(`quiz_answers_${currentStep.id}`);
-          localStorage.removeItem(`gap_answers_${currentStep.id}`);
+          // localStorage is cleared in saveQuizAttempt after successful server save
         }
       }
     }
@@ -1051,9 +1144,7 @@ export default function LessonPage() {
       setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
       if (passed) {
         markStepAsVisited(currentStep.id.toString(), 3);
-        // Clear localStorage on success
-        localStorage.removeItem(`quiz_answers_${currentStep.id}`);
-        localStorage.removeItem(`gap_answers_${currentStep.id}`);
+        // localStorage is cleared in saveQuizAttempt after successful server save
       }
     }
   };
@@ -1186,22 +1277,42 @@ export default function LessonPage() {
       // Otherwise, it's auto-graded
       const isGraded = !hasLongText;
 
-      const attemptData = {
-        step_id: parseInt(currentStep.id.toString()),
-        course_id: parseInt(courseId),
-        lesson_id: parseInt(lessonId),
-        quiz_title: quizData?.title || 'Quiz',
-        total_questions: totalQuestions,
-        correct_answers: score,
-        score_percentage: totalQuestions > 0 ? (score / totalQuestions) * 100 : 0,
-        answers: JSON.stringify(answersToSave),
-        time_spent_seconds: timeSpentSeconds,
-        is_graded: isGraded
-      };
+      // If we have an existing draft, finalize it instead of creating new
+      if (quizAttempt?.id && quizAttempt.is_draft) {
+        const savedAttempt = await apiClient.updateQuizAttempt(quizAttempt.id, {
+          answers: JSON.stringify(answersToSave),
+          time_spent_seconds: timeSpentSeconds,
+          is_draft: false,  // Finalize the draft
+          correct_answers: score,
+          score_percentage: totalQuestions > 0 ? (score / totalQuestions) * 100 : 0,
+          is_graded: isGraded
+        });
+        setQuizAttempt(savedAttempt);
+        console.log('Quiz draft finalized successfully');
+      } else {
+        // Create new completed attempt
+        const attemptData = {
+          step_id: parseInt(currentStep.id.toString()),
+          course_id: parseInt(courseId),
+          lesson_id: parseInt(lessonId),
+          quiz_title: quizData?.title || 'Quiz',
+          total_questions: totalQuestions,
+          correct_answers: score,
+          score_percentage: totalQuestions > 0 ? (score / totalQuestions) * 100 : 0,
+          answers: JSON.stringify(answersToSave),
+          time_spent_seconds: timeSpentSeconds,
+          is_graded: isGraded,
+          is_draft: false
+        };
 
-      const savedAttempt = await apiClient.saveQuizAttempt(attemptData);
-      setQuizAttempt(savedAttempt);
-      console.log('Quiz attempt saved successfully');
+        const savedAttempt = await apiClient.saveQuizAttempt(attemptData);
+        setQuizAttempt(savedAttempt);
+        console.log('Quiz attempt saved successfully');
+      }
+      
+      // Clear localStorage only after successful server save
+      localStorage.removeItem(`quiz_answers_${currentStep.id}`);
+      localStorage.removeItem(`gap_answers_${currentStep.id}`);
     } catch (error) {
       console.error('Failed to save quiz attempt:', error);
     }
