@@ -30,6 +30,10 @@ export interface QuizLessonEditorProps {
   setQuizMediaUrl: (url: string) => void;
   quizMediaType: 'audio' | 'pdf' | 'text' | '';
   setQuizMediaType: (type: 'audio' | 'pdf' | 'text' | '') => void;
+  audioPlaybackMode?: 'strict' | 'flexible';
+  setAudioPlaybackMode?: (mode: 'strict' | 'flexible') => void;
+  audioMaxPlays?: number;
+  setAudioMaxPlays?: (plays: number) => void;
 }
 
 export default function QuizLessonEditor({
@@ -47,6 +51,8 @@ export default function QuizLessonEditor({
   setQuizMediaUrl,
   quizMediaType,
   setQuizMediaType,
+  audioPlaybackMode = 'flexible',
+  setAudioPlaybackMode,
 }: QuizLessonEditorProps) {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [draftQuestion, setDraftQuestion] = useState<Question | null>(null);
@@ -900,6 +906,49 @@ export default function QuizLessonEditor({
               </label>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Audio Playback Mode Selection */}
+      {quizType === 'audio' && setAudioPlaybackMode && (
+        <div className="space-y-3">
+          <Label>Режим воспроизведения аудио</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                audioPlaybackMode === 'flexible' 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setAudioPlaybackMode('flexible')}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🎧</span>
+                <span className="font-medium">Свободный режим</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Студент может перематывать, ставить на паузу и переслушивать аудио без ограничений. 
+                Подходит для практики и обучения.
+              </p>
+            </div>
+            <div
+              className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                audioPlaybackMode === 'strict' 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setAudioPlaybackMode('strict')}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🔒</span>
+                <span className="font-medium">Экзаменационный режим</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Студент не может перематывать аудио. Доступно только 2 повтора. 
+                Подходит для экзаменов и тестирования.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

@@ -710,6 +710,7 @@ export default function LessonEditPage() {
   const [stepQuizType, setStepQuizType] = useState<'regular' | 'audio' | 'pdf' | 'text_based'>('regular');
   const [stepQuizMediaUrl, setStepQuizMediaUrl] = useState<string>('');
   const [stepQuizMediaType, setStepQuizMediaType] = useState<'audio' | 'pdf' | 'text' | ''>('');
+  const [stepAudioPlaybackMode, setStepAudioPlaybackMode] = useState<'strict' | 'flexible'>('flexible');
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [newStepType, setNewStepType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard' | 'summary'>('text');
   
@@ -922,6 +923,7 @@ export default function LessonEditPage() {
             setStepQuizType(quizData.quiz_type || 'regular');
             setStepQuizMediaUrl(quizData.quiz_media_url || '');
             setStepQuizMediaType(quizData.quiz_media_type || '');
+            setStepAudioPlaybackMode(quizData.audio_playback_mode || 'flexible');
           } catch (e) {
             console.error('Failed to parse quiz data:', e);
           }
@@ -1052,6 +1054,7 @@ export default function LessonEditPage() {
         setStepQuizType(quizData.quiz_type || 'regular');
         setStepQuizMediaUrl(quizData.quiz_media_url || '');
         setStepQuizMediaType(quizData.quiz_media_type || '');
+        setStepAudioPlaybackMode(quizData.audio_playback_mode || 'flexible');
       } catch (e) {
         console.error('Failed to parse quiz data:', e);
       }
@@ -1063,6 +1066,7 @@ export default function LessonEditPage() {
       setStepQuizType('regular');
       setStepQuizMediaUrl('');
       setStepQuizMediaType('');
+      setStepAudioPlaybackMode('flexible');
     }
 
     if (step.content_type === 'flashcard') {
@@ -1237,7 +1241,8 @@ export default function LessonEditPage() {
               display_mode: stepQuizDisplayMode,
               quiz_type: stepQuizType,
               quiz_media_url: stepQuizMediaUrl,
-              quiz_media_type: stepQuizMediaType
+              quiz_media_type: stepQuizMediaType,
+              audio_playback_mode: stepAudioPlaybackMode
             });
             updated.video_url = '';
           } else if (stepContentType === 'flashcard') {
@@ -1343,6 +1348,7 @@ export default function LessonEditPage() {
               setStepQuizType(quizData.quiz_type || 'regular');
               setStepQuizMediaUrl(quizData.quiz_media_url || '');
               setStepQuizMediaType(quizData.quiz_media_type || '');
+              setStepAudioPlaybackMode(quizData.audio_playback_mode || 'flexible');
             } catch (e) {
               console.error('Failed to parse quiz data:', e);
             }
@@ -1758,6 +1764,11 @@ export default function LessonEditPage() {
                           quizMediaType={stepQuizMediaType}
                           setQuizMediaType={(value) => {
                             setStepQuizMediaType(value);
+                            markAsUnsaved();
+                          }}
+                          audioPlaybackMode={stepAudioPlaybackMode}
+                          setAudioPlaybackMode={(value) => {
+                            setStepAudioPlaybackMode(value);
                             markAsUnsaved();
                           }}
                         />

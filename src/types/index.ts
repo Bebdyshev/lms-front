@@ -404,6 +404,10 @@ export interface QuizData {
   questions: Question[];
   time_limit_minutes?: number;
   max_score?: number;
+  /** Audio playback mode: 'strict' = no seeking/limited replays, 'flexible' = full control */
+  audio_playback_mode?: 'strict' | 'flexible';
+  /** Max times audio can be replayed in strict mode */
+  audio_max_plays?: number;
 }
 
 // =============================================================================

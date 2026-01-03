@@ -11,6 +11,15 @@ import { TextCompletionQuestion } from './quiz/TextCompletionQuestion';
 import { FillInBlankQuestion } from './quiz/FillInBlankQuestion';
 import { MatchingQuestion } from './quiz/MatchingQuestion';
 import { ZoomableImage } from './ZoomableImage';
+import { AudioPlayer } from './quiz/AudioPlayer';
+
+// Exam mode badge component
+const ExamModeBadge = ({ maxPlays }: { maxPlays: number }) => (
+  <div className="flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-100 text-amber-700 rounded-lg text-sm font-medium mt-2">
+    <span>🔒</span>
+    <span>Exam mode · {maxPlays} plays allowed · No pause or rewind</span>
+  </div>
+);
 
 // Helper to check if content text has visible content
 const hasVisibleContent = (html: string | undefined | null): boolean => {
@@ -156,19 +165,19 @@ const QuizRenderer = (props: QuizRendererProps) => {
           )}
         </div>
 
+        {/* Exam mode badge - shown outside audio player */}
+        {quizData?.quiz_media_url && quizData.quiz_media_type === 'audio' && quizData.audio_playback_mode === 'strict' && (
+          <ExamModeBadge maxPlays={quizData.audio_max_plays || 2} />
+        )}
+
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-none md:rounded-lg border-t border-b md:border p-2 md:p-6 mb-4 md:mb-6">
-            <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? 'Audio Material' :
-                quizData.quiz_media_type === 'text' ? 'Reading Passage' :
-                  'Reference Material'}
-            </h3>
+          <div className="bg-white rounded-none md:rounded-lg">
             {quizData.quiz_media_type === 'audio' ? (
-              <audio
-                controls
+              <AudioPlayer
                 src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
-                className="w-full"
+                mode={quizData.audio_playback_mode || 'flexible'}
+                maxPlays={quizData.audio_max_plays || 2}
               />
             ) : quizData.quiz_media_type === 'text' ? (
               <div className="prose prose-lg max-w-none bg-gray-50 p-6 rounded-lg border">
@@ -180,10 +189,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 <ZoomableImage
                   src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
                   alt="Reference material"
-                  caption="Reference this image to answer the questions below."
                 />
               ) : (
-                <div className="border rounded-lg p-4 bg-gray-50">
+                <div className="border rounded-lg bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
                     <iframe
                       src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}#toolbar=0&navpanes=0&scrollbar=1`}
@@ -191,9 +199,6 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       title="Question PDF"
                     />
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Reference this document to answer the questions below.
-                  </p>
                 </div>
               )
             ) : null}
@@ -516,19 +521,19 @@ const QuizRenderer = (props: QuizRendererProps) => {
           </p>
         </div>
 
+        {/* Exam mode badge - shown outside audio player */}
+        {quizData?.quiz_media_url && quizData.quiz_media_type === 'audio' && quizData.audio_playback_mode === 'strict' && (
+          <ExamModeBadge maxPlays={quizData.audio_max_plays || 2} />
+        )}
+
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-none md:rounded-lg border-t border-b md:border p-2 md:p-6 mb-4 md:mb-6">
-            <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? 'Audio Material' :
-                quizData.quiz_media_type === 'text' ? 'Reading Passage' :
-                  'Reference Material'}
-            </h3>
+          <div className="bg-white rounded-none md:rounded-lg">
             {quizData.quiz_media_type === 'audio' ? (
-              <audio
-                controls
+              <AudioPlayer
                 src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
-                className="w-full"
+                mode={quizData.audio_playback_mode || 'flexible'}
+                maxPlays={quizData.audio_max_plays || 2}
               />
             ) : quizData.quiz_media_type === 'text' ? (
               <div className="prose prose-lg max-w-none bg-gray-50 p-6 rounded-lg border">
@@ -540,10 +545,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 <ZoomableImage
                   src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
                   alt="Reference material"
-                  caption="Reference this image to answer the questions below."
                 />
               ) : (
-                <div className="border rounded-lg p-4 bg-gray-50">
+                <div className="border rounded-lg bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
                     <iframe
                       src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}#toolbar=0&navpanes=0&scrollbar=1`}
@@ -551,9 +555,6 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       title="Question PDF"
                     />
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Reference this document to answer the questions below.
-                  </p>
                 </div>
               )
             ) : null}
@@ -726,21 +727,19 @@ const QuizRenderer = (props: QuizRendererProps) => {
           </div>
         </div>
 
-
+        {/* Exam mode badge - shown outside audio player */}
+        {quizData?.quiz_media_url && quizData.quiz_media_type === 'audio' && quizData.audio_playback_mode === 'strict' && (
+          <ExamModeBadge maxPlays={quizData.audio_max_plays || 2} />
+        )}
 
         {/* Quiz-level Media for Audio/PDF/Text Quizzes */}
         {quizData?.quiz_media_url && (
-          <div className="bg-white rounded-none md:rounded-lg border-t border-b md:border p-2 md:p-6 mb-4 md:mb-6">
-            <h3 className="text-lg font-semibold mb-4">
-              {quizData.quiz_media_type === 'audio' ? 'Audio Material' :
-                quizData.quiz_media_type === 'text' ? 'Reading Passage' :
-                  'Reference Material'}
-            </h3>
+          <div className="bg-white rounded-none md:rounded-lg border-t border-b md:border p-2 md:p-4 mb-4 md:mb-6">
             {quizData.quiz_media_type === 'audio' ? (
-              <audio
-                controls
+              <AudioPlayer
                 src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + quizData.quiz_media_url}
-                className="w-full"
+                mode={quizData.audio_playback_mode || 'flexible'}
+                maxPlays={quizData.audio_max_plays || 2}
               />
             ) : quizData.quiz_media_type === 'text' ? (
               <div className="prose prose-lg max-w-none bg-gray-50 p-6 rounded-lg border">
@@ -752,10 +751,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 <ZoomableImage
                   src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}`}
                   alt="Reference material"
-                  caption="Reference this image to answer the questions below."
                 />
               ) : (
-                <div className="border rounded-lg p-4 bg-gray-50">
+                <div className="border rounded-lg bg-gray-50">
                   <div className="w-full h-[800px] border rounded-lg">
                     <iframe
                       src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${quizData.quiz_media_url}#toolbar=0&navpanes=0&scrollbar=1`}
@@ -763,9 +761,6 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       title="Question PDF"
                     />
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Reference this document to answer the questions below.
-                  </p>
                 </div>
               )
             ) : null}
