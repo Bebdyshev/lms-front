@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, FileText, MessageSquare, Link as LinkIcon, CheckCircle, ExternalLink, Upload, X } from 'lucide-react';
+import { BookOpen, FileText, MessageSquare, Link as LinkIcon, CheckCircle, ExternalLink, Upload, X, FileSearch } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -9,7 +9,7 @@ import apiClient from '../../services/api';
 
 interface Task {
   id: string;
-  task_type: 'course_unit' | 'file_task' | 'text_task' | 'link_task';
+  task_type: 'course_unit' | 'file_task' | 'text_task' | 'link_task' | 'pdf_text_task';
   title: string;
   description?: string;
   order_index: number;
@@ -397,6 +397,56 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
           </div>
         );
 
+      case 'pdf_text_task':
+        return (
+          <div className="space-y-3">
+            {/* File Download Link */}
+            {task.content.teacher_file_url && (
+              <div className="flex items-center p-3 bg-blue-50 rounded-md border border-blue-200">
+                <FileText className="w-5 h-5 text-blue-600 mr-3" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-blue-900">
+                    {task.content.teacher_file_name || 'Reference File'}
+                  </div>
+                  <a 
+                    href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + task.content.teacher_file_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Open/Download File
+                  </a>
+                </div>
+              </div>
+            )}
+            
+            {/* Question/Instructions */}
+            <div className="text-sm font-medium">{task.content.question}</div>
+            
+            {/* Text Response */}
+            <Textarea
+              value={taskAnswer.text_response || ''}
+              onChange={(e) => handleTaskCompletion(task.id, { text_response: e.target.value })}
+              placeholder="Type your answer here..."
+              rows={5}
+              disabled={readOnly}
+              className={readOnly ? "bg-gray-50" : ""}
+            />
+            {!readOnly && task.content.max_length && (
+              <div className="text-xs text-right text-gray-500">
+                {(taskAnswer.text_response?.length || 0)} / {task.content.max_length} characters
+              </div>
+            )}
+            
+            {/* Keywords hint (optional, for info) */}
+            {task.content.keywords && task.content.keywords.length > 0 && readOnly && (
+              <div className="text-xs text-gray-500 mt-2">
+                Keywords for grading: {task.content.keywords.join(', ')}
+              </div>
+            )}
+          </div>
+        );
+
       default:
         return <div>Unknown task type</div>;
     }
@@ -408,6 +458,7 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
       case 'file_task': return FileText;
       case 'text_task': return MessageSquare;
       case 'link_task': return LinkIcon;
+      case 'pdf_text_task': return FileSearch;
       default: return FileText;
     }
   };

@@ -209,6 +209,7 @@ export default function AssignmentBuilderPage() {
       if (formData.assignment_type === 'multi_task' && formData.content.tasks) {
         // Handle multi-task file uploads
         const updatedTasks = await Promise.all(formData.content.tasks.map(async (task: any) => {
+          // Handle file_task
           if (task.task_type === 'file_task' && task.content.teacher_file instanceof File) {
             try {
               console.log(`Uploading teacher file for task ${task.id}:`, task.content.teacher_file.name);
@@ -239,6 +240,36 @@ export default function AssignmentBuilderPage() {
                content: restContent
              };
           }
+          
+          // Handle pdf_text_task
+          if (task.task_type === 'pdf_text_task' && task.content.teacher_file instanceof File) {
+            try {
+              console.log(`Uploading PDF file for task ${task.id}:`, task.content.teacher_file.name);
+              const uploadResult = await apiClient.uploadTeacherFile(task.content.teacher_file);
+              
+              return {
+                ...task,
+                content: {
+                  ...task.content,
+                  teacher_file_url: uploadResult.file_url || uploadResult.url,
+                  teacher_file_name: task.content.teacher_file_name || task.content.teacher_file.name,
+                  teacher_file: undefined // Remove File object
+                }
+              };
+            } catch (err) {
+              console.error(`Failed to upload PDF for task ${task.id}:`, err);
+              throw new Error(`Failed to upload PDF for task: ${task.title}`);
+            }
+          } else if (task.task_type === 'pdf_text_task') {
+             // Ensure teacher_file is removed if it's not a File object
+             // and preserve existing url
+             const { teacher_file, ...restContent } = task.content;
+             return {
+               ...task,
+               content: restContent
+             };
+          }
+          
           return task;
         }));
 

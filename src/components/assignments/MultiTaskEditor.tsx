@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Trash2, GripVertical, BookOpen, FileText, MessageSquare, Link as LinkIcon } from 'lucide-react';
+import { Trash2, GripVertical, BookOpen, FileText, MessageSquare, Link as LinkIcon, FileSearch } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Label } from '../ui/label';
@@ -9,10 +9,11 @@ import CourseUnitTaskEditor from './CourseUnitTaskEditor';
 import TextTaskEditor from './TextTaskEditor';
 import LinkTaskEditor from './LinkTaskEditor';
 import FileUploadEditor from './FileUploadEditor';
+import PdfTextTaskEditor from './PdfTextTaskEditor';
 
 interface Task {
   id: string;
-  task_type: 'course_unit' | 'file_task' | 'text_task' | 'link_task';
+  task_type: 'course_unit' | 'file_task' | 'text_task' | 'link_task' | 'pdf_text_task';
   title: string;
   description?: string;
   order_index: number;
@@ -29,7 +30,8 @@ const TASK_TYPES = [
   { value: 'course_unit', label: 'Course Units', icon: BookOpen, description: 'Complete specific course lessons' },
   { value: 'file_task', label: 'File Upload', icon: FileText, description: 'Upload a file (PDF, image, etc.)' },
   { value: 'text_task', label: 'Text Response', icon: MessageSquare, description: 'Written answer' },
-  { value: 'link_task', label: 'External Link', icon: LinkIcon, description: 'Visit external resource' }
+  { value: 'link_task', label: 'External Link', icon: LinkIcon, description: 'Visit external resource' },
+  { value: 'pdf_text_task', label: 'File + Text', icon: FileSearch, description: 'Upload file, student writes response' }
 ];
 
 export default function MultiTaskEditor({ content, onContentChange }: MultiTaskEditorProps) {
@@ -138,6 +140,13 @@ export default function MultiTaskEditor({ content, onContentChange }: MultiTaskE
       case 'link_task':
         return (
           <LinkTaskEditor
+            content={task.content}
+            onContentChange={(content) => updateTask(index, { content })}
+          />
+        );
+      case 'pdf_text_task':
+        return (
+          <PdfTextTaskEditor
             content={task.content}
             onContentChange={(content) => updateTask(index, { content })}
           />
