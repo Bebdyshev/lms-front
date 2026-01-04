@@ -231,6 +231,7 @@ export default function AssignmentGradingPage() {
                   initialAnswers={selectedSubmission.answers} 
                   readOnly={true}
                   onSubmit={() => {}}
+                  studentId={String(selectedSubmission.user_id)}
                 />
               ) : (
                 <div className="space-y-4">
