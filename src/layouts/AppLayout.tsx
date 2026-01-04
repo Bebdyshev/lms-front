@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { SidebarDesktop, SidebarMobile } from '../components/Sidebar.tsx';
 import Topbar from '../components/Topbar.tsx';
 import ToastContainer from '../components/Toast.tsx';
+import PlatformUpdatesModal from '../components/PlatformUpdatesModal.tsx';
+import { useAuth } from '../contexts/AuthContext.tsx';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
+  const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('mainSidebarCollapsed');
@@ -28,6 +31,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <ToastContainer />
       </main>
       <SidebarMobile open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      
+      {/* Platform Updates Modal - shows automatically to teachers/admins */}
+      <PlatformUpdatesModal userRole={user?.role} />
     </div>
   );
 }

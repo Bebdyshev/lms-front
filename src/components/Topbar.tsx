@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import StreakIcon from './StreakIcon';
+import { WhatsNewButton } from './PlatformUpdatesModal';
 
 interface TopbarProps {
   onOpenSidebar: () => void;
@@ -60,6 +61,8 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
         <div className="text-xl sm:text-2xl font-semibold text-gray-900">{firstName}!</div>
       </div>
       <div className="flex items-center gap-3">
+        {/* What's New Button for Teachers/Admins */}
+        <WhatsNewButton userRole={user?.role} />
         {/* Daily Streak */}
         <StreakIcon />
         <button className="lg:hidden w-10 h-10 rounded-lg bg-white border text-lg" onClick={onOpenSidebar} aria-label="Open menu">☰</button>
