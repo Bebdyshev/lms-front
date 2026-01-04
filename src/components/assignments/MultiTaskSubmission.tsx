@@ -353,7 +353,12 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
       case 'text_task':
         return (
           <div className="space-y-3">
+     
             <div className="text-sm font-medium">{task.content.question}</div>
+            {/* Student Response Label */}
+            {readOnly && taskAnswer.text_response && (
+              <div className="text-xs text-gray-500 font-medium">Student's Response:</div>
+            )}
             <Textarea
               value={taskAnswer.text_response || ''}
               onChange={(e) => handleTaskCompletion(task.id, { text_response: e.target.value })}
@@ -365,6 +370,12 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
             {!readOnly && task.content.max_length && (
               <div className="text-xs text-right text-gray-500">
                 {(taskAnswer.text_response?.length || 0)} / {task.content.max_length} characters
+              </div>
+            )}
+            {/* Keywords hint for teacher grading */}
+            {task.content.keywords && task.content.keywords.length > 0 && readOnly && (
+              <div className="text-xs text-gray-500 mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                <span className="font-medium">Keywords for grading:</span> {task.content.keywords.join(', ')}
               </div>
             )}
           </div>
@@ -403,7 +414,7 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
             {/* File Download Link */}
             {task.content.teacher_file_url && (
               <div className="flex items-center p-3 bg-blue-50 rounded-md border border-blue-200">
-                <FileText className="w-5 h-5 text-blue-600 mr-3" />
+                <FileSearch className="w-5 h-5 text-blue-600 mr-3" />
                 <div className="flex-1">
                   <div className="text-sm font-medium text-blue-900">
                     {task.content.teacher_file_name || 'Reference File'}
@@ -423,6 +434,11 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
             {/* Question/Instructions */}
             <div className="text-sm font-medium">{task.content.question}</div>
             
+            {/* Student Response Label */}
+            {readOnly && taskAnswer.text_response && (
+              <div className="text-xs text-gray-500 font-medium">Student's Response:</div>
+            )}
+            
             {/* Text Response */}
             <Textarea
               value={taskAnswer.text_response || ''}
@@ -438,10 +454,10 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
               </div>
             )}
             
-            {/* Keywords hint (optional, for info) */}
+            {/* Keywords hint for teacher grading */}
             {task.content.keywords && task.content.keywords.length > 0 && readOnly && (
-              <div className="text-xs text-gray-500 mt-2">
-                Keywords for grading: {task.content.keywords.join(', ')}
+              <div className="text-xs text-gray-500 mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                <span className="font-medium">Keywords for grading:</span> {task.content.keywords.join(', ')}
               </div>
             )}
           </div>
