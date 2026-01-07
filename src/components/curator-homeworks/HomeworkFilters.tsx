@@ -1,0 +1,56 @@
+import React from 'react';
+import { Search, Filter } from 'lucide-react';
+import { Input } from '../ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
+import type { StatusFilter } from './types';
+
+interface HomeworkFiltersProps {
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  statusFilter: StatusFilter;
+  onStatusFilterChange: (value: StatusFilter) => void;
+}
+
+export const HomeworkFilters: React.FC<HomeworkFiltersProps> = ({
+  searchQuery,
+  onSearchChange,
+  statusFilter,
+  onStatusFilterChange,
+}) => {
+  return (
+    <div className="flex flex-wrap gap-4 items-center bg-card p-4 rounded-lg border">
+      <div className="flex-1 min-w-[200px]">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by student name..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+      <Select
+        value={statusFilter}
+        onValueChange={(v) => onStatusFilterChange(v as StatusFilter)}
+      >
+        <SelectTrigger className="w-[180px]">
+          <Filter className="w-4 h-4 mr-2" />
+          <SelectValue placeholder="Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All</SelectItem>
+          <SelectItem value="submitted">Pending Review</SelectItem>
+          <SelectItem value="graded">Graded</SelectItem>
+          <SelectItem value="not_submitted">Not Submitted</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
