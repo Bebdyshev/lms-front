@@ -2390,6 +2390,18 @@ class LMSApiClient {
     }
   }
 
+  async getCuratorHomeworkByGroup(groupId?: number): Promise<any> {
+    try {
+      const response = await this.api.get('/dashboard/curator/homework-by-group', {
+        params: groupId ? { group_id: groupId } : {}
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to load curator homework by group:', error);
+      throw error;
+    }
+  }
+
   // Leaderboard Methods
   async getCuratorGroups(): Promise<Group[]> {
     try {
