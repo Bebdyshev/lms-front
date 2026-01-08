@@ -377,7 +377,7 @@ export interface Question {
   id: string;
   assignment_id: string;
   question_text: string;
-  question_type: 'single_choice' | 'multiple_choice' | 'short_answer' | 'fill_blank' | 'text_completion' | 'long_text' | 'media_question' | 'media_open_question' | 'matching';
+  question_type: 'single_choice' | 'multiple_choice' | 'short_answer' | 'fill_blank' | 'text_completion' | 'long_text' | 'media_question' | 'media_open_question' | 'matching' | 'image_content';
   options?: QuestionOption[];
   correct_answer: any; // Use any to avoid complex type issues
   points: number;

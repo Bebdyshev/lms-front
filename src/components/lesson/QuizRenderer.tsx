@@ -107,10 +107,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
   const navigate = useNavigate();
 
   // Calculate total number of "questions" considering gaps in fill_blank and text_completion
+  // Excludes image_content which is just visual content, not a question
   const getTotalQuestionCount = () => {
     if (!questions || questions.length === 0) return 0;
 
     return questions.reduce((total, q) => {
+      // Skip image_content - it's not a question
+      if (q.question_type === 'image_content') return total;
+      
       if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
         // Count the number of gaps in the question
         const text = q.content_text || q.question_text || '';
@@ -128,10 +132,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
   // The actual implementation will be added in the next steps.
 
   // Get the display number for a question (accounting for gaps in previous questions)
+  // Skips image_content questions as they don't have numbers
   const getQuestionDisplayNumber = (questionIndex: number) => {
     let displayNumber = 1;
     for (let i = 0; i < questionIndex; i++) {
       const q = questions[i];
+      // Skip image_content in numbering
+      if (q.question_type === 'image_content') continue;
+      
       if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
         const text = q.content_text || q.question_text || '';
         const gaps = text.match(/\[\[(.*?)\]\]/g);
@@ -213,6 +221,26 @@ const QuizRenderer = (props: QuizRendererProps) => {
             const questionGaps = (q.question_type === 'fill_blank' || q.question_type === 'text_completion')
               ? (q.content_text || q.question_text || '').match(/\[\[(.*?)\]\]/g)?.length || 1
               : 1;
+
+            // Special rendering for image_content - just show the image, no question UI
+            if (q.question_type === 'image_content') {
+              return (
+                <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+                  <div className="p-2 md:p-6 flex flex-col items-center">
+                    {q.media_url && (
+                      <img
+                        src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
+                        alt={q.question_text || "Reference image"}
+                        className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-lg"
+                      />
+                    )}
+                    {q.question_text && (
+                      <p className="text-sm text-gray-600 mt-2 text-center">{q.question_text}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
@@ -360,6 +388,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 finishQuiz();
               }}
               disabled={questions.some(q => {
+                // Skip image_content - no answer required
+                if (q.question_type === 'image_content') return false;
+                
                 const ans = quizAnswers.get(q.id);
                 if (q.question_type === 'fill_blank') {
                   const gapAns = gapAnswers.get(q.id.toString()) || [];
@@ -375,6 +406,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 return ans === undefined;
               })}
               className={`px-8 py-3 rounded-lg text-lg font-semibold transition-all duration-200 ${questions.some(q => {
+                // Skip image_content - no answer required
+                if (q.question_type === 'image_content') return false;
+                
                 const ans = quizAnswers.get(q.id);
                 if (q.question_type === 'fill_blank') {
                   const gapAns = gapAnswers.get(q.id.toString()) || [];
@@ -504,6 +538,39 @@ const QuizRenderer = (props: QuizRendererProps) => {
     if (!questions || questions.length === 0) return null;
     const q = questions[currentQuestionIndex];
     if (!q) return null;
+
+    // Special rendering for image_content - just show the image, auto-advance
+    if (q.question_type === 'image_content') {
+      return (
+        <div className="w-full md:max-w-3xl md:mx-auto space-y-4 md:space-y-6 md:p-4">
+          <div className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+            <div className="p-2 md:p-6 flex flex-col items-center">
+              {q.media_url && (
+                <img
+                  src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}${q.media_url}`}
+                  alt={q.question_text || "Reference image"}
+                  className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-lg"
+                />
+              )}
+              {q.question_text && (
+                <p className="text-sm text-gray-600 mt-4 text-center">{q.question_text}</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Navigation */}
+          <div className="flex justify-center">
+            <Button
+              onClick={nextQuestion}
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg font-semibold transition-all duration-200"
+            >
+              Continue
+              <ChevronRight className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
+        </div>
+      );
+    }
 
     const userAnswer = quizAnswers.get(q.id);
     const displayNumber = getQuestionDisplayNumber(currentQuestionIndex);

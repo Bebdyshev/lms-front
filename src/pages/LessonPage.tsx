@@ -1326,6 +1326,9 @@ export default function LessonPage() {
     let correctRegular = 0;
 
     questions.forEach(question => {
+      // Skip image_content - it's not a question, just visual content
+      if (question.question_type === 'image_content') return;
+      
       if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
         const userAnswers = gapAnswers.get(question.id.toString()) || [];
 

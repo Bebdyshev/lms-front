@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import apiClient from '../../services/api';
 import { renderTextWithLatex } from '../../utils/latex';
 import RichTextEditor from '../RichTextEditor';
-import { Upload, FileText, Image, Plus, Trash2 } from 'lucide-react';
+import { Upload, FileText, Image, Plus, Trash2, ChevronUp, ChevronDown, CheckCircle } from 'lucide-react';
 import { FillInBlankRenderer } from './FillInBlankRenderer';
 import { TextCompletionRenderer } from './TextCompletionRenderer';
 import { parseGap } from '../../utils/gapParser';
@@ -308,6 +308,14 @@ export default function QuizLessonEditor({
   const validateQuestion = (question: Question): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
 
+    // image_content type only requires media_url, not question text
+    if (question.question_type === 'image_content') {
+      if (!question.media_url) {
+        errors.push('Please upload an image');
+      }
+      return { isValid: errors.length === 0, errors };
+    }
+
     // Only validate if the question has been started (has some content)
     const hasStarted = question.question_text.trim() ||
       (question.options && question.options.some(opt => opt.text.trim())) ||
@@ -319,9 +327,6 @@ export default function QuizLessonEditor({
 
     if (!question.question_text.trim()) {
       errors.push('Question text is required');
-    }
-    if (question.is_sat_question && !((question.content_text || '').toString().trim())) {
-      errors.push('Passage text is required');
     }
     if (question.question_type === 'fill_blank') {
       const answers = Array.isArray(question.correct_answer)
@@ -388,6 +393,26 @@ export default function QuizLessonEditor({
 
   const removeQuestion = (index: number) => {
     setQuizQuestions(quizQuestions.filter((_, i) => i !== index));
+  };
+
+  const moveQuestionUp = (index: number) => {
+    if (index === 0) return;
+    const newQuestions = [...quizQuestions];
+    [newQuestions[index - 1], newQuestions[index]] = [newQuestions[index], newQuestions[index - 1]];
+    // Update order_index for both questions
+    newQuestions[index - 1].order_index = index - 1;
+    newQuestions[index].order_index = index;
+    setQuizQuestions(newQuestions);
+  };
+
+  const moveQuestionDown = (index: number) => {
+    if (index === quizQuestions.length - 1) return;
+    const newQuestions = [...quizQuestions];
+    [newQuestions[index], newQuestions[index + 1]] = [newQuestions[index + 1], newQuestions[index]];
+    // Update order_index for both questions
+    newQuestions[index].order_index = index;
+    newQuestions[index + 1].order_index = index + 1;
+    setQuizQuestions(newQuestions);
   };
 
 
@@ -1018,7 +1043,7 @@ export default function QuizLessonEditor({
       {/* Questions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900">Questions</h3>
+          <h3 className="text-lg font-medium text-gray-900">Questions ({quizQuestions.length})</h3>
           <div className="flex gap-2">
             <Button onClick={() => setShowBulkUploadModal(true)} variant="outline">Bulk Upload</Button>
             <Button onClick={() => setShowSatImageModal(true)} variant="outline">Analyze SAT Image</Button>
@@ -1026,64 +1051,246 @@ export default function QuizLessonEditor({
           </div>
         </div>
 
-        <div className="space-y-8">
+        <div className="space-y-4">
           {quizQuestions.map((q, idx) => {
             const validation = getQuestionValidationStatus(q);
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+            
             return (
-              <div key={q.id} className={`p-4 rounded-lg border bg-white space-y-4 ${!validation.isValid ? 'border-red-200' : ''}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-gray-500">Question {idx + 1}</div>
-                    {!validation.isValid && (
-                      <div className="text-sm text-red-600">
-                        {validation.errors.join(', ')}
-                      </div>
-                    )}
+              <div key={q.id} className={`rounded-lg border bg-white overflow-hidden ${!validation.isValid ? 'border-red-300' : 'border-gray-200'}`}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
+                  <div className="flex items-center gap-3">
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        onClick={() => moveQuestionUp(idx)}
+                        disabled={idx === 0}
+                        className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Move up"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => moveQuestionDown(idx)}
+                        disabled={idx === quizQuestions.length - 1}
+                        className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Move down"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
+                        {idx + 1}
+                      </span>
+                      <span className="text-sm font-medium text-gray-600">
+                        {q.question_type === 'single_choice' ? 'Single Choice' :
+                          q.question_type === 'multiple_choice' ? 'Multiple Choice' :
+                            q.question_type === 'short_answer' ? 'Short Answer' :
+                              q.question_type === 'fill_blank' ? 'Fill in the Blank' :
+                                q.question_type === 'text_completion' ? 'Text Completion' :
+                                  q.question_type === 'long_text' ? 'Long Text' :
+                                    q.question_type === 'media_question' ? 'Media Question' :
+                                      q.question_type === 'media_open_question' ? 'Open Media' :
+                                        q.question_type === 'image_content' ? 'Image/Map' :
+                                          q.question_type === 'matching' ? 'Matching' :
+                                          q.question_type}
+                      </span>
+                      {!validation.isValid && (
+                        <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded">
+                          {validation.errors[0]}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  
                   <div className="flex gap-2">
-                    <Button
-                      onClick={() => openEditQuestion(idx)}
-                      variant="outline"
-                      size="sm"
-                    >
+                    <Button onClick={() => openEditQuestion(idx)} variant="outline" size="sm">
                       Edit
                     </Button>
-                    <Button
-                      onClick={() => removeQuestion(idx)}
-                      variant="destructive"
-                      size="sm"
-                    >
+                    <Button onClick={() => removeQuestion(idx)} variant="destructive" size="sm">
                       Remove
                     </Button>
                   </div>
                 </div>
 
-                {/* Brief question summary */}
-                <div className="space-y-2">
-                  <div className="text-sm text-gray-700">
-                    <span className="font-medium">Type:</span> {
-                      q.question_type === 'single_choice' ? 'Single Choice' :
-                        q.question_type === 'multiple_choice' ? 'Multiple Choice' :
-                          q.question_type === 'short_answer' ? 'Short Answer' :
-                            q.question_type === 'fill_blank' ? 'Fill in the Blank' :
-                              q.question_type === 'text_completion' ? 'Text Completion' :
-                                q.question_type === 'long_text' ? 'Long Text Answer' :
-                                  q.question_type === 'media_question' ? 'Media Question' :
-                                    q.question_type === 'media_open_question' ? 'Open Media Question' :
-                                    q.question_type
-                    }
-                  </div>
-                  <div className="text-sm text-gray-700 line-clamp-2">
-                    <span className="font-medium">Question:</span> {q.question_text || 'No question text'}
-                  </div>
-                  {q.content_text && (
-                    <div className="text-xs text-gray-500 line-clamp-1">
-                      Has passage text
+                {/* Preview Content */}
+                <div className="p-4">
+                  {/* Image Content Type */}
+                  {q.question_type === 'image_content' && (
+                    <div className="flex flex-col items-center">
+                      {q.media_url ? (
+                        <img
+                          src={`${backendUrl}${q.media_url}`}
+                          alt="Question image"
+                          className="max-w-full max-h-64 object-contain rounded-lg"
+                        />
+                      ) : (
+                        <div className="text-gray-400 italic">No image uploaded</div>
+                      )}
+                      {q.question_text && (
+                        <p className="text-sm text-gray-600 mt-2">{q.question_text}</p>
+                      )}
                     </div>
                   )}
-                  {(q.question_type === 'media_question' || q.question_type === 'media_open_question') && q.media_url && (
-                    <div className="text-xs text-gray-500">
-                      Has {q.media_type} attachment
+
+                  {/* Media Question Types */}
+                  {(q.question_type === 'media_question' || q.question_type === 'media_open_question') && (
+                    <div className="space-y-3">
+                      {q.media_url && (
+                        <div className="mb-3">
+                          {q.media_type === 'image' ? (
+                            <img
+                              src={`${backendUrl}${q.media_url}`}
+                              alt="Question media"
+                              className="max-w-full max-h-48 object-contain rounded-lg"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded">
+                              <FileText className="w-4 h-4" />
+                              PDF attached
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div 
+                        className="text-gray-900"
+                        dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text || '') }}
+                      />
+                      {q.question_type === 'media_question' && q.options && q.options.length > 0 && (
+                        <div className="space-y-2 mt-3">
+                          {q.options.map((opt, optIdx) => (
+                            <div
+                              key={opt.id || optIdx}
+                              className={`flex items-center gap-2 p-2 rounded border ${
+                                q.correct_answer === optIdx ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'
+                              }`}
+                            >
+                              <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
+                                {String.fromCharCode(65 + optIdx)}
+                              </span>
+                              <span className="flex-1">{opt.text || <span className="text-gray-400 italic">Empty option</span>}</span>
+                              {q.correct_answer === optIdx && (
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Single/Multiple Choice */}
+                  {(q.question_type === 'single_choice' || q.question_type === 'multiple_choice') && (
+                    <div className="space-y-3">
+                      <div 
+                        className="text-gray-900 font-medium"
+                        dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text || '') }}
+                      />
+                      {q.options && q.options.length > 0 && (
+                        <div className="space-y-2">
+                          {q.options.map((opt, optIdx) => {
+                            const isCorrect = q.question_type === 'multiple_choice'
+                              ? Array.isArray(q.correct_answer) && q.correct_answer.includes(optIdx)
+                              : q.correct_answer === optIdx;
+                            return (
+                              <div
+                                key={opt.id || optIdx}
+                                className={`flex items-center gap-2 p-2 rounded border ${
+                                  isCorrect ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'
+                                }`}
+                              >
+                                <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
+                                  {String.fromCharCode(65 + optIdx)}
+                                </span>
+                                <span className="flex-1">{opt.text || <span className="text-gray-400 italic">Empty option</span>}</span>
+                                {isCorrect && (
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Short Answer */}
+                  {q.question_type === 'short_answer' && (
+                    <div className="space-y-3">
+                      <div 
+                        className="text-gray-900 font-medium"
+                        dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text || '') }}
+                      />
+                      <div className="text-sm">
+                        <span className="text-gray-500">Correct answer:</span>{' '}
+                        <span className="font-medium text-green-700">{q.correct_answer || 'Not set'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fill in the Blank / Text Completion */}
+                  {(q.question_type === 'fill_blank' || q.question_type === 'text_completion') && (
+                    <div className="space-y-3">
+                      {q.question_text && (
+                        <div 
+                          className="text-gray-900 font-medium"
+                          dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text) }}
+                        />
+                      )}
+                      <div className="bg-gray-50 p-3 rounded border text-sm">
+                        <div 
+                          dangerouslySetInnerHTML={{ 
+                            __html: renderTextWithLatex(
+                              (q.content_text || '').replace(
+                                /\[\[([^\]]+)\]\]/g, 
+                                '<span class="px-2 py-0.5 bg-green-100 text-green-800 rounded border border-green-300 font-medium">$1</span>'
+                              )
+                            )
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Long Text */}
+                  {q.question_type === 'long_text' && (
+                    <div className="space-y-3">
+                      <div 
+                        className="text-gray-900 font-medium"
+                        dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text || '') }}
+                      />
+                      <div className="text-sm text-gray-500 italic">
+                        Long text response expected
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Matching */}
+                  {q.question_type === 'matching' && q.matching_pairs && (
+                    <div className="space-y-3">
+                      <div 
+                        className="text-gray-900 font-medium"
+                        dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text || 'Match the following:') }}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-2">
+                          {q.matching_pairs.map((pair, pairIdx) => (
+                            <div key={pairIdx} className="p-2 bg-blue-50 rounded border border-blue-200 text-sm">
+                              {pair.left || <span className="text-gray-400 italic">Empty</span>}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="space-y-2">
+                          {q.matching_pairs.map((pair, pairIdx) => (
+                            <div key={pairIdx} className="p-2 bg-green-50 rounded border border-green-200 text-sm">
+                              {pair.right || <span className="text-gray-400 italic">Empty</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1330,6 +1537,11 @@ export default function QuizLessonEditor({
                               ];
                             }
                             next.correct_answer = next.matching_pairs.map((_: { left: string; right: string }, i: number) => i);
+                          } else if (val === 'image_content') {
+                            next.question_type = 'image_content';
+                            next.correct_answer = null; // No answer needed
+                            next.options = undefined; // No options
+                            next.points = 0; // No points for image content
                           }
                           setDraftQuestion(next);
                         }}
@@ -1346,15 +1558,21 @@ export default function QuizLessonEditor({
                           <SelectItem value="media_question">Media-based question</SelectItem>
                           <SelectItem value="media_open_question">Open media question</SelectItem>
                           <SelectItem value="matching">Matching</SelectItem>
+                          <SelectItem value="image_content">Image/Map (no question)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
                   {/* Media Upload for Media Questions */}
-                  {(draftQuestion.question_type === 'media_question' || draftQuestion.question_type === 'media_open_question') && (
+                  {(draftQuestion.question_type === 'media_question' || draftQuestion.question_type === 'media_open_question' || draftQuestion.question_type === 'image_content') && (
                     <div className="space-y-2">
-                      <Label>Media Attachment</Label>
+                      <Label>{draftQuestion.question_type === 'image_content' ? 'Image/Map' : 'Media Attachment'}</Label>
+                      {draftQuestion.question_type === 'image_content' && (
+                        <p className="text-sm text-muted-foreground">
+                          This will display as an image between questions (e.g., a map for listening exercises). No answer input will be shown.
+                        </p>
+                      )}
                       <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                         {draftQuestion.media_url ? (
                           <div className="space-y-2">
