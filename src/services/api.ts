@@ -2240,6 +2240,7 @@ class LMSApiClient {
     correct_answers?: number;
     score_percentage?: number;
     is_graded?: boolean;
+    total_questions?: number;
   }): Promise<any> {
     try {
       const response = await this.api.patch(`/progress/quiz-attempts/${attemptId}`, updateData);

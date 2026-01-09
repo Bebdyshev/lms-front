@@ -875,12 +875,15 @@ export default function LessonPage() {
           ? Math.floor((Date.now() - quizStartTime) / 1000)
           : undefined;
 
+        // Calculate total questions including gaps (to match getScore logic)
+        const { total } = getScore();
+
         const attemptData = {
           step_id: parseInt(currentStep.id.toString()),
           course_id: parseInt(courseId),
           lesson_id: parseInt(lessonId),
           quiz_title: quizData?.title || 'Quiz',
-          total_questions: questions.length,
+          total_questions: total,  // Use total from getScore to include gaps
           correct_answers: 0,
           score_percentage: 0,
           answers: JSON.stringify(answersToSave),
@@ -1283,6 +1286,7 @@ export default function LessonPage() {
           answers: JSON.stringify(answersToSave),
           time_spent_seconds: timeSpentSeconds,
           is_draft: false,  // Finalize the draft
+          total_questions: totalQuestions,  // Update total_questions to include gaps
           correct_answers: score,
           score_percentage: totalQuestions > 0 ? (score / totalQuestions) * 100 : 0,
           is_graded: isGraded
