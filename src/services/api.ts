@@ -1750,6 +1750,75 @@ class LMSApiClient {
     }
   }
 
+  // Admin Progress Management
+  async completeStepsForUser(data: {
+    user_id: number;
+    course_id: number;
+    lesson_ids?: number[];
+    step_ids?: number[];
+  }): Promise<{
+    success: boolean;
+    message: string;
+    user: { id: number; name: string; email: string };
+    course: { id: number; title: string };
+    statistics: {
+      total_steps: number;
+      newly_completed: number;
+      updated: number;
+      already_completed: number;
+    };
+  }> {
+    try {
+      const response = await this.api.post('/admin/complete-steps-for-user', data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to complete steps for user');
+    }
+  }
+
+  async resetStepsForUser(data: {
+    user_id: number;
+    course_id: number;
+    lesson_ids?: number[];
+    step_ids?: number[];
+  }): Promise<{
+    success: boolean;
+    message: string;
+    deleted_records: number;
+  }> {
+    try {
+      const response = await this.api.post('/admin/reset-steps-for-user', data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to reset steps for user');
+    }
+  }
+
+  async getUserProgressSummary(userId: number, courseId: number): Promise<{
+    user: { id: number; name: string; email: string };
+    course: { id: number; title: string };
+    overall: {
+      total_steps: number;
+      completed_steps: number;
+      completion_percentage: number;
+    };
+    lessons: Array<{
+      lesson_id: number;
+      lesson_title: string;
+      module_title: string;
+      total_steps: number;
+      completed_steps: number;
+      completion_percentage: number;
+    }>;
+  }> {
+    try {
+      const response = await this.api.get(`/admin/user-progress-summary/${userId}/${courseId}`);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to get user progress summary');
+    }
+  }
+
   async getStepProgress(stepId: string): Promise<StepProgress> {
     try {
       const response = await this.api.get(`/progress/step/${stepId}`);
@@ -2609,5 +2678,10 @@ export const getCuratorAssignmentsAnalytics = apiClient.getCuratorAssignmentsAna
 export const getCuratorGroups = apiClient.getCuratorGroups.bind(apiClient);
 export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
 export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);
+
+// Admin Progress Management
+export const completeStepsForUser = apiClient.completeStepsForUser.bind(apiClient);
+export const resetStepsForUser = apiClient.resetStepsForUser.bind(apiClient);
+export const getUserProgressSummary = apiClient.getUserProgressSummary.bind(apiClient);
 
 export default apiClient;
