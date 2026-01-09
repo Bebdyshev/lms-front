@@ -122,7 +122,7 @@ export default function SettingsPage() {
     try {
       const [coursesData, usersData] = await Promise.all([
         apiClient.getCourses(),
-        apiClient.getUsers({ role: 'student' })
+        apiClient.getUsers({ role: 'student', limit: 10000 })
       ]);
       // Map courses to have number ids
       setCourses(coursesData.map(c => ({ id: Number(c.id), title: c.title })));
