@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../services/api";
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import StudentLeaderboard from '../components/StudentLeaderboard';
 
 interface StudentDashboardProps {
   firstName: string;
@@ -470,6 +471,9 @@ export default function StudentDashboard({
               )}
             </CardContent>
           </Card>
+
+          {/* Leaderboard */}
+          <StudentLeaderboard />
 
           {/* Your Teacher Card */}
           {progressData && progressData.courses && progressData.courses.length > 0 && (

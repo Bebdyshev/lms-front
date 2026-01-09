@@ -2004,6 +2004,44 @@ class LMSApiClient {
   }
 
   // =============================================================================
+  // STUDENT LEADERBOARD METHODS
+  // =============================================================================
+
+  async getStudentLeaderboard(period: 'all_time' | 'this_week' | 'this_month' = 'all_time'): Promise<{
+    group_id: number | null;
+    group_name: string | null;
+    leaderboard: Array<{
+      rank: number;
+      user_id: number;
+      user_name: string;
+      avatar_url: string | null;
+      steps_completed: number;
+      time_spent_minutes: number;
+      is_current_user: boolean;
+    }>;
+    current_user_rank: number;
+    current_user_entry: {
+      rank: number;
+      user_id: number;
+      user_name: string;
+      avatar_url: string | null;
+      steps_completed: number;
+      time_spent_minutes: number;
+      is_current_user: boolean;
+    } | null;
+    current_user_title: string;
+    total_participants: number;
+    period: string;
+  }> {
+    try {
+      const response = await this.api.get('/leaderboard/student/my-ranking', { params: { period } });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to load leaderboard');
+    }
+  }
+
+  // =============================================================================
   // FAVORITE FLASHCARDS METHODS
   // =============================================================================
 
