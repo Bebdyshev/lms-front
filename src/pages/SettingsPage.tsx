@@ -1,7 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
-import { Play, RotateCcw, CheckCircle, Users, BookOpen, Loader2, AlertCircle } from 'lucide-react';
+import { Input } from '../components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Checkbox } from '../components/ui/checkbox';
+import { Progress } from '../components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Label } from '../components/ui/label';
+import { 
+  Play, 
+  RotateCcw, 
+  CheckCircle, 
+  Users, 
+  BookOpen, 
+  Loader2, 
+  AlertCircle,
+  Search,
+  X,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 import { storage } from '../utils/storage';
 import apiClient from '../services/api';
 
@@ -50,6 +68,26 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProgress, setIsLoadingProgress] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  
+  // Search state
+  const [userSearch, setUserSearch] = useState('');
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [showLessons, setShowLessons] = useState(true);
+
+  // Filter users based on search
+  const filteredUsers = useMemo(() => {
+    if (!userSearch.trim()) return users;
+    const search = userSearch.toLowerCase();
+    return users.filter(u => 
+      u.name.toLowerCase().includes(search) || 
+      u.email.toLowerCase().includes(search)
+    );
+  }, [users, userSearch]);
+
+  // Get selected user object
+  const selectedUser = useMemo(() => 
+    users.find(u => u.id === selectedUserId) || null
+  , [users, selectedUserId]);
 
   // Load courses and users for admin
   useEffect(() => {
@@ -67,6 +105,18 @@ export default function SettingsPage() {
       setSelectedLessons([]);
     }
   }, [selectedUserId, selectedCourseId]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.user-search-dropdown')) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const loadCoursesAndUsers = async () => {
     try {
@@ -188,235 +238,337 @@ export default function SettingsPage() {
     setSelectedLessons([]);
   };
 
+  const selectUserFromDropdown = (userId: number) => {
+    setSelectedUserId(userId);
+    setIsUserDropdownOpen(false);
+    setUserSearch('');
+  };
+
+  const clearUserSelection = () => {
+    setSelectedUserId(null);
+    setUserSearch('');
+    setProgressSummary(null);
+  };
+
   const handleRestartTour = () => {
     if (!user) return;
-    
-    // Сохраняем имя тура для запуска после редиректа
     const tourName = `${user.role}-onboarding`;
     storage.setItem('pending_tour', tourName);
-    
-    // Перенаправляем на dashboard, где тур найдет нужные элементы
     window.location.href = '/dashboard';
   };
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      <h1 className="text-3xl font-bold">Settings</h1>
+    <div className="space-y-6 p-4 sm:p-6 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold">Настройки</h1>
       
       {/* Admin Progress Management Section */}
       {user?.role === 'admin' && (
-        <div className="bg-white rounded-2xl shadow-card p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-blue-600" />
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <CardTitle>Управление прогрессом студентов</CardTitle>
+                <CardDescription>Завершить или сбросить шаги за студента</CardDescription>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Управление прогрессом студентов</h2>
-              <p className="text-sm text-gray-600">Завершить или сбросить шаги за студента</p>
-            </div>
-          </div>
-          
-          {/* Selection Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* User Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Users className="w-4 h-4 inline mr-1" />
-                Студент
-              </label>
-              <select
-                value={selectedUserId || ''}
-                onChange={(e) => setSelectedUserId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Выберите студента...</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.email})
-                  </option>
-                ))}
-              </select>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Selection Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* User Search & Selection */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Users className="w-4 h-4" />
+                  Студент
+                </Label>
+                
+                <div className="relative user-search-dropdown">
+                  {selectedUser ? (
+                    <div className="flex items-center justify-between px-3 py-2 border rounded-md bg-blue-50 border-blue-200">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{selectedUser.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{selectedUser.email}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearUserSelection}
+                        className="ml-2 h-8 w-8 p-0 hover:bg-blue-100"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          placeholder="Поиск по имени или email..."
+                          value={userSearch}
+                          onChange={(e) => {
+                            setUserSearch(e.target.value);
+                            setIsUserDropdownOpen(true);
+                          }}
+                          onFocus={() => setIsUserDropdownOpen(true)}
+                          className="pl-9"
+                        />
+                      </div>
+                      
+                      {isUserDropdownOpen && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {filteredUsers.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-gray-500 text-sm">
+                              {userSearch ? 'Студенты не найдены' : 'Введите имя или email'}
+                            </div>
+                          ) : (
+                            filteredUsers.slice(0, 50).map(u => (
+                              <div
+                                key={u.id}
+                                onClick={() => selectUserFromDropdown(u.id)}
+                                className="px-3 py-2 cursor-pointer hover:bg-gray-100 border-b last:border-b-0"
+                              >
+                                <p className="font-medium text-sm">{u.name}</p>
+                                <p className="text-xs text-gray-500">{u.email}</p>
+                              </div>
+                            ))
+                          )}
+                          {filteredUsers.length > 50 && (
+                            <div className="px-3 py-2 text-center text-gray-400 text-xs">
+                              Показано 50 из {filteredUsers.length}. Уточните поиск.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {/* Course Selection */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4" />
+                  Курс
+                </Label>
+                <Select
+                  value={selectedCourseId?.toString() || ''}
+                  onValueChange={(value) => setSelectedCourseId(value ? Number(value) : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите курс..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courses.map(c => (
+                      <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
-            {/* Course Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <BookOpen className="w-4 h-4 inline mr-1" />
-                Курс
-              </label>
-              <select
-                value={selectedCourseId || ''}
-                onChange={(e) => setSelectedCourseId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Выберите курс...</option>
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          {/* Progress Summary */}
-          {isLoadingProgress && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Загрузка прогресса...</span>
-            </div>
-          )}
-          
-          {progressSummary && !isLoadingProgress && (
-            <div className="space-y-4">
-              {/* Overall Progress */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-gray-900">
-                    {progressSummary.user.name}
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    {progressSummary.overall.completed_steps} / {progressSummary.overall.total_steps} шагов
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all"
-                    style={{ width: `${progressSummary.overall.completion_percentage}%` }}
-                  />
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {progressSummary.overall.completion_percentage.toFixed(1)}% завершено
-                </p>
+            {/* Progress Summary */}
+            {isLoadingProgress && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">Загрузка прогресса...</span>
               </div>
-              
-              {/* Lesson Selection */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Выберите уроки (или оставьте пустым для всех)
-                  </label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={selectAllLessons}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Выбрать все
-                    </button>
-                    <span className="text-gray-300">|</span>
-                    <button
-                      onClick={deselectAllLessons}
-                      className="text-xs text-gray-600 hover:underline"
-                    >
-                      Снять выбор
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg divide-y">
-                  {progressSummary.lessons.map(lesson => (
-                    <label
-                      key={lesson.lesson_id}
-                      className={`flex items-center p-3 cursor-pointer hover:bg-gray-50 ${
-                        selectedLessons.includes(lesson.lesson_id) ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedLessons.includes(lesson.lesson_id)}
-                        onChange={() => toggleLessonSelection(lesson.lesson_id)}
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <div className="ml-3 flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {lesson.lesson_title}
+            )}
+            
+            {progressSummary && !isLoadingProgress && (
+              <div className="space-y-4">
+                {/* Overall Progress Card */}
+                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-semibold text-gray-900">{progressSummary.user.name}</p>
+                        <p className="text-sm text-gray-500">{progressSummary.course.title}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-blue-600">
+                          {progressSummary.overall.completion_percentage.toFixed(0)}%
                         </p>
                         <p className="text-xs text-gray-500">
-                          {lesson.module_title} • {lesson.completed_steps}/{lesson.total_steps} шагов ({lesson.completion_percentage}%)
+                          {progressSummary.overall.completed_steps} / {progressSummary.overall.total_steps} шагов
                         </p>
                       </div>
-                      <div className="ml-2">
-                        {lesson.completion_percentage === 100 ? (
-                          <CheckCircle className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <div className="w-12 bg-gray-200 rounded-full h-1.5">
-                            <div 
-                              className="bg-blue-600 h-1.5 rounded-full"
-                              style={{ width: `${lesson.completion_percentage}%` }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Action Result */}
-              {actionResult && (
-                <div className={`p-3 rounded-lg flex items-center gap-2 ${
-                  actionResult.type === 'success' 
-                    ? 'bg-green-50 text-green-800' 
-                    : 'bg-red-50 text-red-800'
-                }`}>
-                  {actionResult.type === 'success' ? (
-                    <CheckCircle className="w-5 h-5" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5" />
-                  )}
-                  <span className="text-sm">{actionResult.message}</span>
-                </div>
-              )}
-              
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={handleCompleteSteps}
-                  disabled={isLoading}
-                  className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckCircle className="w-4 h-4" />
-                  )}
-                  Завершить {selectedLessons.length > 0 ? `выбранные уроки (${selectedLessons.length})` : 'все шаги'}
-                </Button>
+                    </div>
+                    <Progress value={progressSummary.overall.completion_percentage} className="h-2" />
+                  </CardContent>
+                </Card>
                 
-                <Button
-                  onClick={handleResetProgress}
-                  disabled={isLoading}
-                  variant="outline"
-                  className="flex items-center justify-center gap-2 border-red-300 text-red-600 hover:bg-red-50"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="w-4 h-4" />
+                {/* Lessons Selection */}
+                <div>
+                  <div 
+                    className="flex items-center justify-between cursor-pointer py-2"
+                    onClick={() => setShowLessons(!showLessons)}
+                  >
+                    <Label className="cursor-pointer">
+                      Выберите уроки (или оставьте пустым для всех)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {selectedLessons.length > 0 ? `Выбрано: ${selectedLessons.length}` : 'Все уроки'}
+                      </span>
+                      {showLessons ? (
+                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {showLessons && (
+                    <>
+                      <div className="flex gap-2 mb-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={selectAllLessons}
+                          className="text-xs"
+                        >
+                          Выбрать все
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={deselectAllLessons}
+                          className="text-xs"
+                        >
+                          Снять выбор
+                        </Button>
+                      </div>
+                      
+                      <div className="max-h-64 overflow-y-auto border rounded-lg divide-y">
+                        {progressSummary.lessons.map(lesson => (
+                          <div
+                            key={lesson.lesson_id}
+                            className={`flex items-center p-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                              selectedLessons.includes(lesson.lesson_id) ? 'bg-blue-50' : ''
+                            }`}
+                            onClick={() => toggleLessonSelection(lesson.lesson_id)}
+                          >
+                            <Checkbox
+                              checked={selectedLessons.includes(lesson.lesson_id)}
+                              onCheckedChange={() => toggleLessonSelection(lesson.lesson_id)}
+                              className="mr-3"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {lesson.lesson_title}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {lesson.module_title}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 ml-2">
+                              <div className="text-right">
+                                <p className="text-xs font-medium">
+                                  {lesson.completed_steps}/{lesson.total_steps}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {lesson.completion_percentage}%
+                                </p>
+                              </div>
+                              {lesson.completion_percentage === 100 ? (
+                                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                              ) : (
+                                <div className="w-12">
+                                  <Progress value={lesson.completion_percentage} className="h-1.5" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   )}
-                  Сбросить прогресс
-                </Button>
+                </div>
+                
+                {/* Action Result */}
+                {actionResult && (
+                  <div className={`p-4 rounded-lg flex items-start gap-3 ${
+                    actionResult.type === 'success' 
+                      ? 'bg-green-50 border border-green-200' 
+                      : 'bg-red-50 border border-red-200'
+                  }`}>
+                    {actionResult.type === 'success' ? (
+                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <p className={`text-sm ${
+                      actionResult.type === 'success' ? 'text-green-800' : 'text-red-800'
+                    }`}>
+                      {actionResult.message}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Button
+                    onClick={handleCompleteSteps}
+                    disabled={isLoading}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                    )}
+                    Завершить {selectedLessons.length > 0 ? `(${selectedLessons.length} уроков)` : 'все шаги'}
+                  </Button>
+                  
+                  <Button
+                    onClick={handleResetProgress}
+                    disabled={isLoading}
+                    variant="outline"
+                    className="flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                    )}
+                    Сбросить прогресс
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-          
-          {/* Hint when nothing selected */}
-          {!selectedUserId && !selectedCourseId && (
-            <p className="text-sm text-gray-500 text-center py-4">
-              Выберите студента и курс, чтобы управлять прогрессом
-            </p>
-          )}
-        </div>
+            )}
+            
+            {/* Hint when nothing selected */}
+            {!selectedUserId && !selectedCourseId && !isLoadingProgress && (
+              <div className="text-center py-8 text-gray-500">
+                <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Выберите студента и курс, чтобы управлять прогрессом</p>
+              </div>
+            )}
+            
+            {selectedUserId && !selectedCourseId && !isLoadingProgress && (
+              <div className="text-center py-8 text-gray-500">
+                <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Выберите курс для просмотра прогресса</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
       
       {/* Onboarding Section */}
-      <div className="bg-white rounded-2xl shadow-card p-6 max-w-xl space-y-4">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Onboarding & Tour</h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Restart the platform tour or reset the complete onboarding experience.
-        </p>
-        
-        <div className="flex flex-col sm:flex-row gap-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>Onboarding & Tour</CardTitle>
+          <CardDescription>
+            Restart the platform tour or reset the complete onboarding experience.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <Button
             onClick={handleRestartTour}
             variant="outline"
@@ -425,13 +577,12 @@ export default function SettingsPage() {
             <Play className="w-4 h-4" />
             Restart Tour
           </Button>
-        </div>
-        
-        <p className="text-xs text-gray-500 mt-2">
-          The tour will guide you through the main features of your {user?.role || 'user'} dashboard.
-          {' '}Note: Settings are stored in {storage.getItem('__storage_test__') !== null ? 'browser storage' : 'session memory'}.
-        </p>
-      </div>
+          
+          <p className="text-xs text-gray-500">
+            The tour will guide you through the main features of your {user?.role || 'user'} dashboard.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
