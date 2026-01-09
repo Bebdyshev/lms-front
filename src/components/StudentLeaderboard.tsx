@@ -7,11 +7,8 @@ import {
   Trophy, 
   Clock, 
   Zap, 
-  Crown, 
-  Medal,
   TrendingUp,
-  Users,
-  Flame
+  Users
 } from 'lucide-react';
 import apiClient from '../services/api';
 
@@ -69,19 +66,6 @@ export default function StudentLeaderboard() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
-  const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return <Crown className="w-5 h-5 text-yellow-500" />;
-      case 2:
-        return <Medal className="w-5 h-5 text-gray-400" />;
-      case 3:
-        return <Medal className="w-5 h-5 text-amber-600" />;
-      default:
-        return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-gray-500">#{rank}</span>;
-    }
-  };
-
   const getRankBadgeStyle = (rank: number) => {
     switch (rank) {
       case 1:
@@ -93,15 +77,6 @@ export default function StudentLeaderboard() {
       default:
         return 'bg-gray-100 text-gray-700';
     }
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
   };
 
   const periodLabels: Record<Period, string> = {
@@ -189,101 +164,49 @@ export default function StudentLeaderboard() {
       
       <CardContent className="space-y-2">
         {/* Current User Highlight */}
-        {data.current_user_entry && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 mb-3 border border-blue-100">
-            <div className="flex items-center justify-between mb-2">
+        {data.current_user_entry ? (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">{data.current_user_title.split(' ')[0]}</span>
-                <span className="font-semibold text-blue-900">Your Rank</span>
+                <span className="text-2xl">{data.current_user_title.split(' ')[0]}</span>
+                <div>
+                  <span className="font-semibold text-blue-900 block">Your Rank</span>
+                  <span className="text-xs text-blue-600">{data.current_user_title.split(' ').slice(1).join(' ')}</span>
+                </div>
               </div>
-              <Badge className={getRankBadgeStyle(data.current_user_rank)}>
-                #{data.current_user_rank}
-              </Badge>
+              <div className="text-right">
+                <Badge className={`text-lg px-3 py-1 ${getRankBadgeStyle(data.current_user_rank)}`}>
+                  #{data.current_user_rank}
+                </Badge>
+                <p className="text-xs text-gray-500 mt-1">of {data.total_participants}</p>
+              </div>
             </div>
-            <p className="text-xs text-blue-700">{data.current_user_title}</p>
-            <div className="flex gap-4 mt-2 text-xs text-blue-600">
-              <span className="flex items-center gap-1">
-                <Zap className="w-3 h-3" />
-                {data.current_user_entry.steps_completed} steps
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {formatTime(data.current_user_entry.time_spent_minutes)}
-              </span>
+            
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="bg-white/60 rounded-lg p-3 text-center">
+                <Zap className="w-5 h-5 mx-auto text-yellow-500 mb-1" />
+                <p className="text-xl font-bold text-gray-900">{data.current_user_entry.steps_completed}</p>
+                <p className="text-xs text-gray-500">Steps Done</p>
+              </div>
+              <div className="bg-white/60 rounded-lg p-3 text-center">
+                <Clock className="w-5 h-5 mx-auto text-blue-500 mb-1" />
+                <p className="text-xl font-bold text-gray-900">{formatTime(data.current_user_entry.time_spent_minutes)}</p>
+                <p className="text-xs text-gray-500">Time Spent</p>
+              </div>
             </div>
           </div>
+        ) : (
+          <div className="text-center py-6 text-gray-500">
+            <Trophy className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+            <p className="text-sm">Complete some lessons to appear on the leaderboard!</p>
+          </div>
         )}
-
-        {/* Top Players */}
-        <div className="max-h-[16rem] overflow-y-auto space-y-2 pr-1">
-          {data.leaderboard.map((entry, index) => (
-            <div
-              key={entry.user_id}
-              className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
-                entry.is_current_user 
-                  ? 'bg-blue-50 border border-blue-200' 
-                  : index < 3 
-                    ? 'bg-gray-50' 
-                    : 'hover:bg-gray-50'
-              }`}
-            >
-              {/* Rank */}
-              <div className="w-8 flex justify-center">
-                {getRankIcon(entry.rank)}
-              </div>
-              
-              {/* Avatar */}
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                index === 0 ? 'bg-yellow-100 text-yellow-700' :
-                index === 1 ? 'bg-gray-200 text-gray-700' :
-                index === 2 ? 'bg-amber-100 text-amber-700' :
-                'bg-blue-100 text-blue-700'
-              }`}>
-                {entry.avatar_url ? (
-                  <img 
-                    src={entry.avatar_url} 
-                    alt={entry.user_name}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  getInitials(entry.user_name)
-                )}
-              </div>
-              
-              {/* Name & Stats */}
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${
-                  entry.is_current_user ? 'text-blue-900' : 'text-gray-900'
-                }`}>
-                  {entry.user_name}
-                  {entry.is_current_user && <span className="text-blue-500 ml-1">(You)</span>}
-                </p>
-                <div className="flex gap-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-0.5">
-                    <Zap className="w-3 h-3" />
-                    {entry.steps_completed}
-                  </span>
-                  <span className="flex items-center gap-0.5">
-                    <Clock className="w-3 h-3" />
-                    {formatTime(entry.time_spent_minutes)}
-                  </span>
-                </div>
-              </div>
-              
-              {/* Rank indicator for top 3 */}
-              {index < 3 && (
-                <div className="flex items-center">
-                  {index === 0 && <Flame className="w-4 h-4 text-orange-500 animate-pulse" />}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
 
         {/* Call to Action */}
         <div className="pt-3 border-t mt-3">
           <div className="text-center">
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-xs text-gray-500">
               <TrendingUp className="w-3 h-3 inline mr-1" />
               Boost your ranking by completing courses & homework!
             </p>
