@@ -29,6 +29,7 @@ interface LeaderboardData {
   current_user_title: string;
   total_participants: number;
   period: string;
+  steps_to_next_rank: number;
 }
 
 type Period = 'all_time' | 'this_week' | 'this_month';
@@ -143,6 +144,23 @@ export default function StudentLeaderboard() {
               </div>
             </div>
             
+            {/* Steps to next rank - prominent placement for top 10 */}
+            {data.current_user_rank > 1 && data.current_user_rank <= 10 && data.steps_to_next_rank > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                <span className="text-sm text-green-700 flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="font-semibold">{data.steps_to_next_rank}</span> steps to rank up!
+                </span>
+                <span className="text-xs text-green-600">→ #{data.current_user_rank - 1}</span>
+              </div>
+            )}
+            
+            {data.current_user_rank === 1 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-center">
+                <span className="text-sm text-yellow-700">You're #1! Keep it up!</span>
+              </div>
+            )}
+            
             {/* Stats Row */}
             <div className="flex gap-4 text-sm text-gray-600">
               <span className="flex items-center gap-1">
@@ -154,12 +172,6 @@ export default function StudentLeaderboard() {
                 <span className="font-medium">{formatTime(data.current_user_entry.time_spent_minutes)}</span>
               </span>
             </div>
-            
-            {/* CTA */}
-            <p className="text-xs text-gray-400 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              Complete courses & homework to climb up!
-            </p>
           </div>
         ) : (
           <div className="text-center py-4 text-gray-500">

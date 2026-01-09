@@ -2032,6 +2032,7 @@ class LMSApiClient {
     current_user_title: string;
     total_participants: number;
     period: string;
+    steps_to_next_rank: number;
   }> {
     try {
       const response = await this.api.get('/leaderboard/student/my-ranking', { params: { period } });
