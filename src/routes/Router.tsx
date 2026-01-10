@@ -41,6 +41,7 @@ import AnalyticsPage from '../pages/analytics/AnalyticsPage.tsx';
 import FavoriteFlashcardsPage from '../pages/FavoriteFlashcardsPage.tsx';
 import CuratorHomeworksPage from '../pages/CuratorHomeworksPage.tsx';
 import CuratorLeaderboardPage from '../pages/CuratorLeaderboardPage.tsx';
+import AssignmentZeroPage from '../pages/AssignmentZeroPage';
 
 export default function Router() {
   
@@ -61,6 +62,13 @@ export default function Router() {
                       <LoginPage />
                   </ProtectedRoute>
                 } />
+
+          {/* Assignment Zero - Self-Assessment for new students */}
+          <Route path="/assignment-zero" element={
+            <ProtectedRoute allowedRoles={['student']} skipAssignmentZeroCheck={true}>
+              <AssignmentZeroPage />
+            </ProtectedRoute>
+          } />
 
           {/* Protected App Routes */}
           <Route path="/" element={

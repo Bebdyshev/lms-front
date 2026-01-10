@@ -8,15 +8,17 @@ interface ProtectedRouteProps {
   requireAuth?: boolean;
   allowedRoles?: UserRole[] | null;
   fallback?: React.ReactNode | null;
+  skipAssignmentZeroCheck?: boolean;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requireAuth = true, 
   allowedRoles = null,
-  fallback = null 
+  fallback = null,
+  skipAssignmentZeroCheck = false
 }) => {
-  const { loading, isAuthenticated, hasAnyRole } = useAuth();
+  const { loading, isAuthenticated, hasAnyRole, user } = useAuth();
   const location = useLocation();
 
   // Show loading while checking authentication, but only for protected routes
@@ -58,6 +60,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         </div>
       </div>
     );
+  }
+
+  // Check Assignment Zero completion for students (except on the assignment-zero page itself)
+  if (
+    requireAuth && 
+    isAuthenticated && 
+    user?.role === 'student' && 
+    !skipAssignmentZeroCheck &&
+    user?.assignment_zero_completed === false &&
+    location.pathname !== '/assignment-zero'
+  ) {
+    return <Navigate to="/assignment-zero" replace />;
   }
 
   return children;

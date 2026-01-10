@@ -1819,6 +1819,162 @@ class LMSApiClient {
     }
   }
 
+  // =========================================================================
+  // ASSIGNMENT ZERO (Self-Assessment Questionnaire)
+  // =========================================================================
+
+  async getAssignmentZeroStatus(): Promise<{
+    needs_completion: boolean;
+    completed: boolean;
+    completed_at?: string;
+    message?: string;
+    has_draft?: boolean;
+    last_saved_step?: number;
+  }> {
+    try {
+      const response = await this.api.get('/assignment-zero/status');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to get Assignment Zero status');
+    }
+  }
+
+  async getMyAssignmentZeroSubmission(): Promise<any> {
+    try {
+      const response = await this.api.get('/assignment-zero/my-submission');
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to get Assignment Zero submission');
+    }
+  }
+
+  async saveAssignmentZeroProgress(data: Partial<{
+    full_name: string;
+    phone_number: string;
+    parent_phone_number: string;
+    telegram_id: string;
+    email: string;
+    college_board_email: string;
+    college_board_password: string;
+    birthday_date: string;
+    city: string;
+    school_type: string;
+    group_name: string;
+    sat_target_date: string;
+    has_passed_sat_before: boolean;
+    previous_sat_score: string;
+    recent_practice_test_score: string;
+    bluebook_practice_test_5_score: string;
+    screenshot_url: string;
+    grammar_punctuation: number;
+    grammar_noun_clauses: number;
+    grammar_relative_clauses: number;
+    grammar_verb_forms: number;
+    grammar_comparisons: number;
+    grammar_transitions: number;
+    grammar_synthesis: number;
+    reading_word_in_context: number;
+    reading_text_structure: number;
+    reading_cross_text: number;
+    reading_central_ideas: number;
+    reading_inferences: number;
+    passages_literary: number;
+    passages_social_science: number;
+    passages_humanities: number;
+    passages_science: number;
+    passages_poetry: number;
+    math_topics: string[];
+    additional_comments: string;
+    last_saved_step: number;
+  }>): Promise<any> {
+    try {
+      const response = await this.api.post('/assignment-zero/save-progress', data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to save progress');
+    }
+  }
+
+  async submitAssignmentZero(data: {
+    full_name: string;
+    phone_number: string;
+    parent_phone_number: string;
+    telegram_id: string;
+    email: string;
+    college_board_email: string;
+    college_board_password: string;
+    birthday_date: string;
+    city: string;
+    school_type: string;
+    group_name: string;
+    sat_target_date: string;
+    has_passed_sat_before: boolean;
+    previous_sat_score?: string;
+    recent_practice_test_score: string;
+    bluebook_practice_test_5_score: string;
+    screenshot_url?: string;
+    grammar_punctuation?: number;
+    grammar_noun_clauses?: number;
+    grammar_relative_clauses?: number;
+    grammar_verb_forms?: number;
+    grammar_comparisons?: number;
+    grammar_transitions?: number;
+    grammar_synthesis?: number;
+    reading_word_in_context?: number;
+    reading_text_structure?: number;
+    reading_cross_text?: number;
+    reading_central_ideas?: number;
+    reading_inferences?: number;
+    passages_literary?: number;
+    passages_social_science?: number;
+    passages_humanities?: number;
+    passages_science?: number;
+    passages_poetry?: number;
+    math_topics?: string[];
+    additional_comments?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.api.post('/assignment-zero/submit', data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to submit Assignment Zero');
+    }
+  }
+
+  async uploadAssignmentZeroScreenshot(file: File): Promise<{ url: string; filename: string }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await this.api.post('/assignment-zero/upload-screenshot', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to upload screenshot');
+    }
+  }
+
+  async getAllAssignmentZeroSubmissions(groupName?: string): Promise<any[]> {
+    try {
+      const params = groupName ? { group_name: groupName } : {};
+      const response = await this.api.get('/assignment-zero/submissions', { params });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to get submissions');
+    }
+  }
+
+  async getAssignmentZeroSubmissionByUser(userId: number): Promise<any> {
+    try {
+      const response = await this.api.get(`/assignment-zero/submissions/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to get submission');
+    }
+  }
+
   async getStepProgress(stepId: string): Promise<StepProgress> {
     try {
       const response = await this.api.get(`/progress/step/${stepId}`);
@@ -2722,5 +2878,14 @@ export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiC
 export const completeStepsForUser = apiClient.completeStepsForUser.bind(apiClient);
 export const resetStepsForUser = apiClient.resetStepsForUser.bind(apiClient);
 export const getUserProgressSummary = apiClient.getUserProgressSummary.bind(apiClient);
+
+// Assignment Zero (Self-Assessment Questionnaire)
+export const getAssignmentZeroStatus = apiClient.getAssignmentZeroStatus.bind(apiClient);
+export const getMyAssignmentZeroSubmission = apiClient.getMyAssignmentZeroSubmission.bind(apiClient);
+export const saveAssignmentZeroProgress = apiClient.saveAssignmentZeroProgress.bind(apiClient);
+export const submitAssignmentZero = apiClient.submitAssignmentZero.bind(apiClient);
+export const uploadAssignmentZeroScreenshot = apiClient.uploadAssignmentZeroScreenshot.bind(apiClient);
+export const getAllAssignmentZeroSubmissions = apiClient.getAllAssignmentZeroSubmissions.bind(apiClient);
+export const getAssignmentZeroSubmissionByUser = apiClient.getAssignmentZeroSubmissionByUser.bind(apiClient);
 
 export default apiClient;

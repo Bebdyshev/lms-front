@@ -19,6 +19,8 @@ export interface User {
   total_study_time_minutes?: number; // Total study time in minutes
   onboarding_completed?: boolean; // Whether user has completed onboarding
   onboarding_completed_at?: string; // When onboarding was completed
+  assignment_zero_completed?: boolean; // Whether student has completed Assignment Zero
+  assignment_zero_completed_at?: string; // When Assignment Zero was completed
   created_at: string;
   updated_at: string;
 }
@@ -464,6 +466,64 @@ export interface LessonMaterial {
   file_size_bytes?: number;
   uploaded_at: string;
 }
+
+// =============================================================================
+// ASSIGNMENT ZERO TYPES - Self-Assessment Questionnaire
+// =============================================================================
+
+export interface AssignmentZeroStatus {
+  needs_completion: boolean;
+  completed: boolean;
+  completed_at?: string;
+  message?: string;
+}
+
+export interface AssignmentZeroSubmission {
+  id: number;
+  user_id: number;
+  full_name: string;
+  phone_number: string;
+  parent_phone_number: string;
+  telegram_id: string;
+  email: string;
+  college_board_email: string;
+  college_board_password: string;
+  birthday_date: string;
+  city: string;
+  school_type: string;
+  group_name: string;
+  sat_target_date: string;
+  has_passed_sat_before: boolean;
+  previous_sat_score?: string;
+  recent_practice_test_score: string;
+  bluebook_practice_test_5_score: string;
+  screenshot_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssignmentZeroSubmitData {
+  full_name: string;
+  phone_number: string;
+  parent_phone_number: string;
+  telegram_id: string;
+  email: string;
+  college_board_email: string;
+  college_board_password: string;
+  birthday_date: string;
+  city: string;
+  school_type: string;
+  group_name: string;
+  sat_target_date: string;
+  has_passed_sat_before: boolean;
+  previous_sat_score?: string;
+  recent_practice_test_score: string;
+  bluebook_practice_test_5_score: string;
+  screenshot_url?: string;
+}
+
+export type SchoolType = 'NIS' | 'RFMS' | 'BIL' | 'Private' | 'Public';
+export type SATTargetDate = 'October' | 'November' | 'December' | 'March' | 'May';
 
 // =============================================================================
 // ASSIGNMENT TYPES
