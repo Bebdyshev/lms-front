@@ -425,7 +425,7 @@ const AssignmentZeroSubmissions = () => {
                       <div className="col-span-2">
                         <span className="font-medium">Screenshot:</span>{' '}
                         <a
-                          href={selectedSubmission.screenshot_url}
+                          href={(import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000') + selectedSubmission.screenshot_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline"
