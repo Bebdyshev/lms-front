@@ -7,7 +7,8 @@ import logoIco from '../assets/masteredlogo-ico.ico';
 import { 
   Home, 
   BookOpen, 
-  ClipboardList, 
+  ClipboardList,
+  ClipboardCheck,
   MessageCircle, 
   UserCheck,
   Settings,
@@ -44,6 +45,7 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number, 
     ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin'], 'courses-management'],
     ['/admin/users', 'Manage Users', Users, 0, ['admin'], 'users-management'],
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management'],
+    ['/admin/assignment-zero', 'Assignment Zero', ClipboardCheck, 0, ['admin'], 'assignment-zero-management'],
     ['/homework', 'Homework', ClipboardList, 0, ['teacher'], 'assignments-nav'],
     ['/chat', 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
   ];
