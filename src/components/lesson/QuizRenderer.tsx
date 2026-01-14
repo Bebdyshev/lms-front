@@ -281,17 +281,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                   )}
 
                   {/* Question */}
-                  {q.question_type !== 'text_completion' && (
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">
-                      <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text.replace(/\[\[([^\]]+)\]\]/g, '[[blank]]')) }} />
-                    </h3>
-                  )}
-
-                  {q.question_type === 'text_completion' && (
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">
-                      Fill in the blanks:
-                    </h3>
-                  )}
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">
+                    <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex((q.question_text || (q.question_type === 'text_completion' ? 'Fill in the blanks:' : '')).replace(/\[\[([^\]]+)\]\]/g, '[[blank]]')) }} />
+                  </h3>
 
                   {/* Answer Input Based on Question Type */}
                   {q.question_type === 'long_text' ? (
@@ -656,17 +648,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
             )}
 
             {/* Question */}
-            {q.question_type !== 'text_completion' && (
-              <h3 className="text-lg font-bold text-gray-900 mb-4">
-                <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text.replace(/\[\[([^\]]+)\]\]/g, '[[blank]]')) }} />
-              </h3>
-            )}
-
-            {q.question_type === 'text_completion' && (
-              <h3 className="text-lg font-bold text-gray-900 mb-4">
-                Fill in the blanks:
-              </h3>
-            )}
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex((q.question_text || (q.question_type === 'text_completion' ? 'Fill in the blanks:' : '')).replace(/\[\[([^\]]+)\]\]/g, '[[blank]]')) }} />
+            </h3>
 
             {/* Answer Input Based on Question Type */}
             {q.question_type === 'long_text' ? (
@@ -1084,17 +1068,9 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     )}
 
                     {/* Question */}
-                    {q.question_type !== 'text_completion' && (
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">
-                        <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.question_text.replace(/\[\[([^\]]+)\]\]/g, '[[blank]]')) }} />
-                      </h3>
-                    )}
-
-                    {q.question_type === 'text_completion' && (
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">
-                        Fill in the blanks:
-                      </h3>
-                    )}
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex((q.question_text || (q.question_type === 'text_completion' ? 'Fill in the blanks:' : '')).replace(/\[\[([^\]]+)\]\]/g, '[[blank]]')) }} />
+                    </h3>
 
                     {/* Answer Input Based on Question Type - ALWAYS SHOW RESULT */}
                     {q.question_type === 'long_text' ? (
