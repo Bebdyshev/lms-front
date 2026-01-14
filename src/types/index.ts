@@ -339,6 +339,7 @@ export interface Lesson {
   created_at: string;
   updated_at: string;
   is_completed?: boolean; // For student view
+  is_initially_unlocked?: boolean; // Admin can mark lessons as initially unlocked
   steps?: Step[];
   total_steps?: number;
   next_lesson_id?: number | null;

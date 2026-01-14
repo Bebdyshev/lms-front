@@ -210,13 +210,15 @@ interface DraggableLessonProps {
   index: number;
   courseId: string | undefined;
   onRemove: (lessonId: string) => void;
+  onToggleInitiallyUnlocked?: (lessonId: string, value: boolean) => void;
 }
 
 const DraggableLesson = ({ 
   lesson, 
   index, 
   courseId,
-  onRemove
+  onRemove,
+  onToggleInitiallyUnlocked
 }: DraggableLessonProps) => {
   const {
     attributes,
@@ -276,10 +278,26 @@ const DraggableLesson = ({
           <div className="font-medium text-gray-900 text-sm">{lesson?.title || 'Untitled'}</div>
           <div className="text-xs text-gray-500 capitalize">
             {getLessonType(lesson)} • {index + 1}
+            {lesson?.is_initially_unlocked && (
+              <span className="ml-2 text-green-600 font-medium">🔓 Unlocked</span>
+            )}
           </div>
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {onToggleInitiallyUnlocked && (
+          <button
+            onClick={() => onToggleInitiallyUnlocked(lesson?.id, !lesson?.is_initially_unlocked)}
+            className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+              lesson?.is_initially_unlocked 
+                ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+            title={lesson?.is_initially_unlocked ? 'Lesson is initially unlocked for students' : 'Click to make lesson initially unlocked'}
+          >
+            {lesson?.is_initially_unlocked ? '🔓' : '🔒'}
+          </button>
+        )}
         <button 
           onClick={() => navigate(`/teacher/course/${courseId}/lesson/${lesson?.id}/edit`)} 
           className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded"
@@ -727,6 +745,7 @@ export default function CourseBuilderPage() {
                   index={lecIndex}
                   courseId={courseId}
                   onRemove={onRemoveLecture}
+                  onToggleInitiallyUnlocked={handleToggleLessonInitiallyUnlocked}
                 />
               ))}
             </SortableContext>
@@ -1096,6 +1115,50 @@ export default function CourseBuilderPage() {
       next.set('tab', section);
       return next;
     }, { replace: true });
+  };
+
+  const handleToggleLessonInitiallyUnlocked = async (lessonId: string, value: boolean) => {
+    if (!courseId) return;
+    
+    try {
+      // Find the lesson in moduleLectures
+      let foundLesson: Lesson | null = null;
+      let foundModuleId: number | null = null;
+      
+      for (const [moduleId, lessons] of moduleLectures.entries()) {
+        const lesson = lessons.find(l => l.id === lessonId);
+        if (lesson) {
+          foundLesson = lesson;
+          foundModuleId = moduleId;
+          break;
+        }
+      }
+      
+      if (!foundLesson || foundModuleId === null) return;
+      
+      // Update via API
+      await apiClient.updateLesson(lessonId, {
+        title: foundLesson.title,
+        description: foundLesson.description || '',
+        duration_minutes: foundLesson.duration_minutes || 0,
+        order_index: foundLesson.order_index,
+        next_lesson_id: foundLesson.next_lesson_id || null,
+        is_initially_unlocked: value
+      });
+      
+      // Update local state
+      setModuleLectures(prev => {
+        const newMap = new Map(prev);
+        const lessons = newMap.get(foundModuleId!) || [];
+        const updatedLessons = lessons.map(l => 
+          l.id === lessonId ? { ...l, is_initially_unlocked: value } : l
+        );
+        newMap.set(foundModuleId!, updatedLessons);
+        return newMap;
+      });
+    } catch (error) {
+      console.error('Failed to toggle lesson initially unlocked:', error);
+    }
   };
 
   const loadCourseGroups = async () => {
