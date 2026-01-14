@@ -1830,6 +1830,7 @@ class LMSApiClient {
     message?: string;
     has_draft?: boolean;
     last_saved_step?: number;
+    user_groups?: { id: number; name: string }[];
   }> {
     try {
       const response = await this.api.get('/assignment-zero/status');
@@ -1884,6 +1885,33 @@ class LMSApiClient {
     passages_science: number;
     passages_poetry: number;
     math_topics: string[];
+    // IELTS fields
+    ielts_target_date: string;
+    has_passed_ielts_before: boolean;
+    previous_ielts_score: string;
+    ielts_target_score: string;
+    ielts_listening_main_idea: number;
+    ielts_listening_details: number;
+    ielts_listening_opinion: number;
+    ielts_listening_accents: number;
+    ielts_reading_skimming: number;
+    ielts_reading_scanning: number;
+    ielts_reading_vocabulary: number;
+    ielts_reading_inference: number;
+    ielts_reading_matching: number;
+    ielts_writing_task1_graphs: number;
+    ielts_writing_task1_process: number;
+    ielts_writing_task2_structure: number;
+    ielts_writing_task2_arguments: number;
+    ielts_writing_grammar: number;
+    ielts_writing_vocabulary: number;
+    ielts_speaking_fluency: number;
+    ielts_speaking_vocabulary: number;
+    ielts_speaking_grammar: number;
+    ielts_speaking_pronunciation: number;
+    ielts_speaking_part2: number;
+    ielts_speaking_part3: number;
+    ielts_weak_topics: string[];
     additional_comments: string;
     last_saved_step: number;
   }>): Promise<any> {
@@ -1931,6 +1959,33 @@ class LMSApiClient {
     passages_science?: number;
     passages_poetry?: number;
     math_topics?: string[];
+    // IELTS fields
+    ielts_target_date?: string;
+    has_passed_ielts_before?: boolean;
+    previous_ielts_score?: string;
+    ielts_target_score?: string;
+    ielts_listening_main_idea?: number;
+    ielts_listening_details?: number;
+    ielts_listening_opinion?: number;
+    ielts_listening_accents?: number;
+    ielts_reading_skimming?: number;
+    ielts_reading_scanning?: number;
+    ielts_reading_vocabulary?: number;
+    ielts_reading_inference?: number;
+    ielts_reading_matching?: number;
+    ielts_writing_task1_graphs?: number;
+    ielts_writing_task1_process?: number;
+    ielts_writing_task2_structure?: number;
+    ielts_writing_task2_arguments?: number;
+    ielts_writing_grammar?: number;
+    ielts_writing_vocabulary?: number;
+    ielts_speaking_fluency?: number;
+    ielts_speaking_vocabulary?: number;
+    ielts_speaking_grammar?: number;
+    ielts_speaking_pronunciation?: number;
+    ielts_speaking_part2?: number;
+    ielts_speaking_part3?: number;
+    ielts_weak_topics?: string[];
     additional_comments?: string;
   }): Promise<any> {
     try {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import apiClient from '../services/api.ts';
@@ -22,6 +22,9 @@ import {
   Cloud,
   CloudOff,
   Loader2,
+  Headphones,
+  Mic,
+  Edit3,
 } from 'lucide-react';
 import { Button } from '../components/ui/button.tsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card.tsx';
@@ -86,6 +89,48 @@ interface FormData {
   passages_poetry: number | null;
   // Math Topics
   math_topics: string[];
+  
+  // =============================================================================
+  // IELTS Specific Fields
+  // =============================================================================
+  ielts_target_date: string;
+  has_passed_ielts_before: boolean;
+  previous_ielts_score: string;
+  // Structured previous IELTS fields
+  previous_ielts_listening: string;
+  previous_ielts_reading: string;
+  previous_ielts_writing: string;
+  previous_ielts_speaking: string;
+  previous_ielts_overall: string;
+  ielts_target_score: string;
+  // IELTS Listening Assessment (1-5 scale)
+  ielts_listening_main_idea: number | null;
+  ielts_listening_details: number | null;
+  ielts_listening_opinion: number | null;
+  ielts_listening_accents: number | null;
+  // IELTS Reading Assessment (1-5 scale)
+  ielts_reading_skimming: number | null;
+  ielts_reading_scanning: number | null;
+  ielts_reading_vocabulary: number | null;
+  ielts_reading_inference: number | null;
+  ielts_reading_matching: number | null;
+  // IELTS Writing Assessment (1-5 scale)
+  ielts_writing_task1_graphs: number | null;
+  ielts_writing_task1_process: number | null;
+  ielts_writing_task2_structure: number | null;
+  ielts_writing_task2_arguments: number | null;
+  ielts_writing_grammar: number | null;
+  ielts_writing_vocabulary: number | null;
+  // IELTS Speaking Assessment (1-5 scale)
+  ielts_speaking_fluency: number | null;
+  ielts_speaking_vocabulary: number | null;
+  ielts_speaking_grammar: number | null;
+  ielts_speaking_pronunciation: number | null;
+  ielts_speaking_part2: number | null;
+  ielts_speaking_part3: number | null;
+  // IELTS Weak Topics
+  ielts_weak_topics: string[];
+  
   // Additional comments
   additional_comments: string;
 }
@@ -177,25 +222,101 @@ const MATH_TOPICS = [
   'Area, volume, and 3D shapes',
 ];
 
+// =============================================================================
+// IELTS SPECIFIC CONSTANTS
+// =============================================================================
+
+const IELTS_TARGET_DATES = [
+  { value: 'January', label: 'January' },
+  { value: 'February', label: 'February' },
+  { value: 'March', label: 'March' },
+  { value: 'April', label: 'April' },
+  { value: 'May', label: 'May' },
+  { value: 'June', label: 'June' },
+  { value: 'July', label: 'July' },
+  { value: 'August', label: 'August' },
+  { value: 'September', label: 'September' },
+  { value: 'October', label: 'October' },
+  { value: 'November', label: 'November' },
+  { value: 'December', label: 'December' },
+];
+
+const IELTS_TARGET_SCORES = [
+  { value: '5.0', label: '5.0' },
+  { value: '5.5', label: '5.5' },
+  { value: '6.0', label: '6.0' },
+  { value: '6.5', label: '6.5' },
+  { value: '7.0', label: '7.0' },
+  { value: '7.5', label: '7.5' },
+  { value: '8.0', label: '8.0' },
+  { value: '8.5', label: '8.5' },
+  { value: '9.0', label: '9.0' },
+];
+
+const IELTS_LISTENING_QUESTIONS = [
+  { key: 'ielts_listening_main_idea', label: 'I feel confident in understanding main ideas and general themes in listening passages. I can easily identify the topic and purpose of conversations or monologues.' },
+  { key: 'ielts_listening_details', label: 'I feel confident in catching specific details such as names, numbers, dates, and factual information while listening.' },
+  { key: 'ielts_listening_opinion', label: 'I feel confident in understanding speakers\' opinions, attitudes, and feelings expressed in the audio.' },
+  { key: 'ielts_listening_accents', label: 'I feel confident in understanding different English accents (British, American, Australian, etc.) without difficulty.' },
+];
+
+const IELTS_READING_QUESTIONS = [
+  { key: 'ielts_reading_skimming', label: 'I feel confident in skimming texts to quickly identify main ideas, topic sentences, and overall structure.' },
+  { key: 'ielts_reading_scanning', label: 'I feel confident in scanning texts to locate specific information such as names, dates, and facts.' },
+  { key: 'ielts_reading_vocabulary', label: 'I feel confident in understanding academic vocabulary and can often guess meanings from context.' },
+  { key: 'ielts_reading_inference', label: 'I feel confident in making inferences and understanding implied meanings that are not directly stated.' },
+  { key: 'ielts_reading_matching', label: 'I feel confident in matching headings to paragraphs and matching information to correct sources.' },
+];
+
+const IELTS_WRITING_QUESTIONS = [
+  { key: 'ielts_writing_task1_graphs', label: 'I feel confident in describing graphs, charts, and tables in Task 1. I can identify trends, compare data, and summarize key features.' },
+  { key: 'ielts_writing_task1_process', label: 'I feel confident in describing processes, diagrams, and maps in Task 1. I can sequence steps and explain changes.' },
+  { key: 'ielts_writing_task2_structure', label: 'I feel confident in structuring Task 2 essays with clear introduction, body paragraphs, and conclusion.' },
+  { key: 'ielts_writing_task2_arguments', label: 'I feel confident in developing arguments with clear topic sentences, supporting examples, and explanations.' },
+  { key: 'ielts_writing_grammar', label: 'I feel confident in using a range of grammatical structures accurately in my writing.' },
+  { key: 'ielts_writing_vocabulary', label: 'I feel confident in using varied and appropriate vocabulary, including academic words and collocations.' },
+];
+
+const IELTS_SPEAKING_QUESTIONS = [
+  { key: 'ielts_speaking_fluency', label: 'I feel confident in speaking fluently without long pauses or hesitations. I can maintain a natural flow of speech.' },
+  { key: 'ielts_speaking_vocabulary', label: 'I feel confident in using a wide range of vocabulary to express ideas clearly and precisely.' },
+  { key: 'ielts_speaking_grammar', label: 'I feel confident in using correct grammar while speaking, including complex sentence structures.' },
+  { key: 'ielts_speaking_pronunciation', label: 'I feel confident in my pronunciation, including word stress, intonation, and clear articulation.' },
+  { key: 'ielts_speaking_part2', label: 'I feel confident in Part 2 (Long Turn) - I can speak for 1-2 minutes on a topic with good organization and detail.' },
+  { key: 'ielts_speaking_part3', label: 'I feel confident in Part 3 (Discussion) - I can discuss abstract topics and express complex ideas clearly.' },
+];
+
+const IELTS_WEAK_TOPICS = [
+  'Listening - Multiple choice questions',
+  'Listening - Sentence completion',
+  'Listening - Note/form completion',
+  'Listening - Map/diagram labeling',
+  'Reading - True/False/Not Given',
+  'Reading - Yes/No/Not Given',
+  'Reading - Matching headings',
+  'Reading - Summary completion',
+  'Reading - Multiple choice',
+  'Writing Task 1 - Line graphs',
+  'Writing Task 1 - Bar charts',
+  'Writing Task 1 - Pie charts',
+  'Writing Task 1 - Tables',
+  'Writing Task 1 - Process diagrams',
+  'Writing Task 1 - Maps',
+  'Writing Task 2 - Opinion essays',
+  'Writing Task 2 - Discussion essays',
+  'Writing Task 2 - Problem/solution essays',
+  'Writing Task 2 - Advantage/disadvantage essays',
+  'Speaking Part 1 - Personal topics',
+  'Speaking Part 2 - Cue cards',
+  'Speaking Part 3 - Abstract discussions',
+];
+
 const LIKERT_SCALE = [
   { value: 1, label: "1 - Don't know" },
   { value: 2, label: '2' },
   { value: 3, label: '3' },
   { value: 4, label: '4' },
   { value: 5, label: '5 - Mastered' },
-];
-
-// Step configuration
-const STEPS = [
-  { title: 'Personal Info', icon: User },
-  { title: 'Account Info', icon: Mail },
-  { title: 'Education', icon: GraduationCap },
-  { title: 'SAT Results', icon: Target },
-  { title: 'Grammar', icon: PenTool },
-  { title: 'Reading', icon: BookOpen },
-  { title: 'Passages', icon: FileText },
-  { title: 'Math Topics', icon: Calculator },
-  { title: 'Comments', icon: MessageSquare },
 ];
 
 // Likert Scale Component
@@ -291,7 +412,61 @@ export default function AssignmentZeroPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedDataRef = useRef<string>('');
-  const totalSteps = STEPS.length;
+  
+  // User groups state
+  const [userGroups, setUserGroups] = useState<{ id: number; name: string }[]>([]);
+  
+  // Determine which questionnaire types to show based on user groups
+  const showSAT = useMemo(() => {
+    if (userGroups.length === 0) return true; // Default to SAT if no groups
+    return userGroups.some(g => !g.name.toLowerCase().includes('ielts'));
+  }, [userGroups]);
+  
+  const showIELTS = useMemo(() => {
+    return userGroups.some(g => g.name.toLowerCase().includes('ielts'));
+  }, [userGroups]);
+  
+  // Dynamic steps based on user groups
+  const DYNAMIC_STEPS = useMemo(() => {
+    const baseSteps = [
+      { id: 'personal', title: 'Personal Info', icon: User, type: 'common' },
+      { id: 'account', title: 'Account Info', icon: Mail, type: 'common' },
+      { id: 'education', title: 'Education', icon: GraduationCap, type: 'common' },
+    ];
+    
+    const satSteps = [
+      { id: 'sat_results', title: 'SAT Results', icon: Target, type: 'sat' },
+      { id: 'sat_grammar', title: 'Grammar', icon: PenTool, type: 'sat' },
+      { id: 'sat_reading', title: 'Reading', icon: BookOpen, type: 'sat' },
+      { id: 'sat_passages', title: 'Passages', icon: FileText, type: 'sat' },
+      { id: 'sat_math', title: 'Math Topics', icon: Calculator, type: 'sat' },
+    ];
+    
+    const ieltsSteps = [
+      { id: 'ielts_results', title: 'IELTS Results', icon: Target, type: 'ielts' },
+      { id: 'ielts_listening', title: 'Listening', icon: Headphones, type: 'ielts' },
+      { id: 'ielts_reading', title: 'IELTS Reading', icon: BookOpen, type: 'ielts' },
+      { id: 'ielts_writing', title: 'Writing', icon: Edit3, type: 'ielts' },
+      { id: 'ielts_speaking', title: 'Speaking', icon: Mic, type: 'ielts' },
+      { id: 'ielts_topics', title: 'IELTS Topics', icon: FileText, type: 'ielts' },
+    ];
+    
+    const endSteps = [
+      { id: 'comments', title: 'Comments', icon: MessageSquare, type: 'common' },
+    ];
+    
+    let steps = [...baseSteps];
+    if (showSAT) steps = [...steps, ...satSteps];
+    if (showIELTS) steps = [...steps, ...ieltsSteps];
+    steps = [...steps, ...endSteps];
+    
+    return steps;
+  }, [showSAT, showIELTS]);
+  
+  // Get current step ID for conditional rendering
+  const currentStepId = DYNAMIC_STEPS[currentStep - 1]?.id || '';
+  
+  const totalSteps = DYNAMIC_STEPS.length;
 
   const [formData, setFormData] = useState<FormData>({
     full_name: user?.full_name || user?.name || '',
@@ -339,6 +514,43 @@ export default function AssignmentZeroPage() {
     passages_poetry: null,
     // Math Topics
     math_topics: [],
+    // IELTS fields
+    ielts_target_date: '',
+    has_passed_ielts_before: false,
+    previous_ielts_score: '',
+    previous_ielts_listening: '',
+    previous_ielts_reading: '',
+    previous_ielts_writing: '',
+    previous_ielts_speaking: '',
+    previous_ielts_overall: '',
+    ielts_target_score: '',
+    // IELTS Listening
+    ielts_listening_main_idea: null,
+    ielts_listening_details: null,
+    ielts_listening_opinion: null,
+    ielts_listening_accents: null,
+    // IELTS Reading
+    ielts_reading_skimming: null,
+    ielts_reading_scanning: null,
+    ielts_reading_vocabulary: null,
+    ielts_reading_inference: null,
+    ielts_reading_matching: null,
+    // IELTS Writing
+    ielts_writing_task1_graphs: null,
+    ielts_writing_task1_process: null,
+    ielts_writing_task2_structure: null,
+    ielts_writing_task2_arguments: null,
+    ielts_writing_grammar: null,
+    ielts_writing_vocabulary: null,
+    // IELTS Speaking
+    ielts_speaking_fluency: null,
+    ielts_speaking_vocabulary: null,
+    ielts_speaking_grammar: null,
+    ielts_speaking_pronunciation: null,
+    ielts_speaking_part2: null,
+    ielts_speaking_part3: null,
+    // IELTS Weak Topics
+    ielts_weak_topics: [],
     // Comments
     additional_comments: '',
   });
@@ -373,6 +585,23 @@ export default function AssignmentZeroPage() {
     return scores.join(', ');
   };
 
+  // Helper function to compute previous_ielts_score from structured fields
+  const computePreviousIeltsScore = () => {
+    if (formData.has_passed_ielts_before && formData.previous_ielts_overall) {
+      let result = `Overall ${formData.previous_ielts_overall}`;
+      const parts = [];
+      if (formData.previous_ielts_listening) parts.push(`L:${formData.previous_ielts_listening}`);
+      if (formData.previous_ielts_reading) parts.push(`R:${formData.previous_ielts_reading}`);
+      if (formData.previous_ielts_writing) parts.push(`W:${formData.previous_ielts_writing}`);
+      if (formData.previous_ielts_speaking) parts.push(`S:${formData.previous_ielts_speaking}`);
+      if (parts.length > 0) {
+        result += ` - ${parts.join(' ')}`;
+      }
+      return result;
+    }
+    return '';
+  };
+
   // Auto-save effect with debounce
   const saveProgress = useCallback(async () => {
     const currentData = JSON.stringify(formData);
@@ -384,13 +613,17 @@ export default function AssignmentZeroPage() {
       const computedPreviousSatScore = computePreviousSatScore();
       // Compute bluebook_practice_test_5_score from structured fields
       const computedBluebookScore = computeBluebookScore();
+      // Compute previous_ielts_score from structured fields
+      const computedPreviousIeltsScore = computePreviousIeltsScore();
       
       // Convert null values to undefined for API compatibility
       const dataToSave = {
         ...formData,
         previous_sat_score: computedPreviousSatScore || formData.previous_sat_score,
         bluebook_practice_test_5_score: computedBluebookScore || formData.bluebook_practice_test_5_score,
+        previous_ielts_score: computedPreviousIeltsScore || formData.previous_ielts_score,
         last_saved_step: currentStep,
+        // SAT fields
         grammar_punctuation: formData.grammar_punctuation ?? undefined,
         grammar_noun_clauses: formData.grammar_noun_clauses ?? undefined,
         grammar_relative_clauses: formData.grammar_relative_clauses ?? undefined,
@@ -408,6 +641,28 @@ export default function AssignmentZeroPage() {
         passages_humanities: formData.passages_humanities ?? undefined,
         passages_science: formData.passages_science ?? undefined,
         passages_poetry: formData.passages_poetry ?? undefined,
+        // IELTS fields
+        ielts_listening_main_idea: formData.ielts_listening_main_idea ?? undefined,
+        ielts_listening_details: formData.ielts_listening_details ?? undefined,
+        ielts_listening_opinion: formData.ielts_listening_opinion ?? undefined,
+        ielts_listening_accents: formData.ielts_listening_accents ?? undefined,
+        ielts_reading_skimming: formData.ielts_reading_skimming ?? undefined,
+        ielts_reading_scanning: formData.ielts_reading_scanning ?? undefined,
+        ielts_reading_vocabulary: formData.ielts_reading_vocabulary ?? undefined,
+        ielts_reading_inference: formData.ielts_reading_inference ?? undefined,
+        ielts_reading_matching: formData.ielts_reading_matching ?? undefined,
+        ielts_writing_task1_graphs: formData.ielts_writing_task1_graphs ?? undefined,
+        ielts_writing_task1_process: formData.ielts_writing_task1_process ?? undefined,
+        ielts_writing_task2_structure: formData.ielts_writing_task2_structure ?? undefined,
+        ielts_writing_task2_arguments: formData.ielts_writing_task2_arguments ?? undefined,
+        ielts_writing_grammar: formData.ielts_writing_grammar ?? undefined,
+        ielts_writing_vocabulary: formData.ielts_writing_vocabulary ?? undefined,
+        ielts_speaking_fluency: formData.ielts_speaking_fluency ?? undefined,
+        ielts_speaking_vocabulary: formData.ielts_speaking_vocabulary ?? undefined,
+        ielts_speaking_grammar: formData.ielts_speaking_grammar ?? undefined,
+        ielts_speaking_pronunciation: formData.ielts_speaking_pronunciation ?? undefined,
+        ielts_speaking_part2: formData.ielts_speaking_part2 ?? undefined,
+        ielts_speaking_part3: formData.ielts_speaking_part3 ?? undefined,
       };
       await apiClient.saveAssignmentZeroProgress(dataToSave);
       lastSavedDataRef.current = currentData;
@@ -448,6 +703,12 @@ export default function AssignmentZeroPage() {
   const checkStatusAndLoadDraft = async () => {
     try {
       const status = await apiClient.getAssignmentZeroStatus();
+      
+      // Set user groups from status
+      if (status.user_groups) {
+        setUserGroups(status.user_groups);
+      }
+      
       if (status.completed) {
         setAlreadyCompleted(true);
         setLoading(false);
@@ -482,6 +743,25 @@ export default function AssignmentZeroPage() {
             const verbalMatch = submission.bluebook_practice_test_5_score.match(/Verbal\s*(\d+)/i);
             if (mathMatch) bluebookMath = mathMatch[1] || '';
             if (verbalMatch) bluebookVerbal = verbalMatch[1] || '';
+          }
+          // Parse previous_ielts_score into structured fields if it exists
+          let prevIeltsListening = '';
+          let prevIeltsReading = '';
+          let prevIeltsWriting = '';
+          let prevIeltsSpeaking = '';
+          let prevIeltsOverall = '';
+          if (submission.previous_ielts_score) {
+            // Try to parse "Overall 6.5 - L:7 R:6.5 W:6 S:6.5" format
+            const overallMatch = submission.previous_ielts_score.match(/Overall\s*([\d.]+)/i);
+            const listeningMatch = submission.previous_ielts_score.match(/L:\s*([\d.]+)/i);
+            const readingMatch = submission.previous_ielts_score.match(/R:\s*([\d.]+)/i);
+            const writingMatch = submission.previous_ielts_score.match(/W:\s*([\d.]+)/i);
+            const speakingMatch = submission.previous_ielts_score.match(/S:\s*([\d.]+)/i);
+            if (overallMatch) prevIeltsOverall = overallMatch[1] || '';
+            if (listeningMatch) prevIeltsListening = listeningMatch[1] || '';
+            if (readingMatch) prevIeltsReading = readingMatch[1] || '';
+            if (writingMatch) prevIeltsWriting = writingMatch[1] || '';
+            if (speakingMatch) prevIeltsSpeaking = speakingMatch[1] || '';
           }
           setFormData({
             full_name: submission.full_name || '',
@@ -525,6 +805,38 @@ export default function AssignmentZeroPage() {
             passages_science: submission.passages_science,
             passages_poetry: submission.passages_poetry,
             math_topics: submission.math_topics || [],
+            // IELTS fields
+            ielts_target_date: submission.ielts_target_date || '',
+            has_passed_ielts_before: submission.has_passed_ielts_before || false,
+            previous_ielts_score: submission.previous_ielts_score || '',
+            previous_ielts_listening: prevIeltsListening,
+            previous_ielts_reading: prevIeltsReading,
+            previous_ielts_writing: prevIeltsWriting,
+            previous_ielts_speaking: prevIeltsSpeaking,
+            previous_ielts_overall: prevIeltsOverall,
+            ielts_target_score: submission.ielts_target_score || '',
+            ielts_listening_main_idea: submission.ielts_listening_main_idea,
+            ielts_listening_details: submission.ielts_listening_details,
+            ielts_listening_opinion: submission.ielts_listening_opinion,
+            ielts_listening_accents: submission.ielts_listening_accents,
+            ielts_reading_skimming: submission.ielts_reading_skimming,
+            ielts_reading_scanning: submission.ielts_reading_scanning,
+            ielts_reading_vocabulary: submission.ielts_reading_vocabulary,
+            ielts_reading_inference: submission.ielts_reading_inference,
+            ielts_reading_matching: submission.ielts_reading_matching,
+            ielts_writing_task1_graphs: submission.ielts_writing_task1_graphs,
+            ielts_writing_task1_process: submission.ielts_writing_task1_process,
+            ielts_writing_task2_structure: submission.ielts_writing_task2_structure,
+            ielts_writing_task2_arguments: submission.ielts_writing_task2_arguments,
+            ielts_writing_grammar: submission.ielts_writing_grammar,
+            ielts_writing_vocabulary: submission.ielts_writing_vocabulary,
+            ielts_speaking_fluency: submission.ielts_speaking_fluency,
+            ielts_speaking_vocabulary: submission.ielts_speaking_vocabulary,
+            ielts_speaking_grammar: submission.ielts_speaking_grammar,
+            ielts_speaking_pronunciation: submission.ielts_speaking_pronunciation,
+            ielts_speaking_part2: submission.ielts_speaking_part2,
+            ielts_speaking_part3: submission.ielts_speaking_part3,
+            ielts_weak_topics: submission.ielts_weak_topics || [],
             additional_comments: submission.additional_comments || '',
           });
           lastSavedDataRef.current = JSON.stringify(submission);
@@ -555,6 +867,15 @@ export default function AssignmentZeroPage() {
       math_topics: prev.math_topics.includes(topic)
         ? prev.math_topics.filter((t) => t !== topic)
         : [...prev.math_topics, topic],
+    }));
+  };
+
+  const handleIeltsWeakTopicToggle = (topic: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      ielts_weak_topics: prev.ielts_weak_topics.includes(topic)
+        ? prev.ielts_weak_topics.filter((t) => t !== topic)
+        : [...prev.ielts_weak_topics, topic],
     }));
   };
 
@@ -629,13 +950,20 @@ export default function AssignmentZeroPage() {
   };
 
   const handleSubmit = async () => {
-    // Validate all required steps
-    for (let step = 1; step <= 4; step++) {
+    // Validate all required steps (first 3 common steps)
+    for (let step = 1; step <= 3; step++) {
       if (!validateStep(step)) {
         setCurrentStep(step);
         toast('Please complete all required fields', 'error');
         return;
       }
+    }
+    
+    // Validate SAT step 4 if SAT is shown
+    if (showSAT && !validateStep(4)) {
+      setCurrentStep(4);
+      toast('Please complete all required fields', 'error');
+      return;
     }
 
     setSubmitting(true);
@@ -644,29 +972,56 @@ export default function AssignmentZeroPage() {
       const computedPreviousSatScore = computePreviousSatScore();
       // Compute bluebook_practice_test_5_score from structured fields
       const computedBluebookScore = computeBluebookScore();
+      // Compute previous_ielts_score from structured fields  
+      const computedPreviousIeltsScore = computePreviousIeltsScore();
       
       await apiClient.submitAssignmentZero({
         ...formData,
         previous_sat_score: computedPreviousSatScore || formData.previous_sat_score || undefined,
         bluebook_practice_test_5_score: computedBluebookScore || formData.bluebook_practice_test_5_score,
-        grammar_punctuation: formData.grammar_punctuation || undefined,
-        grammar_noun_clauses: formData.grammar_noun_clauses || undefined,
-        grammar_relative_clauses: formData.grammar_relative_clauses || undefined,
-        grammar_verb_forms: formData.grammar_verb_forms || undefined,
-        grammar_comparisons: formData.grammar_comparisons || undefined,
-        grammar_transitions: formData.grammar_transitions || undefined,
-        grammar_synthesis: formData.grammar_synthesis || undefined,
-        reading_word_in_context: formData.reading_word_in_context || undefined,
-        reading_text_structure: formData.reading_text_structure || undefined,
-        reading_cross_text: formData.reading_cross_text || undefined,
-        reading_central_ideas: formData.reading_central_ideas || undefined,
-        reading_inferences: formData.reading_inferences || undefined,
-        passages_literary: formData.passages_literary || undefined,
-        passages_social_science: formData.passages_social_science || undefined,
-        passages_humanities: formData.passages_humanities || undefined,
-        passages_science: formData.passages_science || undefined,
-        passages_poetry: formData.passages_poetry || undefined,
+        previous_ielts_score: computedPreviousIeltsScore || formData.previous_ielts_score || undefined,
+        // SAT fields
+        grammar_punctuation: formData.grammar_punctuation ?? undefined,
+        grammar_noun_clauses: formData.grammar_noun_clauses ?? undefined,
+        grammar_relative_clauses: formData.grammar_relative_clauses ?? undefined,
+        grammar_verb_forms: formData.grammar_verb_forms ?? undefined,
+        grammar_comparisons: formData.grammar_comparisons ?? undefined,
+        grammar_transitions: formData.grammar_transitions ?? undefined,
+        grammar_synthesis: formData.grammar_synthesis ?? undefined,
+        reading_word_in_context: formData.reading_word_in_context ?? undefined,
+        reading_text_structure: formData.reading_text_structure ?? undefined,
+        reading_cross_text: formData.reading_cross_text ?? undefined,
+        reading_central_ideas: formData.reading_central_ideas ?? undefined,
+        reading_inferences: formData.reading_inferences ?? undefined,
+        passages_literary: formData.passages_literary ?? undefined,
+        passages_social_science: formData.passages_social_science ?? undefined,
+        passages_humanities: formData.passages_humanities ?? undefined,
+        passages_science: formData.passages_science ?? undefined,
+        passages_poetry: formData.passages_poetry ?? undefined,
         math_topics: formData.math_topics.length > 0 ? formData.math_topics : undefined,
+        // IELTS fields
+        ielts_listening_main_idea: formData.ielts_listening_main_idea ?? undefined,
+        ielts_listening_details: formData.ielts_listening_details ?? undefined,
+        ielts_listening_opinion: formData.ielts_listening_opinion ?? undefined,
+        ielts_listening_accents: formData.ielts_listening_accents ?? undefined,
+        ielts_reading_skimming: formData.ielts_reading_skimming ?? undefined,
+        ielts_reading_scanning: formData.ielts_reading_scanning ?? undefined,
+        ielts_reading_vocabulary: formData.ielts_reading_vocabulary ?? undefined,
+        ielts_reading_inference: formData.ielts_reading_inference ?? undefined,
+        ielts_reading_matching: formData.ielts_reading_matching ?? undefined,
+        ielts_writing_task1_graphs: formData.ielts_writing_task1_graphs ?? undefined,
+        ielts_writing_task1_process: formData.ielts_writing_task1_process ?? undefined,
+        ielts_writing_task2_structure: formData.ielts_writing_task2_structure ?? undefined,
+        ielts_writing_task2_arguments: formData.ielts_writing_task2_arguments ?? undefined,
+        ielts_writing_grammar: formData.ielts_writing_grammar ?? undefined,
+        ielts_writing_vocabulary: formData.ielts_writing_vocabulary ?? undefined,
+        ielts_speaking_fluency: formData.ielts_speaking_fluency ?? undefined,
+        ielts_speaking_vocabulary: formData.ielts_speaking_vocabulary ?? undefined,
+        ielts_speaking_grammar: formData.ielts_speaking_grammar ?? undefined,
+        ielts_speaking_pronunciation: formData.ielts_speaking_pronunciation ?? undefined,
+        ielts_speaking_part2: formData.ielts_speaking_part2 ?? undefined,
+        ielts_speaking_part3: formData.ielts_speaking_part3 ?? undefined,
+        ielts_weak_topics: formData.ielts_weak_topics.length > 0 ? formData.ielts_weak_topics : undefined,
         additional_comments: formData.additional_comments || undefined,
       });
 
@@ -710,7 +1065,7 @@ export default function AssignmentZeroPage() {
     );
   }
 
-  const CurrentStepIcon = STEPS[currentStep - 1]?.icon || User;
+  const CurrentStepIcon = DYNAMIC_STEPS[currentStep - 1]?.icon || User;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
@@ -729,12 +1084,12 @@ export default function AssignmentZeroPage() {
         {/* Progress Indicator */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2 overflow-x-auto pb-2">
-            {STEPS.map((step, index) => {
+            {DYNAMIC_STEPS.map((step, index) => {
               const StepIcon = step.icon;
               const stepNumber = index + 1;
               return (
                 <button
-                  key={stepNumber}
+                  key={step.id}
                   onClick={() => stepNumber <= currentStep && setCurrentStep(stepNumber)}
                   disabled={stepNumber > currentStep}
                   className={`flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full font-semibold transition-all ${
@@ -762,7 +1117,7 @@ export default function AssignmentZeroPage() {
             />
           </div>
           <p className="text-center text-sm text-gray-600 mt-2">
-            Step {currentStep} of {totalSteps}: {STEPS[currentStep - 1]?.title}
+            Step {currentStep} of {totalSteps}: {DYNAMIC_STEPS[currentStep - 1]?.title}
           </p>
         </div>
 
@@ -771,23 +1126,29 @@ export default function AssignmentZeroPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CurrentStepIcon className="w-5 h-5" />
-              {STEPS[currentStep - 1]?.title}
+              {DYNAMIC_STEPS[currentStep - 1]?.title}
             </CardTitle>
             <CardDescription>
-              {currentStep === 1 && 'Tell us about yourself'}
-              {currentStep === 2 && 'Your College Board and platform accounts'}
-              {currentStep === 3 && 'Your school and SAT goals'}
-              {currentStep === 4 && 'Your recent test scores'}
-              {currentStep === 5 && 'Rate your grammar knowledge (1 = Don\'t know, 5 = Mastered)'}
-              {currentStep === 6 && 'Rate your reading skills (1 = Don\'t know, 5 = Mastered)'}
-              {currentStep === 7 && 'Rate your familiarity with SAT passage types (1 = Don\'t know, 5 = Mastered)'}
-              {currentStep === 8 && 'Select the math topics you need to work on'}
-              {currentStep === 9 && 'Any additional comments or questions'}
+              {currentStepId === 'personal' && 'Tell us about yourself'}
+              {currentStepId === 'account' && 'Your College Board and platform accounts'}
+              {currentStepId === 'education' && 'Your school and test goals'}
+              {currentStepId === 'sat_results' && 'Your recent SAT test scores'}
+              {currentStepId === 'sat_grammar' && 'Rate your grammar knowledge (1 = Don\'t know, 5 = Mastered)'}
+              {currentStepId === 'sat_reading' && 'Rate your reading skills (1 = Don\'t know, 5 = Mastered)'}
+              {currentStepId === 'sat_passages' && 'Rate your familiarity with SAT passage types (1 = Don\'t know, 5 = Mastered)'}
+              {currentStepId === 'sat_math' && 'Select the math topics you need to work on'}
+              {currentStepId === 'ielts_results' && 'Your recent IELTS test scores'}
+              {currentStepId === 'ielts_listening' && 'Rate your IELTS listening skills (1 = Don\'t know, 5 = Mastered)'}
+              {currentStepId === 'ielts_reading' && 'Rate your IELTS reading skills (1 = Don\'t know, 5 = Mastered)'}
+              {currentStepId === 'ielts_writing' && 'Rate your IELTS writing skills (1 = Don\'t know, 5 = Mastered)'}
+              {currentStepId === 'ielts_speaking' && 'Rate your IELTS speaking skills (1 = Don\'t know, 5 = Mastered)'}
+              {currentStepId === 'ielts_topics' && 'Select the IELTS topics you need to work on'}
+              {currentStepId === 'comments' && 'Any additional comments or questions'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Step 1: Personal Information */}
-            {currentStep === 1 && (
+            {/* Step: Personal Information */}
+            {currentStepId === 'personal' && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="full_name">Name and Surname *</Label>
@@ -857,8 +1218,8 @@ export default function AssignmentZeroPage() {
               </>
             )}
 
-            {/* Step 2: Account Information */}
-            {currentStep === 2 && (
+            {/* Step: Account Information */}
+            {currentStepId === 'account' && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="college_board_email">College Board Account Email *</Label>
@@ -923,8 +1284,8 @@ export default function AssignmentZeroPage() {
               </>
             )}
 
-            {/* Step 3: Education & Goals */}
-            {currentStep === 3 && (
+            {/* Step: Education & Goals */}
+            {currentStepId === 'education' && (
               <>
                 <div className="space-y-2">
                   <Label>Which type of school do you study at? *</Label>
@@ -1074,8 +1435,8 @@ export default function AssignmentZeroPage() {
               </>
             )}
 
-            {/* Step 4: SAT Results */}
-            {currentStep === 4 && (
+            {/* Step: SAT Results */}
+            {currentStepId === 'sat_results' && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="recent_practice_test_score">
@@ -1199,8 +1560,8 @@ export default function AssignmentZeroPage() {
               </>
             )}
 
-            {/* Step 5: Grammar Assessment */}
-            {currentStep === 5 && (
+            {/* Step: Grammar Assessment */}
+            {currentStepId === 'sat_grammar' && (
               <>
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -1227,8 +1588,8 @@ export default function AssignmentZeroPage() {
               </>
             )}
 
-            {/* Step 6: Reading Skills Assessment */}
-            {currentStep === 6 && (
+            {/* Step: Reading Skills Assessment */}
+            {currentStepId === 'sat_reading' && (
               <>
                 <h3 className="text-lg font-semibold mb-4">Assessment of Reading Skills</h3>
                 <div className="space-y-4">
@@ -1243,9 +1604,8 @@ export default function AssignmentZeroPage() {
                 </div>
               </>
             )}
-
-            {/* Step 7: SAT Passage Types */}
-            {currentStep === 7 && (
+            {/* Step: SAT Passage Types */}
+            {currentStepId === 'sat_passages' && (
               <>
                 <h3 className="text-lg font-semibold mb-4">Styles of the SAT Passages</h3>
                 <div className="space-y-4">
@@ -1261,8 +1621,8 @@ export default function AssignmentZeroPage() {
               </>
             )}
 
-            {/* Step 8: Math Topics */}
-            {currentStep === 8 && (
+            {/* Step: Math Topics */}
+            {currentStepId === 'sat_math' && (
               <>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <p className="text-sm text-blue-800">
@@ -1290,8 +1650,231 @@ export default function AssignmentZeroPage() {
               </>
             )}
 
-            {/* Step 9: Additional Comments */}
-            {currentStep === 9 && (
+            {/* IELTS Results Step */}
+            {currentStepId === 'ielts_results' && (
+              <>
+                <div className="space-y-2">
+                  <Label>When do you plan to take the IELTS exam? *</Label>
+                  <Select
+                    value={formData.ielts_target_date}
+                    onValueChange={(value) => handleInputChange('ielts_target_date', value)}
+                  >
+                    <SelectTrigger className={errors.ielts_target_date ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select target month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IELTS_TARGET_DATES.map((date) => (
+                        <SelectItem key={date.value} value={date.value}>
+                          {date.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.ielts_target_date && (
+                    <p className="text-sm text-red-500">{errors.ielts_target_date}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>What is your target IELTS score? *</Label>
+                  <Select
+                    value={formData.ielts_target_score}
+                    onValueChange={(value) => handleInputChange('ielts_target_score', value)}
+                  >
+                    <SelectTrigger className={errors.ielts_target_score ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select target score" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IELTS_TARGET_SCORES.map((score) => (
+                        <SelectItem key={score.value} value={score.value}>
+                          {score.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.ielts_target_score && (
+                    <p className="text-sm text-red-500">{errors.ielts_target_score}</p>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="has_passed_ielts_before"
+                    checked={formData.has_passed_ielts_before}
+                    onCheckedChange={(checked) =>
+                      handleInputChange('has_passed_ielts_before', checked === true)
+                    }
+                  />
+                  <Label htmlFor="has_passed_ielts_before" className="text-sm font-normal cursor-pointer">
+                    I have taken the IELTS exam before
+                  </Label>
+                </div>
+
+                {formData.has_passed_ielts_before && (
+                  <div className="space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <h4 className="font-medium">Previous IELTS Scores</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="previous_ielts_listening">Listening</Label>
+                        <Input
+                          id="previous_ielts_listening"
+                          placeholder="e.g., 7.0"
+                          value={formData.previous_ielts_listening}
+                          onChange={(e) => handleInputChange('previous_ielts_listening', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="previous_ielts_reading">Reading</Label>
+                        <Input
+                          id="previous_ielts_reading"
+                          placeholder="e.g., 6.5"
+                          value={formData.previous_ielts_reading}
+                          onChange={(e) => handleInputChange('previous_ielts_reading', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="previous_ielts_writing">Writing</Label>
+                        <Input
+                          id="previous_ielts_writing"
+                          placeholder="e.g., 6.0"
+                          value={formData.previous_ielts_writing}
+                          onChange={(e) => handleInputChange('previous_ielts_writing', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="previous_ielts_speaking">Speaking</Label>
+                        <Input
+                          id="previous_ielts_speaking"
+                          placeholder="e.g., 6.5"
+                          value={formData.previous_ielts_speaking}
+                          onChange={(e) => handleInputChange('previous_ielts_speaking', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="previous_ielts_overall">Overall Band Score</Label>
+                      <Input
+                        id="previous_ielts_overall"
+                        placeholder="e.g., 6.5"
+                        value={formData.previous_ielts_overall}
+                        onChange={(e) => handleInputChange('previous_ielts_overall', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* IELTS Listening Assessment */}
+            {currentStepId === 'ielts_listening' && (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-amber-800">
+                    <p className="font-medium mb-1">Important</p>
+                    <p>
+                      Please be honest when answering questions. This questionnaire is designed to
+                      identify your current strong and weak skills to help us personalize your
+                      learning experience.
+                    </p>
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold mb-4">IELTS Listening Skills Assessment</h3>
+                <div className="space-y-4">
+                  {IELTS_LISTENING_QUESTIONS.map((question) => (
+                    <LikertScale
+                      key={question.key}
+                      label={question.label}
+                      value={formData[question.key as keyof FormData] as number | null}
+                      onChange={(value) => handleInputChange(question.key as keyof FormData, value)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* IELTS Reading Assessment */}
+            {currentStepId === 'ielts_reading' && (
+              <>
+                <h3 className="text-lg font-semibold mb-4">IELTS Reading Skills Assessment</h3>
+                <div className="space-y-4">
+                  {IELTS_READING_QUESTIONS.map((question) => (
+                    <LikertScale
+                      key={question.key}
+                      label={question.label}
+                      value={formData[question.key as keyof FormData] as number | null}
+                      onChange={(value) => handleInputChange(question.key as keyof FormData, value)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* IELTS Writing Assessment */}
+            {currentStepId === 'ielts_writing' && (
+              <>
+                <h3 className="text-lg font-semibold mb-4">IELTS Writing Skills Assessment</h3>
+                <div className="space-y-4">
+                  {IELTS_WRITING_QUESTIONS.map((question) => (
+                    <LikertScale
+                      key={question.key}
+                      label={question.label}
+                      value={formData[question.key as keyof FormData] as number | null}
+                      onChange={(value) => handleInputChange(question.key as keyof FormData, value)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* IELTS Speaking Assessment */}
+            {currentStepId === 'ielts_speaking' && (
+              <>
+                <h3 className="text-lg font-semibold mb-4">IELTS Speaking Skills Assessment</h3>
+                <div className="space-y-4">
+                  {IELTS_SPEAKING_QUESTIONS.map((question) => (
+                    <LikertScale
+                      key={question.key}
+                      label={question.label}
+                      value={formData[question.key as keyof FormData] as number | null}
+                      onChange={(value) => handleInputChange(question.key as keyof FormData, value)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* IELTS Weak Topics */}
+            {currentStepId === 'ielts_topics' && (
+              <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Instructions:</strong> Select all the IELTS topics and question types that you feel you need
+                    to work on or improve.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {IELTS_WEAK_TOPICS.map((topic) => (
+                    <div key={topic} className="flex items-center space-x-3">
+                      <Checkbox
+                        id={`ielts-${topic}`}
+                        checked={formData.ielts_weak_topics.includes(topic)}
+                        onCheckedChange={() => handleIeltsWeakTopicToggle(topic)}
+                      />
+                      <Label htmlFor={`ielts-${topic}`} className="text-sm font-normal cursor-pointer">
+                        {topic}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-500 mt-4">
+                  Selected: {formData.ielts_weak_topics.length} topic(s)
+                </p>
+              </>
+            )}
+
+            {/* Step: Additional Comments */}
+            {currentStepId === 'comments' && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="additional_comments">Additional Comments (Optional)</Label>
