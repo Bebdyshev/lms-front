@@ -1516,7 +1516,7 @@ export default function LessonEditPage() {
   const remainingChars = 100 - lessonTitle.length;
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
       <LessonSidebar
         course={course}
@@ -1526,7 +1526,7 @@ export default function LessonEditPage() {
       />
       
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <Card className="border-0 rounded-none border-b">
           <CardHeader className="pb-3">

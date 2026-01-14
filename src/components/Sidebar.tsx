@@ -24,6 +24,7 @@ import {
   Heart,
   FileText,
   Trophy,
+  AlertTriangle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Course } from '../types';
@@ -46,6 +47,7 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number, 
     ['/admin/users', 'Manage Users', Users, 0, ['admin'], 'users-management'],
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management'],
     ['/admin/assignment-zero', 'Assignment Zero', ClipboardCheck, 0, ['admin'], 'assignment-zero-management'],
+    ['/admin/question-reports', 'Question Reports', AlertTriangle, 0, ['admin', 'teacher'], 'question-reports-nav'],
     ['/homework', 'Homework', ClipboardList, 0, ['teacher'], 'assignments-nav'],
     ['/chat', 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
   ];

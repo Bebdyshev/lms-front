@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { CheckCircle, ChevronRight } from 'lucide-react';
+import { CheckCircle, ChevronRight, AlertTriangle, XCircle } from 'lucide-react';
 import { renderTextWithLatex } from '../../utils/latex';
 import type { Step } from '../../types';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +13,7 @@ import { FillInBlankQuestion } from './quiz/FillInBlankQuestion';
 import { MatchingQuestion } from './quiz/MatchingQuestion';
 import { ZoomableImage } from './ZoomableImage';
 import { AudioPlayer } from './quiz/AudioPlayer';
+import api from '../../services/api';
 
 // Exam mode badge component
 const ExamModeBadge = ({ maxPlays }: { maxPlays: number }) => (
@@ -105,6 +107,51 @@ const QuizRenderer = (props: QuizRendererProps) => {
   } = props;
 
   const navigate = useNavigate();
+  
+  // State for error reporting
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportQuestionId, setReportQuestionId] = useState<string | null>(null);
+  const [reportMessage, setReportMessage] = useState('');
+  const [reportSuggestedAnswer, setReportSuggestedAnswer] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportedQuestions, setReportedQuestions] = useState<Set<string>>(new Set());
+
+  // Get the question being reported
+  const getReportedQuestion = () => {
+    if (!reportQuestionId) return null;
+    return questions.find(q => q.id.toString() === reportQuestionId);
+  };
+
+  // Handle opening report modal
+  const openReportModal = (questionId: string) => {
+    setReportQuestionId(questionId);
+    setReportMessage('');
+    setReportSuggestedAnswer('');
+    setReportModalOpen(true);
+  };
+
+  // Handle submitting error report
+  const submitErrorReport = async () => {
+    if (!reportQuestionId || !reportMessage.trim()) return;
+    
+    setReportSubmitting(true);
+    try {
+      await api.reportQuestionError(
+        parseInt(reportQuestionId),
+        reportMessage.trim(),
+        currentStep?.id,
+        reportSuggestedAnswer.trim() || undefined
+      );
+      setReportedQuestions(prev => new Set(prev).add(reportQuestionId));
+      setReportModalOpen(false);
+      setReportMessage('');
+      setReportSuggestedAnswer('');
+    } catch (error) {
+      console.error('Failed to submit error report:', error);
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
 
   // Calculate total number of "questions" considering gaps in fill_blank and text_completion
   // Excludes image_content which is just visual content, not a question
@@ -348,28 +395,255 @@ const QuizRenderer = (props: QuizRendererProps) => {
                   {/* Result Indicator */}
                   {feedChecked && (() => {
                     let isCorrect = false;
-                    if (q.question_type === 'fill_blank') {
+                    let correctAnswerDisplay = '';
+                    
+                    if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
                       const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
                       const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
                       isCorrect = current.every((val, idx) => (val || '').toString().trim().toLowerCase() === (answers[idx] || '').toString().trim().toLowerCase());
+                      correctAnswerDisplay = answers.join(', ');
+                    } else if (q.question_type === 'matching') {
+                      // For matching questions, check the pairs
+                      const userMatches = quizAnswers.get(q.id.toString()) || {};
+                      const correctPairs = q.matching_pairs || [];
+                      isCorrect = correctPairs.every((pair: any) => 
+                        userMatches[pair.left] === pair.right
+                      );
+                      correctAnswerDisplay = correctPairs.map((pair: any) => `${pair.left} → ${pair.right}`).join('; ');
+                    } else if (q.question_type === 'multiple_choice') {
+                      // For multiple choice, correct_answer might be an array or pipe-separated string
+                      const correctAnswers = Array.isArray(q.correct_answer) 
+                        ? q.correct_answer 
+                        : (q.correct_answer || '').toString().split('|').map((a: string) => a.trim()).filter((a: string) => a.length > 0);
+                      const userAnswers = Array.isArray(userAnswer) ? userAnswer : [userAnswer];
+                      isCorrect = correctAnswers.length === userAnswers.length && 
+                        correctAnswers.every((ca: string) => userAnswers.some((ua: string) => ua?.toString().trim().toLowerCase() === ca.toString().trim().toLowerCase()));
+                      // Find correct option texts
+                      const correctTexts = (q.options || [])
+                        .filter((opt: any) => correctAnswers.some((ca: string) => ca.toString().trim().toLowerCase() === (opt.text || opt).toString().trim().toLowerCase()))
+                        .map((opt: any) => opt.text || opt);
+                      correctAnswerDisplay = correctTexts.join(', ');
                     } else {
                       const answers = (q.correct_answer || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
                       isCorrect = answers.includes((userAnswer || '').toString().trim().toLowerCase());
+                      // For single choice, find the correct option text
+                      if (q.question_type === 'single_choice' || q.question_type === 'media_question') {
+                        const correctOpt = (q.options || []).find((opt: any) => 
+                          answers.some((a: string) => a === (opt.text || opt).toString().trim().toLowerCase())
+                        );
+                        correctAnswerDisplay = correctOpt ? (correctOpt.text || correctOpt) : q.correct_answer;
+                      } else {
+                        correctAnswerDisplay = q.correct_answer || '';
+                      }
                     }
-                    return isCorrect ? (
-                      <div className="mt-4 flex items-center gap-2">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                          <CheckCircle className="w-4 h-4" />
-                          Correct!
-                        </span>
+                    
+                    return (
+                      <div className="mt-4 space-y-3">
+                        {isCorrect ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                              <CheckCircle className="w-4 h-4" />
+                              Correct!
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                                <XCircle className="w-4 h-4" />
+                                Incorrect
+                              </span>
+                            </div>
+                            {/* Show correct answer */}
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                              <p className="text-sm font-medium text-green-800 mb-1">Correct Answer:</p>
+                              <p className="text-green-700" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(correctAnswerDisplay) }} />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Show explanation if available */}
+                        {q.explanation && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm font-medium text-blue-800 mb-1">Explanation:</p>
+                            <div className="text-blue-700 text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.explanation) }} />
+                          </div>
+                        )}
                       </div>
-                    ) : null;
+                    );
                   })()}
+
+                  {/* Report Error Button */}
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => openReportModal(q.id.toString())}
+                      disabled={reportedQuestions.has(q.id.toString())}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                        reportedQuestions.has(q.id.toString())
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'text-orange-600 hover:bg-orange-50 hover:text-orange-700'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      {reportedQuestions.has(q.id.toString()) ? 'Reported' : 'Report an Error'}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
+
+        {/* Error Report Modal */}
+        {reportModalOpen && createPortal(
+          <>
+            {/* Backdrop - covers entire screen */}
+            <div 
+              className="fixed inset-0 z-[9998] bg-black/50"
+              onClick={() => {
+                setReportModalOpen(false);
+                setReportMessage('');
+                setReportSuggestedAnswer('');
+              }}
+            />
+            {/* Modal content */}
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
+              <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto pointer-events-auto">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Report an Error</h3>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Found a mistake in this question? Please describe the error and suggest the correct answer.
+                </p>
+                
+                {/* Error description */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    What's wrong? <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={reportMessage}
+                    onChange={(e) => setReportMessage(e.target.value)}
+                    placeholder="Describe the error (e.g., the marked answer is incorrect, there's a typo, the question is unclear)..."
+                    className="w-full h-24 p-3 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+                
+                {/* Suggested correct answer */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    What should be the correct answer?
+                  </label>
+                  {(() => {
+                    const reportedQ = getReportedQuestion();
+                    if (!reportedQ) return null;
+                    
+                    // For choice questions, show options to select
+                    if (reportedQ.question_type === 'single_choice' || reportedQ.question_type === 'media_question') {
+                      return (
+                        <div className="space-y-2">
+                          {(reportedQ.options || []).map((opt: any, idx: number) => (
+                            <label 
+                              key={idx} 
+                              className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                                reportSuggestedAnswer === (opt.text || opt) 
+                                  ? 'border-orange-500 bg-orange-50' 
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="suggestedAnswer"
+                                value={opt.text || opt}
+                                checked={reportSuggestedAnswer === (opt.text || opt)}
+                                onChange={(e) => setReportSuggestedAnswer(e.target.value)}
+                                className="w-4 h-4 text-orange-600 focus:ring-orange-500"
+                              />
+                              <span className="text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(opt.text || opt) }} />
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    }
+                    
+                    // For multiple choice, show checkboxes
+                    if (reportedQ.question_type === 'multiple_choice') {
+                      const selectedAnswers = reportSuggestedAnswer ? reportSuggestedAnswer.split('|') : [];
+                      return (
+                        <div className="space-y-2">
+                          {(reportedQ.options || []).map((opt: any, idx: number) => {
+                            const optText = opt.text || opt;
+                            const isSelected = selectedAnswers.includes(optText);
+                            return (
+                              <label 
+                                key={idx} 
+                                className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                                  isSelected 
+                                    ? 'border-orange-500 bg-orange-50' 
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setReportSuggestedAnswer([...selectedAnswers, optText].join('|'));
+                                    } else {
+                                      setReportSuggestedAnswer(selectedAnswers.filter(a => a !== optText).join('|'));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-orange-600 focus:ring-orange-500 rounded"
+                                />
+                                <span className="text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(optText) }} />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+                    
+                    // For text-based questions, show text input
+                    return (
+                      <input
+                        type="text"
+                        value={reportSuggestedAnswer}
+                        onChange={(e) => setReportSuggestedAnswer(e.target.value)}
+                        placeholder="Enter the correct answer..."
+                        className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      />
+                    );
+                  })()}
+                  <p className="text-xs text-gray-500 mt-1">Optional but helpful for review</p>
+                </div>
+                
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setReportModalOpen(false);
+                      setReportMessage('');
+                      setReportSuggestedAnswer('');
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitErrorReport}
+                    disabled={!reportMessage.trim() || reportSubmitting}
+                    className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {reportSubmitting ? 'Submitting...' : 'Submit Report'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
 
         {/* Action Buttons */}
         <div className="flex justify-center pt-4">

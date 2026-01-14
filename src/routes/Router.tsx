@@ -30,6 +30,7 @@ import LessonEditPage from '../pages/LessonEditPage.tsx';
 import TeacherClassPage from '../pages/TeacherClassPage.tsx';
 import AdminDashboard from '../pages/admin/AdminDashboard.tsx';
 import AssignmentZeroSubmissions from '../pages/admin/AssignmentZeroSubmissions.tsx';
+import QuestionReportsPage from '../pages/admin/QuestionReportsPage.tsx';
 import UserManagement from '../pages/UserManagement.tsx';
 import LessonPage from '../pages/LessonPage.tsx';
 import CourseProgressPage from '../pages/CourseProgressPage.tsx';
@@ -345,6 +346,14 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['admin']}>
               <AppLayout>
                 <AssignmentZeroSubmissions />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/question-reports" element={
+            <ProtectedRoute allowedRoles={['admin', 'teacher']}>
+              <AppLayout>
+                <QuestionReportsPage />
               </AppLayout>
             </ProtectedRoute>
           } />

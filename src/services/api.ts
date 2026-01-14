@@ -2760,6 +2760,69 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // QUESTION ERROR REPORTING
+  // =============================================================================
+
+  async reportQuestionError(questionId: number, message: string, stepId?: number, suggestedAnswer?: string): Promise<void> {
+    try {
+      await this.api.post('/questions/report-error', {
+        question_id: questionId,
+        message,
+        step_id: stepId,
+        suggested_answer: suggestedAnswer,
+      });
+    } catch (error) {
+      console.error('Failed to report question error:', error);
+      throw error;
+    }
+  }
+
+  async getQuestionErrorReports(status?: string): Promise<any[]> {
+    try {
+      const params = status ? { status } : {};
+      const response = await this.api.get('/questions/error-reports', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get question error reports:', error);
+      throw error;
+    }
+  }
+
+  async getQuestionErrorReportDetail(reportId: number): Promise<any> {
+    try {
+      const response = await this.api.get(`/questions/error-reports/${reportId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get question error report detail:', error);
+      throw error;
+    }
+  }
+
+  async updateQuestionErrorReportStatus(reportId: number, status: string): Promise<void> {
+    try {
+      await this.api.patch(`/questions/error-reports/${reportId}`, null, { params: { status } });
+    } catch (error) {
+      console.error('Failed to update question error report status:', error);
+      throw error;
+    }
+  }
+
+  async updateQuestion(stepId: number, questionId: number, data: {
+    question_text?: string;
+    correct_answer?: any;
+    options?: any[];
+    explanation?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.api.put(`/questions/update-question/${stepId}/${questionId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update question:', error);
+      throw error;
+    }
+  }
+
 }
 
 // =============================================================================
