@@ -369,34 +369,7 @@ function SavingIndicator({ status }: { status: 'idle' | 'saving' | 'saved' | 'er
 
   return (
     <div className="fixed top-4 right-4 z-50">
-      <div
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg transition-all ${
-          status === 'saving'
-            ? 'bg-blue-100 text-blue-700'
-            : status === 'saved'
-            ? 'bg-green-100 text-green-700'
-            : 'bg-red-100 text-red-700'
-        }`}
-      >
-        {status === 'saving' && (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm font-medium">Saving...</span>
-          </>
-        )}
-        {status === 'saved' && (
-          <>
-            <Cloud className="w-4 h-4" />
-            <span className="text-sm font-medium">All changes saved</span>
-          </>
-        )}
-        {status === 'error' && (
-          <>
-            <CloudOff className="w-4 h-4" />
-            <span className="text-sm font-medium">Failed to save</span>
-          </>
-        )}
-      </div>
+      
     </div>
   );
 }
