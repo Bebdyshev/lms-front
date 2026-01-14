@@ -443,7 +443,6 @@ export default function AssignmentZeroPage() {
     ];
     
     const ieltsSteps = [
-      { id: 'ielts_results', title: 'IELTS Results', icon: Target, type: 'ielts' },
       { id: 'ielts_listening', title: 'Listening', icon: Headphones, type: 'ielts' },
       { id: 'ielts_reading', title: 'IELTS Reading', icon: BookOpen, type: 'ielts' },
       { id: 'ielts_writing', title: 'Writing', icon: Edit3, type: 'ielts' },
@@ -926,7 +925,8 @@ export default function AssignmentZeroPage() {
     } else if (step === 3) {
       if (!formData.school_type) newErrors.school_type = 'Required';
       if (!formData.group_name.trim()) newErrors.group_name = 'Required';
-      if (!formData.sat_target_date) newErrors.sat_target_date = 'Required';
+      // SAT target date only required if user is in SAT group
+      if (showSAT && !formData.sat_target_date) newErrors.sat_target_date = 'Required';
     } else if (step === 4) {
       if (!formData.recent_practice_test_score.trim()) newErrors.recent_practice_test_score = 'Required';
       if (!formData.bluebook_verbal.trim()) newErrors.bluebook_verbal = 'Required';
@@ -1137,7 +1137,6 @@ export default function AssignmentZeroPage() {
               {currentStepId === 'sat_reading' && 'Rate your reading skills (1 = Don\'t know, 5 = Mastered)'}
               {currentStepId === 'sat_passages' && 'Rate your familiarity with SAT passage types (1 = Don\'t know, 5 = Mastered)'}
               {currentStepId === 'sat_math' && 'Select the math topics you need to work on'}
-              {currentStepId === 'ielts_results' && 'Your recent IELTS test scores'}
               {currentStepId === 'ielts_listening' && 'Rate your IELTS listening skills (1 = Don\'t know, 5 = Mastered)'}
               {currentStepId === 'ielts_reading' && 'Rate your IELTS reading skills (1 = Don\'t know, 5 = Mastered)'}
               {currentStepId === 'ielts_writing' && 'Rate your IELTS writing skills (1 = Don\'t know, 5 = Mastered)'}
@@ -1319,118 +1318,254 @@ export default function AssignmentZeroPage() {
                   {errors.group_name && <p className="text-sm text-red-500">{errors.group_name}</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <Label>When are you planning to pass SAT? *</Label>
-                  <Select
-                    value={formData.sat_target_date}
-                    onValueChange={(value) => handleInputChange('sat_target_date', value)}
-                  >
-                    <SelectTrigger className={errors.sat_target_date ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select target date" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SAT_TARGET_DATES.map((date) => (
-                        <SelectItem key={date.value} value={date.value}>
-                          {date.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.sat_target_date && <p className="text-sm text-red-500">{errors.sat_target_date}</p>}
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has_passed_sat"
-                    checked={formData.has_passed_sat_before}
-                    onCheckedChange={(checked) =>
-                      handleInputChange('has_passed_sat_before', checked === true)
-                    }
-                  />
-                  <Label htmlFor="has_passed_sat" className="cursor-pointer">
-                    Have you passed SAT before?
-                  </Label>
-                </div>
-
-                {formData.has_passed_sat_before && (
-                  <div className="space-y-4 p-4 bg-gray-50 rounded-lg border">
-                    <Label className="font-medium">What was your score and on which exam?</Label>
-                    
-                    {/* Month and Year Selection */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_sat_month">Month *</Label>
-                        <Select
-                          value={formData.previous_sat_month}
-                          onValueChange={(value) => handleInputChange('previous_sat_month', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select month" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SAT_MONTHS.map((month) => (
-                              <SelectItem key={month.value} value={month.value}>
-                                {month.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_sat_year">Year *</Label>
-                        <Select
-                          value={formData.previous_sat_year}
-                          onValueChange={(value) => handleInputChange('previous_sat_year', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select year" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SAT_YEARS.map((year) => (
-                              <SelectItem key={year.value} value={year.value}>
-                                {year.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                {/* SAT-specific questions - only show if user is in SAT group */}
+                {showSAT && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>When are you planning to pass SAT? *</Label>
+                      <Select
+                        value={formData.sat_target_date}
+                        onValueChange={(value) => handleInputChange('sat_target_date', value)}
+                      >
+                        <SelectTrigger className={errors.sat_target_date ? 'border-red-500' : ''}>
+                          <SelectValue placeholder="Select target date" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SAT_TARGET_DATES.map((date) => (
+                            <SelectItem key={date.value} value={date.value}>
+                              {date.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.sat_target_date && <p className="text-sm text-red-500">{errors.sat_target_date}</p>}
                     </div>
 
-                    {/* Verbal and Math Scores */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_sat_verbal">Verbal Score *</Label>
-                        <Input
-                          id="previous_sat_verbal"
-                          type="number"
-                          min="200"
-                          max="800"
-                          placeholder="200-800"
-                          value={formData.previous_sat_verbal}
-                          onChange={(e) => handleInputChange('previous_sat_verbal', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_sat_math">Math Score *</Label>
-                        <Input
-                          id="previous_sat_math"
-                          type="number"
-                          min="200"
-                          max="800"
-                          placeholder="200-800"
-                          value={formData.previous_sat_math}
-                          onChange={(e) => handleInputChange('previous_sat_math', e.target.value)}
-                        />
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="has_passed_sat"
+                        checked={formData.has_passed_sat_before}
+                        onCheckedChange={(checked) =>
+                          handleInputChange('has_passed_sat_before', checked === true)
+                        }
+                      />
+                      <Label htmlFor="has_passed_sat" className="cursor-pointer">
+                        Have you passed SAT before?
+                      </Label>
                     </div>
 
-                    {/* Show total score if both are entered */}
-                    {formData.previous_sat_verbal && formData.previous_sat_math && (
-                      <div className="text-sm text-gray-600 bg-white p-2 rounded border">
-                        Total Score: <span className="font-semibold">{Number(formData.previous_sat_verbal) + Number(formData.previous_sat_math)}</span>
+                    {formData.has_passed_sat_before && (
+                      <div className="space-y-4 p-4 bg-gray-50 rounded-lg border">
+                        <Label className="font-medium">What was your score and on which exam?</Label>
+                        
+                        {/* Month and Year Selection */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_sat_month">Month *</Label>
+                            <Select
+                              value={formData.previous_sat_month}
+                              onValueChange={(value) => handleInputChange('previous_sat_month', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select month" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SAT_MONTHS.map((month) => (
+                                  <SelectItem key={month.value} value={month.value}>
+                                    {month.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_sat_year">Year *</Label>
+                            <Select
+                              value={formData.previous_sat_year}
+                              onValueChange={(value) => handleInputChange('previous_sat_year', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select year" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SAT_YEARS.map((year) => (
+                                  <SelectItem key={year.value} value={year.value}>
+                                    {year.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        {/* Verbal and Math Scores */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_sat_verbal">Verbal Score *</Label>
+                            <Input
+                              id="previous_sat_verbal"
+                              type="number"
+                              min="200"
+                              max="800"
+                              placeholder="200-800"
+                              value={formData.previous_sat_verbal}
+                              onChange={(e) => handleInputChange('previous_sat_verbal', e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_sat_math">Math Score *</Label>
+                            <Input
+                              id="previous_sat_math"
+                              type="number"
+                              min="200"
+                              max="800"
+                              placeholder="200-800"
+                              value={formData.previous_sat_math}
+                              onChange={(e) => handleInputChange('previous_sat_math', e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Show total score if both are entered */}
+                        {formData.previous_sat_verbal && formData.previous_sat_math && (
+                          <div className="text-sm text-gray-600 bg-white p-2 rounded border">
+                            Total Score: <span className="font-semibold">{Number(formData.previous_sat_verbal) + Number(formData.previous_sat_math)}</span>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
+                )}
+
+                {/* IELTS-specific questions in education step - only show if user is in IELTS group */}
+                {showIELTS && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>When are you planning to pass IELTS? *</Label>
+                      <Select
+                        value={formData.ielts_target_date}
+                        onValueChange={(value) => handleInputChange('ielts_target_date', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select target date" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {IELTS_TARGET_DATES.map((date) => (
+                            <SelectItem key={date.value} value={date.value}>
+                              {date.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>What is your target IELTS score?</Label>
+                      <Select
+                        value={formData.ielts_target_score}
+                        onValueChange={(value) => handleInputChange('ielts_target_score', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select target score" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {IELTS_TARGET_SCORES.map((score) => (
+                            <SelectItem key={score.value} value={score.value}>
+                              {score.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="has_passed_ielts"
+                        checked={formData.has_passed_ielts_before}
+                        onCheckedChange={(checked) =>
+                          handleInputChange('has_passed_ielts_before', checked === true)
+                        }
+                      />
+                      <Label htmlFor="has_passed_ielts" className="cursor-pointer">
+                        Have you passed IELTS before?
+                      </Label>
+                    </div>
+
+                    {formData.has_passed_ielts_before && (
+                      <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                        <Label className="font-medium">What were your previous IELTS scores?</Label>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_ielts_listening">Listening</Label>
+                            <Input
+                              id="previous_ielts_listening"
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max="9"
+                              placeholder="0-9"
+                              value={formData.previous_ielts_listening}
+                              onChange={(e) => handleInputChange('previous_ielts_listening', e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_ielts_reading">Reading</Label>
+                            <Input
+                              id="previous_ielts_reading"
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max="9"
+                              placeholder="0-9"
+                              value={formData.previous_ielts_reading}
+                              onChange={(e) => handleInputChange('previous_ielts_reading', e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_ielts_writing">Writing</Label>
+                            <Input
+                              id="previous_ielts_writing"
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max="9"
+                              placeholder="0-9"
+                              value={formData.previous_ielts_writing}
+                              onChange={(e) => handleInputChange('previous_ielts_writing', e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="previous_ielts_speaking">Speaking</Label>
+                            <Input
+                              id="previous_ielts_speaking"
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max="9"
+                              placeholder="0-9"
+                              value={formData.previous_ielts_speaking}
+                              onChange={(e) => handleInputChange('previous_ielts_speaking', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="previous_ielts_overall">Overall Band Score</Label>
+                          <Input
+                            id="previous_ielts_overall"
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max="9"
+                            placeholder="0-9"
+                            value={formData.previous_ielts_overall}
+                            onChange={(e) => handleInputChange('previous_ielts_overall', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -1647,121 +1782,6 @@ export default function AssignmentZeroPage() {
                 <p className="text-sm text-gray-500 mt-4">
                   Selected: {formData.math_topics.length} topic(s)
                 </p>
-              </>
-            )}
-
-            {/* IELTS Results Step */}
-            {currentStepId === 'ielts_results' && (
-              <>
-                <div className="space-y-2">
-                  <Label>When do you plan to take the IELTS exam? *</Label>
-                  <Select
-                    value={formData.ielts_target_date}
-                    onValueChange={(value) => handleInputChange('ielts_target_date', value)}
-                  >
-                    <SelectTrigger className={errors.ielts_target_date ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select target month" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IELTS_TARGET_DATES.map((date) => (
-                        <SelectItem key={date.value} value={date.value}>
-                          {date.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.ielts_target_date && (
-                    <p className="text-sm text-red-500">{errors.ielts_target_date}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label>What is your target IELTS score? *</Label>
-                  <Select
-                    value={formData.ielts_target_score}
-                    onValueChange={(value) => handleInputChange('ielts_target_score', value)}
-                  >
-                    <SelectTrigger className={errors.ielts_target_score ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select target score" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IELTS_TARGET_SCORES.map((score) => (
-                        <SelectItem key={score.value} value={score.value}>
-                          {score.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.ielts_target_score && (
-                    <p className="text-sm text-red-500">{errors.ielts_target_score}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has_passed_ielts_before"
-                    checked={formData.has_passed_ielts_before}
-                    onCheckedChange={(checked) =>
-                      handleInputChange('has_passed_ielts_before', checked === true)
-                    }
-                  />
-                  <Label htmlFor="has_passed_ielts_before" className="text-sm font-normal cursor-pointer">
-                    I have taken the IELTS exam before
-                  </Label>
-                </div>
-
-                {formData.has_passed_ielts_before && (
-                  <div className="space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <h4 className="font-medium">Previous IELTS Scores</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_ielts_listening">Listening</Label>
-                        <Input
-                          id="previous_ielts_listening"
-                          placeholder="e.g., 7.0"
-                          value={formData.previous_ielts_listening}
-                          onChange={(e) => handleInputChange('previous_ielts_listening', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_ielts_reading">Reading</Label>
-                        <Input
-                          id="previous_ielts_reading"
-                          placeholder="e.g., 6.5"
-                          value={formData.previous_ielts_reading}
-                          onChange={(e) => handleInputChange('previous_ielts_reading', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_ielts_writing">Writing</Label>
-                        <Input
-                          id="previous_ielts_writing"
-                          placeholder="e.g., 6.0"
-                          value={formData.previous_ielts_writing}
-                          onChange={(e) => handleInputChange('previous_ielts_writing', e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="previous_ielts_speaking">Speaking</Label>
-                        <Input
-                          id="previous_ielts_speaking"
-                          placeholder="e.g., 6.5"
-                          value={formData.previous_ielts_speaking}
-                          onChange={(e) => handleInputChange('previous_ielts_speaking', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="previous_ielts_overall">Overall Band Score</Label>
-                      <Input
-                        id="previous_ielts_overall"
-                        placeholder="e.g., 6.5"
-                        value={formData.previous_ielts_overall}
-                        onChange={(e) => handleInputChange('previous_ielts_overall', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
               </>
             )}
 
