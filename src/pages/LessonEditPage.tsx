@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../services/api';
 import type { Course, CourseModule, Lesson, LessonContentType, Assignment, Question, Step, FlashcardSet } from '../types';
 import { 
@@ -642,6 +642,7 @@ const SortableStepItem = ({ step, isSelected, onSelect }: SortableStepItemProps)
 export default function LessonEditPage() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -735,6 +736,27 @@ export default function LessonEditPage() {
     if (!courseId || !lessonId) return;
     loadData();
   }, [courseId, lessonId]);
+
+  // Handle URL step parameter for deep linking
+  useEffect(() => {
+    if (steps.length > 0 && !isLoading) {
+      const stepParam = searchParams.get('step');
+      if (stepParam) {
+        const stepNum = parseInt(stepParam, 10);
+        if (!isNaN(stepNum) && stepNum > 0) {
+          // Find step by 1-based index (order_index-based)
+          const sortedSteps = [...steps].sort((a, b) => a.order_index - b.order_index);
+          if (stepNum <= sortedSteps.length) {
+            const targetStep = sortedSteps[stepNum - 1];
+            // Only switch if we're not already on this step
+            if (selectedStepId !== targetStep.id) {
+              handleStepSelect(targetStep);
+            }
+          }
+        }
+      }
+    }
+  }, [steps.length, isLoading, searchParams]);
 
   // Load draft from localStorage on component mount (silent)
   useEffect(() => {

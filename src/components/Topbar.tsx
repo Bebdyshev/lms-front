@@ -57,8 +57,8 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
   return (
     <div className="sticky top-0 z-10 bg-gray-50/80 backdrop-blur border-b px-4 sm:px-5 md:px-6 py-3 sm:py-3.5 flex items-center justify-between">
       <div>
-        <div className="text-sm sm:text-base text-gray-500">Welcome back</div>
-        <div className="text-xl sm:text-2xl font-semibold text-gray-900">{firstName}!</div>
+        <div className="text-sm sm:text-[14px] text-gray-500">Welcome back</div>
+        <div className="text-[16px] sm:text-xl font-semibold text-gray-900">{user?.name}!</div>
       </div>
       <div className="flex items-center gap-3">
         {/* What's New Button for Teachers/Admins */}

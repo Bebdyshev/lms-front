@@ -481,7 +481,7 @@ export default function QuestionReportsPage() {
                           <Edit3 className="w-3 h-3" /> Edit Step
                         </a>
                         <a 
-                          href={`/course/${report.course_info.id}/lesson/${report.course_info.lesson_id}/step/${report.step_info.step_number}`}
+                          href={`/course/${report.course_info.id}/lesson/${report.course_info.lesson_id}?step=${report.step_info.step_number}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-green-600 hover:underline flex items-center gap-1"
@@ -578,7 +578,7 @@ export default function QuestionReportsPage() {
                       {selectedReport.step?.step_number && (
                         <>
                           <a 
-                            href={`/course/${selectedReport.course_info.course_id}/lesson/${selectedReport.course_info.lesson_id}/step/${selectedReport.step.step_number}`}
+                            href={`/course/${selectedReport.course_info.course_id}/lesson/${selectedReport.course_info.lesson_id}?step=${selectedReport.step.step_number}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-green-600 hover:underline bg-white px-2 py-1 rounded border border-green-200"
