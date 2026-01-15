@@ -653,9 +653,6 @@ export default function StudentDashboard({
                     
                     <CardHeader className="pb-3">
                       <CardTitle className="text-lg truncate">{course.course_title}</CardTitle>
-                      <CardDescription className="text-sm">
-                        Teacher: {course.teacher_name}
-                      </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {/* Progress Bar - Only show if no image */}
@@ -734,7 +731,6 @@ export default function StudentDashboard({
               <TableHeader>
                 <TableRow>
                         <TableHead>Course</TableHead>
-                        <TableHead>Teacher</TableHead>
                         <TableHead>Progress</TableHead>
                         <TableHead>Lessons</TableHead>
                         <TableHead>Steps</TableHead>
@@ -745,7 +741,6 @@ export default function StudentDashboard({
                       {progressData.courses.map((course) => (
                         <TableRow key={course.course_id}>
                           <TableCell className="font-medium">{course.course_title}</TableCell>
-                          <TableCell>{course.teacher_name}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Progress 
