@@ -2140,6 +2140,14 @@ class LMSApiClient {
     }
   }
 
+  async bulkDeleteEvents(eventIds: number[]): Promise<void> {
+    try {
+      await this.api.post('/admin/events/bulk-delete', eventIds);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to delete events');
+    }
+  }
+
   async createBulkEvents(eventsData: CreateEventRequest[]): Promise<Event[]> {
     try {
       const response = await this.api.post('/admin/events/bulk', eventsData);
@@ -2949,6 +2957,7 @@ export const createEvent = apiClient.createEvent.bind(apiClient);
 export const createCuratorEvent = apiClient.createCuratorEvent.bind(apiClient);
 export const updateEvent = apiClient.updateEvent.bind(apiClient);
 export const deleteEvent = apiClient.deleteEvent.bind(apiClient);
+export const bulkDeleteEvents = apiClient.bulkDeleteEvents.bind(apiClient);
 export const createBulkEvents = apiClient.createBulkEvents.bind(apiClient);
 export const getMyEvents = apiClient.getMyEvents.bind(apiClient);
 export const getCalendarEvents = apiClient.getCalendarEvents.bind(apiClient);

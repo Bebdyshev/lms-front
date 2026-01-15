@@ -8,7 +8,8 @@ import {
   Repeat, 
   Save,
   X,
-  AlertCircle
+  AlertCircle,
+  BookOpen
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -25,8 +26,18 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
-import { createEvent, updateEvent, getAllGroups, getCourses, createCuratorEvent, getCuratorGroups } from '../services/api';
-import type { Event, CreateEventRequest, UpdateEventRequest, EventType, Group, Course } from '../types';
+import { 
+  createEvent, 
+  updateEvent, 
+  getAllGroups, 
+  getCourses, 
+  createCuratorEvent, 
+  getCuratorGroups, 
+  getCourseModules, 
+  getModuleLessons,
+  getUsers
+} from '../services/api';
+import type { Event, CreateEventRequest, UpdateEventRequest, EventType, Group, Course, CourseModule, Lesson } from '../types';
 import { EVENT_TYPE_LABELS } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -41,6 +52,12 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
+
+  const [modules, setModules] = useState<CourseModule[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [selectedCourseForLesson, setSelectedCourseForLesson] = useState<string>('');
+  const [selectedModuleForLesson, setSelectedModuleForLesson] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   // Form state
@@ -58,7 +75,9 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     recurrence_end_date: event?.recurrence_end_date || '',
     max_participants: event?.max_participants || undefined,
     group_ids: event?.group_ids || [],
-    course_ids: event?.course_ids || []
+    course_ids: event?.course_ids || [],
+    lesson_id: event?.lesson_id || undefined,
+    teacher_id: event?.teacher_id || undefined
   });
 
   useEffect(() => {
@@ -86,6 +105,21 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
       // Handle courses response structure
       const coursesResponse = coursesData as any;
       setCourses(Array.isArray(coursesResponse) ? coursesResponse : (coursesResponse.data || []));
+
+      // Load teachers
+      const usersData = await getUsers({ role: 'teacher' });
+      const adminsData = await getUsers({ role: 'admin' });
+      const curatorsData = await getUsers({ role: 'curator' });
+      
+      const allTeachers = [
+        ...(Array.isArray(usersData) ? usersData : []),
+        ...(Array.isArray(adminsData) ? adminsData : []),
+        ...(Array.isArray(curatorsData) ? curatorsData : [])
+      ];
+      
+      // Filter unique by ID
+      const uniqueTeachers = Array.from(new Map(allTeachers.map(item => [item.id, item])).values());
+      setTeachers(uniqueTeachers);
     } catch (error) {
       console.error('Failed to load data:', error);
     }
@@ -117,6 +151,43 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
         ? [...prev.course_ids, courseId]
         : prev.course_ids.filter(id => id !== courseId)
     }));
+  };
+  
+  // Lesson linking handlers
+  const handleLessonCourseChange = async (courseId: string) => {
+    setSelectedCourseForLesson(courseId);
+    setSelectedModuleForLesson('');
+    setModules([]);
+    setLessons([]);
+    setFormData(prev => ({ ...prev, lesson_id: undefined }));
+    
+    if (courseId) {
+      try {
+        const modulesData = await getCourseModules(courseId);
+        setModules(modulesData);
+      } catch (err) {
+        console.error('Failed to load modules', err);
+      }
+    }
+  };
+
+  const handleLessonModuleChange = async (moduleId: string) => {
+    setSelectedModuleForLesson(moduleId);
+    setLessons([]);
+    setFormData(prev => ({ ...prev, lesson_id: undefined }));
+    
+    if (moduleId && selectedCourseForLesson) {
+      try {
+        const lessonsData = await getModuleLessons(selectedCourseForLesson, parseInt(moduleId));
+        setLessons(lessonsData);
+      } catch (err) {
+        console.error('Failed to load lessons', err);
+      }
+    }
+  };
+
+  const handleLessonChange = (lessonId: string) => {
+    setFormData(prev => ({ ...prev, lesson_id: parseInt(lessonId) }));
   };
 
   const validateForm = (): string | null => {
@@ -186,7 +257,9 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
         recurrence_end_date: formData.is_recurring && formData.recurrence_end_date ? formData.recurrence_end_date : undefined,
         max_participants: formData.event_type === 'webinar' ? formData.max_participants : undefined,
         group_ids: formData.group_ids,
-        course_ids: formData.course_ids
+        course_ids: formData.course_ids,
+        lesson_id: formData.lesson_id,
+        teacher_id: formData.teacher_id
       };
 
       let savedEvent: Event;
@@ -305,6 +378,107 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Lesson Linking (Optional for Class events) */}
+        {formData.event_type === 'class' && (
+          <Card className="border-blue-100 bg-blue-50/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-800">
+                <BookOpen className="w-5 h-5" />
+                Link to Course Lesson (Optional)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-blue-600 mb-2">
+                If this lesson corresponds to a specific item in your course catalog, you can link it here.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Course Select */}
+                <div>
+                  <Label htmlFor="lesson_course">Course</Label>
+                  <Select 
+                    value={selectedCourseForLesson} 
+                    onValueChange={handleLessonCourseChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select course" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map(course => (
+                        <SelectItem key={course.id} value={course.id.toString()}>
+                          {course.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Module Select */}
+                <div>
+                  <Label htmlFor="lesson_module">Module</Label>
+                  <Select 
+                    value={selectedModuleForLesson} 
+                    onValueChange={handleLessonModuleChange}
+                    disabled={!selectedCourseForLesson}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select module" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modules.map(module => (
+                        <SelectItem key={module.id} value={module.id.toString()}>
+                          {module.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Lesson Select */}
+                <div>
+                  <Label htmlFor="lesson_select">Lesson</Label>
+                  <Select 
+                    value={formData.lesson_id?.toString() || ''} 
+                    onValueChange={handleLessonChange}
+                    disabled={!selectedModuleForLesson}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select lesson" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lessons.map(lesson => (
+                        <SelectItem key={lesson.id} value={lesson.id.toString()}>
+                          {lesson.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+            {/* Teacher Selection */}
+            <div>
+              <Label htmlFor="teacher_id">Assigned Teacher (Optional)</Label>
+              <Select 
+                value={formData.teacher_id?.toString() || 'none'} 
+                onValueChange={(value) => handleInputChange('teacher_id', value === 'none' ? undefined : parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select teacher" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No teacher assigned</SelectItem>
+                  {teachers.map(teacher => (
+                    <SelectItem key={teacher.id} value={teacher.id.toString()}>
+                      {teacher.name} ({teacher.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+          </Card>
+        )}
 
         {/* Date and Time */}
         <Card>

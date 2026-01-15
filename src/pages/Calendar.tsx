@@ -90,7 +90,6 @@ export default function Calendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const today = new Date();
 
     // Get first day of the week (Monday = 1, Sunday = 0)
@@ -242,6 +241,7 @@ export default function Calendar() {
                 <SelectItem value="class">Classes</SelectItem>
                 <SelectItem value="weekly_test">Weekly Tests</SelectItem>
                 <SelectItem value="webinar">Webinars</SelectItem>
+                <SelectItem value="assignment">Assignments</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -328,6 +328,10 @@ export default function Calendar() {
           <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-red-100 border border-red-200 flex-shrink-0"></div>
             <span className="text-xs sm:text-sm text-gray-600">Webinars</span>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-orange-100 border border-orange-200 flex-shrink-0"></div>
+            <span className="text-xs sm:text-sm text-gray-600">Assignments</span>
           </div>
         </div>
       </div>

@@ -4,15 +4,12 @@ import {
   Calendar, 
   Plus, 
   Search, 
-  Filter, 
   Edit3, 
   Trash2, 
   Users, 
   Clock, 
   MapPin,
   Video,
-  AlertCircle,
-  CheckCircle,
   MoreHorizontal
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -32,7 +29,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Badge } from '../components/ui/badge';
 import Loader from '../components/Loader';
-import { getAllEvents, deleteEvent, getAllGroups } from '../services/api';
+import { getAllEvents, deleteEvent, bulkDeleteEvents, getAllGroups } from '../services/api';
 import type { Event, EventType, Group } from '../types';
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from '../types';
 
@@ -45,6 +42,8 @@ export default function EventManagement() {
   const [selectedEventType, setSelectedEventType] = useState<EventType | 'all'>('all');
   const [selectedGroupId, setSelectedGroupId] = useState<number | 'all'>('all');
   const [dateFilter, setDateFilter] = useState<'all' | 'upcoming' | 'today' | 'this_week'>('all');
+  const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -74,10 +73,47 @@ export default function EventManagement() {
     try {
       await deleteEvent(eventId);
       setEvents(events.filter(event => event.id !== eventId));
+      setSelectedEventIds(prev => prev.filter(id => id !== eventId));
     } catch (error) {
       console.error('Failed to delete event:', error);
       alert('Error deleting event');
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedEventIds.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to delete ${selectedEventIds.length} events?`)) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await bulkDeleteEvents(selectedEventIds);
+      setEvents(events.filter(event => !selectedEventIds.includes(event.id)));
+      setSelectedEventIds([]);
+    } catch (error) {
+      console.error('Failed to delete events:', error);
+      alert('Error deleting events');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedEventIds.length === filteredEvents.length) {
+      setSelectedEventIds([]);
+    } else {
+      setSelectedEventIds(filteredEvents.map(event => event.id));
+    }
+  };
+
+  const toggleSelectEvent = (eventId: number) => {
+    setSelectedEventIds(prev => 
+      prev.includes(eventId) 
+        ? prev.filter(id => id !== eventId) 
+        : [...prev, eventId]
+    );
   };
 
   const filteredEvents = events.filter(event => {
@@ -141,13 +177,26 @@ export default function EventManagement() {
           <h1 className="text-2xl font-bold text-gray-900">Event Management</h1>
           <p className="text-gray-600">Create and manage group schedules</p>
         </div>
-        <Button 
-          onClick={() => navigate('/admin/events/create')}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Create Event
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          {selectedEventIds.length > 0 && (
+            <Button 
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+              className="flex items-center gap-2 flex-1 sm:flex-initial"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete {selectedEventIds.length} Selected
+            </Button>
+          )}
+          <Button 
+            onClick={() => navigate('/admin/events/create')}
+            className="flex items-center gap-2 flex-1 sm:flex-initial"
+          >
+            <Plus className="w-4 h-4" />
+            Create Event
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -228,9 +277,31 @@ export default function EventManagement() {
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
+            {/* Table Header with Select All */}
+            <div className="p-4 bg-gray-50 border-b flex items-center gap-4">
+              <input
+                type="checkbox"
+                checked={selectedEventIds.length === filteredEvents.length && filteredEvents.length > 0}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-sm font-medium text-gray-600">
+                {selectedEventIds.length > 0 
+                  ? `${selectedEventIds.length} items selected` 
+                  : `Select all events (${filteredEvents.length})`}
+              </span>
+            </div>
             {filteredEvents.map(event => (
-              <div key={event.id} className="p-6 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between">
+              <div key={event.id} className="p-6 hover:bg-gray-50 transition-colors flex items-start gap-4">
+                <div className="pt-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedEventIds.includes(event.id)}
+                    onChange={() => toggleSelectEvent(event.id)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 min-w-0 flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     {/* Event Header */}
                     <div className="flex items-center gap-3 mb-2">
@@ -265,6 +336,13 @@ export default function EventManagement() {
                         <div className="flex items-center gap-1">
                           <Users className="w-4 h-4" />
                           {event.groups.join(', ')}
+                        </div>
+                      )}
+
+                      {event.teacher_name && (
+                        <div className="flex items-center gap-1">
+                          <Users className="w-4 h-4 text-blue-500" />
+                          <span className="font-medium">Teacher: {event.teacher_name}</span>
                         </div>
                       )}
 

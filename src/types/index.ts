@@ -925,6 +925,9 @@ export interface Event {
   courses?: string[];
   group_ids?: number[];
   course_ids?: number[];
+  lesson_id?: number;
+  teacher_id?: number;
+  teacher_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -932,7 +935,7 @@ export interface Event {
 // Alias for backward compatibility or convenience
 export type Submission = AssignmentSubmission;
 
-export type EventType = 'class' | 'weekly_test' | 'webinar';
+export type EventType = 'class' | 'weekly_test' | 'webinar' | 'assignment';
 
 export interface CreateEventRequest {
   title: string;
@@ -949,6 +952,8 @@ export interface CreateEventRequest {
   max_participants?: number;
   group_ids?: number[];
   course_ids?: number[];
+  lesson_id?: number;
+  teacher_id?: number;
 }
 
 export interface UpdateEventRequest {
@@ -967,7 +972,10 @@ export interface UpdateEventRequest {
   max_participants?: number;
   group_ids?: number[];
   course_ids?: number[];
+  lesson_id?: number;
+  teacher_id?: number;
 }
+
 
 export interface EventGroup {
   id: number;
@@ -1004,11 +1012,13 @@ export interface CalendarMonth {
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   class: 'Class',
   weekly_test: 'Weekly Test',
-  webinar: 'Webinar'
+  webinar: 'Webinar',
+  assignment: 'Assignment Deadline'
 };
 
 export const EVENT_TYPE_COLORS: Record<EventType, string> = {
   class: 'bg-blue-100 text-blue-800 border-blue-200',
   weekly_test: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  webinar: 'bg-red-100 text-red-800 border-red-200'
+  webinar: 'bg-red-100 text-red-800 border-red-200',
+  assignment: 'bg-orange-100 text-orange-800 border-orange-200'
 };

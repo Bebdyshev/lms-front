@@ -186,23 +186,23 @@ export default function StudentDashboard({
       if (!assignment.due_date) return false;
       const dueDate = new Date(assignment.due_date);
       const now = new Date();
-      const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       
       // If showing completed, include all assignments
       if (showCompleted) {
-        // Show assignments due within 3 days or recent assignments
-        if (dueDate <= threeDaysFromNow) return true;
+        // Show assignments due within 7 days or recent assignments
+        if (dueDate <= sevenDaysFromNow) return true;
         const createdDate = new Date(assignment.created_at);
         if (createdDate >= sevenDaysAgo) return true;
         return false;
       }
       
-      // Don't show overdue assignments
+      // Don't show overdue assignments (they should be in another list or filtered differently if needed, but here we follow existing logic)
       if (dueDate < now) return false;
       
-      // Show assignments due within 3 days
-      if (dueDate <= threeDaysFromNow) return true;
+      // Show assignments due within 7 days
+      if (dueDate <= sevenDaysFromNow) return true;
       
       // Show recent assignments (created in last 7 days)
       const createdDate = new Date(assignment.created_at);
