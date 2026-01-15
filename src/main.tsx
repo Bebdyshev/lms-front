@@ -25,17 +25,6 @@ if (!rootElement) throw new Error('Root element not found');
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <Snowfall 
-      color="#e8e8e8ff"
-      snowflakeCount={100}
-      style={{
-        position: 'fixed',
-        width: '100vw',
-        height: '100vh',
-        zIndex: 9999,
-        pointerEvents: 'none'
-      }}
-    />
     <Router />
   </React.StrictMode>
 );
