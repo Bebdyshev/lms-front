@@ -1055,21 +1055,6 @@ export default function LessonEditPage() {
             if (selectedStepId !== targetStep.id) {
               selectStep(targetStep);
             }
-            
-            // If questionId is present, scroll to it after a short delay to allow rendering
-            if (questionIdParam) {
-              setTimeout(() => {
-                const questionElement = document.getElementById(`question-${questionIdParam}`);
-                if (questionElement) {
-                  questionElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  // Add a temporary highlight effect
-                  questionElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
-                  setTimeout(() => {
-                    questionElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
-                  }, 3000);
-                }
-              }, 500); // Wait for step content to render
-            }
           }
         }
       }
@@ -1777,7 +1762,7 @@ export default function LessonEditPage() {
 
                     {stepContentType === 'quiz' && (
                       <div className="space-y-3">
-                    <QuizLessonEditor
+                        <QuizLessonEditor
                           quizTitle={stepQuizTitle}
                           setQuizTitle={handleStepQuizTitleChange}
                           quizQuestions={stepQuizQuestions}
@@ -1812,6 +1797,7 @@ export default function LessonEditPage() {
                             setStepAudioPlaybackMode(value);
                             markAsUnsaved();
                           }}
+                          highlightedQuestionId={searchParams.get('questionId') || undefined}
                         />
                       </div>
                     )}

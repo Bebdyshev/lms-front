@@ -34,6 +34,7 @@ export interface QuizLessonEditorProps {
   setAudioPlaybackMode?: (mode: 'strict' | 'flexible') => void;
   audioMaxPlays?: number;
   setAudioMaxPlays?: (plays: number) => void;
+  highlightedQuestionId?: string;
 }
 
 export default function QuizLessonEditor({
@@ -53,7 +54,26 @@ export default function QuizLessonEditor({
   setQuizMediaType,
   audioPlaybackMode = 'flexible',
   setAudioPlaybackMode,
+  highlightedQuestionId,
 }: QuizLessonEditorProps) {
+  // Handle scrolling to highlighted question
+  React.useEffect(() => {
+    if (highlightedQuestionId && quizQuestions.length > 0) {
+      // Small timeout to ensure DOM is ready
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`question-${highlightedQuestionId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
+          }, 3000);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedQuestionId, quizQuestions]);
+
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [draftQuestion, setDraftQuestion] = useState<Question | null>(null);
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
