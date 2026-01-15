@@ -126,9 +126,14 @@ export default function Calendar() {
         ? dayEvents 
         : dayEvents.filter(event => event.event_type === eventTypeFilter);
 
+      // Hide assignment events for admin users
+      const finalEvents = user?.role === 'admin' 
+        ? filteredEvents.filter(event => event.event_type !== 'assignment')
+        : filteredEvents;
+
       days.push({
         date,
-        events: filteredEvents,
+        events: finalEvents,
         isCurrentMonth: date.getMonth() === month,
         isToday: date.toDateString() === today.toDateString(),
         isWeekend: date.getDay() === 0 || date.getDay() === 6
