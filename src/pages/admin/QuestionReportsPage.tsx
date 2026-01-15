@@ -32,6 +32,7 @@ interface QuestionReport {
     id: number;
     title: string;
     content_type: string;
+    step_number?: number;
   } | null;
   course_info: {
     id: number;
@@ -82,6 +83,7 @@ interface ReportDetail {
     title: string;
     content_type: string;
     original_image_url: string | null;
+    step_number?: number;
   } | null;
   quiz_settings: any;
   question_data: any | null;
@@ -462,6 +464,31 @@ export default function QuestionReportsPage() {
                     {report.course_info && (
                       <div className="mt-2 text-xs text-gray-500">
                         📚 {report.course_info.title} → {report.course_info.lesson_title}
+                        {report.step_info?.step_number && ` (Step ${report.step_info.step_number})`}
+                      </div>
+                    )}
+                    
+                    {/* Action Links in List Item */}
+                    {report.course_info && report.step_info?.step_number && (
+                      <div className="flex gap-2 mt-2 pt-2 border-t">
+                        <a 
+                          href={`/teacher/course/${report.course_info.id}/lesson/${report.course_info.lesson_id}/edit?step=${report.step_info.step_number}`}
+                          target="_blank"
+                          rel="noopener noreferrer" 
+                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Edit3 className="w-3 h-3" /> Edit Step
+                        </a>
+                        <a 
+                          href={`/course/${report.course_info.id}/lesson/${report.course_info.lesson_id}/step/${report.step_info.step_number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="w-3 h-3" /> View Question
+                        </a>
                       </div>
                     )}
                   </CardContent>
@@ -544,15 +571,31 @@ export default function QuestionReportsPage() {
                     </p>
                     <p className="text-blue-600 mt-1">
                       Question {selectedReport.question_index + 1} of {selectedReport.total_questions}
+                      {selectedReport.step?.step_number && ` (Step ${selectedReport.step.step_number})`}
                     </p>
-                    <a 
-                      href={`/course/${selectedReport.course_info.course_id}/lesson/${selectedReport.course_info.lesson_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-blue-600 hover:underline mt-2"
-                    >
-                      Open Lesson <ExternalLink className="w-3 h-3" />
-                    </a>
+                    
+                    <div className="flex gap-3 mt-3">
+                      {selectedReport.step?.step_number && (
+                        <>
+                          <a 
+                            href={`/course/${selectedReport.course_info.course_id}/lesson/${selectedReport.course_info.lesson_id}/step/${selectedReport.step.step_number}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-green-600 hover:underline bg-white px-2 py-1 rounded border border-green-200"
+                          >
+                            <ExternalLink className="w-3 h-3" /> View Question
+                          </a>
+                          <a 
+                            href={`/teacher/course/${selectedReport.course_info.course_id}/lesson/${selectedReport.course_info.lesson_id}/edit?step=${selectedReport.step.step_number}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:underline bg-white px-2 py-1 rounded border border-blue-200"
+                          >
+                            <Edit3 className="w-3 h-3" /> Edit Step
+                          </a>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
 
