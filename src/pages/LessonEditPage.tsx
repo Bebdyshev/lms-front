@@ -239,7 +239,7 @@ const QuizTabContent = ({
         <CardContent>
           <div className="space-y-4">
             {quizQuestions.map((question, questionIndex) => (
-              <Card key={question.id} className="border-2">
+              <Card key={question.id} id={`question-${question.id}`} className="border-2">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1042,6 +1042,8 @@ export default function LessonEditPage() {
   useEffect(() => {
     if (steps.length > 0 && !isLoading) {
       const stepParam = searchParams.get('step');
+      const questionIdParam = searchParams.get('questionId');
+      
       if (stepParam) {
         const stepNum = parseInt(stepParam, 10);
         if (!isNaN(stepNum) && stepNum > 0) {
@@ -1052,6 +1054,21 @@ export default function LessonEditPage() {
             // Only switch if we're not already on this step
             if (selectedStepId !== targetStep.id) {
               selectStep(targetStep);
+            }
+            
+            // If questionId is present, scroll to it after a short delay to allow rendering
+            if (questionIdParam) {
+              setTimeout(() => {
+                const questionElement = document.getElementById(`question-${questionIdParam}`);
+                if (questionElement) {
+                  questionElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Add a temporary highlight effect
+                  questionElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+                  setTimeout(() => {
+                    questionElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
+                  }, 3000);
+                }
+              }, 500); // Wait for step content to render
             }
           }
         }

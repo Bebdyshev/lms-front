@@ -1057,7 +1057,7 @@ export default function QuizLessonEditor({
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
             
             return (
-              <div key={q.id} className={`rounded-lg border bg-white overflow-hidden ${!validation.isValid ? 'border-red-300' : 'border-gray-200'}`}>
+              <div key={q.id} id={`question-${q.id}`} className={`rounded-lg border bg-white overflow-hidden ${!validation.isValid ? 'border-red-300' : 'border-gray-200'}`}>
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
                   <div className="flex items-center gap-3">
