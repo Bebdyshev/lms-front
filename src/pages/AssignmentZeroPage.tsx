@@ -883,30 +883,32 @@ export default function AssignmentZeroPage() {
 
   const validateStep = (step: number): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
+    const stepId = DYNAMIC_STEPS[step - 1]?.id;
 
-    if (step === 1) {
+    // Validate based on step ID instead of step number
+    if (stepId === 'personal') {
       if (!formData.full_name.trim()) newErrors.full_name = 'Required';
       if (!formData.phone_number.trim()) newErrors.phone_number = 'Required';
       if (!formData.parent_phone_number.trim()) newErrors.parent_phone_number = 'Required';
       if (!formData.telegram_id.trim()) newErrors.telegram_id = 'Required';
       if (!formData.email.trim()) newErrors.email = 'Required';
-    } else if (step === 2) {
+    } else if (stepId === 'account') {
       if (!formData.college_board_email.trim()) newErrors.college_board_email = 'Required';
       if (!formData.college_board_password.trim()) newErrors.college_board_password = 'Required';
       if (!formData.birthday_date) newErrors.birthday_date = 'Required';
       if (!formData.city.trim()) newErrors.city = 'Required';
-    } else if (step === 3) {
+    } else if (stepId === 'education') {
       if (!formData.school_type) newErrors.school_type = 'Required';
       if (!formData.group_name.trim()) newErrors.group_name = 'Required';
       // SAT target date only required if user is in SAT group
       if (showSAT && !formData.sat_target_date) newErrors.sat_target_date = 'Required';
-    } else if (step === 4) {
+    } else if (stepId === 'sat_results') {
       if (!formData.recent_practice_test_score.trim()) newErrors.recent_practice_test_score = 'Required';
       if (!formData.bluebook_verbal.trim()) newErrors.bluebook_verbal = 'Required';
       if (!formData.bluebook_math.trim()) newErrors.bluebook_math = 'Required';
       if (!formData.screenshot_url) newErrors.screenshot_url = 'Required';
     }
-    // Steps 5-9 are optional assessments, no required validation
+    // All other steps (assessments) are optional, no required validation
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -923,20 +925,19 @@ export default function AssignmentZeroPage() {
   };
 
   const handleSubmit = async () => {
-    // Validate all required steps (first 3 common steps)
-    for (let step = 1; step <= 3; step++) {
-      if (!validateStep(step)) {
-        setCurrentStep(step);
-        toast('Please complete all required fields', 'error');
-        return;
-      }
-    }
+    // Validate all required steps based on step IDs
+    const requiredStepIds = ['personal', 'account', 'education'];
+    if (showSAT) requiredStepIds.push('sat_results');
     
-    // Validate SAT step 4 if SAT is shown
-    if (showSAT && !validateStep(4)) {
-      setCurrentStep(4);
-      toast('Please complete all required fields', 'error');
-      return;
+    for (let i = 0; i < DYNAMIC_STEPS.length; i++) {
+      const stepId = DYNAMIC_STEPS[i].id;
+      if (requiredStepIds.includes(stepId)) {
+        if (!validateStep(i + 1)) {
+          setCurrentStep(i + 1);
+          toast('Please complete all required fields', 'error');
+          return;
+        }
+      }
     }
 
     setSubmitting(true);
