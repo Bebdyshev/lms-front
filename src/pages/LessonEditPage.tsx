@@ -737,26 +737,7 @@ export default function LessonEditPage() {
     loadData();
   }, [courseId, lessonId]);
 
-  // Handle URL step parameter for deep linking
-  useEffect(() => {
-    if (steps.length > 0 && !isLoading) {
-      const stepParam = searchParams.get('step');
-      if (stepParam) {
-        const stepNum = parseInt(stepParam, 10);
-        if (!isNaN(stepNum) && stepNum > 0) {
-          // Find step by 1-based index (order_index-based)
-          const sortedSteps = [...steps].sort((a, b) => a.order_index - b.order_index);
-          if (stepNum <= sortedSteps.length) {
-            const targetStep = sortedSteps[stepNum - 1];
-            // Only switch if we're not already on this step
-            if (selectedStepId !== targetStep.id) {
-              handleStepSelect(targetStep);
-            }
-          }
-        }
-      }
-    }
-  }, [steps.length, isLoading, searchParams]);
+
 
   // Load draft from localStorage on component mount (silent)
   useEffect(() => {
@@ -1056,6 +1037,27 @@ export default function LessonEditPage() {
     // Actually switch to the step
     performStepSwitch(step);
   };
+  
+  // Handle URL step parameter for deep linking
+  useEffect(() => {
+    if (steps.length > 0 && !isLoading) {
+      const stepParam = searchParams.get('step');
+      if (stepParam) {
+        const stepNum = parseInt(stepParam, 10);
+        if (!isNaN(stepNum) && stepNum > 0) {
+          // Find step by 1-based index (order_index-based)
+          const sortedSteps = [...steps].sort((a, b) => a.order_index - b.order_index);
+          if (stepNum <= sortedSteps.length) {
+            const targetStep = sortedSteps[stepNum - 1];
+            // Only switch if we're not already on this step
+            if (selectedStepId !== targetStep.id) {
+              selectStep(targetStep);
+            }
+          }
+        }
+      }
+    }
+  }, [steps.length, isLoading, searchParams]);
   
   const performStepSwitch = (step: Step) => {
     setIsLoadingStep(true); // Prevent marking as unsaved during load
