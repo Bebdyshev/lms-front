@@ -21,6 +21,7 @@ interface Course {
 interface Group {
   id: number;
   name: string;
+  description: string;
 }
 
 interface StudentAnalytics {
@@ -172,16 +173,14 @@ export default function AnalyticsPage() {
         apiClient.getCourseGroupsAnalytics(selectedCourseId) // Fetch per-group stats
       ]);
 
-      // Process Overview
-      // Process Overview
+      // Process Overview Stats
       const studentPerf = overviewData.student_performance || [];
       const engagement = overviewData.engagement || {};
       
-      // Calculate aggregates that aren't provided directly
+      // Calculate aggregates from student performance data
       const avgScore = studentPerf.length > 0 
         ? studentPerf.reduce((sum: number, s: any) => sum + (s.assignment_score_percentage || 0), 0) / studentPerf.length 
         : 0;
-        
       const activeCount = studentPerf.filter((s: any) => s.last_activity).length;
 
       setOverview({
@@ -189,7 +188,7 @@ export default function AnalyticsPage() {
         active_students: activeCount,
         average_progress: engagement.average_completion_rate || 0,
         average_score: avgScore,
-        completion_rate: engagement.average_completion_rate || 0, // Using avg progress as proxy for now
+        completion_rate: engagement.average_completion_rate || 0,
       });
       
       // Process Students - Use student_performance from overviewData for richer stats if available, 
@@ -386,7 +385,7 @@ export default function AnalyticsPage() {
               <SelectItem value="all">All Groups</SelectItem>
               {groups.map(group => (
                 <SelectItem key={group.id} value={String(group.id)}>
-                  {group.name}
+                  {group.description}
                 </SelectItem>
               ))}
             </SelectContent>
