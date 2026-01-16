@@ -872,7 +872,7 @@ export default function LessonPage() {
       localStorage.setItem(`quiz_answers_${currentStep.id}`, JSON.stringify(serializeQuizAnswers(quizAnswers)));
       localStorage.setItem(`gap_answers_${currentStep.id}`, JSON.stringify(Array.from(gapAnswers.entries())));
     }
-  }, [quizAnswers, gapAnswers, currentStep]);
+  }, [quizAnswers, gapAnswers, currentStep, currentQuestionIndex]);
 
   // Auto-save quiz progress to server (debounced)
   useEffect(() => {
@@ -1128,8 +1128,17 @@ export default function LessonPage() {
 
   const nextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      const nextIndex = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(nextIndex);
       setQuizState('question');
+      
+      // Explicitly autosave progress when moving to next question
+      // This ensures current_question_index is updated on server even if no answer changed
+      if (quizAttempt?.id && quizAttempt.is_draft) {
+          apiClient.updateQuizAttempt(quizAttempt.id, {
+            current_question_index: nextIndex
+          }).catch(err => console.error('Failed to autosave question index:', err));
+      }
     } else {
       // Save quiz attempt before completing
       const { score, total } = getScore();
