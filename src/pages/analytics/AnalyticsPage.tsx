@@ -683,7 +683,7 @@ export default function AnalyticsPage() {
                     <TableHead className="w-[200px] cursor-pointer hover:bg-gray-100" onClick={() => handleSortChange('name')}>
                       Student {studentSort === 'name' && (studentSortDir === 'asc' ? '↑' : '↓')}
                     </TableHead>
-                    <TableHead>Group</TableHead>
+                    <TableHead className="text-center">Group</TableHead>
                     <TableHead className="cursor-pointer hover:bg-gray-100" onClick={() => handleSortChange('progress')}>
                       Progress {studentSort === 'progress' && (studentSortDir === 'asc' ? '↑' : '↓')}
                     </TableHead>
@@ -715,7 +715,7 @@ export default function AnalyticsPage() {
                           <p className="text-gray-500">{student.email}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2 pr-0">
+                      <TableCell className="text-center py-2 pr-0">
                         <Badge variant="outline" className="font-normal text-gray-500 text-xs px-2 py-0 h-6">
                             {groups.find(g => g.name === student.group_name)?.description || student.group_name || 'No Group'}
                         </Badge>
