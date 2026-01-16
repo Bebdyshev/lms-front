@@ -2359,6 +2359,33 @@ class LMSApiClient {
     }
   }
 
+  async getQuizErrors(courseId: string, groupId?: number, limit: number = 20): Promise<{
+    course_id: number;
+    group_id: number | null;
+    total_attempts_analyzed: number;
+    questions: Array<{
+      step_id: number;
+      lesson_id: number;
+      question_id: string;
+      total_attempts: number;
+      wrong_answers: number;
+      error_rate: number;
+      question_text: string;
+      lesson_title: string;
+      step_title: string;
+    }>;
+  }> {
+    try {
+      const params: Record<string, any> = { limit };
+      if (groupId) params.group_id = groupId;
+      const response = await this.api.get(`/analytics/course/${courseId}/quiz-errors`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get quiz errors:', error);
+      throw error;
+    }
+  }
+
   async getTeacherCourses(): Promise<any[]> {
     try {
       // Teachers get their courses from /courses/ endpoint which auto-filters by teacher_id
