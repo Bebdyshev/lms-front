@@ -17,7 +17,15 @@ import SummaryStepRenderer from '../components/lesson/SummaryStepRenderer';
 // If an option ends with *, it's the correct answer (without the *)
 // Otherwise, the first option is correct
 const extractCorrectAnswersFromGaps = (text: string, separator: string = ','): string[] => {
-  const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+  if (typeof text !== 'string') text = String(text || '');
+  
+  const gaps = [];
+  const regex = /\[\[(.*?)\]\]/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    gaps.push(match);
+  }
+  
   return gaps.map(match => {
     const rawOptions = match[1].split(separator).map(s => s.trim()).filter(Boolean);
 
@@ -696,7 +704,14 @@ export default function LessonPage() {
           (parsedQuizData.questions || []).forEach((q: any) => {
             if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
               const text = (q.content_text || q.question_text || '').toString();
-              const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+              // const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+              // Use exec for better compatibility
+              const gaps = [];
+              const regex = /\[\[(.*?)\]\]/g;
+              let match;
+              while ((match = regex.exec(text)) !== null) {
+                gaps.push(match);
+              }
               const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
               init.set(q.id.toString(), new Array(Math.max(gaps.length, answers.length)).fill(''));
             }

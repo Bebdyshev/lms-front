@@ -36,7 +36,6 @@ interface StudentAnalytics {
   completed_assignments?: number;
   total_assignments?: number;
   time_spent_minutes?: number;
-  current_lesson_progress?: number;
 }
 
 interface GroupAnalytics {
@@ -126,17 +125,10 @@ export default function AnalyticsPage() {
     loadCourses();
   }, []);
 
-  // Load groups when course changes
+  // Load data when course changes
   useEffect(() => {
     if (selectedCourseId) {
-      loadCourseGroups();
-    }
-  }, [selectedCourseId]);
-
-  // Load analytics when course or group changes
-  useEffect(() => {
-    if (selectedCourseId) {
-      loadAnalyticsStats();
+      loadAnalyticsData();
     }
   }, [selectedCourseId, selectedGroupId]);
 
@@ -153,9 +145,15 @@ export default function AnalyticsPage() {
         setLoading(false);
       }
       
-      
-      // We don't load groups here anymore as they depend on the selected course
-      // Groups will be loaded in loadAnalyticsData
+      // Load available groups for filter dropdown independent of course analytics
+      const groupsData = await apiClient.getGroupsAnalytics();
+      // Map API response fields (group_id, group_name) to frontend interface (id, name)
+      const mappedGroups = (groupsData.groups || []).map((g: any) => ({
+        id: g.group_id,
+        name: g.group_name,
+        description: g.description
+      }));
+      setGroups(mappedGroups);
     } catch (error) {
       console.error('Failed to load courses:', error);
       setError("Failed to load courses. Please try refreshing.");
@@ -163,32 +161,7 @@ export default function AnalyticsPage() {
     }
   };
 
-  const loadCourseGroups = async () => {
-    try {
-      const groupsData = await apiClient.getCourseGroupsAnalytics(selectedCourseId);
-      const activeGroups = groupsData.groups || [];
-      const dropdownGroups = activeGroups.map((g: any) => ({
-          id: g.group_id,
-          name: g.group_name,
-          description: g.description
-      }));
-      setGroups(dropdownGroups);
-      
-      // Also set groups analytics here as they are part of the group list data
-      setGroupsAnalytics(activeGroups);
-
-      // Reset group filter if current selection is invalid for new course
-      // We do this check here because groups changed
-      if (selectedGroupId !== 'all' && !dropdownGroups.find((g: any) => String(g.id) === selectedGroupId)) {
-        setSelectedGroupId('all');
-      }
-    } catch (error) {
-      console.error('Failed to load groups:', error);
-      // We don't fail the whole page if groups fail, just log it
-    }
-  };
-
-  const loadAnalyticsStats = async () => {
+  const loadAnalyticsData = async () => {
     if (!selectedCourseId) return;
     
     setLoading(true);
@@ -196,76 +169,83 @@ export default function AnalyticsPage() {
     try {
       const groupIdNum = selectedGroupId !== 'all' ? Number(selectedGroupId) : undefined;
       
-      // Fetch stats relevant to the current selection
-      const [overviewData, studentsData, errorsData, videoData, quizPerfData] = await Promise.all([
-        apiClient.getCourseAnalyticsOverview(selectedCourseId), // This might need group filter in future if backend supports it
+      // Independent parallel requests for better performance
+      const [overviewData, studentsData, errorsData, videoData, quizPerfData, groupsData] = await Promise.all([
+        apiClient.getCourseAnalyticsOverview(selectedCourseId),
         apiClient.getAllStudentsAnalytics(selectedCourseId),
         apiClient.getQuizErrors(selectedCourseId, groupIdNum, 50),
         apiClient.getVideoEngagementAnalytics(selectedCourseId),
-        apiClient.getQuizPerformanceAnalytics(selectedCourseId)
+        apiClient.getQuizPerformanceAnalytics(selectedCourseId),
+        apiClient.getCourseGroupsAnalytics(selectedCourseId) // Fetch per-group stats
       ]);
 
       // Process Overview Stats
       const studentPerf = overviewData.student_performance || [];
       const engagement = overviewData.engagement || {};
       
-      // Filter student performance data if a group is selected
-      // Overview endpoint currently returns course-wide data
-      let filteredStudentPerf = studentPerf;
-      let filteredStudents = overviewData.student_performance || studentsData.students || [];
+      // Calculate aggregates from student performance data
+      const avgScore = studentPerf.length > 0 
+        ? studentPerf.reduce((sum: number, s: any) => sum + (s.assignment_score_percentage || 0), 0) / studentPerf.length 
+        : 0;
+      const activeCount = studentPerf.filter((s: any) => s.last_activity).length;
 
+      setOverview({
+        total_students: engagement.total_enrolled_students || studentPerf.length || 0,
+        active_students: activeCount,
+        average_progress: engagement.average_completion_rate || 0,
+        average_score: avgScore,
+        completion_rate: engagement.average_completion_rate || 0,
+      });
+      
+      // Process Students - Use student_performance from overviewData for richer stats if available, 
+      // otherwise fall back to studentsData which might be simpler.
+      // Actually, overviewData.student_performance has the detailed fields we added!
+      // But verify if it respects the groupId filter. overviewData is COURSE wide usually.
+      // We should filter it manually if needed.
+      
+      let rawStudents = overviewData.student_performance || studentsData.students || [];
       if (groupIdNum) {
+          // If we are filtering by group, we strictly filter the list.
+          // Need to check if student list has group_id. 
+          // Our enhanced backend response for overviewData includes group_name but maybe not group_id?
+          // We can match by group_name if group_id missing, or just rely on 'studentsData' if that's safer.
+          // Ideally overviewData should have group info.
+          // Let's assume we filter on client side for now.
+          // Actually, let's use the `studentsData` if filter is active, but merge details?
+          // For simplicity, let's just use what we have and filter by name if necessary or check `group_name`.
+          
+          // Better approach: use `overviewData.student_performance` as primary source
+          // and filter by group name if user selected a group in dropdown (which comes from `groups` state).
           const selectedGroup = groups.find(g => g.id === groupIdNum);
           if (selectedGroup) {
-             // Filter logic matching the group name or id if available
-             // Assuming s.group_name matches selectedGroup.name
-             filteredStudentPerf = studentPerf.filter((s: any) => s.group_name === selectedGroup.name);
-             filteredStudents = filteredStudents.filter((s: any) => s.group_name === selectedGroup.name);
+              rawStudents = rawStudents.filter((s: any) => s.group_name === selectedGroup.name);
           }
       }
 
-      // Calculate aggregates from (potentially filtered) student performance data
-      const avgScore = filteredStudentPerf.length > 0 
-        ? filteredStudentPerf.reduce((sum: number, s: any) => sum + (s.assignment_score_percentage || 0), 0) / filteredStudentPerf.length 
-        : 0;
-      const activeCount = filteredStudentPerf.filter((s: any) => s.last_activity).length;
-      
-      // Recalculate avg progress for specific group
-      const avgProgress = filteredStudentPerf.length > 0
-        ? filteredStudentPerf.reduce((sum: number, s: any) => sum + (s.completion_percentage || s.progress_percentage || 0), 0) / filteredStudentPerf.length
-        : (engagement.average_completion_rate || 0);
-
-      setOverview({
-        total_students: selectedGroupId === 'all' ? (engagement.total_enrolled_students || studentPerf.length || 0) : filteredStudentPerf.length,
-        active_students: activeCount,
-        average_progress: avgProgress,
-        average_score: avgScore,
-        completion_rate: avgProgress,
-      });
-      
-      setStudents(filteredStudents.map((s: any) => ({
+      setStudents(rawStudents.map((s: any) => ({
         student_id: s.student_id,
         student_name: s.student_name,
         email: s.email || '',
         group_name: s.group_name,
         progress_percentage: s.completion_percentage || s.progress_percentage || 0,
         last_activity: s.last_activity,
-        average_score: s.assignment_score_percentage || s.average_score,
+        average_score: s.assignment_score_percentage || s.average_score, // Prefer assignment score for course context
         current_lesson: s.current_lesson,
-        current_lesson_progress: s.current_lesson_progress,
         completed_assignments: s.completed_assignments,
         total_assignments: s.total_assignments,
         time_spent_minutes: s.time_spent_minutes
       })));
+
+      // Process Groups Data
+      setGroupsAnalytics(groupsData.groups || []);
       
-      // Quiz Errors are already filtered by backend if groupIdNum is provided
+      // Process Quiz Errors
       setQuizErrors(errorsData.questions || []);
 
-      // Video and Quiz Performance are currently course-wide (backend limitation?)
-      // If we wanted to filter them client-side, we'd need student-level breakdown in these responses, 
-      // but they return aggregated data. For now, we show course-wide stats or would need backend updates.
+      // Process Video Metrics
       setVideoMetrics(videoData.video_analytics || []);
 
+      // Process Quiz Performance Metrics
       const mixedQuizzes = [
         ...(quizPerfData.quiz_analytics || []).map((q: any) => ({
              ...q,
@@ -275,8 +255,8 @@ export default function AnalyticsPage() {
       ];
       setQuizMetrics(mixedQuizzes);
       
-      // Generate mock progress history based on filtered students
-      const mockHistory = generateProgressHistory(filteredStudents);
+      // Generate mock progress history
+      const mockHistory = generateProgressHistory(rawStudents);
       setProgressHistory(mockHistory);
       
     } catch (error) {
@@ -391,7 +371,7 @@ export default function AnalyticsPage() {
         
         <div className="flex items-center gap-3">
           <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
-            <SelectTrigger className="w-[220px] bg-white">
+            <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="Select course" />
             </SelectTrigger>
             <SelectContent>
@@ -404,7 +384,7 @@ export default function AnalyticsPage() {
           </Select>
           
           <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-            <SelectTrigger className="w-[180px] bg-blue-100">
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All groups" />
             </SelectTrigger>
             <SelectContent>
@@ -570,44 +550,43 @@ export default function AnalyticsPage() {
              </CardHeader>
              <CardContent>
                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50 h-10">
-                      <TableHead className="py-2">Group Name</TableHead>
-                      <TableHead className="py-2 text-center">Students</TableHead>
-                      <TableHead className="py-2 text-center">Avg Progress</TableHead>
-                      <TableHead className="py-2 text-center">Avg Score</TableHead>
-                      <TableHead className="py-2 text-center">Active</TableHead>
-                      <TableHead className="py-2 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                 <TableHeader>
+                   <TableRow className="bg-gray-50">
+                     <TableHead>Group Name</TableHead>
+                     <TableHead className="text-center">Students</TableHead>
+                     <TableHead className="text-center">Avg Progress</TableHead>
+                     <TableHead className="text-center">Avg Score</TableHead>
+                     <TableHead className="text-center">Active</TableHead>
+                     <TableHead className="text-right">Actions</TableHead>
+                   </TableRow>
+                 </TableHeader>
                  <TableBody>
                    {groupsAnalytics.map((group) => (
-                      <TableRow key={group.group_id} className="h-12 hover:bg-gray-50">
-                        <TableCell className="py-2 font-medium">{group.group_name}</TableCell>
-                        <TableCell className="py-2 text-center">{group.students_count}</TableCell>
-                        <TableCell className="py-2 text-center">
-                           <div className="flex items-center justify-center gap-2">
-                               <Progress value={group.average_completion_percentage} className="w-16 h-1.5" />
-                               <span className="text-xs font-medium">{Math.round(group.average_completion_percentage)}%</span>
-                           </div>
-                        </TableCell>
-                        <TableCell className="py-2 text-center">{Math.round(group.average_assignment_score_percentage)}%</TableCell>
-                        <TableCell className="py-2 text-center">
-                           <Badge variant={group.students_with_progress > 0 ? "outline" : "secondary"} className="py-0 px-2 text-xs font-normal">
-                               {group.students_with_progress} Active
-                           </Badge>
-                        </TableCell>
-                        <TableCell className="py-2 text-right">
-                           <Button 
-                             variant="ghost" 
-                             size="sm"
-                             className="h-8 px-2"
-                             onClick={() => setSelectedGroupId(String(group.group_id))}
-                           >
-                              Filter &rarr;
-                           </Button>
-                        </TableCell>
-                      </TableRow>
+                     <TableRow key={group.group_id}>
+                       <TableCell className="font-medium">{group.group_name}</TableCell>
+                       <TableCell className="text-center">{group.students_count}</TableCell>
+                       <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                              <Progress value={group.average_completion_percentage} className="w-16 h-2" />
+                              <span className="text-xs font-medium">{Math.round(group.average_completion_percentage)}%</span>
+                          </div>
+                       </TableCell>
+                       <TableCell className="text-center">{Math.round(group.average_assignment_score_percentage)}%</TableCell>
+                       <TableCell className="text-center">
+                          <Badge variant={group.students_with_progress > 0 ? "outline" : "secondary"}>
+                              {group.students_with_progress} Active
+                          </Badge>
+                       </TableCell>
+                       <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setSelectedGroupId(String(group.group_id))}
+                          >
+                             Filter &rarr;
+                          </Button>
+                       </TableCell>
+                     </TableRow>
                    ))}
                    {groupsAnalytics.length === 0 && (
                       <TableRow>
@@ -632,76 +611,74 @@ export default function AnalyticsPage() {
                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-gray-50 h-10">
-                        <TableHead className="py-2 cursor-pointer hover:bg-gray-100 min-w-[200px]" onClick={() => handleSortChange('name')}>
+                      <TableRow className="bg-gray-50">
+                        <TableHead className="cursor-pointer hover:bg-gray-100 min-w-[200px]" onClick={() => handleSortChange('name')}>
                           Student {studentSort === 'name' && (studentSortDir === 'asc' ? '↑' : '↓')}
                         </TableHead>
-                        <TableHead className="py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleSortChange('progress')}>
+                        <TableHead>Group</TableHead>
+                        <TableHead className="cursor-pointer hover:bg-gray-100" onClick={() => handleSortChange('progress')}>
                           Progress {studentSort === 'progress' && (studentSortDir === 'asc' ? '↑' : '↓')}
                         </TableHead>
-                        <TableHead className="py-2">Current Lesson</TableHead>
-                        <TableHead className="py-2 text-center">Assignments</TableHead>
-                        <TableHead className="py-2 text-center">Time Spent</TableHead>
-                        <TableHead className="py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleSortChange('activity')}>
+                        <TableHead>Current Lesson</TableHead>
+                        <TableHead className="text-center">Assignments</TableHead>
+                        <TableHead className="text-center">Time Spent</TableHead>
+                        <TableHead className="cursor-pointer hover:bg-gray-100" onClick={() => handleSortChange('activity')}>
                           Last Active {studentSort === 'activity' && (studentSortDir === 'asc' ? '↑' : '↓')}
                         </TableHead>
-                        <TableHead className="py-2 text-right">Actions</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sortedStudents.map(student => (
                         <TableRow 
                           key={student.student_id}
-                          className="hover:bg-gray-50 cursor-pointer group h-12"
+                          className="hover:bg-gray-50 cursor-pointer group"
                           onClick={() => navigate(`/analytics/student/${student.student_id}?course_id=${selectedCourseId}`)}
                         >
-                          <TableCell className="py-2">
+                          <TableCell>
                             <div>
-                              <p className="font-medium text-gray-900 text-sm">{student.student_name}</p>
-                              <p className="text-xs text-gray-500">{student.email}</p>
+                              <p className="font-medium text-gray-900 text-lg">{student.student_name}</p>
+                              <p className="text-sm text-gray-500">{student.email}</p>
                             </div>
                           </TableCell>
-                          <TableCell className="py-2">
+                          <TableCell>
+                            <Badge variant="outline" className="font-normal text-gray-500 text-sm">
+                                {student.group_name || 'No Group'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
                             <div className="flex items-center gap-2">
-                              <Progress value={student.progress_percentage} className="h-1.5 w-16" />
-                              <span className="text-xs font-medium text-gray-700">{Math.round(student.progress_percentage)}%</span>
+                              <Progress value={student.progress_percentage} className="h-2 w-16" />
+                              <span className="text-sm font-medium text-gray-700">{Math.round(student.progress_percentage)}%</span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-2">
-                             <div className="flex flex-col gap-0.5 min-w-[160px]">
-                                <div className="flex items-center gap-2">
-                                  <BookOpen className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                                  <span className="text-xs text-gray-700 truncate max-w-[160px]" title={student.current_lesson || 'Not started'}>
-                                     {student.current_lesson || 'Not started'}
-                                  </span>
-                                </div>
-                                {student.current_lesson && student.current_lesson !== 'Not started' && (
-                                   <div className="flex items-center gap-2 w-full">
-                                      <Progress value={student.current_lesson_progress || 0} className="h-1 flex-1" />
-                                      <span className="text-[10px] text-gray-500 w-8 text-right">{Math.round(student.current_lesson_progress || 0)}%</span>
-                                   </div>
-                                )}
+                          <TableCell>
+                             <div className="flex items-center gap-2 max-w-[150px]">
+                                <BookOpen className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm text-gray-600 truncate" title={student.current_lesson || 'Not started'}>
+                                   {student.current_lesson || 'Not started'}
+                                </span>
                              </div>
                           </TableCell>
-                          <TableCell className="py-2 text-center">
+                          <TableCell className="text-center">
                              <div className="text-sm">
                                 <span className="font-semibold text-gray-900">{student.completed_assignments || 0}</span>
                                 <span className="text-gray-400 mx-1">/</span>
                                 <span className="text-gray-500">{student.total_assignments || 0}</span>
                              </div>
                           </TableCell>
-                          <TableCell className="py-2 text-center">
-                             <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
-                                <Clock className="h-3.5 w-3.5" />
+                          <TableCell className="text-center">
+                             <div className="flex items-center justify-center gap-1 text-sm text-gray-500">
+                                <Clock className="h-4 w-4" />
                                 {formatDuration(student.time_spent_minutes)}
                              </div>
                           </TableCell>
-                          <TableCell className="py-2 text-xs text-gray-500">
+                          <TableCell className="text-sm text-gray-500">
                             {formatTimeAgo(student.last_activity)}
                           </TableCell>
-                          <TableCell className="py-2 text-right">
-                             <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-blue-600">
-                                Details &rarr;
+                          <TableCell className="text-right">
+                             <Button variant="ghost" size="sm" className="h-8 px-2 text-blue-600">
+                                View Details &rarr;
                              </Button>
                           </TableCell>
                         </TableRow>

@@ -464,7 +464,12 @@ export default function QuizLessonEditor({
       // Extract answers from [[correct, wrong1, wrong2]] in content_text; take first as correct
       const text = (draftQuestion.content_text || '').toString();
       const separator = draftQuestion.gap_separator || ',';
-      const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+      const gaps = [];
+      const regex = /\[\[(.*?)\]\]/g;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        gaps.push(match);
+      }
       const corrects = gaps
         .map(m => {
           const { correctOption } = parseGap(m[1] || '', separator);
@@ -1422,7 +1427,12 @@ export default function QuizLessonEditor({
                               console.log('RichTextEditor onChange:', value); // Debug log
                               // For text_completion questions, extract answers and update both content and answers
                               if (draftQuestion.question_type === 'text_completion') {
-                                const gaps = Array.from(value.matchAll(/\[\[(.*?)\]\]/g));
+                                const regex = /\[\[(.*?)\]\]/g;
+                                const gaps = [];
+                                let match;
+                                while ((match = regex.exec(value)) !== null) {
+                                  gaps.push(match);
+                                }
                                 const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
                                 console.log('Extracted answers:', answers); // Debug log
 
@@ -1534,7 +1544,12 @@ export default function QuizLessonEditor({
                             next.options = undefined; // Clear options for text_completion
                             // Auto-extract answers if content_text already has gaps
                             if (next.content_text) {
-                              const gaps = Array.from(next.content_text.matchAll(/\[\[(.*?)\]\]/g));
+                              const regex = /\[\[(.*?)\]\]/g;
+                              const gaps = [];
+                              let match;
+                              while ((match = regex.exec(next.content_text)) !== null) {
+                                gaps.push(match);
+                              }
                               const answers = gaps.map(match => (match as RegExpMatchArray)[1].trim());
                               next.correct_answer = answers;
                             }
@@ -1761,7 +1776,12 @@ export default function QuizLessonEditor({
                             <div className="font-medium mb-2">Detected Gaps:</div>
                             {(() => {
                               const text = (draftQuestion.content_text || '').toString();
-                              const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+                              const regex = /\[\[(.*?)\]\]/g;
+                              const gaps = [];
+                              let match;
+                              while ((match = regex.exec(text)) !== null) {
+                                gaps.push(match);
+                              }
                               if (gaps.length === 0) {
                                 return <div className="text-gray-500">No gaps detected. Use [[answer]] format in the Passage above.</div>;
                               }
@@ -1778,7 +1798,12 @@ export default function QuizLessonEditor({
                                       );
                                       applyDraftUpdate({ content_text: newText });
                                       // Update correct_answer array immediately
-                                      const updatedGaps = Array.from(newText.matchAll(/\[\[(.*?)\]\]/g));
+                                      const regex = /\[\[(.*?)\]\]/g;
+                                      const updatedGaps = [];
+                                      let match;
+                                      while ((match = regex.exec(newText)) !== null) {
+                                        updatedGaps.push(match);
+                                      }
                                       const answers = updatedGaps.map(match => match[1].trim());
                                       applyDraftUpdate({ correct_answer: answers });
                                     }}
@@ -2023,7 +2048,12 @@ export default function QuizLessonEditor({
                         {(() => {
                           const text = (draftQuestion.content_text || '').toString();
                           const separator = draftQuestion.gap_separator || ',';
-                          const gaps = Array.from(text.matchAll(/\[\[(.*?)\]\]/g));
+                          const regex = /\[\[(.*?)\]\]/g;
+                          const gaps = [];
+                          let match;
+                          while ((match = regex.exec(text)) !== null) {
+                            gaps.push(match);
+                          }
                           if (gaps.length === 0) return <span>No gaps yet. Add [[correct{separator}wrong1{separator}wrong2]] in the passage field.</span>;
 
                           // Helper function to clean text from HTML tags and entities
