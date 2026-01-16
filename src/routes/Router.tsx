@@ -44,6 +44,7 @@ import FavoriteFlashcardsPage from '../pages/FavoriteFlashcardsPage.tsx';
 import CuratorHomeworksPage from '../pages/CuratorHomeworksPage.tsx';
 import CuratorLeaderboardPage from '../pages/CuratorLeaderboardPage.tsx';
 import AssignmentZeroPage from '../pages/AssignmentZeroPage';
+import { StudentAnalyticsPage } from '../pages/analytics/StudentAnalyticsPage.tsx';
 
 export default function Router() {
   
@@ -382,6 +383,14 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin']}>
               <AppLayout>
                 <AnalyticsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/analytics/student/:studentId" element={
+            <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin']}>
+              <AppLayout>
+                <StudentAnalyticsPage />
               </AppLayout>
             </ProtectedRoute>
           } />
