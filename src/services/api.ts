@@ -2438,6 +2438,19 @@ class LMSApiClient {
     }
   }
 
+  async getCourseProgressHistory(courseId: string, groupId?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (groupId && groupId !== 'all') params.append('group_id', groupId);
+      
+      const response = await this.api.get(`/analytics/course/${courseId}/progress-history?${params}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get course progress history:', error);
+      throw error;
+    }
+  }
+
   async getGroupStudentsAnalytics(groupId: string, courseId?: string): Promise<any> {
     try {
       const params = courseId ? `?course_id=${courseId}` : '';
