@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, FileText, MessageSquare, Link as LinkIcon, CheckCircle, ExternalLink, Upload, X, FileSearch } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader } from '../ui/card';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 import apiClient from '../../services/api';
-
+import { toast } from '../Toast';
+import imageCompression from 'browser-image-compression';
 interface Task {
   id: string;
   task_type: 'course_unit' | 'file_task' | 'text_task' | 'link_task' | 'pdf_text_task';
@@ -237,21 +238,69 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
     try {
       setUploading(prev => ({ ...prev, [taskId]: true }));
       
+      let fileToUpload = file;
+
+      // Check if it's an image and compress
+      if (file.type.startsWith('image/')) {
+        toast('Compressing image...', 'info');
+        console.log(`Original: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+
+        try {
+          const options = {
+            maxSizeMB: 5,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+            initialQuality: 0.8
+          };
+          
+          const compressedFile = await imageCompression(file, options);
+          
+          // Calculate reduction
+          const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
+          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
+          const reductionPercent = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+
+          console.group('🖼️ MultiTask Image Compression');
+          console.log(`Original: ${file.name} (${file.type})`);
+          console.log(`Initial Size: ${originalSizeMB} MB`);
+          console.log(`Compressed Size: ${compressedSizeMB} MB`);
+          console.log(`Reduction: ${reductionPercent}%`);
+          console.groupEnd();
+
+          if (compressedFile.size < file.size) {
+            // Use compressed file
+             const types = ['image/jpeg', 'image/png', 'image/webp'];
+             const type = types.includes(compressedFile.type) ? compressedFile.type : file.type;
+             fileToUpload = new File([compressedFile], file.name, { type });
+             toast(`Compressed: ${originalSizeMB}MB → ${compressedSizeMB}MB`, 'success');
+          } else {
+             console.log('⚠️ Compressed file is larger or same size. Keeping original.');
+             toast('Image used as is (already optimized)', 'info');
+          }
+        } catch (compError) {
+          console.error('Compression failed, using original:', compError);
+          toast('Compression failed, using original file', 'error');
+        }
+      }
+
+      console.log(`🚀 Uploading file: ${fileToUpload.name}, Size: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB`);
+      
       // Upload file using existing API
       // We'll use the uploadTeacherFile endpoint or similar, or maybe we need a student upload endpoint
       // For now using uploadTeacherFile as it returns a URL, but ideally should be a generic upload
       // In a real app, we might want a specific endpoint for assignment submissions
       // Let's assume we can use the same upload service
-      const response = await apiClient.uploadTeacherFile(file);
+      const response = await apiClient.uploadTeacherFile(fileToUpload);
       
       handleTaskCompletion(taskId, {
         file_url: response.file_url || response.url,
-        file_name: file.name,
-        file_size: file.size
+        file_name: fileToUpload.name,
+        file_size: fileToUpload.size
       });
+      toast('File uploaded successfully', 'success');
     } catch (error) {
       console.error('File upload failed:', error);
-      alert('Failed to upload file. Please try again.');
+      toast('Failed to upload file. Please try again.', 'error');
     } finally {
       setUploading(prev => ({ ...prev, [taskId]: false }));
     }

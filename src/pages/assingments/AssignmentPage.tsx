@@ -13,8 +13,6 @@ import {
   Download,
   Award,
   Star,
-  File,
-  XCircle,
 } from 'lucide-react';
 import type { Assignment, AssignmentStatus, Submission } from '../../types/index.ts';
 import { Button } from '../../components/ui/button.tsx';
@@ -23,6 +21,7 @@ import { Badge } from '../../components/ui/badge.tsx';
 import { Textarea } from '../../components/ui/textarea.tsx';
 import { Label } from '../../components/ui/label.tsx';
 import MultiTaskSubmission from '../../components/assignments/MultiTaskSubmission.tsx';
+import imageCompression from 'browser-image-compression';
 
 export default function AssignmentPage() {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +40,7 @@ export default function AssignmentPage() {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [isCompressing, setIsCompressing] = useState<boolean>(false);
 
 
   const loadAssignment = async (assignmentId: string) => {
@@ -115,34 +115,7 @@ export default function AssignmentPage() {
     return 'secondary';
   };
 
-  const getAssignmentTypeIcon = () => {
-    switch (assignment?.assignment_type) {
-      case 'file_upload':
-        return <Upload className="w-4 h-4" />;
-      case 'free_text':
-      case 'essay':
-        return <FileText className="w-4 h-4" />;
-      case 'multi_task':
-        return <FileText className="w-4 h-4" />;
-      default:
-        return <File className="w-4 h-4" />;
-    }
-  };
 
-  const getAssignmentTypeLabel = () => {
-    switch (assignment?.assignment_type) {
-      case 'file_upload':
-        return 'File Upload';
-      case 'free_text':
-        return 'Free Text';
-      case 'essay':
-        return 'Essay';
-      case 'multi_task':
-        return 'Multi-Task';
-      default:
-        return 'Assignment';
-    }
-  };
 
   const handleSubmit = async () => {
     if (!id) return;
@@ -158,6 +131,7 @@ export default function AssignmentPage() {
 
       // Upload file if exists
       if (file) {
+        console.log(`🚀 Submitting file: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
         const result = await apiClient.uploadSubmissionFile(id, file);
         fileUrl = result.file_url;
         fileName = result.filename;
@@ -184,9 +158,68 @@ export default function AssignmentPage() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const originalFile = e.target.files[0];
+      
+      // Check if it's an image
+      if (originalFile.type.startsWith('image/')) {
+        setIsCompressing(true);
+        toast('Compressing image...', 'info');
+        
+        try {
+          const options = {
+            maxSizeMB: 5,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+            initialQuality: 0.8
+          };
+          
+          const compressedFile = await imageCompression(originalFile, options);
+          
+          // Calculate reduction
+          const originalSizeMB = (originalFile.size / 1024 / 1024).toFixed(2);
+          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
+          const reductionPercent = ((1 - compressedFile.size / originalFile.size) * 100).toFixed(1);
+
+          console.group('🖼️ Image Compression Details');
+          console.log(`Original: ${originalFile.name} (${originalFile.type})`);
+          console.log(`Initial Size: ${originalSizeMB} MB`);
+          console.log(`Compressed Size: ${compressedSizeMB} MB`);
+          console.log(`Reduction: ${reductionPercent}%`);
+          console.groupEnd();
+          
+          // If valid compressed file, use it
+          // Note: browser-image-compression returns a generic 'Blob' with some File props missing sometimes, 
+          // or a File. Let's make sure it's usable.
+          // It usually returns a File object in recent versions or Blob.
+          
+          // If the compressed file is LARGER (rare but possible for tiny optimized images), use original
+          if (compressedFile.size >= originalFile.size) {
+             console.log('⚠️ Compressed file is larger or same size. Keeping original.');
+             setFile(originalFile);
+             toast('Image used as is (already optimized)', 'info');
+          } else {
+             console.log('✅ Using compressed file.');
+             // Create a new File from the Blob to wrap it properly if needed, mostly for name preservation
+             // usually compressedFile has name if it was a File
+             const types = ['image/jpeg', 'image/png', 'image/webp'];
+             const type = types.includes(compressedFile.type) ? compressedFile.type : originalFile.type;
+             setFile(new File([compressedFile], originalFile.name, { type }));
+             toast(`Compressed: ${originalSizeMB}MB → ${compressedSizeMB}MB`, 'success');
+          }
+          
+        } catch (error) {
+          console.error('Compression failed:', error);
+          toast('Compression failed, using original file', 'error');
+          setFile(originalFile);
+        } finally {
+          setIsCompressing(false);
+        }
+      } else {
+        // Not an image, just set it
+        setFile(originalFile);
+      }
     }
   };
 
@@ -474,7 +507,12 @@ export default function AssignmentPage() {
                   <div className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-100">
                     <div className="flex items-center">
                       <FileText className="w-5 h-5 text-blue-600 mr-3" />
-                      <span className="font-medium text-blue-900">{file.name}</span>
+                      <div>
+                        <span className="font-medium text-blue-900 block">{file.name}</span>
+                        <span className="text-xs text-blue-700">
+                           Size: {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
                     </div>
                     <Button
                       variant="ghost"
@@ -489,10 +527,10 @@ export default function AssignmentPage() {
 
                 <Button
                   onClick={handleSubmit}
-                  disabled={!file || submitting}
+                  disabled={!file || submitting || isCompressing}
                   className="w-full"
                 >
-                  {submitting ? 'Submitting...' : 'Submit Assignment'}
+                  {isCompressing ? 'Compressing Image...' : (submitting ? 'Submitting...' : 'Submit Assignment')}
                 </Button>
               </CardContent>
             </Card>
