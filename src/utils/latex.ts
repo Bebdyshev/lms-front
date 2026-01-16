@@ -108,6 +108,11 @@ export function renderLatex(latex: string, displayMode: boolean = false): string
  * Автоматически оборачивает LaTeX команды в $ делимитеры
  */
 export function autoWrapLatex(text: string): string {
+  // Type guard: ensure text is a string
+  if (typeof text !== 'string') {
+    text = String(text ?? '');
+  }
+  
   // Паттерны LaTeX команд, которые должны быть в математическом режиме
   const latexPatterns = [
     /\\frac\{[^}]*\}\{[^}]*\}/g,  // \frac{a}{b}
@@ -121,7 +126,14 @@ export function autoWrapLatex(text: string): string {
   
   // Обрабатываем каждый паттерн
   for (const pattern of latexPatterns) {
-    const matches = [...result.matchAll(pattern)];
+    // const matches = [...result.matchAll(pattern)];
+    // Using exec instead of matchAll for better compatibility
+    const matches: RegExpExecArray[] = [];
+    let m;
+    pattern.lastIndex = 0;
+    while ((m = pattern.exec(result)) !== null) {
+      matches.push(m);
+    }
     
     // Обрабатываем совпадения в обратном порядке, чтобы не сбить индексы
     for (let i = matches.length - 1; i >= 0; i--) {
@@ -132,7 +144,6 @@ export function autoWrapLatex(text: string): string {
       
       // Проверяем, не находится ли уже внутри $ $
       const beforeMatch = result.substring(0, matchStart);
-      const afterMatch = result.substring(matchEnd);
       
       // Считаем количество $ до совпадения
       const dollarsBefore = (beforeMatch.match(/\$/g) || []).length;
@@ -154,6 +165,11 @@ export function autoWrapLatex(text: string): string {
  * Преобразует markdown форматирование в HTML
  */
 export function renderMarkdown(text: string): string {
+  // Type guard: ensure text is a string
+  if (typeof text !== 'string') {
+    text = String(text ?? '');
+  }
+  
   // Protect sequences of underscores (2 or more) from being interpreted as markdown
   // We replace them with a unique placeholder that won't be touched by markdown regex
   // Using a format without underscores to avoid the placeholder itself being processed
@@ -203,6 +219,11 @@ export function renderMarkdown(text: string): string {
  * Преобразует текст с LaTeX формулами в HTML
  */
 export function renderTextWithLatex(text: string): string {
+  // Type guard: ensure text is a string
+  if (typeof text !== 'string') {
+    text = String(text ?? '');
+  }
+  
   // 1. Сначала автоматически оборачиваем LaTeX команды (если они не обернуты)
   const wrappedText = autoWrapLatex(text);
   

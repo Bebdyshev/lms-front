@@ -201,6 +201,13 @@ const QuizRenderer = (props: QuizRendererProps) => {
   const renderQuizFeed = () => {
     if (!questions || questions.length === 0) return null;
 
+    // Calculate pass status to control correct answer visibility
+    const stats = getGapStatistics();
+    const totalItems = stats.totalGaps + stats.regularQuestions;
+    const correctItems = stats.correctGaps + stats.correctRegular;
+    const scorePercentage = totalItems > 0 ? (correctItems / totalItems) * 100 : 0;
+    const isPassed = scorePercentage >= 50;
+
     return (
       <div className="w-full md:max-w-3xl md:mx-auto space-y-4 md:space-y-6 md:p-4">
         {/* Header */}
@@ -294,9 +301,6 @@ const QuizRenderer = (props: QuizRendererProps) => {
                 <div className="p-2 md:p-6">
                   {/* Question Number Badge */}
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                      {displayNumber}
-                    </div>
                     <span className="text-sm font-medium text-gray-500">
                       Question{questionGaps > 1 ? 's' : ''} {displayNumber}{questionGaps > 1 ? `-${displayNumber + questionGaps - 1}` : ''} of {totalQuestionCount}
                     </span>
@@ -424,29 +428,57 @@ const QuizRenderer = (props: QuizRendererProps) => {
                         .map((opt: any) => opt.text || opt);
                       correctAnswerDisplay = correctTexts.join(', ');
                     } else {
-                      const answers = (q.correct_answer || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
-                      isCorrect = answers.includes((userAnswer || '').toString().trim().toLowerCase());
-                      // For single choice, find the correct option text
-                      if (q.question_type === 'single_choice' || q.question_type === 'media_question') {
-                        const correctOpt = (q.options || []).find((opt: any) => 
+                      // For single_choice and media_question, correct_answer may be an index or text
+                      const options = q.options || [];
+                      let correctOptionText = '';
+                      
+                      // Try to interpret correct_answer as an index first
+                      const correctAnswerValue = q.correct_answer;
+                      const correctIndex = typeof correctAnswerValue === 'number' 
+                        ? correctAnswerValue 
+                        : parseInt(correctAnswerValue?.toString() || '', 10);
+                      
+                      if (!isNaN(correctIndex) && correctIndex >= 0 && correctIndex < options.length) {
+                        // correct_answer is an index - get the option text
+                        const opt = options[correctIndex];
+                        correctOptionText = opt?.text || opt || '';
+                      } else {
+                        // correct_answer is text - find matching option
+                        const answers = (correctAnswerValue || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
+                        const correctOpt = options.find((opt: any) => 
                           answers.some((a: string) => a === (opt.text || opt).toString().trim().toLowerCase())
                         );
-                        correctAnswerDisplay = correctOpt ? (correctOpt.text || correctOpt) : q.correct_answer;
-                      } else {
-                        correctAnswerDisplay = q.correct_answer || '';
+                        correctOptionText = correctOpt ? (correctOpt.text || correctOpt) : (correctAnswerValue || '');
                       }
+                      
+                      // Check if user answer is correct
+                      // userAnswer might also be an index
+                      const userAnswerIndex = typeof userAnswer === 'number' 
+                        ? userAnswer 
+                        : parseInt(userAnswer?.toString() || '', 10);
+                      
+                      if (!isNaN(userAnswerIndex) && !isNaN(correctIndex)) {
+                        isCorrect = userAnswerIndex === correctIndex;
+                      } else {
+                        const answers = (correctAnswerValue || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
+                        isCorrect = answers.includes((userAnswer || '').toString().trim().toLowerCase());
+                      }
+                      
+                      correctAnswerDisplay = correctOptionText;
                     }
                     
                     return (
                       <div className="mt-4 space-y-3">
                         {isCorrect ? (
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                              <CheckCircle className="w-4 h-4" />
-                              Correct!
-                            </span>
-                          </div>
-                        ) : (
+                          isPassed ? (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                                <CheckCircle className="w-4 h-4" />
+                                Correct!
+                              </span>
+                            </div>
+                          ) : null
+                        ) : isPassed ? (
                           <div className="space-y-3">
                             <div className="flex items-center gap-2">
                               <span className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-800 rounded-full text-sm font-medium">
@@ -454,13 +486,13 @@ const QuizRenderer = (props: QuizRendererProps) => {
                                 Incorrect
                               </span>
                             </div>
-                            {/* Show correct answer */}
+                            {/* Show correct answer only if passed */}
                             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                               <p className="text-sm font-medium text-green-800 mb-1">Correct Answer:</p>
                               <p className="text-green-700" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(correctAnswerDisplay) }} />
                             </div>
                           </div>
-                        )}
+                        ) : null}
                         
                         {/* Show explanation if available */}
                         {q.explanation && (
