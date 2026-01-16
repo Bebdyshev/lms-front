@@ -33,6 +33,13 @@ interface StudentAnalytics {
   last_activity?: string;
   average_score?: number;
   current_lesson?: string;
+  current_lesson_progress?: number;
+  last_test_result?: {
+      title: string;
+      score: number;
+      max_score: number;
+      percentage: number;
+  };
   completed_assignments?: number;
   total_assignments?: number;
   time_spent_minutes?: number;
@@ -231,6 +238,8 @@ export default function AnalyticsPage() {
         last_activity: s.last_activity,
         average_score: s.assignment_score_percentage || s.average_score, // Prefer assignment score for course context
         current_lesson: s.current_lesson,
+        current_lesson_progress: s.current_lesson_progress,
+        last_test_result: s.last_test_result,
         completed_assignments: s.completed_assignments,
         total_assignments: s.total_assignments,
         time_spent_minutes: s.time_spent_minutes
@@ -620,6 +629,7 @@ export default function AnalyticsPage() {
                           Progress {studentSort === 'progress' && (studentSortDir === 'asc' ? '↑' : '↓')}
                         </TableHead>
                         <TableHead>Current Lesson</TableHead>
+                        <TableHead className="w-[180px]">Last Test</TableHead>
                         <TableHead className="text-center">Assignments</TableHead>
                         <TableHead className="text-center">Time Spent</TableHead>
                         <TableHead className="cursor-pointer hover:bg-gray-100" onClick={() => handleSortChange('activity')}>
@@ -632,33 +642,66 @@ export default function AnalyticsPage() {
                       {sortedStudents.map(student => (
                         <TableRow 
                           key={student.student_id}
-                          className="hover:bg-gray-50 cursor-pointer group"
+                          className="hover:bg-gray-50 cursor-pointer group py-0"
                           onClick={() => navigate(`/analytics/student/${student.student_id}?course_id=${selectedCourseId}`)}
                         >
-                          <TableCell>
+                          <TableCell className="text-sm">
                             <div>
-                              <p className="font-medium text-gray-900 text-lg">{student.student_name}</p>
-                              <p className="text-sm text-gray-500">{student.email}</p>
+                              <p className="font-medium text-gray-900">{student.student_name}</p>
+                              <p className="text-gray-500">{student.email}</p>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="font-normal text-gray-500 text-sm">
-                                {student.group_name || 'No Group'}
+                          <TableCell className="py-2 pr-0">
+                            <Badge variant="outline" className="font-normal text-gray-500 text-xs px-2 py-0 h-6">
+                                {groups.find(g => g.name === student.group_name)?.description || student.group_name || 'No Group'}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-2">
                             <div className="flex items-center gap-2">
                               <Progress value={student.progress_percentage} className="h-2 w-16" />
                               <span className="text-sm font-medium text-gray-700">{Math.round(student.progress_percentage)}%</span>
                             </div>
                           </TableCell>
-                          <TableCell>
-                             <div className="flex items-center gap-2 max-w-[150px]">
-                                <BookOpen className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                                <span className="text-sm text-gray-600 truncate" title={student.current_lesson || 'Not started'}>
-                                   {student.current_lesson || 'Not started'}
-                                </span>
+                          <TableCell className="py-2">
+                             <div className="flex flex-col gap-1 max-w-[200px]">
+                                <div className="flex items-center gap-2">
+                                    <BookOpen className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                    <span className="text-sm text-gray-700 truncate font-medium" title={student.current_lesson || 'Not started'}>
+                                       {student.current_lesson || 'Not started'}
+                                    </span>
+                                </div>
+                                {student.current_lesson && (
+                                    <div className="w-full bg-gray-100 rounded-full h-1.5 mt-0.5">
+                                        <div 
+                                            className="bg-blue-500 h-1.5 rounded-full" 
+                                            style={{ width: `${student.current_lesson_progress || 0}%` }}
+                                        />
+                                    </div>
+                                )}
                              </div>
+                          </TableCell>
+                          <TableCell className="py-2">
+                             {student.last_test_result ? (
+                                <div className="flex flex-col">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="text-xs font-medium text-gray-900 truncate max-w-[120px]" title={student.last_test_result.title}>
+                                            {student.last_test_result.title}
+                                        </span>
+                                        <span className={`text-xs font-bold ${
+                                            student.last_test_result.percentage >= 80 ? 'text-green-600' : 
+                                            student.last_test_result.percentage >= 60 ? 'text-yellow-600' : 'text-red-600'
+                                        }`}>
+                                            {student.last_test_result.percentage}%
+                                        </span>
+                                    </div>
+                                    <Progress value={student.last_test_result.percentage} className={`h-1.5 ${
+                                        student.last_test_result.percentage >= 80 ? '[&>div]:bg-green-500' : 
+                                        student.last_test_result.percentage >= 60 ? '[&>div]:bg-yellow-500' : '[&>div]:bg-red-500'
+                                    }`} />
+                                </div>
+                             ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                             )}
                           </TableCell>
                           <TableCell className="text-center">
                              <div className="text-sm">
@@ -678,7 +721,7 @@ export default function AnalyticsPage() {
                           </TableCell>
                           <TableCell className="text-right">
                              <Button variant="ghost" size="sm" className="h-8 px-2 text-blue-600">
-                                View Details &rarr;
+                                Details &rarr;
                              </Button>
                           </TableCell>
                         </TableRow>

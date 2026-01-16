@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, CheckCircle2, Circle, ChevronDown, BookOpen } from 'lucide-react'; 
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import apiClient from '@/services/api'; // Fixed default import
 
 interface StepProgress {
@@ -74,6 +76,7 @@ export const StudentAnalyticsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DetailedProgress | null>(null);
+  const [satData, setSatData] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -85,6 +88,40 @@ export const StudentAnalyticsPage: React.FC = () => {
     try {
       const response = await apiClient.getStudentDetailedProgress(studentId, courseId || undefined);
       setData(response);
+      
+      // Fetch SAT scores
+      try {
+        const satResponse = await apiClient.getStudentSatScores(studentId);
+        if (satResponse && satResponse.testResults) {
+            const processed = satResponse.testResults
+                .sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()) // Desk sorted for table (Newest first)
+                .map((t: any) => {
+                    // Calculate Math/Verbal breakdown
+                    const mathQuestions = t.questions?.filter((q: any) => q.questionType === 'Math') || [];
+                    const verbalQuestions = t.questions?.filter((q: any) => q.questionType === 'Verbal') || [];
+                    
+                    const mathCorrect = mathQuestions.filter((q: any) => q.isCorrect).length;
+                    const verbalCorrect = verbalQuestions.filter((q: any) => q.isCorrect).length;
+                    
+                    const mathPerc = mathQuestions.length > 0 ? (mathCorrect / mathQuestions.length) * 100 : 0;
+                    const verbalPerc = verbalQuestions.length > 0 ? (verbalCorrect / verbalQuestions.length) * 100 : 0;
+                    
+                    return {
+                        date: new Date(t.completedAt).toLocaleDateString(),
+                        timestamp: new Date(t.completedAt).getTime(),
+                        score: t.score,
+                        percentage: t.percentage,
+                        mathPercentage: Math.round(mathPerc),
+                        verbalPercentage: Math.round(verbalPerc),
+                        testName: t.testName,
+                        fullDate: new Date(t.completedAt).toLocaleString()
+                    };
+                });
+            setSatData(processed);
+        }
+      } catch (e) {
+        console.warn("Could not fetch SAT scores", e);
+      }
     } catch (err) {
       console.error('Failed to load student details:', err);
       setError('Failed to load student detailed progress.');
@@ -203,6 +240,101 @@ export const StudentAnalyticsPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* SAT Analytics Chart & Table */}
+      {satData.length > 0 && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>SAT Performance Dynamics</CardTitle>
+            <CardDescription>Performance history in SAT Weekly Tests</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-8">
+            <div className="h-[350px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={[...satData].reverse()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#64748b" 
+                    tick={{ fontSize: 12 }}
+                    tickMargin={10}
+                  />
+                  <YAxis 
+                    domain={[0, 100]} 
+                    unit="%"
+                    stroke="#64748b" 
+                    tick={{ fontSize: 12 }}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    labelStyle={{ color: '#64748b', marginBottom: '0.25rem' }}
+                    formatter={(value: any, name: string) => [
+                        `${value}%`, 
+                        name === 'percentage' ? 'Total' : name === 'mathPercentage' ? 'Math' : 'Verbal'
+                    ]}
+                  />
+                  <Line 
+                    name="percentage"
+                    type="monotone" 
+                    dataKey="percentage" 
+                    stroke="#2563eb" 
+                    strokeWidth={3}
+                    activeDot={{ r: 6, fill: "#2563eb" }}
+                    dot={{ r: 4, fill: "#2563eb", strokeWidth: 0 }}
+                  />
+                   <Line 
+                    name="mathPercentage"
+                    type="monotone" 
+                    dataKey="mathPercentage" 
+                    stroke="#10b981" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "#10b981" }}
+                  />
+                   <Line 
+                    name="verbalPercentage"
+                    type="monotone" 
+                    dataKey="verbalPercentage" 
+                    stroke="#f59e0b" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "#f59e0b" }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="rounded-md border border-slate-200">
+                <Table>
+                    <TableHeader>
+                        <TableRow className="bg-slate-50">
+                            <TableHead>Test Name</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead className="text-center">Total Score</TableHead>
+                            <TableHead className="text-center font-bold text-blue-700">Total %</TableHead>
+                            <TableHead className="text-center text-green-700">Math %</TableHead>
+                            <TableHead className="text-center text-amber-700">Verbal %</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {satData.map((test, idx) => (
+                            <TableRow key={idx} className="hover:bg-slate-50">
+                                <TableCell className="font-medium text-slate-900">{test.testName}</TableCell>
+                                <TableCell className="text-slate-500">{test.date}</TableCell>
+                                <TableCell className="text-center font-medium">{test.score}</TableCell>
+                                <TableCell className="text-center font-bold text-blue-600 bg-blue-50/50">{test.percentage}%</TableCell>
+                                <TableCell className="text-center text-green-600">{test.mathPercentage}%</TableCell>
+                                <TableCell className="text-center text-amber-600">{test.verbalPercentage}%</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Detailed Curriculum Progress */}
       <Card className="border-slate-200 shadow-sm">

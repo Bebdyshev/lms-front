@@ -2527,6 +2527,16 @@ class LMSApiClient {
     }
   }
 
+  async getStudentSatScores(studentId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/analytics/student/${studentId}/sat-scores`);
+      return response.data;
+    } catch (error) {
+      console.warn('Failed to load SAT scores:', error);
+      return { testResults: [] };
+    }
+  }
+
   async getStudentLearningPath(studentId: string, courseId: string): Promise<any> {
     try {
       const response = await this.api.get(`/analytics/student/${studentId}/learning-path`, {
