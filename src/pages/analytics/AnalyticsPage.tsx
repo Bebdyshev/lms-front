@@ -558,7 +558,11 @@ export default function AnalyticsPage() {
                 <CardTitle>Progress Over Time</CardTitle>
               </CardHeader>
               <CardContent className="pl-2">
-                {loadingCharts ? (
+                {selectedGroupId === 'all' ? (
+                    <div className="h-[350px] flex items-center justify-center text-gray-400 font-medium">
+                        Select group first
+                    </div>
+                ) : loadingCharts ? (
                     <div className="h-[350px] flex items-center justify-center">
                         <Skeleton className="h-[300px] w-full" />
                     </div>
@@ -598,14 +602,14 @@ export default function AnalyticsPage() {
                                 background: '#fff', 
                                 border: 'none', 
                                 borderRadius: '8px', 
-                                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' 
+                                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'
                             }}
                           />
                           <Area 
                             type="monotone" 
                             dataKey="progress" 
                             stroke="#3b82f6" 
-                            strokeWidth={3} 
+                            strokeWidth={2}
                             fillOpacity={1} 
                             fill="url(#colorProgress)" 
                           />
