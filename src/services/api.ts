@@ -2359,7 +2359,7 @@ class LMSApiClient {
     }
   }
 
-  async getQuizErrors(courseId: string, groupId?: number, limit: number = 20): Promise<{
+  async getQuizErrors(courseId: string, groupId?: number, limit: number = 20, lessonId?: number): Promise<{
     course_id: number;
     group_id: number | null;
     total_attempts_analyzed: number;
@@ -2378,6 +2378,7 @@ class LMSApiClient {
     try {
       const params: Record<string, any> = { limit };
       if (groupId) params.group_id = groupId;
+      if (lessonId) params.lesson_id = lessonId;
       const response = await this.api.get(`/analytics/course/${courseId}/quiz-errors`, { params });
       return response.data;
     } catch (error) {

@@ -291,7 +291,7 @@ export default function Router() {
           } />
 
           <Route path="/teacher/course/:courseId/lesson/:lessonId/edit" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'teacher', 'curator']}>
               <LessonEditPage />
             </ProtectedRoute>
           } />

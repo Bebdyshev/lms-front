@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import { Badge } from '../../components/ui/badge';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { Clock } from 'lucide-react';
+import { Clock, Search, Filter, AlertCircle, ArrowRight } from 'lucide-react';
 
 interface Course {
   id: number;
@@ -134,9 +134,11 @@ export default function AnalyticsPage() {
   const [students, setStudents] = useState<StudentAnalytics[]>([]);
   const [groupsAnalytics, setGroupsAnalytics] = useState<GroupAnalytics[]>([]);
   const [quizErrors, setQuizErrors] = useState<QuizError[]>([]);
+  const [courseLessons, setCourseLessons] = useState<Array<{id: string, title: string}>>([]);
   const [videoMetrics, setVideoMetrics] = useState<VideoMetric[]>([]);
-  const [quizMetrics, setQuizMetrics] = useState<QuizMetric[]>([]);
   const [progressHistory, setProgressHistory] = useState<any[]>([]);
+  const [quizSearch, setQuizSearch] = useState('');
+  const [lessonFilter, setLessonFilter] = useState('all');
   
   // Granular Loading States
   const [loadingOverview, setLoadingOverview] = useState(false);
@@ -158,11 +160,13 @@ export default function AnalyticsPage() {
       fetchOverview(selectedCourseId);
       // 3. Fetch Charts (Lazy)
       fetchCharts(selectedCourseId);
+      // 4. Fetch Lessons
+      fetchCourseLessons(selectedCourseId);
     }
   }, [selectedCourseId]);
 
   // Effect: Recalculate Stats & Filter Students when Group ID or Raw Data changes
-  // This enables "Client-Side Filtering" for instant updates
+  // Effect: Recalculate Stats & Filter Students when Group ID or Raw Data changes
   useEffect(() => {
     if (rawOverviewData) {
         processRawData(rawOverviewData, selectedGroupId);
@@ -170,10 +174,16 @@ export default function AnalyticsPage() {
     
     // Group-dependent data fetching
     if (selectedCourseId && selectedGroupId) {
-         fetchQuizErrors(selectedCourseId, selectedGroupId);
          fetchCharts(selectedCourseId, selectedGroupId);
     }
-  }, [selectedGroupId, rawOverviewData, groups]); // Dependencies: group change, new data, or groups list update
+  }, [selectedGroupId, rawOverviewData, groups, selectedCourseId]);
+
+  // Separate effect for Quiz Errors to handle lesson filtering at the API level
+  useEffect(() => {
+    if (selectedCourseId && selectedGroupId) {
+        fetchQuizErrors(selectedCourseId, selectedGroupId, lessonFilter);
+    }
+  }, [selectedCourseId, selectedGroupId, lessonFilter]);
 
   // Handlers for URL updates
   const handleCourseChange = (courseId: string) => {
@@ -181,6 +191,8 @@ export default function AnalyticsPage() {
       newParams.set('course_id', courseId);
       newParams.set('group_id', 'all'); // Reset group on course change
       setSearchParams(newParams);
+      setLessonFilter('all');
+      setCourseLessons([]);
   };
 
   const handleGroupChange = (groupId: string) => {
@@ -312,14 +324,27 @@ export default function AnalyticsPage() {
       setStudents(mappedStudents);
   };
 
-  const fetchQuizErrors = async (courseId: string, groupId: string) => {
+  const fetchQuizErrors = async (courseId: string, groupId: string, lessonId?: string) => {
        try {
            const groupIdNum = groupId !== 'all' ? Number(groupId) : undefined;
-           const errorsData = await apiClient.getQuizErrors(courseId, groupIdNum, 200);
+           const lessonIdNum = lessonId && lessonId !== 'all' ? Number(lessonId) : undefined;
+           const errorsData = await apiClient.getQuizErrors(courseId, groupIdNum, 300, lessonIdNum);
            setQuizErrors(errorsData.questions || []);
        } catch (err) {
            console.error("Failed to fetch quiz errors", err);
        }
+  };
+
+  const fetchCourseLessons = async (courseId: string) => {
+      try {
+          const lessonsData = await apiClient.getCourseLessons(courseId);
+          setCourseLessons(lessonsData.map((l: any) => ({
+              id: String(l.id),
+              title: l.title
+          })));
+      } catch (err) {
+          console.error("Failed to fetch course lessons", err);
+      }
   };
 
   const fetchCharts = async (courseId: string, groupId?: string) => {
@@ -352,6 +377,15 @@ export default function AnalyticsPage() {
   };
 
 
+
+  // Derived Data: Filtered Quiz Errors (Questions) for the Quizzes Tab
+  const filteredQuizErrors = useMemo(() => {
+    return quizErrors.filter(err => {
+        const matchesSearch = err.question_text.toLowerCase().includes(quizSearch.toLowerCase()) || 
+                             err.step_title.toLowerCase().includes(quizSearch.toLowerCase());
+        return matchesSearch;
+    });
+  }, [quizErrors, quizSearch]);
 
   // Derived Data: Topics Analysis (Grouped by Lesson)
   const topicAnalysis = useMemo(() => {
@@ -905,27 +939,160 @@ export default function AnalyticsPage() {
            )}
         </TabsContent>
 
-        <TabsContent value="quizzes">
-            <div className="grid gap-4 md:grid-cols-2">
-                {loadingCharts ? <Skeleton className="h-[300px]" /> : (
-                    quizMetrics.length > 0 ? (
-                        quizMetrics.map(quiz => (
-                            <Card key={quiz.id}>
-                                <CardHeader>
-                                    <CardTitle>{quiz.title}</CardTitle>
-                                    <CardDescription>{quiz.attempts_count} Attempts</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold mb-2">{Math.round(quiz.avg_performance)}%</div>
-                                    <Progress value={quiz.avg_performance} />
-                                </CardContent>
-                            </Card>
-                        ))
-                    ) : (
-                        <div className="col-span-2 text-center py-8 text-gray-500">No quiz data available</div>
-                    )
-                )}
+        <TabsContent value="quizzes" className="space-y-6">
+            <div className="flex flex-col md:flex-row gap-4 items-end justify-between bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full md:w-auto flex-1">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <Search className="h-3 w-3" />
+                            Search Questions
+                        </label>
+                        <input 
+                            type="text"
+                            placeholder="Search by keyword..."
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+                            value={quizSearch}
+                            onChange={(e) => setQuizSearch(e.target.value)}
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                            <Filter className="h-3 w-3" />
+                            Filter by Lesson
+                        </label>
+                        <Select value={lessonFilter} onValueChange={setLessonFilter}>
+                            <SelectTrigger className="w-full bg-white border-gray-200">
+                                <SelectValue placeholder="All Lessons" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Lessons ({courseLessons.length})</SelectItem>
+                                {courseLessons.map(lesson => (
+                                    <SelectItem key={lesson.id} value={lesson.id}>{lesson.title}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <Badge variant="outline" className="h-9 px-3 font-medium bg-blue-50 text-blue-700 border-blue-100">
+                        {filteredQuizErrors.length} Questions Analyzed
+                    </Badge>
+                </div>
             </div>
+
+            <Card className="border-none shadow-sm overflow-hidden">
+                <CardHeader className="bg-white border-b border-gray-100 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="p-2 bg-red-50 rounded-lg">
+                                <AlertCircle className="h-5 w-5 text-red-600" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-lg font-bold text-gray-900">Difficult Quiz Questions</CardTitle>
+                                <CardDescription>Questions with the highest error rates across the selected group</CardDescription>
+                            </div>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-transparent hover:bg-transparent border-b">
+                                    <TableHead className="w-[40%] py-4 text-xs font-medium text-gray-400">Question</TableHead>
+                                    <TableHead className="w-[25%] py-4 text-xs font-medium text-gray-400">Context</TableHead>
+                                    <TableHead className="w-[10%] py-4 text-center text-xs font-medium text-gray-400">Attempts</TableHead>
+                                    <TableHead className="w-[15%] py-4 text-center text-xs font-medium text-gray-400">Error</TableHead>
+                                    <TableHead className="w-[10%] py-4 text-right text-xs font-medium text-gray-400"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {loadingCharts ? (
+                                    [...Array(5)].map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell colSpan={5}><Skeleton className="h-10 w-full" /></TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : filteredQuizErrors.length > 0 ? (
+                                    filteredQuizErrors.map((error, idx) => (
+                                        <TableRow key={`${error.step_id}-${error.question_id}-${idx}`} className="group hover:bg-blue-50/50 transition-colors border-b border-gray-100/50">
+                                            <TableCell className="py-5">
+                                                <div className="max-w-md">
+                                                    <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2" title={error.question_text}>
+                                                        {error.question_text || "Untitled Question"}
+                                                    </p>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <p className="text-xs text-gray-500 truncate max-w-[220px]">
+                                                    {error.lesson_title} <span className="text-gray-300 mx-1">•</span> {error.step_title}
+                                                </p>
+                                            </TableCell>
+                                            <TableCell className="py-4 text-center">
+                                                <span className="text-sm text-gray-600">{error.total_attempts}</span>
+                                            </TableCell>
+                                            <TableCell className="py-5 text-center">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className={`text-sm font-bold ${
+                                                        error.error_rate > 60 ? 'text-red-600' : 
+                                                        error.error_rate > 30 ? 'text-amber-600' : 
+                                                        error.error_rate > 0 ? 'text-blue-600' : 'text-green-600'
+                                                    }`}>
+                                                        {Number(error.error_rate).toFixed(1)}%
+                                                    </span>
+                                                    <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={`h-full transition-all duration-500 ${
+                                                                error.error_rate > 60 ? 'bg-red-500' : 
+                                                                error.error_rate > 30 ? 'bg-amber-500' : 
+                                                                error.error_rate > 0 ? 'bg-blue-500' : 'bg-green-500'
+                                                            }`}
+                                                            style={{ width: `${Math.max(error.error_rate, 2)}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4 text-right">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="h-8 text-blue-600 hover:text-blue-700 hover:bg-transparent font-medium gap-1 group/btn px-2"
+                                                    onClick={() => navigate(`/teacher/course/${selectedCourseId}/lesson/${error.lesson_id}/edit?stepId=${error.step_id}&questionId=${error.question_id}`)}
+                                                >
+                                                    View
+                                                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="text-center py-20">
+                                            <div className="flex flex-col items-center justify-center space-y-3">
+                                                <div className="p-4 bg-gray-50 rounded-full">
+                                                    <XAxis className="h-8 w-8 text-gray-300" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-lg font-semibold text-gray-900">No difficult questions found</p>
+                                                    <p className="text-sm text-gray-500">Try adjusting your filters or search terms</p>
+                                                </div>
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm"
+                                                    onClick={() => { setQuizSearch(''); setLessonFilter('all'); }}
+                                                >
+                                                    Clear All Filters
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+            </Card>
+
         </TabsContent>
 
         <TabsContent value="topics">
