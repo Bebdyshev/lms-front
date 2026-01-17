@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
 import { ChevronRight, AlertTriangle, XCircle } from 'lucide-react';
@@ -53,7 +53,6 @@ interface QuizRendererProps {
   nextQuestion: () => void;
   resetQuiz: () => void;
   getScore: () => { score: number; total: number; };
-  isCurrentAnswerCorrect: () => boolean;
   getCurrentQuestion: () => QuizQuestion | null;
   getCurrentUserAnswer: () => any;
   goToNextStep: () => void;
@@ -73,6 +72,7 @@ interface QuizRendererProps {
   reviewQuiz: () => void;
   autoFillCorrectAnswers: () => void;
   quizAttempt?: any;
+  highlightedQuestionId?: string;
 }
 
 const QuizRenderer = (props: QuizRendererProps) => {
@@ -90,7 +90,6 @@ const QuizRenderer = (props: QuizRendererProps) => {
     checkAnswer,
     nextQuestion,
     resetQuiz,
-    isCurrentAnswerCorrect,
     getCurrentQuestion,
     getCurrentUserAnswer,
     goToNextStep,
@@ -104,9 +103,28 @@ const QuizRenderer = (props: QuizRendererProps) => {
     reviewQuiz,
     autoFillCorrectAnswers,
     quizAttempt,
+    highlightedQuestionId,
   } = props;
 
   const navigate = useNavigate();
+
+  // Handle scrolling to highlighted question
+  useEffect(() => {
+    if (highlightedQuestionId && questions.length > 0 && (quizState === 'feed' || quizState === 'question')) {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`question-${highlightedQuestionId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl', 'transition-all', 'duration-500', 'rounded-xl');
+          
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl');
+          }, 5000);
+        }
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedQuestionId, questions.length > 0, quizState]);
   
   // State for error reporting
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -954,7 +972,6 @@ const QuizRenderer = (props: QuizRendererProps) => {
     if (!question) return null;
 
     const userAnswer = getCurrentUserAnswer();
-    const isCorrect = isCurrentAnswerCorrect();
 
     // Calculate progress based on actual question items (including gaps)
     const displayNumber = getQuestionDisplayNumber(currentQuestionIndex);

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, CardContent, CardHeader } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, CheckCircle, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward } from 'lucide-react';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -1267,29 +1267,6 @@ export default function LessonPage() {
     return question ? quizAnswers.get(question.id) : undefined;
   };
 
-  const isCurrentAnswerCorrect = () => {
-    const question = getCurrentQuestion();
-    if (!question) return false;
-
-    if (question.question_type === 'fill_blank' || question.question_type === 'text_completion') {
-      // For fill_blank and text_completion questions, check all gaps
-      const userAnswers = gapAnswers.get(question.id.toString()) || [];
-
-      // Extract correct answers from the text using the new utility
-      const text = question.content_text || question.question_text || '';
-      const separator = question.gap_separator || ',';
-      const correctAnswers = extractCorrectAnswersFromGaps(text, separator);
-
-      return userAnswers.length === correctAnswers.length &&
-        userAnswers.every((userAns, idx) =>
-          (userAns || '').toString().trim().toLowerCase() ===
-          (correctAnswers[idx] || '').toString().trim().toLowerCase()
-        );
-    }
-
-    const userAnswer = getCurrentUserAnswer();
-    return userAnswer === question.correct_answer;
-  };
 
   const getScore = () => {
     const stats = getGapStatistics();
@@ -1605,7 +1582,6 @@ export default function LessonPage() {
             nextQuestion={nextQuestion}
             resetQuiz={resetQuiz}
             getScore={getScore}
-            isCurrentAnswerCorrect={isCurrentAnswerCorrect}
             getCurrentQuestion={getCurrentQuestion}
             getCurrentUserAnswer={getCurrentUserAnswer}
             goToNextStep={goToNextStep}
