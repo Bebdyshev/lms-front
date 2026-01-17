@@ -216,7 +216,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect, isCo
           <div className="space-y-1">
             {modules
               .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-              .map((module, moduleIndex) => {
+              .map((module, _moduleIndex) => {
                 const lectures = module.lessons || [];
                 const isExpanded = expandedModules.has(module.id.toString());
                 const completedInModule = lectures.filter(l => l.is_completed).length;
@@ -259,7 +259,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect, isCo
                             }
                             return orderA - orderB;
                           })
-                          .map((lecture, lectureIndex) => {
+                          .map((lecture, _lectureIndex) => {
                             const isSelected = selectedLessonId === lecture.id.toString();
                             const isAccessible = (lecture as any).is_accessible !== false; // Default to accessible if not specified
                             
@@ -1232,7 +1232,8 @@ export default function LessonPage() {
     // Don't clear localStorage so answers persist
   };
   const autoFillCorrectAnswers = () => {
-    if (import.meta.env.DEV) {
+    const isTeacher = user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'curator';
+    if (import.meta.env.DEV || isTeacher) {
       const newQuizAnswers = new Map<string, any>();
       const newGapAnswers = new Map<string, string[]>();
 
@@ -1602,6 +1603,7 @@ export default function LessonPage() {
             autoFillCorrectAnswers={autoFillCorrectAnswers}
             quizAttempt={quizAttempt}
             highlightedQuestionId={searchParams.get('questionId') || undefined}
+            isTeacher={user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'curator'}
           />
         );
 

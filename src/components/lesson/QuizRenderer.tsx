@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { ChevronRight, AlertTriangle, XCircle } from 'lucide-react';
+import { ChevronRight, AlertTriangle, XCircle, HelpCircle } from 'lucide-react';
 import { renderTextWithLatex } from '../../utils/latex';
 import type { Step } from '../../types';
 import { useNavigate } from 'react-router-dom';
@@ -73,6 +73,7 @@ interface QuizRendererProps {
   autoFillCorrectAnswers: () => void;
   quizAttempt?: any;
   highlightedQuestionId?: string;
+  isTeacher?: boolean;
 }
 
 const QuizRenderer = (props: QuizRendererProps) => {
@@ -104,6 +105,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
     autoFillCorrectAnswers,
     quizAttempt,
     highlightedQuestionId,
+    isTeacher
   } = props;
 
   const navigate = useNavigate();
@@ -233,14 +235,14 @@ const QuizRenderer = (props: QuizRendererProps) => {
           <h2 className="text-2xl font-bold text-gray-900">Quick Practice</h2>
           <p className="text-gray-600">Answer all questions below to continue</p>
 
-          {/* Development Helper Button */}
-          {import.meta.env.DEV && (
+          {/* Development / Teacher Helper Button */}
+          {(import.meta.env.DEV || isTeacher) && (
             <Button
               onClick={autoFillCorrectAnswers}
-              className="mt-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-semibold shadow-md transition-all"
-              title="Development only: Auto-fill correct answers"
+              className="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-all flex items-center gap-2 mx-auto"
+              title={isTeacher ? "Show Correct Answers" : "Development only: Auto-fill correct answers"}
             >
-              🔧 Dev: Fill Correct Answers
+              {isTeacher ? "Show Correct Answers" : "Dev: Fill Answers"}
             </Button>
           )}
         </div>
@@ -665,25 +667,37 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     </p>
                   </div>
                 )}
-                <Button
-                  onClick={() => {
-                    if (isPassed) {
-                      // Mark quiz as completed and step as completed before going to next step
-                      if (currentStep) {
-                        setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
-                        markStepAsVisited(currentStep.id.toString(), 4); // 4 minutes for quiz completion
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={() => {
+                      if (isPassed) {
+                        // Mark quiz as completed and step as completed before going to next step
+                        if (currentStep) {
+                          setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), true)));
+                          markStepAsVisited(currentStep.id.toString(), 4); // 4 minutes for quiz completion
+                        }
+                        goToNextStep();
+                      } else {
+                        // Reset quiz to retry
+                        resetQuiz();
+                        setFeedChecked(false);
                       }
-                      goToNextStep();
-                    } else {
-                      // Reset quiz to retry
-                      resetQuiz();
-                      setFeedChecked(false);
-                    }
-                  }}
-                  className="bg-green-600 hover:bg-green-700 text-white transition-all text-lg font-semibold items-center content-center"
-                >
-                  {isPassed ? 'Continue to Next Step' : 'Retry Quiz'}
-                </Button>
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white transition-all text-lg font-semibold items-center content-center px-10"
+                  >
+                    {isPassed ? 'Continue to Next Step' : 'Retry Quiz'}
+                  </Button>
+
+                  {(!isPassed && (import.meta.env.DEV || isTeacher)) && (
+                    <Button
+                      onClick={() => setShowAllAnswers(true)}
+                      variant="outline"
+                      className="border-green-600 text-green-700 hover:bg-green-50 text-lg font-semibold"
+                    >
+                      Show Correct Answers
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -745,6 +759,17 @@ const QuizRenderer = (props: QuizRendererProps) => {
             <div className="inline-flex items-center justify-center gap-2 text-white text-base md:text-lg">
               <span className="font-medium">{totalQuestionCount} question{totalQuestionCount !== 1 ? 's' : ''}</span>
             </div>
+            {(import.meta.env.DEV || isTeacher) && (
+              <Button
+                onClick={autoFillCorrectAnswers}
+                variant="ghost"
+                className="text-white hover:bg-white/10 mt-2 flex items-center gap-2"
+                title={isTeacher ? "Show Correct Answers" : "Development only: Auto-fill correct answers"}
+              >
+                {isTeacher ? <HelpCircle className="w-4 h-4" /> : "🔧"} 
+                {isTeacher ? "Show Correct Answers" : "Dev: Fill Answers"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -803,6 +828,18 @@ const QuizRenderer = (props: QuizRendererProps) => {
           <p className="text-gray-600">
             Question{questionGaps > 1 ? 's' : ''} {displayNumber}{questionGaps > 1 ? `-${displayNumber + questionGaps - 1}` : ''} of {totalQuestionCount}
           </p>
+          {(import.meta.env.DEV || isTeacher) && (
+            <Button
+              onClick={autoFillCorrectAnswers}
+              variant="outline"
+              size="sm"
+              className="mt-2 text-blue-600 border-blue-200 hover:bg-blue-50 flex items-center gap-2 mx-auto"
+              title={isTeacher ? "Show Correct Answers" : "Development only: Auto-fill correct answers"}
+            >
+              {isTeacher ? <HelpCircle className="w-3 h-3" /> : "🔧"} 
+              {isTeacher ? "Show Correct Answers" : "Dev: Fill Answers"}
+            </Button>
+          )}
         </div>
 
         {/* Exam mode badge - shown outside audio player */}
@@ -1447,7 +1484,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             </Button>
           )}
 
-          {isPassed && (
+          {(isPassed || import.meta.env.DEV || isTeacher) && (
             <Button
               onClick={() => setShowAllAnswers(true)}
               className="bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transition-all"

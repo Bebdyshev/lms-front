@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import { Badge } from '../../components/ui/badge';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { Clock, BookOpen } from 'lucide-react';
+import { Clock } from 'lucide-react';
 
 interface Course {
   id: number;
@@ -353,17 +353,24 @@ export default function AnalyticsPage() {
 
 
 
-  // Derived Data: Topics Analysis
+  // Derived Data: Topics Analysis (Grouped by Lesson)
   const topicAnalysis = useMemo(() => {
-      const topics: Record<string, { title: string, errors: number, questions: number }> = {};
+      const topics: Record<string, { id: number, title: string, errors: number, attempts: number, questions: number }> = {};
       quizErrors.forEach(err => {
           if (!topics[err.lesson_id]) {
-              topics[err.lesson_id] = { title: err.lesson_title, errors: 0, questions: 0 };
+              topics[err.lesson_id] = { id: err.lesson_id, title: err.lesson_title, errors: 0, attempts: 0, questions: 0 };
           }
           topics[err.lesson_id].errors += err.wrong_answers;
+          topics[err.lesson_id].attempts += err.total_attempts;
           topics[err.lesson_id].questions += 1;
       });
-      return Object.values(topics).sort((a, b) => b.errors - a.errors).slice(0, 10);
+      return Object.values(topics)
+        .map(t => ({
+            ...t,
+            errorRate: t.attempts > 0 ? (t.errors / t.attempts) * 100 : 0
+        }))
+        .sort((a, b) => b.errorRate - a.errorRate)
+        .slice(0, 10);
   }, [quizErrors]);
 
 
@@ -622,9 +629,12 @@ export default function AnalyticsPage() {
             
             <Card className="col-span-7 lg:col-span-3">
               <CardHeader>
-                <CardTitle>Difficult Questions</CardTitle>
+                <CardTitle>Difficult Lessons</CardTitle>
                 <CardDescription>
-                   Questions with highest error rates
+                   Lessons with highest error rates.
+                   <span className="block text-[10px] mt-1 text-gray-400 italic">
+                     (Calculation: total incorrect question answers / total attempts)
+                   </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -634,23 +644,23 @@ export default function AnalyticsPage() {
                         <Skeleton className="h-12 w-full" />
                         <Skeleton className="h-12 w-full" />
                     </div>
-                ) : quizErrors.length === 0 ? (
+                ) : topicAnalysis.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">No data available</div>
                 ) : (
                     <div className="space-y-4">
-                        {quizErrors.slice(0, 5).map((error) => (
-                        <div key={error.question_id} className="flex items-center">
-                            <div className="ml-4 space-y-1 w-full">
-                            <div className="flex items-center justify-between">
-                                <p className="text-sm font-medium leading-none truncate max-w-[200px]" title={error.question_text}>
-                                    {error.question_text?.replace(/<[^>]*>/g, '') || 'Question content'}
+                        {topicAnalysis.slice(0, 5).map((topic) => (
+                        <div key={topic.id} className="flex items-center">
+                            <div className="flex-1 space-y-1 min-w-0">
+                            <div className="flex items-center justify-between gap-4">
+                                <p className="text-sm font-semibold leading-tight text-gray-900 break-words" title={topic.title}>
+                                    {topic.title}
                                 </p>
-                                <Badge variant={error.error_rate > 70 ? "destructive" : "secondary"}>
-                                    {Math.round(error.error_rate)}% error
+                                <Badge variant={topic.errorRate > 70 ? "destructive" : "secondary"}>
+                                    {Math.round(topic.errorRate)}% error
                                 </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground truncate" title={`${error.lesson_title} - ${error.step_title}`}>
-                                {error.lesson_title} • {error.total_attempts} attempts
+                            <p className="text-xs text-muted-foreground truncate">
+                                {topic.questions} questions • {topic.attempts} attempts
                             </p>
                             </div>
                         </div>
@@ -929,8 +939,12 @@ export default function AnalyticsPage() {
                       </CardHeader>
                       <CardContent>
                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm text-gray-500">Error Rate</span>
+                            <Badge variant={topic.errorRate > 50 ? "destructive" : "secondary"}>{Math.round(topic.errorRate)}%</Badge>
+                         </div>
+                         <div className="flex justify-between items-center mb-2">
                             <span className="text-sm text-gray-500">Total Errors</span>
-                            <Badge variant="destructive">{topic.errors}</Badge>
+                            <span className="font-medium text-red-600">{topic.errors}</span>
                          </div>
                          <div className="flex justify-between items-center">
                             <span className="text-sm text-gray-500">Questions</span>
