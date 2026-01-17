@@ -25,7 +25,7 @@ export const FillInBlankQuestion: React.FC<FillInBlankQuestionProps> = ({
   });
 
   return (
-    <div className="p-3 border rounded-md">
+    <div className="p-1">
       <FillInBlankRenderer
         text={question.content_text || question.question_text || ''}
         separator={question.gap_separator || ','}

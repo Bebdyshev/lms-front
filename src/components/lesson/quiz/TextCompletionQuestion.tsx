@@ -28,7 +28,7 @@ export const TextCompletionQuestion: React.FC<TextCompletionQuestionProps> = ({
   const textToRender = question.content_text || question.question_text || '';
 
   return (
-    <div className="p-3 border rounded-md">
+    <div className="p-1">
       <TextCompletionRenderer
         text={textToRender}
         answers={answersObj}
