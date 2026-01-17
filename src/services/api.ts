@@ -2822,7 +2822,7 @@ class LMSApiClient {
   // QUESTION ERROR REPORTING
   // =============================================================================
 
-  async reportQuestionError(questionId: string | number, message: string, stepId?: number, suggestedAnswer?: string): Promise<void> {
+  async reportQuestionError(questionId: number, message: string, stepId?: number, suggestedAnswer?: string): Promise<void> {
     try {
       await this.api.post('/questions/report-error', {
         question_id: questionId,

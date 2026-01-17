@@ -157,7 +157,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
     setReportSubmitting(true);
     try {
       await api.reportQuestionError(
-        reportQuestionId,
+        parseInt(reportQuestionId),
         reportMessage.trim(),
         currentStep?.id,
         reportSuggestedAnswer.trim() || undefined
