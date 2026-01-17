@@ -95,21 +95,6 @@ interface VideoMetric {
   average_watch_time_minutes: number;
 }
 
-interface QuizMetric {
-  type: 'quiz_step' | 'quiz_assignment';
-  id: number;
-  title: string;
-  lesson_title?: string;
-  assignment_type?: string;
-  total_submissions?: number;
-  total_attempts?: number;
-  average_score?: number; // For assignments
-  average_percentage?: number; // For both
-  completion_rate?: number;
-  submission_rate?: number;
-  attempts_count: number;
-  avg_performance: number;
-}
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
@@ -350,22 +335,14 @@ export default function AnalyticsPage() {
   const fetchCharts = async (courseId: string, groupId?: string) => {
       setLoadingCharts(true);
       try {
-          const [videoData, quizPerfData, progressData] = await Promise.all([
+          const [videoData, , progressData] = await Promise.all([
             apiClient.getVideoEngagementAnalytics(courseId),
             apiClient.getQuizPerformanceAnalytics(courseId),
             apiClient.getCourseProgressHistory(courseId, groupId)
           ]);
 
           setVideoMetrics(videoData.video_analytics || []);
-
-          const mixedQuizzes = [
-            ...(quizPerfData.quiz_analytics || []).map((q: any) => ({
-                 ...q,
-                 attempts_count: q.total_attempts || q.total_submissions || 0,
-                 avg_performance: q.average_percentage || 0
-            }))
-          ];
-          setQuizMetrics(mixedQuizzes);
+          setProgressHistory(progressData || []);
           
           setProgressHistory(progressData || []);
 
