@@ -34,6 +34,8 @@ interface StudentAnalytics {
   average_score?: number;
   current_lesson?: string;
   current_lesson_progress?: number;
+  current_lesson_steps_completed?: number;
+  current_lesson_steps_total?: number;
   last_test_result?: {
       title: string;
       score: number;
@@ -688,7 +690,6 @@ export default function AnalyticsPage() {
                       Progress {studentSort === 'progress' && (studentSortDir === 'asc' ? '↑' : '↓')}
                     </TableHead>
                     <TableHead>Current Lesson</TableHead>
-                    {/* Show Verbal/Math columns only for SAT courses */}
                     {courses.find(c => c.id.toString() === selectedCourseId)?.title.toLowerCase().includes('sat') ? (
                       <TableHead className="w-[120px]">Weekly Test</TableHead>
                     ) : (
@@ -729,17 +730,19 @@ export default function AnalyticsPage() {
                       <TableCell className="py-2">
                          <div className="flex flex-col gap-1 max-w-[200px]">
                             <div className="flex items-center gap-2">
-                                <BookOpen className="h-3 w-3 text-gray-400 flex-shrink-0" />
                                 <span className="text-sm text-gray-700 truncate font-medium" title={student.current_lesson || 'Not started'}>
                                    {student.current_lesson || 'Not started'}
                                 </span>
                             </div>
-                            {student.current_lesson && (
-                                <div className="w-full bg-gray-100 rounded-full h-1.5 mt-0.5">
+                            {student.current_lesson && student.current_lesson !== 'Not started' && (
+                                <div className="w-full bg-gray-100 rounded-full h-1.5 mt-0.5 relative">
                                     <div 
                                         className="bg-blue-500 h-1.5 rounded-full" 
                                         style={{ width: `${student.current_lesson_progress || 0}%` }}
                                     />
+                                    <span className="text-[10px] text-gray-500 absolute -right-0 -top-4 font-medium">
+                                        {student.current_lesson_steps_completed || 0}/{student.current_lesson_steps_total || 0}
+                                    </span>
                                 </div>
                             )}
                          </div>
