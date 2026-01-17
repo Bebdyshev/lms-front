@@ -35,11 +35,7 @@ export const ShortAnswerQuestion: React.FC<ShortAnswerQuestionProps> = ({
         }`}
         disabled={disabled}
       />
-      {showResult && isCorrect && (
-        <div className="mt-2 text-sm">
-          <span className="text-green-700">Correct answer! ✓</span>
-        </div>
-      )}
+      {/* Result Indicator - Logic removed as requested to avoid confusion and redundancy */}
     </div>
   );
 };

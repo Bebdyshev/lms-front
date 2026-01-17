@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { CheckCircle, ChevronRight, AlertTriangle, XCircle } from 'lucide-react';
+import { ChevronRight, AlertTriangle, XCircle } from 'lucide-react';
 import { renderTextWithLatex } from '../../utils/latex';
 import type { Step } from '../../types';
 import { useNavigate } from 'react-router-dom';
@@ -396,89 +396,15 @@ const QuizRenderer = (props: QuizRendererProps) => {
                     />
                   )}
 
-                  {/* Result Indicator */}
-                  {feedChecked && (() => {
-                    let isCorrect = false;
-                    let correctAnswerDisplay = '';
-                    
-                    if (q.question_type === 'fill_blank' || q.question_type === 'text_completion') {
-                      const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-                      const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
-                      isCorrect = current.every((val, idx) => (val || '').toString().trim().toLowerCase() === (answers[idx] || '').toString().trim().toLowerCase());
-                      correctAnswerDisplay = answers.join(', ');
-                    } else if (q.question_type === 'matching') {
-                      // For matching questions, check the pairs
-                      const userMatches = quizAnswers.get(q.id.toString()) || {};
-                      const correctPairs = q.matching_pairs || [];
-                      isCorrect = correctPairs.every((pair: any) => 
-                        userMatches[pair.left] === pair.right
-                      );
-                      correctAnswerDisplay = correctPairs.map((pair: any) => `${pair.left} → ${pair.right}`).join('; ');
-                    } else if (q.question_type === 'multiple_choice') {
-                      // For multiple choice, correct_answer might be an array or pipe-separated string
-                      const correctAnswers = Array.isArray(q.correct_answer) 
-                        ? q.correct_answer 
-                        : (q.correct_answer || '').toString().split('|').map((a: string) => a.trim()).filter((a: string) => a.length > 0);
-                      const userAnswers = Array.isArray(userAnswer) ? userAnswer : [userAnswer];
-                      isCorrect = correctAnswers.length === userAnswers.length && 
-                        correctAnswers.every((ca: string) => userAnswers.some((ua: string) => ua?.toString().trim().toLowerCase() === ca.toString().trim().toLowerCase()));
-                      // Find correct option texts
-                      const correctTexts = (q.options || [])
-                        .filter((opt: any) => correctAnswers.some((ca: string) => ca.toString().trim().toLowerCase() === (opt.text || opt).toString().trim().toLowerCase()))
-                        .map((opt: any) => opt.text || opt);
-                      correctAnswerDisplay = correctTexts.join(', ');
-                    } else {
-                      // For single_choice and media_question, correct_answer may be an index or text
-                      const options = q.options || [];
-                      let correctOptionText = '';
-                      
-                      // Try to interpret correct_answer as an index first
-                      const correctAnswerValue = q.correct_answer;
-                      const correctIndex = typeof correctAnswerValue === 'number' 
-                        ? correctAnswerValue 
-                        : parseInt(correctAnswerValue?.toString() || '', 10);
-                      
-                      if (!isNaN(correctIndex) && correctIndex >= 0 && correctIndex < options.length) {
-                        // correct_answer is an index - get the option text
-                        const opt = options[correctIndex];
-                        correctOptionText = opt?.text || opt || '';
-                      } else {
-                        // correct_answer is text - find matching option
-                        const answers = (correctAnswerValue || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
-                        const correctOpt = options.find((opt: any) => 
-                          answers.some((a: string) => a === (opt.text || opt).toString().trim().toLowerCase())
-                        );
-                        correctOptionText = correctOpt ? (correctOpt.text || correctOpt) : (correctAnswerValue || '');
-                      }
-                      
-                      // Check if user answer is correct
-                      // userAnswer might also be an index
-                      const userAnswerIndex = typeof userAnswer === 'number' 
-                        ? userAnswer 
-                        : parseInt(userAnswer?.toString() || '', 10);
-                      
-                      if (!isNaN(userAnswerIndex) && !isNaN(correctIndex)) {
-                        isCorrect = userAnswerIndex === correctIndex;
-                      } else {
-                        const answers = (correctAnswerValue || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
-                        isCorrect = answers.includes((userAnswer || '').toString().trim().toLowerCase());
-                      }
-                      
-                      correctAnswerDisplay = correctOptionText;
-                    }
-                    
-                    return (
-                      <div className="mt-4 space-y-3">
-                        {/* Show explanation if available */}
-                        {q.explanation && (
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p className="text-sm font-medium text-blue-800 mb-1">Explanation:</p>
-                            <div className="text-blue-700 text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.explanation) }} />
-                          </div>
-                        )}
+                  {/* Result Indicator - Explanation only (removed buggy isCorrect labels) */}
+                  {feedChecked && q.explanation && (
+                    <div className="mt-4 space-y-3">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-blue-800 mb-1">Explanation:</p>
+                        <div className="text-blue-700 text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(q.explanation) }} />
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
 
                   {/* Report Error Button */}
                   <div className="mt-4 flex justify-end">
@@ -1403,26 +1329,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
                       />
                     )}
 
-                    {/* Result Indicator */}
-                    {(() => {
-                      let isCorrect = false;
-                      if (q.question_type === 'fill_blank') {
-                        const answers: string[] = Array.isArray(q.correct_answer) ? q.correct_answer : (q.correct_answer ? [q.correct_answer] : []);
-                        const current = gapAnswers.get(q.id.toString()) || new Array(answers.length).fill('');
-                        isCorrect = current.every((val, idx) => (val || '').toString().trim().toLowerCase() === (answers[idx] || '').toString().trim().toLowerCase());
-                      } else {
-                        const answers = (q.correct_answer || '').toString().split('|').map((a: string) => a.trim().toLowerCase()).filter((a: string) => a.length > 0);
-                        isCorrect = answers.includes((userAnswer || '').toString().trim().toLowerCase());
-                      }
-                      return isCorrect ? (
-                        <div className="mt-4 flex items-center gap-2">
-                          <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                            <CheckCircle className="w-4 h-4" />
-                            Correct!
-                          </span>
-                        </div>
-                      ) : null;
-                    })()}
+                    {/* Result Indicator - Logic removed as requested to avoid confusion and redundancy */}
                   </div>
                 </div>
               );

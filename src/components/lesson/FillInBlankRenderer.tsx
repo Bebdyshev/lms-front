@@ -132,11 +132,6 @@ export const FillInBlankRenderer: React.FC<FillInBlankRendererProps> = ({
                 ))}
               </SelectContent>
             </Select>
-            {isIncorrect && (
-              <span className="text-sm font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded border border-red-200 ml-1">
-                Incorrect
-              </span>
-            )}
           </span>,
           gap.container
         );
