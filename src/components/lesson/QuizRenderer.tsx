@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
 import { CheckCircle, ChevronRight, AlertTriangle, XCircle } from 'lucide-react';
@@ -73,6 +73,7 @@ interface QuizRendererProps {
   reviewQuiz: () => void;
   autoFillCorrectAnswers: () => void;
   quizAttempt?: any;
+  highlightedQuestionId?: string;
 }
 
 const QuizRenderer = (props: QuizRendererProps) => {
@@ -104,9 +105,28 @@ const QuizRenderer = (props: QuizRendererProps) => {
     reviewQuiz,
     autoFillCorrectAnswers,
     quizAttempt,
+    highlightedQuestionId,
   } = props;
 
   const navigate = useNavigate();
+
+  // Handle scrolling to highlighted question
+  useEffect(() => {
+    if (highlightedQuestionId && questions.length > 0 && (quizState === 'feed' || quizState === 'question')) {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`question-${highlightedQuestionId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl', 'transition-all', 'duration-500', 'rounded-xl');
+          
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl');
+          }, 5000);
+        }
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedQuestionId, questions.length > 0, quizState]);
   
   // State for error reporting
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -279,7 +299,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             // Special rendering for image_content - just show the image, no question UI
             if (q.question_type === 'image_content') {
               return (
-                <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+                <div key={q.id} id={`question-${q.id}`} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
                   <div className="p-2 md:p-6 flex flex-col items-center">
                     {q.media_url && (
                       <img
@@ -297,7 +317,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             }
 
             return (
-              <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+              <div key={q.id} id={`question-${q.id}`} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
                 <div className="p-2 md:p-6">
                   {/* Question Number Badge */}
                   <div className="flex items-center gap-3 mb-4">

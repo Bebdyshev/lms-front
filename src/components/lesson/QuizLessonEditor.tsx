@@ -59,20 +59,23 @@ export default function QuizLessonEditor({
   // Handle scrolling to highlighted question
   React.useEffect(() => {
     if (highlightedQuestionId && quizQuestions.length > 0) {
-      // Small timeout to ensure DOM is ready
+      // Small timeout to ensure DOM is ready and images/content are partially loaded
       const timer = setTimeout(() => {
         const element = document.getElementById(`question-${highlightedQuestionId}`);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+          // Add a more prominent and persistent highlight
+          element.classList.add('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl', 'scale-[1.01]', 'transition-all', 'duration-500');
+          
+          // Keep highlight for longer to ensure user sees it
           setTimeout(() => {
-            element.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
-          }, 3000);
+            element.classList.remove('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl', 'scale-[1.01]');
+          }, 5000);
         }
-      }, 500);
+      }, 800);
       return () => clearTimeout(timer);
     }
-  }, [highlightedQuestionId, quizQuestions]);
+  }, [highlightedQuestionId, quizQuestions.length > 0]); // Re-run when questions are loaded
 
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [draftQuestion, setDraftQuestion] = useState<Question | null>(null);

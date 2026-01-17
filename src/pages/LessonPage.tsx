@@ -840,17 +840,36 @@ export default function LessonPage() {
           // If we reached here, it means we either loaded from localStorage (and set state there)
           // or we didn't find anything in localStorage AND didn't find anything in backend
           // In the latter case, we need to set initial state
-          if (!hasLocalProgress) {
-             const displayMode = parsedQuizData.display_mode || 'one_by_one';
-             if (displayMode === 'all_at_once') {
-               setQuizState('feed');
-             } else {
-               setQuizState('title');
-             }
              setCurrentQuestionIndex(0);
              setFeedChecked(false);
+             
+             // If we have a questionId in the URL, automatically start the quiz and jump to it
+             const questionIdParam = searchParams.get('questionId');
+             if (questionIdParam && (parsedQuizData.questions || []).length > 0) {
+               const questionIndex = (parsedQuizData.questions || []).findIndex((q: any) => q.id.toString() === questionIdParam);
+               if (questionIndex >= 0) {
+                 const displayMode = parsedQuizData.display_mode || 'one_by_one';
+                 if (displayMode === 'all_at_once') {
+                   setQuizState('feed');
+                 } else {
+                   setCurrentQuestionIndex(questionIndex);
+                   setQuizState('question');
+                 }
+                 setQuizStartTime(Date.now());
+               } else {
+                 // Default title screen if question not found
+                 setQuizState('title');
+               }
+             } else {
+               const displayMode = parsedQuizData.display_mode || 'one_by_one';
+               if (displayMode === 'all_at_once') {
+                 setQuizState('feed');
+               } else {
+                 setQuizState('title');
+               }
+             }
+             
              setIsQuizReady(true);
-          }
 
         } catch (error) {
           console.error('Failed to parse quiz data:', error);
@@ -1606,6 +1625,7 @@ export default function LessonPage() {
             reviewQuiz={reviewQuiz}
             autoFillCorrectAnswers={autoFillCorrectAnswers}
             quizAttempt={quizAttempt}
+            highlightedQuestionId={searchParams.get('questionId') || undefined}
           />
         );
 
