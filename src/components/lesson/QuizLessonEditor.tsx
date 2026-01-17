@@ -77,7 +77,7 @@ export default function QuizLessonEditor({
       if (scrollAttempt()) return;
 
       // Also use an observer to catch it when it renders
-      const observer = new MutationObserver((mutations, obs) => {
+      const observer = new MutationObserver((_, obs) => {
         if (scrollAttempt()) {
           obs.disconnect();
         }
