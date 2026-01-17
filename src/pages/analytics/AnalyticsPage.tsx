@@ -628,38 +628,34 @@ export default function AnalyticsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {loadingCharts || quizErrors.length === 0 ? (
-                   loadingCharts ? (
-                       <div className="space-y-4">
-                           <Skeleton className="h-12 w-full" />
-                           <Skeleton className="h-12 w-full" />
-                           <Skeleton className="h-12 w-full" />
-                       </div>
-                   ) : quizErrors.length === 0 ? (
-                       <div className="text-center py-8 text-gray-500">No data available</div>
-                   ) : (
-                       <div className="space-y-4">
-                          {quizErrors.slice(0, 5).map((error) => (
-                            <div key={error.question_id} className="flex items-center">
-                              <div className="ml-4 space-y-1 w-full">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium leading-none truncate max-w-[200px]" title={error.question_text}>
-                                        {error.question_text.replace(/<[^>]*>/g, '') || 'Question content'}
-                                    </p>
-                                    <Badge variant={(error.error_rate * 100) > 70 ? "destructive" : "secondary"}>
-                                        {Math.round(error.error_rate * 100)}% error
-                                    </Badge>
-                                </div>
-                                <p className="text-xs text-muted-foreground truncate" title={`${error.lesson_title} - ${error.step_title}`}>
-                                  {error.lesson_title} • {error.total_attempts} attempts
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                   )
+                {loadingCharts ? (
+                    <div className="space-y-4">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                    </div>
+                ) : quizErrors.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No data available</div>
                 ) : (
-                    <></>
+                    <div className="space-y-4">
+                        {quizErrors.slice(0, 5).map((error) => (
+                        <div key={error.question_id} className="flex items-center">
+                            <div className="ml-4 space-y-1 w-full">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium leading-none truncate max-w-[200px]" title={error.question_text}>
+                                    {error.question_text?.replace(/<[^>]*>/g, '') || 'Question content'}
+                                </p>
+                                <Badge variant={error.error_rate > 70 ? "destructive" : "secondary"}>
+                                    {Math.round(error.error_rate)}% error
+                                </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate" title={`${error.lesson_title} - ${error.step_title}`}>
+                                {error.lesson_title} • {error.total_attempts} attempts
+                            </p>
+                            </div>
+                        </div>
+                        ))}
+                    </div>
                 )}
               </CardContent>
             </Card>
