@@ -59,23 +59,47 @@ export default function QuizLessonEditor({
   // Handle scrolling to highlighted question
   React.useEffect(() => {
     if (highlightedQuestionId && quizQuestions.length > 0) {
-      // Small timeout to ensure DOM is ready and images/content are partially loaded
-      const timer = setTimeout(() => {
+      const scrollAttempt = () => {
         const element = document.getElementById(`question-${highlightedQuestionId}`);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Add a more prominent and persistent highlight
           element.classList.add('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl', 'scale-[1.01]', 'transition-all', 'duration-500');
           
-          // Keep highlight for longer to ensure user sees it
           setTimeout(() => {
             element.classList.remove('ring-4', 'ring-blue-500', 'ring-offset-2', 'shadow-2xl', 'scale-[1.01]');
           }, 5000);
+          return true;
         }
-      }, 800);
-      return () => clearTimeout(timer);
+        return false;
+      };
+
+      // Try immediately
+      if (scrollAttempt()) return;
+
+      // Also use an observer to catch it when it renders
+      const observer = new MutationObserver((mutations, obs) => {
+        if (scrollAttempt()) {
+          obs.disconnect();
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      // Fallback timeout just in case
+      const timer = setTimeout(() => {
+        scrollAttempt();
+        observer.disconnect();
+      }, 2000);
+
+      return () => {
+        observer.disconnect();
+        clearTimeout(timer);
+      };
     }
-  }, [highlightedQuestionId, quizQuestions.length > 0]); // Re-run when questions are loaded
+  }, [highlightedQuestionId, quizQuestions.length]);
 
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [draftQuestion, setDraftQuestion] = useState<Question | null>(null);
