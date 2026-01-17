@@ -735,14 +735,18 @@ export default function AnalyticsPage() {
                                 </span>
                             </div>
                             {student.current_lesson && student.current_lesson !== 'Not started' && (
-                                <div className="w-full bg-gray-100 rounded-full h-1.5 mt-0.5 relative">
-                                    <div 
-                                        className="bg-blue-500 h-1.5 rounded-full" 
-                                        style={{ width: `${student.current_lesson_progress || 0}%` }}
-                                    />
-                                    <span className="text-[10px] text-gray-500 absolute -right-0 -top-4 font-medium">
-                                        {student.current_lesson_steps_completed || 0}/{student.current_lesson_steps_total || 0}
-                                    </span>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                    <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                                        <div 
+                                            className="bg-blue-500 h-1.5 rounded-full" 
+                                            style={{ width: `${student.current_lesson_progress || 0}%` }}
+                                        />
+                                    </div>
+                                    {(student.current_lesson_steps_total || 0) > 0 && (
+                                        <span className="text-[10px] text-gray-500 font-medium whitespace-nowrap min-w-[30px] text-right">
+                                            {student.current_lesson_steps_completed || 0}/{student.current_lesson_steps_total}
+                                        </span>
+                                    )}
                                 </div>
                             )}
                          </div>
