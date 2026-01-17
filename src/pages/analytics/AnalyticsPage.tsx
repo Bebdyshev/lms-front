@@ -315,7 +315,7 @@ export default function AnalyticsPage() {
   const fetchQuizErrors = async (courseId: string, groupId: string) => {
        try {
            const groupIdNum = groupId !== 'all' ? Number(groupId) : undefined;
-           const errorsData = await apiClient.getQuizErrors(courseId, groupIdNum, 50);
+           const errorsData = await apiClient.getQuizErrors(courseId, groupIdNum, 200);
            setQuizErrors(errorsData.questions || []);
        } catch (err) {
            console.error("Failed to fetch quiz errors", err);
@@ -370,7 +370,7 @@ export default function AnalyticsPage() {
             errorRate: t.attempts > 0 ? (t.errors / t.attempts) * 100 : 0
         }))
         .sort((a, b) => b.errorRate - a.errorRate)
-        .slice(0, 10);
+        .slice(0, 200);
   }, [quizErrors]);
 
 
@@ -559,7 +559,7 @@ export default function AnalyticsPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 items-start">
             <Card className="col-span-7 lg:col-span-4">
               <CardHeader>
                 <CardTitle>Progress Over Time</CardTitle>
@@ -647,8 +647,8 @@ export default function AnalyticsPage() {
                 ) : topicAnalysis.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">No data available</div>
                 ) : (
-                    <div className="space-y-4">
-                        {topicAnalysis.slice(0, 5).map((topic) => (
+                    <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                        {topicAnalysis.slice(0, 50).map((topic) => (
                         <div key={topic.id} className="flex items-center">
                             <div className="flex-1 space-y-1 min-w-0">
                             <div className="flex items-center justify-between gap-4">
