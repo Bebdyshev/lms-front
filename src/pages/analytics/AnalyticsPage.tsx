@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import apiClient from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
 import { Badge } from '../../components/ui/badge';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { Clock, Search, Filter, AlertCircle, ArrowRight } from 'lucide-react';
+import { Clock, Search, Filter, ArrowRight } from 'lucide-react';
 
 interface Course {
   id: number;
@@ -73,6 +73,7 @@ interface QuizError {
   wrong_answers: number;
   error_rate: number;
   question_text: string;
+  question_type: string;
   lesson_title: string;
   step_title: string;
 }
@@ -421,6 +422,22 @@ export default function AnalyticsPage() {
       if (!minutes) return '-';
       if (minutes < 60) return `${Math.round(minutes)}m`;
       return `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
+  };
+
+  const formatQuestionType = (type: string) => {
+    switch (type) {
+        case 'choice':
+        case 'multiple_choice':
+            return 'Multiple Choice';
+        case 'multi_choice':
+            return 'Multiple Selection';
+        case 'fill_blank':
+            return 'Fill in the Blank';
+        case 'long_text':
+            return 'Open Ended';
+        default:
+            return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ');
+    }
   };
 
 
@@ -917,7 +934,7 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="quizzes" className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-4 items-end justify-between bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <div className="flex flex-col md:flex-row gap-4 items-end justify-between bg-gray-50 p-4 rounded-xl border border-gray-100 bg-white">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full md:w-auto flex-1">
                     <div className="space-y-1.5">
                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
@@ -961,9 +978,6 @@ export default function AnalyticsPage() {
                 <CardHeader className="bg-white border-b border-gray-100 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <div className="p-2 bg-red-50 rounded-lg">
-                                <AlertCircle className="h-5 w-5 text-red-600" />
-                            </div>
                             <div>
                                 <CardTitle className="text-lg font-bold text-gray-900">Difficult Quiz Questions</CardTitle>
                                 <CardDescription>Questions with the highest error rates across the selected group</CardDescription>
@@ -976,10 +990,11 @@ export default function AnalyticsPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-transparent hover:bg-transparent border-b">
-                                    <TableHead className="w-[40%] py-4 text-xs font-medium text-gray-400">Question</TableHead>
-                                    <TableHead className="w-[25%] py-4 text-xs font-medium text-gray-400">Context</TableHead>
+                                    <TableHead className="w-[35%] py-4 text-xs font-medium text-gray-400">Question</TableHead>
+                                    <TableHead className="w-[15%] py-4 text-xs font-medium text-gray-400">Type</TableHead>
+                                    <TableHead className="w-[20%] py-4 text-xs font-medium text-gray-400">Context</TableHead>
                                     <TableHead className="w-[10%] py-4 text-center text-xs font-medium text-gray-400">Attempts</TableHead>
-                                    <TableHead className="w-[15%] py-4 text-center text-xs font-medium text-gray-400">Error</TableHead>
+                                    <TableHead className="w-[10%] py-4 text-center text-xs font-medium text-gray-400">Error</TableHead>
                                     <TableHead className="w-[10%] py-4 text-right text-xs font-medium text-gray-400"></TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -999,6 +1014,11 @@ export default function AnalyticsPage() {
                                                         {error.question_text || "Untitled Question"}
                                                     </p>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wider bg-gray-50 border-gray-200 text-gray-500 whitespace-nowrap">
+                                                    {formatQuestionType(error.question_type)}
+                                                </Badge>
                                             </TableCell>
                                             <TableCell className="py-4">
                                                 <p className="text-xs text-gray-500 truncate max-w-[220px]">
@@ -1030,15 +1050,13 @@ export default function AnalyticsPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="py-4 text-right">
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="sm" 
-                                                    className="h-8 text-blue-600 hover:text-blue-700 hover:bg-transparent font-medium gap-1 group/btn px-2"
-                                                    onClick={() => navigate(`/teacher/course/${selectedCourseId}/lesson/${error.lesson_id}/edit?stepId=${error.step_id}&questionId=${error.question_id}`)}
+                                                <Link 
+                                                    to={`/course/${selectedCourseId}/lesson/${error.lesson_id}?stepId=${error.step_id}&questionId=${error.question_id}`}
+                                                    className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 font-medium gap-1 group/btn pr-2"
                                                 >
                                                     View
                                                     <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5" />
-                                                </Button>
+                                                </Link>
                                             </TableCell>
                                         </TableRow>
                                     ))

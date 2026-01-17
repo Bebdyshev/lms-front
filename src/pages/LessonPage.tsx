@@ -412,21 +412,29 @@ export default function LessonPage() {
     }
   }, [lesson, modules]);
 
-  // Sync URL step parameter with currentStepIndex
+  // Sync URL step/stepId parameters with currentStepIndex
   useEffect(() => {
     if (steps.length > 0) {
       const stepParam = searchParams.get('step');
-      const stepNumber = stepParam ? parseInt(stepParam, 10) : 1;
+      const stepIdParam = searchParams.get('stepId');
+      
+      let targetIndex = -1;
 
-      // Validate step number (1-based in URL, convert to 0-based for state)
-      const validStepNumber = Math.max(1, Math.min(stepNumber, steps.length));
-      const stepIndex = validStepNumber - 1;
+      if (stepIdParam) {
+        // Try to find step by its unique ID
+        const stepId = parseInt(stepIdParam, 10);
+        targetIndex = steps.findIndex(s => s.id === stepId);
+      } else if (stepParam) {
+        // Try to find step by its 1-based index
+        const stepNumber = parseInt(stepParam, 10);
+        targetIndex = Math.max(1, Math.min(stepNumber, steps.length)) - 1;
+      }
 
-      if (stepIndex !== currentStepIndex) {
-        setCurrentStepIndex(stepIndex);
+      if (targetIndex !== -1 && targetIndex !== currentStepIndex) {
+        setCurrentStepIndex(targetIndex);
       }
     }
-  }, [searchParams, steps.length, currentStepIndex]);
+  }, [searchParams, steps, currentStepIndex]);
 
   const loadCourseData = async (showLoader = true) => {
     try {
@@ -818,6 +826,24 @@ export default function LessonPage() {
                     setQuizState('question');
                   }
                   setQuizStartTime(Date.now() - (lastAttempt.time_spent_seconds || 0) * 1000);
+
+                  // Handle direct question navigation from search params even if draft exists
+                  const questionIdParam = searchParams.get('questionId');
+                  if (questionIdParam && (parsedQuizData.questions || []).length > 0) {
+                    const qIndex = (parsedQuizData.questions || []).findIndex((q: any) => q.id.toString() === questionIdParam);
+                    if (qIndex !== -1) {
+                      const displayMode = parsedQuizData.display_mode || 'one_by_one';
+                      if (displayMode === 'all_at_once') {
+                        setQuizState('feed');
+                      } else {
+                        setCurrentQuestionIndex(qIndex);
+                        setQuizState('question');
+                      }
+                      setQuizStartTime(Date.now());
+                      setIsQuizReady(true);
+                      return;
+                    }
+                  }
                 } else {
                   // Completed attempt - show completed state
                   setQuizState('completed');
@@ -825,6 +851,24 @@ export default function LessonPage() {
                   // Mark as completed if passed
                   const passed = lastAttempt.score_percentage >= 50;
                   setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
+
+                  // Handle direct question navigation from search params even if quiz is completed
+                  const questionIdParam = searchParams.get('questionId');
+                  if (questionIdParam && (parsedQuizData.questions || []).length > 0) {
+                    const qIndex = (parsedQuizData.questions || []).findIndex((q: any) => q.id.toString() === questionIdParam);
+                    if (qIndex !== -1) {
+                      const displayMode = parsedQuizData.display_mode || 'one_by_one';
+                      if (displayMode === 'all_at_once') {
+                        setQuizState('feed');
+                      } else {
+                        setCurrentQuestionIndex(qIndex);
+                        setQuizState('question');
+                      }
+                      setQuizStartTime(Date.now());
+                      setIsQuizReady(true);
+                      return;
+                    }
+                  }
                 }
 
                 setIsQuizReady(true); // Ready!

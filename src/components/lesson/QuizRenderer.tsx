@@ -299,7 +299,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             // Special rendering for image_content - just show the image, no question UI
             if (q.question_type === 'image_content') {
               return (
-                <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+                <div key={q.id} id={`question-${q.id}`} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
                   <div className="p-2 md:p-6 flex flex-col items-center">
                     {q.media_url && (
                       <img
@@ -317,7 +317,7 @@ const QuizRenderer = (props: QuizRendererProps) => {
             }
 
             return (
-              <div key={q.id} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
+              <div key={q.id} id={`question-${q.id}`} className="bg-white rounded-none md:rounded-xl border-t border-b md:border">
                 <div className="p-2 md:p-6">
                   {/* Question Number Badge */}
                   <div className="flex items-center gap-3 mb-4">

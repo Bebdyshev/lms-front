@@ -2371,6 +2371,7 @@ class LMSApiClient {
       wrong_answers: number;
       error_rate: number;
       question_text: string;
+      question_type: string;
       lesson_title: string;
       step_title: string;
     }>;
