@@ -25,6 +25,7 @@ import {
   Headphones,
   Mic,
   Edit3,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '../components/ui/button.tsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card.tsx';
@@ -375,7 +376,7 @@ function SavingIndicator({ status }: { status: 'idle' | 'saving' | 'saved' | 'er
 }
 
 export default function AssignmentZeroPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -893,8 +894,8 @@ export default function AssignmentZeroPage() {
       if (!formData.telegram_id.trim()) newErrors.telegram_id = 'Required';
       if (!formData.email.trim()) newErrors.email = 'Required';
     } else if (stepId === 'account') {
-      if (!formData.college_board_email.trim()) newErrors.college_board_email = 'Required';
-      if (!formData.college_board_password.trim()) newErrors.college_board_password = 'Required';
+      if (showSAT && !formData.college_board_email.trim()) newErrors.college_board_email = 'Required';
+      if (showSAT && !formData.college_board_password.trim()) newErrors.college_board_password = 'Required';
       if (!formData.birthday_date) newErrors.birthday_date = 'Required';
       if (!formData.city.trim()) newErrors.city = 'Required';
     } else if (stepId === 'education') {
@@ -902,7 +903,10 @@ export default function AssignmentZeroPage() {
       if (!formData.group_name.trim()) newErrors.group_name = 'Required';
       // SAT target date only required if user is in SAT group
       if (showSAT && !formData.sat_target_date) newErrors.sat_target_date = 'Required';
-    } else if (stepId === 'sat_results') {
+      // IELTS target date only required if user is in IELTS group
+      if (showIELTS && !formData.ielts_target_date) newErrors.ielts_target_date = 'Required';
+    }
+ else if (stepId === 'sat_results') {
       if (!formData.recent_practice_test_score.trim()) newErrors.recent_practice_test_score = 'Required';
       if (!formData.bluebook_verbal.trim()) newErrors.bluebook_verbal = 'Required';
       if (!formData.bluebook_math.trim()) newErrors.bluebook_math = 'Required';
@@ -1047,7 +1051,18 @@ export default function AssignmentZeroPage() {
       
       <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="relative text-center mb-8">
+          <div className="absolute right-0 top-0">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => logout()}
+              className="flex items-center gap-2 text-gray-600 hover:text-red-600 hover:border-red-200 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
+            </Button>
+          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Assignment Zero</h1>
           <p className="text-lg text-gray-600">Self-Assessment Questionnaire</p>
           <p className="text-sm text-gray-500 mt-2">
@@ -1104,7 +1119,7 @@ export default function AssignmentZeroPage() {
             </CardTitle>
             <CardDescription>
               {currentStepId === 'personal' && 'Tell us about yourself'}
-              {currentStepId === 'account' && 'Your College Board and platform accounts'}
+              {currentStepId === 'account' && (showSAT ? 'Your College Board and platform accounts' : 'Your platform account')}
               {currentStepId === 'education' && 'Your school and test goals'}
               {currentStepId === 'sat_results' && 'Your recent SAT test scores'}
               {currentStepId === 'sat_grammar' && 'Rate your grammar knowledge (1 = Don\'t know, 5 = Mastered)'}
@@ -1194,42 +1209,46 @@ export default function AssignmentZeroPage() {
             {/* Step: Account Information */}
             {currentStepId === 'account' && (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="college_board_email">College Board Account Email *</Label>
-                  <p className="text-xs text-gray-500">
-                    Please provide your email with which you have registered your College Board account.
-                  </p>
-                  <Input
-                    id="college_board_email"
-                    type="email"
-                    placeholder="collegeboard@email.com"
-                    value={formData.college_board_email}
-                    onChange={(e) => handleInputChange('college_board_email', e.target.value)}
-                    className={errors.college_board_email ? 'border-red-500' : ''}
-                  />
-                  {errors.college_board_email && (
-                    <p className="text-sm text-red-500">{errors.college_board_email}</p>
-                  )}
-                </div>
+                {showSAT && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="college_board_email">College Board Account Email *</Label>
+                      <p className="text-xs text-gray-500">
+                        Please provide your email with which you have registered your College Board account.
+                      </p>
+                      <Input
+                        id="college_board_email"
+                        type="email"
+                        placeholder="collegeboard@email.com"
+                        value={formData.college_board_email}
+                        onChange={(e) => handleInputChange('college_board_email', e.target.value)}
+                        className={errors.college_board_email ? 'border-red-500' : ''}
+                      />
+                      {errors.college_board_email && (
+                        <p className="text-sm text-red-500">{errors.college_board_email}</p>
+                      )}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="college_board_password">College Board Account Password *</Label>
-                  <p className="text-xs text-gray-500">
-                    Your email and password will be used by your teacher to check if you have correctly
-                    registered for SAT.
-                  </p>
-                  <Input
-                    id="college_board_password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={formData.college_board_password}
-                    onChange={(e) => handleInputChange('college_board_password', e.target.value)}
-                    className={errors.college_board_password ? 'border-red-500' : ''}
-                  />
-                  {errors.college_board_password && (
-                    <p className="text-sm text-red-500">{errors.college_board_password}</p>
-                  )}
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="college_board_password">College Board Account Password *</Label>
+                      <p className="text-xs text-gray-500">
+                        Your email and password will be used by your teacher to check if you have correctly
+                        registered for SAT.
+                      </p>
+                      <Input
+                        id="college_board_password"
+                        type="password"
+                        placeholder="Enter your password"
+                        value={formData.college_board_password}
+                        onChange={(e) => handleInputChange('college_board_password', e.target.value)}
+                        className={errors.college_board_password ? 'border-red-500' : ''}
+                      />
+                      {errors.college_board_password && (
+                        <p className="text-sm text-red-500">{errors.college_board_password}</p>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="birthday_date">Birthday Date *</Label>
