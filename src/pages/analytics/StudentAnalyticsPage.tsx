@@ -3,10 +3,12 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, CheckCircle2, Circle, ChevronDown, BookOpen } from 'lucide-react'; 
+import { ArrowLeft, Clock, CheckCircle2, Circle, ChevronDown, BookOpen, AlertTriangle, History, TrendingUp, Search, FileText } from 'lucide-react'; 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import apiClient from '@/services/api'; // Fixed default import
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import apiClient from '@/services/api';
 
 interface StepProgress {
   status: 'completed' | 'in_progress' | 'not_started';
@@ -52,6 +54,40 @@ interface CourseProgress {
   modules: Record<string, ModuleData>;
 }
 
+interface DifficultTopic {
+  id: number;
+  title: string;
+  error_count: number;
+}
+
+interface DifficultQuestion {
+  id: string;
+  text: string;
+  type: string;
+  lesson_id: number;
+  lesson_title: string;
+  step_id: number;
+}
+
+interface HomeworkItem {
+  id: number;
+  title: string;
+  due_date: string | null;
+  status: 'submitted' | 'pending';
+  score: number | null;
+  max_score: number;
+  submitted_at: string | null;
+  is_graded: boolean;
+}
+
+interface ActivityEvent {
+  type: 'step_visited' | 'step_completed' | 'quiz_attempt' | 'assignment_submitted';
+  title: string;
+  context: string;
+  timestamp: string;
+  date: string;
+}
+
 interface DetailedProgress {
   courses: Record<string, CourseProgress>;
   student_info: {
@@ -65,6 +101,10 @@ interface DetailedProgress {
     total_study_time: number;
     last_activity: string | null;
   };
+  difficult_topics: DifficultTopic[];
+  difficult_questions: DifficultQuestion[];
+  activity_history: ActivityEvent[];
+  homework: HomeworkItem[];
 }
 
 export const StudentAnalyticsPage: React.FC = () => {
@@ -77,6 +117,7 @@ export const StudentAnalyticsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DetailedProgress | null>(null);
   const [satData, setSatData] = useState<any[]>([]);
+  const [questionSearch, setQuestionSearch] = useState('');
 
   useEffect(() => {
     loadData();
@@ -241,182 +282,396 @@ export const StudentAnalyticsPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* SAT Analytics Chart & Table */}
-      {satData.length > 0 && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>SAT Performance Dynamics</CardTitle>
-            <CardDescription>Performance history in SAT Weekly Tests</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-8">
-            <div className="h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={[...satData].reverse()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#64748b" 
-                    tick={{ fontSize: 12 }}
-                    tickMargin={10}
-                  />
-                  <YAxis 
-                    domain={[0, 100]} 
-                    unit="%"
-                    stroke="#64748b" 
-                    tick={{ fontSize: 12 }}
-                  />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    labelStyle={{ color: '#64748b', marginBottom: '0.25rem' }}
-                    formatter={(value: any, name: string) => [
-                        `${value}%`, 
-                        name === 'percentage' ? 'Total' : name === 'mathPercentage' ? 'Math' : 'Verbal'
-                    ]}
-                  />
-                  <Line 
-                    name="percentage"
-                    type="monotone" 
-                    dataKey="percentage" 
-                    stroke="#2563eb" 
-                    strokeWidth={3}
-                    activeDot={{ r: 6, fill: "#2563eb" }}
-                    dot={{ r: 4, fill: "#2563eb", strokeWidth: 0 }}
-                  />
-                   <Line 
-                    name="mathPercentage"
-                    type="monotone" 
-                    dataKey="mathPercentage" 
-                    stroke="#10b981" 
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    activeDot={{ r: 4, fill: "#10b981" }}
-                  />
-                   <Line 
-                    name="verbalPercentage"
-                    type="monotone" 
-                    dataKey="verbalPercentage" 
-                    stroke="#f59e0b" 
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    activeDot={{ r: 4, fill: "#f59e0b" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+      <Tabs defaultValue="performance" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 mb-8 max-w-xl">
+          <TabsTrigger value="performance" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" /> Performance
+          </TabsTrigger>
+          <TabsTrigger value="curriculum" className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4" /> Curriculum
+          </TabsTrigger>
+          <TabsTrigger value="homework" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" /> Homework
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="flex items-center gap-2">
+            <History className="h-4 w-4" /> History
+          </TabsTrigger>
+        </TabsList>
 
-            <div className="rounded-md border border-slate-200">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="bg-slate-50">
-                            <TableHead>Test Name</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead className="text-center">Total Score</TableHead>
-                            <TableHead className="text-center font-bold text-blue-700">Total %</TableHead>
-                            <TableHead className="text-center text-green-700">Math %</TableHead>
-                            <TableHead className="text-center text-amber-700">Verbal %</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {satData.map((test, idx) => (
-                            <TableRow key={idx} className="hover:bg-slate-50">
-                                <TableCell className="font-medium text-slate-900">{test.testName}</TableCell>
-                                <TableCell className="text-slate-500">{test.date}</TableCell>
-                                <TableCell className="text-center font-medium">{test.score}</TableCell>
-                                <TableCell className="text-center font-bold text-blue-600 bg-blue-50/50">{test.percentage}%</TableCell>
-                                <TableCell className="text-center text-green-600">{test.mathPercentage}%</TableCell>
-                                <TableCell className="text-center text-amber-600">{test.verbalPercentage}%</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="performance">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+            {/* Left Column: Difficult Areas (Wider) */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Difficult Topics</CardTitle>
+                  <CardDescription>Lessons with most mistakes</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {data.difficult_topics?.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {data.difficult_topics.map((topic) => (
+                        <Badge key={topic.id} variant="secondary" className="px-3 py-1.5 bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100 transition-colors cursor-default">
+                          {topic.title}
+                          <span className="ml-2 font-bold px-1.5 py-0.5 bg-amber-200/50 rounded text-[10px]">{topic.error_count} errors</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-slate-400 bg-slate-50 border border-dashed rounded-lg">
+                      No significant difficulty hotspots identified yet.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-      {/* Detailed Curriculum Progress */}
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Detailed Progress</CardTitle>
-          <CardDescription>Step-by-step breakdown of learning activity</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[600px] overflow-y-auto pr-4">
-            {Object.values(data.courses || {}).map((course) => (
-              <div key={course.course_info.id} className="mb-8">
-                {(!courseId) && <h3 className="text-lg font-semibold mb-4 text-slate-800">{course.course_info.title}</h3>}
-                
-                <div className="space-y-4">
-                  {getSortedModules(course).map((module) => (
-                    <div key={module.module_info.id} className="border border-slate-200 rounded-md overflow-hidden">
-                      <details className="group">
-                        <summary className="flex items-center justify-between p-4 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors list-none">
-                            <div className="flex items-center">
-                                <span className="font-semibold text-slate-700">Module {module.module_info.order_index}: {module.module_info.title}</span>
+              <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+                  <div>
+                    <CardTitle className="text-lg">Difficult Questions</CardTitle>
+                    <CardDescription>Specific questions that need review</CardDescription>
+                  </div>
+                  {data?.difficult_questions?.length > 0 && (
+                    <div className="relative w-48">
+                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                      <Input
+                        placeholder="Search..."
+                        className="pl-8 h-9 text-xs"
+                        value={questionSearch}
+                        onChange={(e) => setQuestionSearch(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const filtered = data?.difficult_questions?.filter(q => 
+                      q.text.toLowerCase().includes(questionSearch.toLowerCase()) ||
+                      q.lesson_title.toLowerCase().includes(questionSearch.toLowerCase())
+                    ) || [];
+                    
+                    return filtered.length > 0 ? (
+                      <div className="space-y-3">
+                        {filtered.map((q) => (
+                        <div key={q.id} className="group flex items-start justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-slate-900 line-clamp-1">{q.text}</p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                              <span className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">{q.type.replace('_', ' ')}</span>
+                              <span>•</span>
+                              <span>{q.lesson_title}</span>
                             </div>
-                            <ChevronDown className="h-5 w-5 text-slate-500 transition-transform group-open:rotate-180" />
-                        </summary>
-                        <div className="p-4 bg-white border-t border-slate-200">
-                            <div className="space-y-6">
-                              {getSortedLessons(module).map((lesson) => (
-                                <div key={lesson.lesson_info.id} className="bg-slate-50/50 rounded-lg p-4 border border-slate-100">
-                                    <h4 className="font-medium text-slate-900 mb-4 flex items-center">
-                                        <BookOpen className="h-4 w-4 mr-2 text-slate-400"/>
-                                        {lesson.lesson_info.title}
-                                    </h4>
-                                    <div className="space-y-1 pl-2 md:pl-6">
-                                        {lesson.steps.sort((a,b) => a.step_order - b.step_order).map((step) => (
-                                            <div key={step.step_id} className="group/step flex md:items-center justify-between text-sm py-3 border-b border-slate-100 last:border-0 hover:bg-white hover:shadow-sm px-3 rounded-md transition-all">
-                                                <div className="flex md:items-center gap-3">
-                                                    <div className="mt-0.5 md:mt-0">
-                                                        {step.progress.status === 'completed' ? (
-                                                            <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                                                        ) : step.progress.status === 'in_progress' ? (
-                                                            <Circle className="h-5 w-5 text-blue-500 fill-blue-50 flex-shrink-0" />
-                                                        ) : (
-                                                            <Circle className="h-5 w-5 text-slate-300 flex-shrink-0" />
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="opacity-0 group-hover:opacity-100 h-8 text-blue-600 hover:text-blue-700 hover:bg-white border-transparent hover:border-blue-100 shadow-none transition-all"
+                            onClick={() => navigate(`/course/${courseId}/lesson/${q.lesson_id}?stepId=${q.step_id}&questionId=${q.id}`)}
+                          >
+                            Inspect
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                      <div className="text-center py-6 text-slate-400 bg-slate-50 border border-dashed rounded-lg">
+                        {questionSearch ? "No questions match your filter." : "Congratulations! All answered questions look good."}
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column: SAT Stats (Narrower) */}
+            <div className="lg:col-span-1 space-y-6">
+              {satData.length > 0 && (
+                <Card className="border-slate-200 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-lg">SAT Dynamics</CardTitle>
+                    <CardDescription>Score history</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="h-[200px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={[...satData].reverse()}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="date" hide />
+                          <YAxis domain={[0, 100]} hide />
+                          <RechartsTooltip 
+                            contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                            formatter={(value: any) => [`${value}%`]}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="percentage" 
+                            stroke="#2563eb" 
+                            strokeWidth={3}
+                            dot={{ r: 3, fill: "#2563eb" }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="rounded-md border border-slate-100 overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50/50">
+                            <TableHead className="text-[10px] uppercase font-bold py-2">Test</TableHead>
+                            <TableHead className="text-center text-[10px] uppercase font-bold py-2">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {satData.slice(0, 5).map((test, idx) => (
+                            <TableRow key={idx} className="hover:bg-slate-50/50">
+                              <TableCell className="py-2">
+                                <p className="text-xs font-medium truncate max-w-[120px]">{test.testName}</p>
+                                <p className="text-[10px] text-slate-400">{test.date}</p>
+                              </TableCell>
+                              <TableCell className="text-center py-2">
+                                <span className="text-xs font-bold text-blue-600">{test.percentage}%</span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="homework">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Pending Homework */}
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-3 border-b bg-slate-50/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                       <Clock className="h-5 w-5 text-amber-500" /> Pending Assignments
+                    </CardTitle>
+                    <CardDescription>Assignments waiting for submission</CardDescription>
+                  </div>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                    {data?.homework?.filter(h => h.status === 'pending').length || 0}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {data?.homework?.filter(h => h.status === 'pending').length > 0 ? (
+                    data.homework.filter(h => h.status === 'pending').map((hw) => (
+                      <div key={hw.id} className="p-4 rounded-xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-sm transition-all group">
+                        <div className="flex justify-between items-start mb-2">
+                           <h4 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">{hw.title}</h4>
+                           <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">Pending</Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                           <div className="flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Due: {hw.due_date ? new Date(hw.due_date).toLocaleDateString() : 'No deadline'}
+                           </div>
+                           <div className="flex items-center gap-1">
+                              <BookOpen className="h-3 w-3" />
+                              Max Score: {hw.max_score}
+                           </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                      <CheckCircle2 className="h-12 w-12 text-emerald-100 mx-auto mb-3" />
+                      <p className="font-medium">All caught up!</p>
+                      <p className="text-xs">No pending assignments found.</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Submitted Homework */}
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-3 border-b bg-slate-50/30">
+                 <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Submitted
+                    </CardTitle>
+                    <CardDescription>Completed assignments</CardDescription>
+                  </div>
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                    {data?.homework?.filter(h => h.status === 'submitted').length || 0}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {data?.homework?.filter(h => h.status === 'submitted').length > 0 ? (
+                    data.homework.filter(h => h.status === 'submitted').map((hw) => (
+                      <div key={hw.id} className="p-4 rounded-xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-sm transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                           <h4 className="font-semibold text-slate-900">{hw.title}</h4>
+                           <div className="text-right">
+                              <div className="text-sm font-bold text-blue-600">
+                                {hw.is_graded ? `${hw.score} / ${hw.max_score}` : 'Pending Grade'}
+                              </div>
+                              {hw.is_graded && hw.max_score > 0 && (
+                                <div className="text-[10px] text-slate-400">
+                                  {Math.round((hw.score || 0) / hw.max_score * 100)}%
+                                </div>
+                              )}
+                           </div>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                           <div className="flex items-center gap-1">
+                              <History className="h-3 w-3" />
+                              Submitted: {hw.submitted_at ? new Date(hw.submitted_at).toLocaleDateString() : 'Unknown'}
+                           </div>
+                           <Badge variant="secondary" className="text-[10px] px-2 py-0 h-4 bg-emerald-50 text-emerald-700 border-emerald-100">Submitted</Badge>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                      <p className="text-sm font-medium">No submissions yet.</p>
+                      <p className="text-xs">Once assignments are submitted, they will appear here.</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="curriculum">
+          {/* Detailed Curriculum Progress */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Detailed Progress</CardTitle>
+              <CardDescription>Step-by-step breakdown of learning activity</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[600px] overflow-y-auto pr-4">
+                {Object.values(data.courses || {}).map((course) => (
+                  <div key={course.course_info.id} className="mb-8">
+                    {(!courseId) && <h3 className="text-lg font-semibold mb-4 text-slate-800">{course.course_info.title}</h3>}
+                    
+                    <div className="space-y-4">
+                      {getSortedModules(course).map((module) => (
+                        <div key={module.module_info.id} className="border border-slate-200 rounded-md overflow-hidden">
+                          <details className="group">
+                            <summary className="flex items-center justify-between p-4 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors list-none">
+                                <div className="flex items-center">
+                                    <span className="font-semibold text-slate-700">Module {module.module_info.order_index}: {module.module_info.title}</span>
+                                </div>
+                                <ChevronDown className="h-5 w-5 text-slate-500 transition-transform group-open:rotate-180" />
+                            </summary>
+                            <div className="p-4 bg-white border-t border-slate-200">
+                                <div className="space-y-6">
+                                  {getSortedLessons(module).map((lesson) => (
+                                    <div key={lesson.lesson_info.id} className="bg-slate-50/50 rounded-lg p-4 border border-slate-100">
+                                        <h4 className="font-medium text-slate-900 mb-4 flex items-center">
+                                            <BookOpen className="h-4 w-4 mr-2 text-slate-400"/>
+                                            {lesson.lesson_info.title}
+                                        </h4>
+                                        <div className="space-y-1 pl-2 md:pl-6">
+                                            {lesson.steps.sort((a,b) => a.step_order - b.step_order).map((step) => (
+                                                <div key={step.step_id} className="group/step flex md:items-center justify-between text-sm py-3 border-b border-slate-100 last:border-0 hover:bg-white hover:shadow-sm px-3 rounded-md transition-all">
+                                                    <div className="flex md:items-center gap-3">
+                                                        <div className="mt-0.5 md:mt-0">
+                                                            {step.progress.status === 'completed' ? (
+                                                                <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                                                            ) : step.progress.status === 'in_progress' ? (
+                                                                <Circle className="h-5 w-5 text-blue-500 fill-blue-50 flex-shrink-0" />
+                                                            ) : (
+                                                                <Circle className="h-5 w-5 text-slate-300 flex-shrink-0" />
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                                                            <span className={step.progress.status === 'completed' ? 'text-slate-700 font-medium' : 'text-slate-500'}>
+                                                                {step.step_title}
+                                                            </span>
+                                                            <span className="text-[10px] uppercase tracking-wider text-slate-400 px-1.5 py-0.5 border rounded border-slate-200 w-fit">{step.content_type.replace('_', ' ')}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col md:flex-row items-end md:items-center gap-1 md:gap-6 text-xs text-slate-400 flex-shrink-0 ml-4">
+                                                        {step.progress.time_spent_minutes > 0 && (
+                                                            <span className="flex items-center text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                                                                <Clock className="h-3 w-3 mr-1" />
+                                                                {formatDuration(step.progress.time_spent_minutes)}
+                                                            </span>
+                                                        )}
+                                                        {step.progress.completed_at && (
+                                                            <span className="hidden md:inline">{new Date(step.progress.completed_at).toLocaleDateString()}</span>
                                                         )}
                                                     </div>
-                                                    <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
-                                                        <span className={step.progress.status === 'completed' ? 'text-slate-700 font-medium' : 'text-slate-500'}>
-                                                            {step.step_title}
-                                                        </span>
-                                                        <span className="text-[10px] uppercase tracking-wider text-slate-400 px-1.5 py-0.5 border rounded border-slate-200 w-fit">{step.content_type.replace('_', ' ')}</span>
-                                                    </div>
                                                 </div>
-                                                <div className="flex flex-col md:flex-row items-end md:items-center gap-1 md:gap-6 text-xs text-slate-400 flex-shrink-0 ml-4">
-                                                    {step.progress.time_spent_minutes > 0 && (
-                                                        <span className="flex items-center text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                                                            <Clock className="h-3 w-3 mr-1" />
-                                                            {formatDuration(step.progress.time_spent_minutes)}
-                                                        </span>
-                                                    )}
-                                                    {step.progress.completed_at && (
-                                                        <span className="hidden md:inline">{new Date(step.progress.completed_at).toLocaleDateString()}</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
+                                  ))}
                                 </div>
-                              ))}
                             </div>
+                          </details>
                         </div>
-                      </details>
+                      ))}
+                    </div>
+                    {/* Fallback if no modules */}
+                    {getSortedModules(course).length === 0 && (
+                        <div className="text-center py-8 text-slate-400">No content structure found for this course.</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="activity">
+          {/* Activity Timeline */}
+          <Card className="border-slate-200 shadow-sm flex flex-col">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <History className="h-5 w-5 text-blue-500" />
+                History of Activity
+              </CardTitle>
+              <CardDescription>Recent learning actions</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-y-auto px-10 pb-10">
+              {data.activity_history?.length > 0 ? (
+                <div className="relative pl-6 border-l-2 border-slate-100 space-y-8">
+                  {data.activity_history.map((event, idx) => (
+                    <div key={idx} className="relative">
+                      {/* Timeline Dot */}
+                      <div className={`absolute -left-[31px] top-1 h-3 w-3 rounded-full border-2 border-white ${
+                        event.type === 'step_completed' ? 'bg-green-500' : 
+                        event.type === 'quiz_attempt' ? 'bg-amber-500' : 'bg-blue-400'
+                      }`} />
+                      
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-4">
+                          <p className="text-sm font-semibold text-slate-800 leading-none">{event.title}</p>
+                          <span className="text-[10px] text-slate-400 whitespace-nowrap bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                             {new Date(event.timestamp).toLocaleDateString()} {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">{event.context}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
-                {/* Fallback if no modules */}
-                {getSortedModules(course).length === 0 && (
-                    <div className="text-center py-8 text-slate-400">No content structure found for this course.</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ) : (
+                <div className="flex items-center justify-center h-40 text-slate-400 italic">
+                    No activity recorded recently.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
