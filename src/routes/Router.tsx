@@ -161,7 +161,7 @@ export default function Router() {
           } />
 
           <Route path="/homework/:id/progress" element={
-            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+            <ProtectedRoute allowedRoles={['student', 'teacher', 'admin']}>
               <AppLayout>
                 <AssignmentStudentProgressPage />
               </AppLayout>

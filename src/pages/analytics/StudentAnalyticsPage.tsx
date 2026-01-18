@@ -517,7 +517,7 @@ export const StudentAnalyticsPage: React.FC = () => {
                             variant="ghost" 
                             size="sm" 
                             className="h-8 text-xs text-blue-600 hover:bg-white hover:text-blue-700 border-transparent hover:border-slate-200 shadow-none"
-                            onClick={() => navigate(isTeacher() ? `/homework/${hw.id}/grade` : `/homework/${hw.id}`)}
+                            onClick={() => navigate(`/homework/${hw.id}/progress`)}
                           >
                             {isTeacher() ? 'Grade' : 'View Details'}
                           </Button>
@@ -588,16 +588,14 @@ export const StudentAnalyticsPage: React.FC = () => {
                                 </div>
                               )}
                             </div>
-                            {(isTeacher() || isCurator() || isAdmin()) && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 text-xs text-blue-600 hover:bg-white hover:text-blue-700 border-transparent hover:border-slate-200 shadow-none opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => navigate(isTeacher() ? `/homework/${hw.id}/grade` : `/homework/${hw.id}`)}
-                              >
-                                {isTeacher() ? (needsGrading ? 'Grade' : 'Review') : 'View Details'}
-                              </Button>
-                            )}
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 text-xs text-blue-600 hover:bg-white hover:text-blue-700 border-transparent hover:border-slate-200 shadow-none opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => navigate(`/homework/${hw.id}/progress`)}
+                            >
+                              {(isTeacher() || isCurator() || isAdmin()) ? (needsGrading ? 'Grade' : 'Review') : 'View Details'}
+                            </Button>
                           </div>
                         </div>
                       );

@@ -1,17 +1,15 @@
   import { useEffect, useState } from 'react';
-  import { useParams, useNavigate, Link } from 'react-router-dom';
+  import { useParams, useNavigate } from 'react-router-dom';
+  import { useAuth } from '../../contexts/AuthContext';
   import apiClient from '../../services/api';
   import { toast } from '../../components/Toast';
   import { 
-    Users, 
     Clock, 
     CheckCircle, 
     AlertCircle, 
     FileText, 
     Calendar,
     ArrowLeft,
-    Eye,
-    EyeOff,
     Award,
     Pencil,
     Download
@@ -90,6 +88,7 @@
 
   export default function AssignmentStudentProgressPage() {
     const { id } = useParams<{ id: string }>();
+    const { user } = useAuth();
     const navigate = useNavigate();
     const [data, setData] = useState<AssignmentStudentProgress | null>(null);
     const [loading, setLoading] = useState(true);
@@ -227,15 +226,6 @@
       }
     };
 
-    const toggleSubmissionVisibility = async (submissionId: number) => {
-      try {
-        await apiClient.toggleSubmissionVisibility(id!, String(submissionId));
-        await loadAssignmentProgress();
-      } catch (e: any) {
-        console.error('Failed to toggle submission visibility:', e);
-        alert(e?.message || 'Failed to toggle visibility');
-      }
-    };
 
     const downloadFile = async (fileUrl: string, fileName: string) => {
       try {
@@ -606,34 +596,36 @@
                               <span className="text-gray-400">-</span>
                             )}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2 justify-end">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                title={studentExtension ? "Edit extension" : "Grant extension"}
-                                aria-label={studentExtension ? "Edit extension" : "Grant extension"}
-                                onClick={() => openExtensionDialog(student.id, student.name)}
-                              >
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {studentExtension ? 'Edit' : 'Extend'}
-                              </Button>
-                              {student.submission_id && (
-                                <>
-                              <Button
-                                  variant="ghost"
+                          {(user?.role === 'teacher' || user?.role === 'admin') && (
+                            <TableCell>
+                              <div className="flex space-x-2 justify-end">
+                                <Button
+                                  variant="outline"
                                   size="sm"
-                                  title="Grade submission"
-                                  aria-label="Grade submission"
-                                  onClick={() => openGradeDialog(student.submission_id!)}
+                                  title={studentExtension ? "Edit extension" : "Grant extension"}
+                                  aria-label={studentExtension ? "Edit extension" : "Grant extension"}
+                                  onClick={() => openExtensionDialog(student.id, student.name)}
                                 >
-                                  <Pencil className="w-4 h-4" />
+                                  <Calendar className="w-4 h-4 mr-1" />
+                                  {studentExtension ? 'Edit' : 'Extend'}
                                 </Button>
-                              </>
-                                
-                              )}
-                            </div>
-                          </TableCell>
+                                {student.submission_id && (
+                                  <>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    title="Grade submission"
+                                    aria-label="Grade submission"
+                                    onClick={() => openGradeDialog(student.submission_id!)}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                </>
+                                  
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
                         </TableRow>
                         );
                       })

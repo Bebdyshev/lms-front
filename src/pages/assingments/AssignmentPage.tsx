@@ -146,9 +146,9 @@ export default function AssignmentPage() {
       
       toast('Assignment submitted successfully!', 'success');
       
-      // Redirect to assignments page
+      // Redirect to assignments progress page
       setTimeout(() => {
-        navigate('/homework');
+        navigate(`/homework/${id}/progress`);
       }, 1000);
     } catch (err) {
       console.error('Assignment submission error:', err);
@@ -238,9 +238,9 @@ export default function AssignmentPage() {
       
       toast('✅ Assignment submitted successfully! Redirecting...', 'success');
       
-      // Redirect to assignments page after brief delay
+      // Redirect to assignment progress page after brief delay
       setTimeout(() => {
-        navigate('/homework');
+        navigate(`/homework/${assignment.id}/progress`);
       }, 1500);
     } catch (err) {
       console.error('Failed to submit assignment:', err);
