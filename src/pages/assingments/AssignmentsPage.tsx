@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../../services/api';
-import { ClipboardList, Calendar, Clock, CheckCircle, AlertCircle, FileText, Download, Plus, Eye, Archive, ArchiveRestore, Edit } from 'lucide-react';
+import { ClipboardList, Calendar, AlertCircle, ChevronDown, ChevronRight, Eye, Edit, Archive, ArchiveRestore, Copy } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Group } from '../../types';
 
 interface AssignmentWithStatus {
   id: number;
@@ -30,15 +32,57 @@ interface AssignmentWithStatus {
 export default function AssignmentsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [assignments, setAssignments] = useState<AssignmentWithStatus[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [filter, setFilter] = useState<'all' | 'pending' | 'submitted' | 'graded' | 'overdue'>('all');
+  
+  // Tab/Filter persistence
+  const filter = (searchParams.get('tab') as 'all' | 'pending' | 'submitted' | 'graded' | 'overdue') || 'all';
+  const selectedGroupId = searchParams.get('group_id') || 'all';
   const [includeHidden, setIncludeHidden] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const setFilter = (tab: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', tab);
+    setSearchParams(newParams);
+  };
+
+  const setGroupId = (id: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (id === 'all') {
+      newParams.delete('group_id');
+    } else {
+      newParams.set('group_id', id);
+    }
+    setSearchParams(newParams);
+  };
 
   useEffect(() => {
-    loadAssignments();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    await Promise.all([
+      loadAssignments(),
+      loadGroups()
+    ]);
+    setLoading(false);
+  };
+
+  const loadGroups = async () => {
+    if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'curator') {
+      try {
+        const groupsData = await apiClient.getGroups();
+        setGroups(groupsData);
+      } catch (err) {
+        console.warn('Failed to load groups:', err);
+      }
+    }
+  };
 
   const loadAssignments = async () => {
     try {
@@ -130,15 +174,19 @@ export default function AssignmentsPage() {
     }
   };
 
-  // Filter assignments by status and hidden
+  // Filter assignments by status, hidden, and group
   const filteredAssignments = assignments.filter(assignment => {
     // First filter by hidden status (for teachers/admins)
     if (!includeHidden && assignment.is_hidden) {
       return false;
     }
     
+    // Filter by group if selected
+    if (selectedGroupId !== 'all' && assignment.group_id?.toString() !== selectedGroupId) {
+      return false;
+    }
+    
     // For students: hide graded assignments that are past deadline ONLY in "all" view
-    // When viewing "graded" filter specifically, show all graded assignments
     if (user?.role === 'student' && filter === 'all') {
       const effectiveDeadline = assignment.extended_deadline || assignment.due_date;
       const isPastDeadline = effectiveDeadline && new Date(effectiveDeadline) < new Date();
@@ -162,37 +210,51 @@ export default function AssignmentsPage() {
     }
   });
 
+  // Group assignments by group_name
+  const groupedAssignments = filteredAssignments.reduce((acc, curr) => {
+    const group = groups.find(g => g.id === curr.group_id);
+    const groupName = group?.name || curr.group_name || `Group #${curr.group_id || 'Unknown'}`;
+    if (!acc[groupName]) {
+      acc[groupName] = [];
+    }
+    acc[groupName].push(curr);
+    return acc;
+  }, {} as Record<string, AssignmentWithStatus[]>);
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupName]: !prev[groupName]
+    }));
+  };
+
 
 
   const getStatusBadge = (assignment: AssignmentWithStatus) => {
-    const baseClasses = "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium";
+    const baseClasses = "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider";
     
     switch (assignment.status) {
       case 'graded':
         return (
-          <span className={`${baseClasses} bg-green-100 text-green-800`}>
-            <CheckCircle className="w-3 h-3 mr-1" />
+          <span className={`${baseClasses} bg-green-50 text-green-700 border border-green-200`}>
             Graded
           </span>
         );
       case 'submitted':
         return (
-          <span className={`${baseClasses} bg-blue-100 text-blue-800`}>
-            <Clock className="w-3 h-3 mr-1" />
+          <span className={`${baseClasses} bg-blue-50 text-blue-700 border border-blue-200`}>
             Submitted
           </span>
         );
       case 'overdue':
         return (
-          <span className={`${baseClasses} bg-red-100 text-red-800`}>
-            <AlertCircle className="w-3 h-3 mr-1" />
+          <span className={`${baseClasses} bg-red-50 text-red-700 border border-red-200`}>
             Overdue
           </span>
         );
       default:
         return (
-          <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
-            <FileText className="w-3 h-3 mr-1" />
+          <span className={`${baseClasses} bg-gray-50 text-gray-600 border border-gray-200`}>
             Not Submitted
           </span>
         );
@@ -243,25 +305,24 @@ export default function AssignmentsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold flex items-center">
-          <ClipboardList className="w-8 h-8 mr-3 text-blue-600" />
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">
           Homework
         </h1>
         {user?.role === 'teacher' || user?.role === 'admin' ? (
           <Button
             onClick={() => navigate('/homework/new')}
-            className="flex items-center"
+            variant="default"
+            size="sm"
           >
-            <Plus className="w-4 h-4 mr-2" />
             Create Homework
           </Button>
         ) : null}
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-4">
+      {/* Filter Tabs & Group Filter */}
+      <div className="flex flex-wrap items-center gap-4">
         <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200 inline-flex">
           {[
             { key: 'all', label: 'All', count: assignments.length },
@@ -284,8 +345,26 @@ export default function AssignmentsPage() {
           ))}
         </div>
         
+        {(user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'curator') && groups.length > 0 && (
+          <div className="w-[200px]">
+            <Select value={selectedGroupId} onValueChange={setGroupId}>
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="All Groups" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Groups</SelectItem>
+                {groups.map(group => (
+                  <SelectItem key={group.id} value={group.id.toString()}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {(user?.role === 'teacher' || user?.role === 'admin') && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <Checkbox
               id="show-hidden"
               checked={includeHidden}
@@ -301,71 +380,10 @@ export default function AssignmentsPage() {
         )}
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <FileText className="w-6 h-6 text-gray-600 mr-2" />
-            <div>
-              <div className="text-sm text-gray-600">Total</div>
-              <div className="text-xl font-bold">{assignments.length}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <Clock className="w-6 h-6 text-blue-600 mr-2" />
-            <div>
-              <div className="text-sm text-gray-600">Pending</div>
-              <div className="text-xl font-bold">
-                {assignments.filter(a => a.status === 'not_submitted').length}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <CheckCircle className="w-6 h-6 text-green-600 mr-2" />
-            <div>
-              <div className="text-sm text-gray-600">Completed</div>
-              <div className="text-xl font-bold">
-                {assignments.filter(a => a.status === 'graded').length}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <AlertCircle className="w-6 h-6 text-red-600 mr-2" />
-            <div>
-              <div className="text-sm text-gray-600">Overdue</div>
-              <div className="text-xl font-bold">
-                {assignments.filter(a => a.status === 'overdue').length}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <Download className="w-6 h-6 text-purple-600 mr-2" />
-            <div>
-              <div className="text-sm text-gray-600">With Files</div>
-              <div className="text-xl font-bold">
-                {assignments.filter(a => a.file_url || a.has_file_submission).length}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Assignments List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="space-y-6">
         {filteredAssignments.length === 0 ? (
-          <div className="p-12 text-center">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
             <ClipboardList className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               {filter === 'all' ? 'No homework yet' : `No ${filter} homework`}
@@ -378,140 +396,151 @@ export default function AssignmentsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600">
-                <tr>
-                  <th className="text-left px-6 py-3 font-medium">Homework</th>
-                  <th className="text-left px-6 py-3 font-medium">Group</th>
-                  <th className="text-left px-6 py-3 font-medium">Due Date</th>
-                  <th className="text-left px-6 py-3 font-medium">Status</th>
-                  <th className="text-left px-6 py-3 font-medium">Grade</th>
-                  <th className="text-left px-6 py-3 font-medium">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAssignments.map(assignment => (
-                  <tr key={assignment.id} className="border-t hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <div 
-                          className="font-medium text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
-                          onClick={() => {
-                            console.log('Navigating to assignment:', assignment.id);
-                            navigate(`/homework/${assignment.id}`);
-                          }}
-                        >
-                          {assignment.title}
-                        </div>
-                        {assignment.description && (
-                          <div className="text-sm text-gray-600 mt-1 line-clamp-2">
-                            {assignment.description}
-                          </div>
-                        )}
-                        {assignment.extended_deadline && (
-                          <div className="text-sm text-green-600 flex items-center mt-1">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            Extended to: {new Date(assignment.extended_deadline).toLocaleDateString()}
-                            {assignment.extension_reason && ` - ${assignment.extension_reason}`}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {assignment.group_name || `Group #${assignment.group_id}`}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {assignment.extended_deadline ? (
-                        <div className="flex items-center text-green-600">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(assignment.extended_deadline).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          <span className="ml-1 text-xs">(Extended)</span>
-                        </div>
-                      ) : assignment.due_date ? (
-                        <div className={`flex items-center ${isOverdue(assignment.due_date) && !assignment.extended_deadline && assignment.status !== 'graded' && assignment.status !== 'submitted' ? 'text-red-600' : ''}`}>
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {new Date(assignment.due_date).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          {isOverdue(assignment.due_date) && !assignment.extended_deadline && assignment.status !== 'graded' && assignment.status !== 'submitted' && (
-                            <AlertCircle className="w-4 h-4 ml-1" />
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">No deadline</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(assignment)}
-                    </td>
-                    <td className="px-6 py-4">
-                      {assignment.status === 'graded' ? (
-                        <span className="text-green-600">{assignment.score}/{assignment.max_score ?? 100}</span>
-                      ) : (
-                        <span className="text-gray-400">N/A</span>
-                      )}
-                    </td>
-                   
-                    <td className="px-6 py-4">
-                      <div className="flex space-x-2">
-                        {(user?.role === 'teacher' || user?.role === 'admin') ? (
-                          <>
-                              <Button
-                                onClick={() => {
-                                  console.log('Navigating to student progress:', assignment.id);
-                                  navigate(`/homework/${assignment.id}/progress`);
-                                }}
-                                variant="ghost"
-                                size="icon"
-                                title="View Progress"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  console.log('Navigating to edit assignment:', assignment.id);
-                                  navigate(`/homework/${assignment.id}/edit`);
-                                }}
-                                variant="ghost"
-                                size="icon"
-                                title="Edit Assignment"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                onClick={async () => {
-                                  try {
-                                    await apiClient.toggleAssignmentVisibility(String(assignment.id));
-                                    loadAssignments();
-                                  } catch (err) {
-                                    console.error('Failed to toggle visibility:', err);
-                                  }
-                                }}
-                                variant="ghost"
-                                size="icon"
-                                title={assignment.is_hidden ? "Restore assignment" : "Archive assignment"}
-                                className={assignment.is_hidden ? "text-orange-500 hover:text-orange-600" : "text-gray-400 hover:text-gray-600"}
-                              >
-                                {assignment.is_hidden ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-                              </Button>
-                          </>
-                        ) : (
-                          <Button
-                            onClick={() => {
-                              console.log('Navigating to assignment:', assignment.id);
-                              navigate(`/homework/${assignment.id}`);
-                            }}
-                          >
-                            {assignment.status === 'graded' ? 'View' : 
-                             assignment.status === 'submitted' ? 'View' : 'Submit'}
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          Object.entries(groupedAssignments).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, groupAssignments]) => {
+            const isExpanded = expandedGroups[groupName] !== false; // Default to expanded
+            return (
+              <div key={groupName} className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-none">
+                <button
+                  onClick={() => toggleGroup(groupName)}
+                  className="w-full flex items-center justify-between px-6 py-3 bg-slate-50/50 border-b border-slate-200 hover:bg-slate-100/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">{groupName}</h3>
+                    <span className="text-[11px] font-medium text-slate-400">({groupAssignments.length})</span>
+                  </div>
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                </button>
+
+                {isExpanded && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-white text-slate-500 border-b border-slate-100">
+                        <tr>
+                          <th className="text-left px-6 py-3 font-semibold uppercase tracking-wider text-[10px]">Homework</th>
+                          <th className="text-left px-6 py-3 font-semibold uppercase tracking-wider text-[10px]">Due Date</th>
+                          <th className="text-left px-6 py-3 font-semibold uppercase tracking-wider text-[10px]">Status</th>
+                          <th className="text-left px-6 py-3 font-semibold uppercase tracking-wider text-[10px]">Grade</th>
+                          <th className="text-right px-6 py-3 font-semibold uppercase tracking-wider text-[10px]">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {groupAssignments.map(assignment => (
+                          <tr key={assignment.id} className="border-t hover:bg-gray-50/50">
+                            <td className="px-6 py-4">
+                              <div>
+                                <div 
+                                  className="font-medium text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+                                  onClick={() => navigate(`/homework/${assignment.id}`)}
+                                >
+                                  {assignment.title}
+                                </div>
+                                {assignment.description && (
+                                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">
+                                    {assignment.description}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-gray-600">
+                              {assignment.extended_deadline ? (
+                                <div className="flex items-center text-green-600">
+                                  <Calendar className="w-4 h-4 mr-1" />
+                                  {new Date(assignment.extended_deadline).toLocaleDateString()}
+                                  <span className="ml-1 text-[10px] bg-green-50 px-1 rounded">(Extended)</span>
+                                </div>
+                              ) : assignment.due_date ? (
+                                <div className={`flex items-center ${isOverdue(assignment.due_date) && assignment.status === 'not_submitted' ? 'text-red-600' : ''}`}>
+                                  <Calendar className="w-4 h-4 mr-1" />
+                                  {new Date(assignment.due_date).toLocaleDateString()}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              {getStatusBadge(assignment)}
+                            </td>
+                            <td className="px-6 py-4">
+                              {assignment.status === 'graded' ? (
+                                <div className="flex flex-col">
+                                  <span className="text-green-600 font-semibold">{assignment.score}/{assignment.max_score ?? 100}</span>
+                                  <span className="text-[10px] text-gray-400">
+                                    {Math.round((assignment.score || 0) / (assignment.max_score || 100) * 100)}%
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {(user?.role === 'teacher' || user?.role === 'admin') ? (
+                                  <>
+                                    <Button
+                                      onClick={() => navigate(`/homework/${assignment.id}/progress`)}
+                                      variant="ghost"
+                                      size="icon"
+                                      title="View Progress"
+                                      className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      onClick={() => navigate(`/homework/new?copyFrom=${assignment.id}`)}
+                                      variant="ghost"
+                                      size="icon"
+                                      title="Copy Assignment"
+                                      className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      onClick={() => navigate(`/homework/${assignment.id}/edit`)}
+                                      variant="ghost"
+                                      size="icon"
+                                      title="Edit Assignment"
+                                      className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      onClick={async () => {
+                                        try {
+                                          await apiClient.toggleAssignmentVisibility(String(assignment.id));
+                                          loadAssignments();
+                                        } catch (err) {
+                                          console.error('Failed to toggle visibility:', err);
+                                        }
+                                      }}
+                                      variant="ghost"
+                                      size="icon"
+                                      title={assignment.is_hidden ? "Restore" : "Archive"}
+                                      className={`h-8 w-8 ${assignment.is_hidden ? "text-orange-500 hover:text-orange-600" : "text-slate-400 hover:text-slate-600"}`}
+                                    >
+                                      {assignment.is_hidden ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => navigate(`/homework/${assignment.id}`)}
+                                    variant="ghost"
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 font-bold uppercase tracking-widest text-[10px]"
+                                  >
+                                    {assignment.status === 'graded' || assignment.status === 'submitted' ? 'View' : 'Submit'}
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>

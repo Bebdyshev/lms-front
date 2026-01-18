@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import apiClient from '../../services/api';
 import { 
@@ -46,6 +46,8 @@ export default function AssignmentBuilderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { groupId, assignmentId } = useParams();
+  const [searchParams] = useSearchParams();
+  const copyFromId = searchParams.get('copyFrom');
   
   const [formData, setFormData] = useState<AssignmentFormData>({
     title: '',
@@ -82,8 +84,11 @@ export default function AssignmentBuilderPage() {
     if (assignmentId) {
       setIsEditing(true);
       loadAssignment(assignmentId);
+    } else if (copyFromId) {
+      setIsEditing(false);
+      loadAssignment(copyFromId);
     }
-  }, [assignmentId]);
+  }, [assignmentId, copyFromId]);
 
   const loadAssignment = async (id: string) => {
     try {
@@ -112,7 +117,7 @@ export default function AssignmentBuilderPage() {
       }
 
       setFormData({
-        title: assignment.title,
+        title: copyFromId ? `Copy of ${assignment.title}` : assignment.title,
         description: assignment.description || '',
         assignment_type: assignment.assignment_type,
         content: content || {},
@@ -368,7 +373,7 @@ export default function AssignmentBuilderPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center">
-            {isEditing ? 'Edit Homework' : 'Create Homework'}
+            {isEditing ? 'Edit Homework' : copyFromId ? 'Copy Homework' : 'Create Homework'}
           </h1>
           <p className="text-gray-600 mt-1">
             {isEditing ? 'Update existing homework' : 'Create a new homework for your students'}
