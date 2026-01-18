@@ -8,6 +8,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/services/api';
 
 interface StepProgress {
@@ -109,15 +111,24 @@ interface DetailedProgress {
 
 export const StudentAnalyticsPage: React.FC = () => {
   const { studentId } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { isTeacher, isCurator, isAdmin } = useAuth();
   const courseId = searchParams.get('course_id');
+  const activeTab = searchParams.get('tab') || 'performance';
+
+  const handleTabChange = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', value);
+    setSearchParams(newParams);
+  };
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DetailedProgress | null>(null);
   const [satData, setSatData] = useState<any[]>([]);
   const [questionSearch, setQuestionSearch] = useState('');
+  const [selectedLessonId, setSelectedLessonId] = useState<string>('all');
 
   useEffect(() => {
     loadData();
@@ -282,7 +293,7 @@ export const StudentAnalyticsPage: React.FC = () => {
         </Card>
       </div>
 
-      <Tabs defaultValue="performance" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-8 max-w-xl">
           <TabsTrigger value="performance" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" /> Performance
@@ -332,23 +343,38 @@ export const StudentAnalyticsPage: React.FC = () => {
                     <CardDescription>Specific questions that need review</CardDescription>
                   </div>
                   {data?.difficult_questions?.length > 0 && (
-                    <div className="relative w-48">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-                      <Input
-                        placeholder="Search..."
-                        className="pl-8 h-9 text-xs"
-                        value={questionSearch}
-                        onChange={(e) => setQuestionSearch(e.target.value)}
-                      />
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedLessonId} onValueChange={setSelectedLessonId}>
+                        <SelectTrigger className="w-[180px] h-9 text-xs">
+                          <SelectValue placeholder="All Lessons" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Lessons</SelectItem>
+                          {Array.from(new Map(data.difficult_questions.map(q => [q.lesson_id, q.lesson_title])).entries()).map(([id, title]) => (
+                            <SelectItem key={id} value={id.toString()}>{title}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="relative w-48">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="Search..."
+                          className="pl-8 h-9 text-xs"
+                          value={questionSearch}
+                          onChange={(e) => setQuestionSearch(e.target.value)}
+                        />
+                      </div>
                     </div>
                   )}
                 </CardHeader>
                 <CardContent>
                   {(() => {
-                    const filtered = data?.difficult_questions?.filter(q => 
-                      q.text.toLowerCase().includes(questionSearch.toLowerCase()) ||
-                      q.lesson_title.toLowerCase().includes(questionSearch.toLowerCase())
-                    ) || [];
+                    const filtered = data?.difficult_questions?.filter(q => {
+                      const matchesSearch = q.text.toLowerCase().includes(questionSearch.toLowerCase()) ||
+                                           q.lesson_title.toLowerCase().includes(questionSearch.toLowerCase());
+                      const matchesLesson = selectedLessonId === 'all' || q.lesson_id.toString() === selectedLessonId;
+                      return matchesSearch && matchesLesson;
+                    }) || [];
                     
                     return filtered.length > 0 ? (
                       <div className="space-y-3">
@@ -444,105 +470,146 @@ export const StudentAnalyticsPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="homework">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-8">
             {/* Pending Homework */}
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="pb-3 border-b bg-slate-50/30">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                       <Clock className="h-5 w-5 text-amber-500" /> Pending Assignments
-                    </CardTitle>
-                    <CardDescription>Assignments waiting for submission</CardDescription>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider">Pending Assignments</h3>
+                  <p className="text-xs text-slate-500">Upcoming work that needs submission</p>
+                </div>
+                <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-100 font-medium">
+                  {data?.homework?.filter(h => h.status === 'pending').length || 0}
+                </Badge>
+              </div>
+              
+              <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                {data?.homework?.filter(h => h.status === 'pending').length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {data.homework.filter(h => h.status === 'pending').map((hw) => {
+                      const isOverdue = hw.due_date && new Date(hw.due_date) < new Date();
+                      return (
+                        <div key={hw.id} className="p-4 hover:bg-slate-50/50 transition-colors flex items-center justify-between group">
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-1 p-1.5 rounded group-hover:transition-colors ${isOverdue ? 'bg-rose-50 text-rose-500 group-hover:bg-rose-100' : 'bg-amber-50 text-amber-500 group-hover:bg-amber-100'}`}>
+                              <Clock className="h-3.5 w-3.5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-medium text-slate-900">{hw.title}</h4>
+                                {isOverdue && (
+                                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-rose-50 text-rose-600 border-none">Overdue</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className={`text-[10px] flex items-center gap-1 ${isOverdue ? 'text-rose-500 font-medium' : 'text-slate-500'}`}>
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {hw.due_date ? `Due: ${new Date(hw.due_date).toLocaleDateString()}` : 'No deadline'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                  <BookOpen className="h-3 w-3" />
+                                  {hw.max_score} pts
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 text-xs text-blue-600 hover:bg-white hover:text-blue-700 border-transparent hover:border-slate-200 shadow-none"
+                            onClick={() => navigate(isTeacher() ? `/homework/${hw.id}/grade` : `/homework/${hw.id}`)}
+                          >
+                            {isTeacher() ? 'Grade' : 'View Details'}
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-                    {data?.homework?.filter(h => h.status === 'pending').length || 0}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  {data?.homework?.filter(h => h.status === 'pending').length > 0 ? (
-                    data.homework.filter(h => h.status === 'pending').map((hw) => (
-                      <div key={hw.id} className="p-4 rounded-xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-sm transition-all group">
-                        <div className="flex justify-between items-start mb-2">
-                           <h4 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">{hw.title}</h4>
-                           <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">Pending</Badge>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
-                           <div className="flex items-center gap-1">
-                              <AlertTriangle className="h-3 w-3" />
-                              Due: {hw.due_date ? new Date(hw.due_date).toLocaleDateString() : 'No deadline'}
-                           </div>
-                           <div className="flex items-center gap-1">
-                              <BookOpen className="h-3 w-3" />
-                              Max Score: {hw.max_score}
-                           </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                      <CheckCircle2 className="h-12 w-12 text-emerald-100 mx-auto mb-3" />
-                      <p className="font-medium">All caught up!</p>
-                      <p className="text-xs">No pending assignments found.</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                ) : (
+                  <div className="text-center py-10 text-slate-400">
+                    <p className="text-sm font-medium">All tasks completed</p>
+                    <p className="text-[11px]">No assignments currently pending.</p>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Submitted Homework */}
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="pb-3 border-b bg-slate-50/30">
-                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Submitted
-                    </CardTitle>
-                    <CardDescription>Completed assignments</CardDescription>
-                  </div>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                    {data?.homework?.filter(h => h.status === 'submitted').length || 0}
-                  </Badge>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider">Submitted Work</h3>
+                  <p className="text-xs text-slate-500">History of your completed assignments</p>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  {data?.homework?.filter(h => h.status === 'submitted').length > 0 ? (
-                    data.homework.filter(h => h.status === 'submitted').map((hw) => (
-                      <div key={hw.id} className="p-4 rounded-xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-sm transition-all">
-                        <div className="flex justify-between items-start mb-2">
-                           <h4 className="font-semibold text-slate-900">{hw.title}</h4>
-                           <div className="text-right">
-                              <div className="text-sm font-bold text-blue-600">
-                                {hw.is_graded ? `${hw.score} / ${hw.max_score}` : 'Pending Grade'}
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100 font-medium">
+                  {data?.homework?.filter(h => h.status === 'submitted').length || 0}
+                </Badge>
+              </div>
+              
+              <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                {data?.homework?.filter(h => h.status === 'submitted').length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {data.homework.filter(h => h.status === 'submitted').map((hw) => {
+                      const needsGrading = !hw.is_graded;
+                      return (
+                        <div key={hw.id} className="p-4 hover:bg-slate-50/50 transition-colors flex items-center justify-between group">
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-1 p-1.5 rounded ${needsGrading ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-medium text-slate-900">{hw.title}</h4>
+                                {needsGrading && (
+                                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-blue-50 text-blue-600 border-none">Needs Grading</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                  <History className="h-3 w-3" />
+                                  Submitted: {hw.submitted_at ? new Date(hw.submitted_at).toLocaleDateString() : 'Unknown'}
+                                </span>
+                                {hw.is_graded ? (
+                                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-emerald-50 text-emerald-700 border-none">Graded</Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-slate-100 text-slate-500 border-none">Reviewing</Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <div className={`text-sm font-bold ${needsGrading ? 'text-slate-400' : 'text-slate-900'}`}>
+                                {hw.is_graded ? `${hw.score} / ${hw.max_score}` : `-- / ${hw.max_score}`}
                               </div>
                               {hw.is_graded && hw.max_score > 0 && (
-                                <div className="text-[10px] text-slate-400">
+                                <div className="text-[10px] text-slate-400 font-medium">
                                   {Math.round((hw.score || 0) / hw.max_score * 100)}%
                                 </div>
                               )}
-                           </div>
+                            </div>
+                            {(isTeacher() || isCurator() || isAdmin()) && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 text-xs text-blue-600 hover:bg-white hover:text-blue-700 border-transparent hover:border-slate-200 shadow-none opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => navigate(isTeacher() ? `/homework/${hw.id}/grade` : `/homework/${hw.id}`)}
+                              >
+                                {isTeacher() ? (needsGrading ? 'Grade' : 'Review') : 'View Details'}
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
-                           <div className="flex items-center gap-1">
-                              <History className="h-3 w-3" />
-                              Submitted: {hw.submitted_at ? new Date(hw.submitted_at).toLocaleDateString() : 'Unknown'}
-                           </div>
-                           <Badge variant="secondary" className="text-[10px] px-2 py-0 h-4 bg-emerald-50 text-emerald-700 border-emerald-100">Submitted</Badge>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                      <p className="text-sm font-medium">No submissions yet.</p>
-                      <p className="text-xs">Once assignments are submitted, they will appear here.</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 text-slate-400">
+                    <p className="text-sm font-medium">No submissions yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </TabsContent>
 

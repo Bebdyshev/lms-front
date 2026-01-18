@@ -698,27 +698,6 @@ export default function AssignmentPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Teacher Actions Section */}
-      {(user?.role === 'teacher' || user?.role === 'admin') && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center space-x-2">
-              <Award className="w-5 h-5" />
-              <span>Teacher Actions</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button 
-              onClick={() => navigate(`/assignment/${id}/grade`)}
-              className="flex items-center space-x-2"
-            >
-              <Star className="w-4 h-4" />
-              <span>Grade Submissions</span>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
