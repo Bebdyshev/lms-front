@@ -7,7 +7,7 @@ import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 import apiClient from '../../services/api';
 import { toast } from '../Toast';
-import imageCompression from 'browser-image-compression';
+import { compressImage } from '../../utils/imageCompression';
 interface Task {
   id: string;
   task_type: 'course_unit' | 'file_task' | 'text_task' | 'link_task' | 'pdf_text_task';
@@ -243,44 +243,7 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
       // Check if it's an image and compress
       if (file.type.startsWith('image/')) {
         toast('Compressing image...', 'info');
-        console.log(`Original: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
-
-        try {
-          const options = {
-            maxSizeMB: 5,
-            maxWidthOrHeight: 1920,
-            useWebWorker: true,
-            initialQuality: 0.8
-          };
-          
-          const compressedFile = await imageCompression(file, options);
-          
-          // Calculate reduction
-          const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
-          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
-          const reductionPercent = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
-
-          console.group('🖼️ MultiTask Image Compression');
-          console.log(`Original: ${file.name} (${file.type})`);
-          console.log(`Initial Size: ${originalSizeMB} MB`);
-          console.log(`Compressed Size: ${compressedSizeMB} MB`);
-          console.log(`Reduction: ${reductionPercent}%`);
-          console.groupEnd();
-
-          if (compressedFile.size < file.size) {
-            // Use compressed file
-             const types = ['image/jpeg', 'image/png', 'image/webp'];
-             const type = types.includes(compressedFile.type) ? compressedFile.type : file.type;
-             fileToUpload = new File([compressedFile], file.name, { type });
-             toast(`Compressed: ${originalSizeMB}MB → ${compressedSizeMB}MB`, 'success');
-          } else {
-             console.log('⚠️ Compressed file is larger or same size. Keeping original.');
-             toast('Image used as is (already optimized)', 'info');
-          }
-        } catch (compError) {
-          console.error('Compression failed, using original:', compError);
-          toast('Compression failed, using original file', 'error');
-        }
+        fileToUpload = await compressImage(file);
       }
 
       console.log(`🚀 Uploading file: ${fileToUpload.name}, Size: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB`);

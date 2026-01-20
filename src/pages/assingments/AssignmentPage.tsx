@@ -21,7 +21,7 @@ import { Badge } from '../../components/ui/badge.tsx';
 import { Textarea } from '../../components/ui/textarea.tsx';
 import { Label } from '../../components/ui/label.tsx';
 import MultiTaskSubmission from '../../components/assignments/MultiTaskSubmission.tsx';
-import imageCompression from 'browser-image-compression';
+import { compressImage } from '../../utils/imageCompression';
 
 export default function AssignmentPage() {
   const { id } = useParams<{ id: string }>();
@@ -168,51 +168,8 @@ export default function AssignmentPage() {
         toast('Compressing image...', 'info');
         
         try {
-          const options = {
-            maxSizeMB: 5,
-            maxWidthOrHeight: 1920,
-            useWebWorker: true,
-            initialQuality: 0.8
-          };
-          
-          const compressedFile = await imageCompression(originalFile, options);
-          
-          // Calculate reduction
-          const originalSizeMB = (originalFile.size / 1024 / 1024).toFixed(2);
-          const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
-          const reductionPercent = ((1 - compressedFile.size / originalFile.size) * 100).toFixed(1);
-
-          console.group('🖼️ Image Compression Details');
-          console.log(`Original: ${originalFile.name} (${originalFile.type})`);
-          console.log(`Initial Size: ${originalSizeMB} MB`);
-          console.log(`Compressed Size: ${compressedSizeMB} MB`);
-          console.log(`Reduction: ${reductionPercent}%`);
-          console.groupEnd();
-          
-          // If valid compressed file, use it
-          // Note: browser-image-compression returns a generic 'Blob' with some File props missing sometimes, 
-          // or a File. Let's make sure it's usable.
-          // It usually returns a File object in recent versions or Blob.
-          
-          // If the compressed file is LARGER (rare but possible for tiny optimized images), use original
-          if (compressedFile.size >= originalFile.size) {
-             console.log('⚠️ Compressed file is larger or same size. Keeping original.');
-             setFile(originalFile);
-             toast('Image used as is (already optimized)', 'info');
-          } else {
-             console.log('✅ Using compressed file.');
-             // Create a new File from the Blob to wrap it properly if needed, mostly for name preservation
-             // usually compressedFile has name if it was a File
-             const types = ['image/jpeg', 'image/png', 'image/webp'];
-             const type = types.includes(compressedFile.type) ? compressedFile.type : originalFile.type;
-             setFile(new File([compressedFile], originalFile.name, { type }));
-             toast(`Compressed: ${originalSizeMB}MB → ${compressedSizeMB}MB`, 'success');
-          }
-          
-        } catch (error) {
-          console.error('Compression failed:', error);
-          toast('Compression failed, using original file', 'error');
-          setFile(originalFile);
+          const compressedFile = await compressImage(originalFile);
+          setFile(compressedFile);
         } finally {
           setIsCompressing(false);
         }
