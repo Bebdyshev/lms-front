@@ -16,7 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
-  FileText
+  FileText,
+  Unlock
 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 import { Badge } from '../components/ui/badge';
@@ -129,10 +130,21 @@ export default function CuratorDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <p className="text-gray-600 mt-1">
-          Here's an overview of your groups and students
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}!</h1>
+          <p className="text-gray-600 mt-1">
+            Here's an overview of your groups and students
+          </p>
+        </div>
+        <Button
+          onClick={() => navigate('/admin/manual-unlocks')}
+          variant="outline"
+          className="bg-white border-blue-200 text-blue-700 hover:bg-blue-50"
+        >
+          <Unlock className="w-4 h-4 mr-2" />
+          Manual Unlocks
+        </Button>
       </div>
 
       {/* Statistics Cards */}

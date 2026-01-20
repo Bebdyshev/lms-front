@@ -689,6 +689,31 @@ export interface LessonCompletion {
   time_spent_minutes: number;
 }
 
+export interface ManualLessonUnlock {
+  id: number;
+  lesson_id: number;
+  user_id?: number | null;
+  group_id?: number | null;
+  granted_by: number;
+  granted_at: string;
+  lesson_title?: string;
+  user_name?: string;
+  group_name?: string;
+  granter_name?: string;
+}
+
+export interface ManualLessonUnlockCreate {
+  lesson_id: number;
+  user_id?: number | null;
+  group_id?: number | null;
+  unlock_all_teacher_groups?: boolean;
+}
+
+export interface ManualLessonUnlockListResponse {
+  unlocks: ManualLessonUnlock[];
+  total: number;
+}
+
 // =============================================================================
 // DASHBOARD TYPES
 // =============================================================================

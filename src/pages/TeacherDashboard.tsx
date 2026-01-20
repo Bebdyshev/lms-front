@@ -14,7 +14,8 @@ import {
   Filter,
   Trash2,
   Download,
-  FileText
+  FileText,
+  Unlock
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -559,15 +560,27 @@ export default function TeacherDashboard() {
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
-        {user?.role === 'admin' && (
-          <Button
-            onClick={() => navigate('/teacher/courses')}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <BookOpen className="w-4 h-4 mr-2" />
-            Manage Courses
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {user?.role === 'admin' && (
+            <Button
+              onClick={() => navigate('/teacher/courses')}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              Manage Courses
+            </Button>
+          )}
+          {(user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'curator') && (
+            <Button
+              onClick={() => navigate('/admin/manual-unlocks')}
+              variant="outline"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50"
+            >
+              <Unlock className="w-4 h-4 mr-2" />
+              Manual Unlocks
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Key Stats - Simplified */}

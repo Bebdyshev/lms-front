@@ -11,7 +11,8 @@ import {
   UserPlus,
   Shield,
   Activity,
-  BarChart3
+  BarChart3,
+  Unlock
 } from 'lucide-react';
 import Loader from '../../components/Loader';
 import { Button } from '../../components/ui/button';
@@ -293,6 +294,17 @@ export default function AdminDashboard() {
             <div className="text-left">
               <p className="font-medium">View Courses</p>
               <p className="text-sm text-gray-500">Monitor course activity</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/manual-unlocks')}
+            className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Unlock className="w-5 h-5 text-indigo-600" />
+            <div className="text-left">
+              <p className="font-medium">Manual Unlocks</p>
+              <p className="text-sm text-gray-500">Override course progression</p>
             </div>
           </button>
 

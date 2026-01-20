@@ -24,7 +24,10 @@ import type {
   CreateEventRequest,
   UpdateEventRequest,
   EventType,
-  StudentProgress
+  StudentProgress,
+  ManualLessonUnlock,
+  ManualLessonUnlockCreate,
+  ManualLessonUnlockListResponse
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -2883,6 +2886,44 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // MANUAL UNLOCKS
+  // =============================================================================
+
+  async manualUnlockLesson(data: ManualLessonUnlockCreate): Promise<any> {
+    try {
+      const response = await this.api.post('/progress/manual-unlock', data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to manually unlock lesson:', error);
+      throw error;
+    }
+  }
+
+  async manualLockLesson(data: ManualLessonUnlockCreate): Promise<any> {
+    try {
+      const response = await this.api.post('/progress/manual-lock', data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to manually lock lesson:', error);
+      throw error;
+    }
+  }
+
+  async getManualUnlocks(params: { 
+    lesson_id?: number; 
+    user_id?: number; 
+    group_id?: number; 
+  }): Promise<ManualLessonUnlockListResponse> {
+    try {
+      const response = await this.api.get('/progress/manual-unlocks', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch manual unlocks:', error);
+      throw error;
+    }
+  }
+
 }
 
 // =============================================================================
@@ -3034,6 +3075,11 @@ export const exportAllStudentsReport = apiClient.exportAllStudentsReport.bind(ap
 export const exportAnalyticsExcel = apiClient.exportAnalyticsExcel.bind(apiClient);
 export const getStudentDetailedProgress = apiClient.getStudentDetailedProgress.bind(apiClient);
 export const getStudentLearningPath = apiClient.getStudentLearningPath.bind(apiClient);
+
+// Manual Unlocks
+export const manualUnlockLesson = apiClient.manualUnlockLesson.bind(apiClient);
+export const manualLockLesson = apiClient.manualLockLesson.bind(apiClient);
+export const getManualUnlocks = apiClient.getManualUnlocks.bind(apiClient);
 
 // Favorite Flashcards
 export const addFavoriteFlashcard = apiClient.addFavoriteFlashcard.bind(apiClient);
