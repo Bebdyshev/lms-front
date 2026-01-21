@@ -7,7 +7,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
-import { Trophy, ChevronLeft, ChevronRight, Loader2, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Save } from 'lucide-react';
 import apiClient, { getCuratorGroups } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -23,10 +23,6 @@ interface LeaderboardEntry {
   hw_lesson_2: number | null;
   lesson_3: number;
   hw_lesson_3: number | null;
-  lesson_4: number;
-  hw_lesson_4: number | null;
-  lesson_5: number;
-  hw_lesson_5: number | null;
   curator_hour: number;
   mock_exam: number;
   study_buddy: number;
@@ -52,16 +48,12 @@ const MAX_SCORES = {
     extra_points: 0,
 };
 
-const ATTENDANCE_FIELDS = ['lesson_1', 'lesson_2', 'lesson_3', 'lesson_4', 'lesson_5', 'study_buddy'] as const;
 
-const WEEK_TOTAL_MAX = 
-    (MAX_SCORES.lesson * 5) + 
-    (MAX_SCORES.hw * 5) + 
-    MAX_SCORES.curator_hour + 
-    MAX_SCORES.mock_exam + 
-    MAX_SCORES.study_buddy + 
-    MAX_SCORES.self_reflection_journal + 
-    MAX_SCORES.weekly_evaluation;
+
+const getBaseTotalMax = () => 
+    (MAX_SCORES.lesson * 3) + 
+    (MAX_SCORES.hw * 3) + 
+    MAX_SCORES.mock_exam; // Lessons and Mock Exam are core
 
 const getOptions = (max: number) => Array.from({ length: max + 1 }, (_, i) => i);
 
@@ -71,11 +63,18 @@ export default function CuratorLeaderboardPage() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   
-  // Data states
+  // UI states
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<LeaderboardEntry[]>([]);
   const [changedEntries, setChangedEntries] = useState<Set<number>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [enabledCols, setEnabledCols] = useState({
+      curator_hour: true,
+      study_buddy: true,
+      self_reflection_journal: true,
+      weekly_evaluation: true,
+      extra_points: true
+  });
 
   useEffect(() => {
     const loadGroups = async () => {
@@ -115,22 +114,36 @@ export default function CuratorLeaderboardPage() {
 
   const calculateTotal = (entry: LeaderboardEntry) => {
     const hwScores = [
-        entry.hw_lesson_1, entry.hw_lesson_2, entry.hw_lesson_3, 
-        entry.hw_lesson_4, entry.hw_lesson_5
+        entry.hw_lesson_1, entry.hw_lesson_2, entry.hw_lesson_3
     ];
     const hwTotal = hwScores.reduce((acc, val) => (acc || 0) + (val || 0), 0) || 0;
     const lessonsTotal = 
-        entry.lesson_1 + entry.lesson_2 + entry.lesson_3 + entry.lesson_4 + entry.lesson_5;
-    const manualTotal = 
-        entry.curator_hour + entry.mock_exam + entry.study_buddy + 
-        entry.self_reflection_journal + entry.weekly_evaluation + entry.extra_points;
+        entry.lesson_1 + entry.lesson_2 + entry.lesson_3;
+    
+    // Core (non-optional in this logic)
+    const mockExam = entry.mock_exam;
+    
+    // Optional
+    const curatorHour = enabledCols.curator_hour ? entry.curator_hour : 0;
+    const studyBuddy = enabledCols.study_buddy ? entry.study_buddy : 0;
+    const journal = enabledCols.self_reflection_journal ? entry.self_reflection_journal : 0;
+    const weeklyEval = enabledCols.weekly_evaluation ? entry.weekly_evaluation : 0;
+    const extraPoints = enabledCols.extra_points ? entry.extra_points : 0;
         
-    return hwTotal + lessonsTotal + manualTotal;
+    return hwTotal + lessonsTotal + mockExam + curatorHour + studyBuddy + journal + weeklyEval + extraPoints;
   };
   
   const calculatePercent = (entry: LeaderboardEntry) => {
       const total = calculateTotal(entry);
-      return Math.round((total / WEEK_TOTAL_MAX) * 100); 
+      
+      let maxForWeek = getBaseTotalMax();
+      if (enabledCols.curator_hour) maxForWeek += MAX_SCORES.curator_hour;
+      if (enabledCols.study_buddy) maxForWeek += MAX_SCORES.study_buddy;
+      if (enabledCols.self_reflection_journal) maxForWeek += MAX_SCORES.self_reflection_journal;
+      if (enabledCols.weekly_evaluation) maxForWeek += MAX_SCORES.weekly_evaluation;
+      // extra_points NOT added to maxForWeek
+      
+      return Math.round((total / maxForWeek) * 100); 
   };
 
   const getPercentColor = (percent: number) => {
@@ -167,8 +180,6 @@ export default function CuratorLeaderboardPage() {
                 lesson_1: entry.lesson_1,
                 lesson_2: entry.lesson_2,
                 lesson_3: entry.lesson_3,
-                lesson_4: entry.lesson_4,
-                lesson_5: entry.lesson_5,
                 curator_hour: entry.curator_hour,
                 mock_exam: entry.mock_exam,
                 study_buddy: entry.study_buddy,
@@ -261,6 +272,32 @@ export default function CuratorLeaderboardPage() {
     );
   };
 
+  const ColumnToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: () => void }) => (
+    <div 
+      className="flex flex-col items-center mb-2.5 group cursor-pointer"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+    >
+      <div 
+        className={cn(
+          "w-9 h-5 rounded-full transition-all duration-300 ease-in-out relative flex items-center px-1 shadow-inner",
+          enabled 
+            ? "bg-blue-600 ring-2 ring-blue-100" 
+            : "bg-slate-200 ring-2 ring-transparent"
+        )}
+      >
+        <div 
+          className={cn(
+            "w-3.5 h-3.5 bg-white rounded-full transition-all duration-300 ease-in-out shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
+            enabled ? "translate-x-3.5" : "translate-x-0"
+          )} 
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-4 w-full h-full bg-white space-y-4">
       {/* Header Controls */}
@@ -336,7 +373,7 @@ export default function CuratorLeaderboardPage() {
                     <TableHeader className="bg-gray-100 sticky top-0 z-30">
                         <TableRow className="h-auto border-b border-gray-300 hover:bg-gray-100">
                              <TableHead className="w-48 sticky left-0 z-40 bg-gray-100 p-2 border-r border-gray-300"><Skeleton className="h-4 w-20 bg-gray-200" /></TableHead>
-                             {[1, 2, 3, 4, 5].map(i => (
+                             {[1, 2, 3].map(i => (
                                 <TableHead key={i} className="p-0 border-r border-gray-300 h-12 min-w-[100px] align-middle bg-gray-100">
                                    <div className="p-1 flex justify-center"><Skeleton className="h-3 w-12 bg-gray-200" /></div>
                                 </TableHead>
@@ -385,7 +422,7 @@ export default function CuratorLeaderboardPage() {
                         Student
                     </TableHead>
                     {/* Lesson & Homework Columns */}
-                    {[1, 2, 3, 4, 5].map(i => (
+                    {[1, 2, 3].map(i => (
                         <TableHead key={`lesson-${i}`} className="p-0 text-center border-r border-gray-300 h-auto min-w-[100px] align-top bg-gray-100">
                             <div className="flex flex-col h-full">
                                 <div className="py-1 border-b border-gray-300 font-semibold text-gray-700 bg-gray-200/50">
@@ -402,13 +439,27 @@ export default function CuratorLeaderboardPage() {
                             </div>
                         </TableHead>
                     ))}
-                    {/* Manual Columns */}
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Curator<br/>Hour</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
+                        <ColumnToggle enabled={enabledCols.curator_hour} onToggle={() => setEnabledCols(p => ({...p, curator_hour: !p.curator_hour}))} />
+                        Curator<br/>Hour
+                    </TableHead>
                     <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Mock<br/>Exam</TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Study<br/>Buddy</TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Journal</TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Weekly<br/>Eval</TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Extra</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
+                        <ColumnToggle enabled={enabledCols.study_buddy} onToggle={() => setEnabledCols(p => ({...p, study_buddy: !p.study_buddy}))} />
+                        Study<br/>Buddy
+                    </TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
+                        <ColumnToggle enabled={enabledCols.self_reflection_journal} onToggle={() => setEnabledCols(p => ({...p, self_reflection_journal: !p.self_reflection_journal}))} />
+                        Journal
+                    </TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
+                        <ColumnToggle enabled={enabledCols.weekly_evaluation} onToggle={() => setEnabledCols(p => ({...p, weekly_evaluation: !p.weekly_evaluation}))} />
+                        Weekly<br/>Eval
+                    </TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
+                        <ColumnToggle enabled={enabledCols.extra_points} onToggle={() => setEnabledCols(p => ({...p, extra_points: !p.extra_points}))} />
+                        Extra
+                    </TableHead>
                     
                     <TableHead className="text-center font-bold p-2 w-16 text-gray-800 bg-gray-100 border-r border-gray-300 align-middle">Total</TableHead>
                     <TableHead className="text-center font-bold p-2 w-16 sticky right-0 z-40 bg-gray-100 align-middle shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">%</TableHead>
@@ -426,7 +477,7 @@ export default function CuratorLeaderboardPage() {
                             </div>
                         </TableCell>
                         
-                        {[1, 2, 3, 4, 5].map(i => {
+                        {[1, 2, 3].map(i => {
                             const lessonKey = `lesson_${i}` as keyof LeaderboardEntry;
                             const hwKey = `hw_lesson_${i}` as keyof LeaderboardEntry;
                             const hwScore = student[hwKey] as number | null;
@@ -454,18 +505,24 @@ export default function CuratorLeaderboardPage() {
                             );
                         })}
 
-                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleScoreChange(student.student_id, 'curator_hour', v)} /></TableCell>
+                        <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.curator_hour && "bg-gray-100 opacity-50 pointer-events-none")}>
+                            <ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleScoreChange(student.student_id, 'curator_hour', v)} />
+                        </TableCell>
                         <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
-                        <TableCell className="p-0 border-r border-gray-300">
+                        <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.study_buddy && "bg-gray-100 opacity-50 pointer-events-none")}>
                             <AttendanceToggle 
                                 value={student.study_buddy} 
                                 maxScore={MAX_SCORES.study_buddy}
                                 onChange={(v) => handleScoreChange(student.student_id, 'study_buddy', v)} 
                             />
                         </TableCell>
-                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.self_reflection_journal} max={MAX_SCORES.self_reflection_journal} onChange={(v) => handleScoreChange(student.student_id, 'self_reflection_journal', v)} /></TableCell>
-                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.weekly_evaluation} max={MAX_SCORES.weekly_evaluation} onChange={(v) => handleScoreChange(student.student_id, 'weekly_evaluation', v)} /></TableCell>
-                        <TableCell className="p-0 border-r border-gray-300">
+                        <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.self_reflection_journal && "bg-gray-100 opacity-50 pointer-events-none")}>
+                            <ScoreSelect value={student.self_reflection_journal} max={MAX_SCORES.self_reflection_journal} onChange={(v) => handleScoreChange(student.student_id, 'self_reflection_journal', v)} />
+                        </TableCell>
+                        <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.weekly_evaluation && "bg-gray-100 opacity-50 pointer-events-none")}>
+                            <ScoreSelect value={student.weekly_evaluation} max={MAX_SCORES.weekly_evaluation} onChange={(v) => handleScoreChange(student.student_id, 'weekly_evaluation', v)} />
+                        </TableCell>
+                        <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.extra_points && "bg-gray-100 opacity-50 pointer-events-none")}>
                             <ScoreSelect value={student.extra_points} max={10} onChange={(v) => handleScoreChange(student.student_id, 'extra_points', v)} />
                         </TableCell>
 
