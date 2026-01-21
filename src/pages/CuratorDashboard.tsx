@@ -6,13 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { 
   Users, 
-  GraduationCap, 
   BarChart3, 
-  Calendar, 
-  ClipboardCheck, 
-  Clock, 
-  CheckCircle,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Activity,
@@ -21,7 +15,6 @@ import {
 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 
 export default function CuratorDashboard() {
@@ -32,11 +25,8 @@ export default function CuratorDashboard() {
   
   // Data state
   const [studentsProgress, setStudentsProgress] = useState<any[]>([]);
-  const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([]);
-  const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
   
   // UI state
-  const [activeTab, setActiveTab] = useState('pending');
   const [studentPage, setStudentPage] = useState(1);
   const studentsPerPage = 10;
 
@@ -49,20 +39,14 @@ export default function CuratorDashboard() {
       setLoading(true);
       const [
         dashboardStats, 
-        progressData, 
-        pendingData, 
-        recentData
+        progressData
       ] = await Promise.all([
         apiClient.getDashboardStats(),
-        apiClient.getCuratorStudentsProgress(),
-        apiClient.getCuratorPendingSubmissions(),
-        apiClient.getCuratorRecentSubmissions(20)
+        apiClient.getCuratorStudentsProgress()
       ]);
       
       setStats((dashboardStats as any).stats || dashboardStats || {});
       setStudentsProgress(progressData);
-      setPendingSubmissions(pendingData);
-      setRecentSubmissions(recentData);
     } catch (error) {
       console.error('Failed to load curator dashboard:', error);
     } finally {
@@ -70,35 +54,6 @@ export default function CuratorDashboard() {
     }
   };
 
-  // Process submissions for unified table
-  const unifiedSubmissions = useMemo(() => {
-    const all = [
-      ...pendingSubmissions.map(s => ({ ...s, type: 'assignment', is_graded: false })),
-      ...recentSubmissions.map(s => ({ ...s, type: 'assignment', is_graded: true }))
-    ];
-
-    // Remove duplicates if any
-    const seen = new Set();
-    const unique = all.filter(item => {
-      const key = `${item.type}-${item.id}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    // Sort by date desc
-    return unique.sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
-  }, [pendingSubmissions, recentSubmissions]);
-
-  const filteredSubmissions = useMemo(() => {
-    if (activeTab === 'pending') {
-      return unifiedSubmissions.filter(s => !s.is_graded);
-    }
-    if (activeTab === 'graded') {
-      return unifiedSubmissions.filter(s => s.is_graded);
-    }
-    return unifiedSubmissions;
-  }, [unifiedSubmissions, activeTab]);
 
   // Pagination for students
   const totalStudentPages = Math.ceil(studentsProgress.length / studentsPerPage);
@@ -106,10 +61,6 @@ export default function CuratorDashboard() {
     const start = (studentPage - 1) * studentsPerPage;
     return studentsProgress.slice(start, start + studentsPerPage);
   }, [studentsProgress, studentPage]);
-
-  const handleGradeSubmission = (assignmentId: string) => {
-    navigate(`/assignments/${assignmentId}/grade`);
-  };
 
   if (loading) {
     return (
@@ -137,65 +88,6 @@ export default function CuratorDashboard() {
             Here's an overview of your groups and students
           </p>
         </div>
-        <Button
-          onClick={() => navigate('/admin/manual-unlocks')}
-          variant="outline"
-          className="bg-white border-blue-200 text-blue-700 hover:bg-blue-50"
-        >
-          <Unlock className="w-4 h-4 mr-2" />
-          Manual Unlocks
-        </Button>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="dashboard-overview">
-        <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <Users className="w-8 h-8 text-blue-600 mr-3" />
-              <div>
-                <div className="text-sm text-gray-600">Total Students</div>
-                <div className="text-2xl font-bold">{stats?.total_students || studentsProgress.length || 0}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <GraduationCap className="w-8 h-8 text-green-600 mr-3" />
-              <div>
-                <div className="text-sm text-gray-600">My Groups</div>
-                <div className="text-2xl font-bold">{stats?.total_groups || 0}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <BarChart3 className="w-8 h-8 text-purple-600 mr-3" />
-              <div>
-                <div className="text-sm text-gray-600">Avg Progress</div>
-                <div className="text-2xl font-bold">{stats?.average_student_progress || 0}%</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <ClipboardCheck className="w-8 h-8 text-orange-600 mr-3" />
-              <div>
-                <div className="text-sm text-gray-600">Pending Reviews</div>
-                <div className="text-2xl font-bold">{pendingSubmissions.length}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -207,8 +99,18 @@ export default function CuratorDashboard() {
             <CardHeader className="px-6 py-4 border-b border-gray-100 bg-white rounded-t-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="text-lg font-bold text-gray-900">Student Progress</CardTitle>
-                  <p className="text-sm text-gray-500">Overview of student performance across courses</p>
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-lg font-bold text-gray-900">Student Progress</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50">
+                        {stats?.total_students || studentsProgress.length || 0} Students
+                      </Badge>
+                      <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-100 hover:bg-green-50">
+                        {stats?.total_groups || 0} Groups
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">Overview of student performance across active courses</p>
                 </div>
               </div>
             </CardHeader>

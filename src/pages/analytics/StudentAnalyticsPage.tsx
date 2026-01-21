@@ -148,15 +148,20 @@ export const StudentAnalyticsPage: React.FC = () => {
             const processed = satResponse.testResults
                 .sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()) // Desk sorted for table (Newest first)
                 .map((t: any) => {
-                    // Calculate Math/Verbal breakdown
-                    const mathQuestions = t.questions?.filter((q: any) => q.questionType === 'Math') || [];
-                    const verbalQuestions = t.questions?.filter((q: any) => q.questionType === 'Verbal') || [];
+                    // Use backend-calculated percentages if available, otherwise calculate from questions
+                    let mathPerc = t.math_pct;
+                    let verbalPerc = t.verbal_pct;
                     
-                    const mathCorrect = mathQuestions.filter((q: any) => q.isCorrect).length;
-                    const verbalCorrect = verbalQuestions.filter((q: any) => q.isCorrect).length;
-                    
-                    const mathPerc = mathQuestions.length > 0 ? (mathCorrect / mathQuestions.length) * 100 : 0;
-                    const verbalPerc = verbalQuestions.length > 0 ? (verbalCorrect / verbalQuestions.length) * 100 : 0;
+                    if (mathPerc === undefined || verbalPerc === undefined) {
+                        const mathQuestions = t.questions?.filter((q: any) => q.questionType === 'Math') || [];
+                        const verbalQuestions = t.questions?.filter((q: any) => q.questionType === 'Verbal') || [];
+                        
+                        const mathCorrect = mathQuestions.filter((q: any) => q.isCorrect).length;
+                        const verbalCorrect = verbalQuestions.filter((q: any) => q.isCorrect).length;
+                        
+                        mathPerc = mathQuestions.length > 0 ? (mathCorrect / mathQuestions.length) * 100 : 0;
+                        verbalPerc = verbalQuestions.length > 0 ? (verbalCorrect / verbalQuestions.length) * 100 : 0;
+                    }
                     
                     return {
                         date: new Date(t.completedAt).toLocaleDateString(),
@@ -165,6 +170,10 @@ export const StudentAnalyticsPage: React.FC = () => {
                         percentage: t.percentage,
                         mathPercentage: Math.round(mathPerc),
                         verbalPercentage: Math.round(verbalPerc),
+                        mathScore: t.math_score,
+                        mathTotal: t.math_total,
+                        verbalScore: t.verbal_score,
+                        verbalTotal: t.verbal_total,
                         testName: t.testName,
                         fullDate: new Date(t.completedAt).toLocaleString()
                     };
@@ -426,14 +435,42 @@ export const StudentAnalyticsPage: React.FC = () => {
                           <YAxis domain={[0, 100]} hide />
                           <RechartsTooltip 
                             contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                            formatter={(value: any) => [`${value}%`]}
+                            formatter={(value: any, name: string) => {
+                                const labels: Record<string, string> = {
+                                    percentage: 'Total',
+                                    mathPercentage: 'Math',
+                                    verbalPercentage: 'Verbal'
+                                };
+                                return [`${value}%`, labels[name] || name];
+                            }}
                           />
                           <Line 
                             type="monotone" 
                             dataKey="percentage" 
                             stroke="#2563eb" 
                             strokeWidth={3}
-                            dot={{ r: 3, fill: "#2563eb" }}
+                            dot={{ r: 4, fill: "#2563eb", strokeWidth: 2, stroke: "#fff" }}
+                            name="percentage"
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="mathPercentage" 
+                            stroke="#ef4444" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            dot={{ r: 3, fill: "#ef4444" }}
+                            name="mathPercentage"
+                            connectNulls
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="verbalPercentage" 
+                            stroke="#10b981" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            dot={{ r: 3, fill: "#10b981" }}
+                            name="verbalPercentage"
+                            connectNulls
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -444,18 +481,39 @@ export const StudentAnalyticsPage: React.FC = () => {
                         <TableHeader>
                           <TableRow className="bg-slate-50/50">
                             <TableHead className="text-[10px] uppercase font-bold py-2">Test</TableHead>
+                            <TableHead className="text-center text-[10px] uppercase font-bold py-2">Math</TableHead>
+                            <TableHead className="text-center text-[10px] uppercase font-bold py-2">Verbal</TableHead>
                             <TableHead className="text-center text-[10px] uppercase font-bold py-2">Total</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {satData.slice(0, 5).map((test, idx) => (
+                          {satData.slice(0, 10).map((test, idx) => (
                             <TableRow key={idx} className="hover:bg-slate-50/50">
                               <TableCell className="py-2">
-                                <p className="text-xs font-medium truncate max-w-[120px]">{test.testName}</p>
+                                <p className="text-xs font-medium truncate max-w-[150px]" title={test.testName}>{test.testName}</p>
                                 <p className="text-[10px] text-slate-400">{test.date}</p>
                               </TableCell>
                               <TableCell className="text-center py-2">
-                                <span className="text-xs font-bold text-blue-600">{test.percentage}%</span>
+                                {test.mathPercentage > 0 ? (
+                                  <span className="text-xs font-semibold text-slate-700">{test.mathPercentage}%</span>
+                                ) : (
+                                  <span className="text-xs text-slate-300">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center py-2">
+                                {test.verbalPercentage > 0 ? (
+                                  <span className="text-xs font-semibold text-slate-700">{test.verbalPercentage}%</span>
+                                ) : (
+                                  <span className="text-xs text-slate-300">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center py-2">
+                                <div className="flex flex-col items-center">
+                                  <span className="text-xs font-bold text-blue-600">{test.percentage}%</span>
+                                  {test.score > 0 && (
+                                    <span className="text-[9px] text-slate-400 font-medium">{test.score} / 1600</span>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
