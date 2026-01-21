@@ -480,38 +480,38 @@ export const StudentAnalyticsPage: React.FC = () => {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-slate-50/50">
-                            <TableHead className="text-[10px] uppercase font-bold py-2">Test</TableHead>
-                            <TableHead className="text-center text-[10px] uppercase font-bold py-2">Math</TableHead>
-                            <TableHead className="text-center text-[10px] uppercase font-bold py-2">Verbal</TableHead>
-                            <TableHead className="text-center text-[10px] uppercase font-bold py-2">Total</TableHead>
+                            <TableHead className="text-[10px] uppercase font-bold py-2 px-2">TEST</TableHead>
+                            <TableHead className="text-center text-[10px] uppercase font-bold py-2 px-1">MATH</TableHead>
+                            <TableHead className="text-center text-[10px] uppercase font-bold py-2 px-1">VERBAL</TableHead>
+                            <TableHead className="text-center text-[10px] uppercase font-bold py-2 px-2">TOTAL</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {satData.slice(0, 10).map((test, idx) => (
                             <TableRow key={idx} className="hover:bg-slate-50/50">
-                              <TableCell className="py-2">
-                                <p className="text-xs font-medium truncate max-w-[150px]" title={test.testName}>{test.testName}</p>
-                                <p className="text-[10px] text-slate-400">{test.date}</p>
+                              <TableCell className="py-2 px-2">
+                                <p className="text-[11px] font-medium truncate max-w-[80px]" title={test.testName}>{test.testName}</p>
+                                <p className="text-[9px] text-slate-400">{test.date}</p>
                               </TableCell>
-                              <TableCell className="text-center py-2">
+                              <TableCell className="text-center py-2 px-1">
                                 {test.mathPercentage > 0 ? (
-                                  <span className="text-xs font-semibold text-slate-700">{test.mathPercentage}%</span>
+                                  <span className="text-[11px] font-semibold text-slate-700">{test.mathPercentage}%</span>
                                 ) : (
-                                  <span className="text-xs text-slate-300">-</span>
+                                  <span className="text-[11px] text-slate-300">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-center py-2">
+                              <TableCell className="text-center py-2 px-1">
                                 {test.verbalPercentage > 0 ? (
-                                  <span className="text-xs font-semibold text-slate-700">{test.verbalPercentage}%</span>
+                                  <span className="text-[11px] font-semibold text-slate-700">{test.verbalPercentage}%</span>
                                 ) : (
-                                  <span className="text-xs text-slate-300">-</span>
+                                  <span className="text-[11px] text-slate-300">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-center py-2">
-                                <div className="flex flex-col items-center">
-                                  <span className="text-xs font-bold text-blue-600">{test.percentage}%</span>
+                              <TableCell className="text-center py-2 px-2">
+                                <div className="flex flex-col items-center leading-tight">
+                                  <span className="text-[11px] font-bold text-blue-600">{test.percentage}%</span>
                                   {test.score > 0 && (
-                                    <span className="text-[9px] text-slate-400 font-medium">{test.score} / 1600</span>
+                                    <span className="text-[8px] text-slate-400 font-medium">{test.score}</span>
                                   )}
                                 </div>
                               </TableCell>
