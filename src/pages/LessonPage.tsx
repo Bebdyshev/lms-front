@@ -107,6 +107,29 @@ const deserializeQuizAnswers = (data: [string, any][]): Map<string, any> => {
   return map;
 };
 
+// Compute a simple hash of quiz content to detect changes
+// Uses Web Crypto API for SHA-256 hashing
+const computeQuizContentHash = async (quizJson: string): Promise<string> => {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(quizJson);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  } catch (e) {
+    // Fallback for environments without Web Crypto API
+    console.warn('Web Crypto API not available, using simple hash');
+    let hash = 0;
+    for (let i = 0; i < quizJson.length; i++) {
+      const char = quizJson.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(16).padStart(8, '0');
+  }
+};
+
 interface LessonSidebarProps {
   course: Course | null;
   modules: CourseModule[];
@@ -725,56 +748,34 @@ export default function LessonPage() {
             }
           });
 
-          // Check localStorage for in-progress attempt FIRST
-          // If we have local progress, we prefer it over the backend "completed" state
-          // This handles the "Retake" scenario where we want to continue editing
-          let hasLocalProgress = false;
+          // Compute current quiz content hash for version comparison
+          const currentContentHash = await computeQuizContentHash(currentStep.content_text || '{}');
+          
+          // SERVER-FIRST APPROACH: Check server for existing attempts first
+          // localStorage is only used as fallback if server has no data
+          let serverAttemptRestored = false;
+          
           try {
-            const localQuizAnswers = localStorage.getItem(`quiz_answers_${currentStep.id}`);
-            const localGapAnswers = localStorage.getItem(`gap_answers_${currentStep.id}`);
+            const attempts = await apiClient.getStepQuizAttempts(currentStep.id);
 
-            if (localQuizAnswers || localGapAnswers) {
-              console.log('Restoring from localStorage');
-              hasLocalProgress = true;
+            if (!isMounted) return;
+
+            if (attempts && attempts.length > 0) {
+              const lastAttempt = attempts[0]; // Get the most recent attempt
+              console.log('Found server quiz attempt:', lastAttempt);
               
-              if (localQuizAnswers) {
-                setQuizAnswers(deserializeQuizAnswers(JSON.parse(localQuizAnswers)));
-              }
-              if (localGapAnswers) {
-                setGapAnswers(new Map(JSON.parse(localGapAnswers)));
-              }
-              
-              // If we have local progress, we are NOT in 'completed' state
-              const displayMode = parsedQuizData.display_mode || 'one_by_one';
-              if (displayMode === 'all_at_once') {
-                setQuizState('feed');
+              // Check if quiz content has changed since this attempt
+              const attemptHash = lastAttempt.quiz_content_hash;
+              if (attemptHash && attemptHash !== currentContentHash) {
+                console.warn('⚠️ Quiz content changed since last attempt - invalidating old answers');
+                // Don't restore old answers, clear localStorage too
+                localStorage.removeItem(`quiz_answers_${currentStep.id}`);
+                localStorage.removeItem(`gap_answers_${currentStep.id}`);
+                // Continue with fresh state
               } else {
-                setQuizState('title');
-              }
-              
-              setIsQuizReady(true);
-            } else {
-              // Default initialization if no previous attempt found
-              setGapAnswers(init);
-              setQuizAnswers(new Map());
-            }
-          } catch (e) {
-            console.error('Failed to restore from localStorage:', e);
-            setGapAnswers(init);
-            setQuizAnswers(new Map());
-          }
-
-          // Only check for backend attempts if we didn't find local progress
-          if (!hasLocalProgress) {
-            try {
-              const attempts = await apiClient.getStepQuizAttempts(currentStep.id);
-
-              if (!isMounted) return;
-
-              if (attempts && attempts.length > 0) {
-                const lastAttempt = attempts[0]; // Get the most recent attempt
-                console.log('Restoring quiz attempt:', lastAttempt);
+                // Quiz unchanged or no hash (legacy attempt), restore answers
                 setQuizAttempt(lastAttempt);
+                serverAttemptRestored = true;
 
                 // Restore answers
                 if (lastAttempt.answers) {
@@ -785,7 +786,6 @@ export default function LessonPage() {
                     // Handle both Map-like array [[key, val], ...] and object {key: val} formats
                     let answersMap: Map<string, any>;
                     if (Array.isArray(savedAnswers)) {
-                      // Use deserialize to handle nested Maps (for matching questions)
                       answersMap = deserializeQuizAnswers(savedAnswers);
                     } else {
                       answersMap = new Map(Object.entries(savedAnswers)) as Map<string, any>;
@@ -826,58 +826,62 @@ export default function LessonPage() {
                     setQuizState('question');
                   }
                   setQuizStartTime(Date.now() - (lastAttempt.time_spent_seconds || 0) * 1000);
-
-                  // Handle direct question navigation from search params even if draft exists
-                  const questionIdParam = searchParams.get('questionId');
-                  if (questionIdParam && (parsedQuizData.questions || []).length > 0) {
-                    const qIndex = (parsedQuizData.questions || []).findIndex((q: any) => q.id.toString() === questionIdParam);
-                    if (qIndex !== -1) {
-                      const displayMode = parsedQuizData.display_mode || 'one_by_one';
-                      if (displayMode === 'all_at_once') {
-                        setQuizState('feed');
-                      } else {
-                        setCurrentQuestionIndex(qIndex);
-                        setQuizState('question');
-                      }
-                      setQuizStartTime(Date.now());
-                      setIsQuizReady(true);
-                      return;
-                    }
-                  }
                 } else {
                   // Completed attempt - show completed state
                   setQuizState('completed');
-
-                  // Mark as completed if passed
                   const passed = lastAttempt.score_percentage >= 50;
                   setQuizCompleted(prev => new Map(prev.set(currentStep.id.toString(), passed)));
-
-                  // Handle direct question navigation from search params even if quiz is completed
-                  const questionIdParam = searchParams.get('questionId');
-                  if (questionIdParam && (parsedQuizData.questions || []).length > 0) {
-                    const qIndex = (parsedQuizData.questions || []).findIndex((q: any) => q.id.toString() === questionIdParam);
-                    if (qIndex !== -1) {
-                      const displayMode = parsedQuizData.display_mode || 'one_by_one';
-                      if (displayMode === 'all_at_once') {
-                        setQuizState('feed');
-                      } else {
-                        setCurrentQuestionIndex(qIndex);
-                        setQuizState('question');
-                      }
-                      setQuizStartTime(Date.now());
-                      setIsQuizReady(true);
-                      return;
-                    }
-                  }
                 }
-
-                setIsQuizReady(true); // Ready!
-                return; // Skip default initialization if restored
+                
+                // Clear localStorage since server is source of truth
+                localStorage.removeItem(`quiz_answers_${currentStep.id}`);
+                localStorage.removeItem(`gap_answers_${currentStep.id}`);
+                
+                setIsQuizReady(true);
+                return; // Skip default initialization
               }
-            } catch (err) {
-              console.error('Failed to load quiz attempts:', err);
+            }
+          } catch (err) {
+            console.error('Failed to load quiz attempts from server:', err);
+          }
+
+          // FALLBACK: Check localStorage if server had no data
+          if (!serverAttemptRestored) {
+            try {
+              const localQuizAnswers = localStorage.getItem(`quiz_answers_${currentStep.id}`);
+              const localGapAnswers = localStorage.getItem(`gap_answers_${currentStep.id}`);
+
+              if (localQuizAnswers || localGapAnswers) {
+                console.log('Restoring from localStorage (server had no data)');
+                
+                if (localQuizAnswers) {
+                  setQuizAnswers(deserializeQuizAnswers(JSON.parse(localQuizAnswers)));
+                }
+                if (localGapAnswers) {
+                  setGapAnswers(new Map(JSON.parse(localGapAnswers)));
+                }
+                
+                const displayMode = parsedQuizData.display_mode || 'one_by_one';
+                if (displayMode === 'all_at_once') {
+                  setQuizState('feed');
+                } else {
+                  setQuizState('title');
+                }
+                
+                setIsQuizReady(true);
+                return;
+              } else {
+                // No data anywhere, use defaults
+                setGapAnswers(init);
+                setQuizAnswers(new Map());
+              }
+            } catch (e) {
+              console.error('Failed to restore from localStorage:', e);
+              setGapAnswers(init);
+              setQuizAnswers(new Map());
             }
           }
+
 
           if (!isMounted) return;
 
@@ -979,8 +983,13 @@ export default function LessonPage() {
           });
           console.log('Quiz draft updated on server');
         } else if (!quizAttempt) {
-          // Create new draft
-          const savedAttempt = await apiClient.saveQuizAttempt(attemptData);
+          // Create new draft with content hash for version tracking
+          const contentHash = await computeQuizContentHash(currentStep.content_text || '{}');
+          const draftData = {
+            ...attemptData,
+            quiz_content_hash: contentHash
+          };
+          const savedAttempt = await apiClient.saveQuizAttempt(draftData);
           setQuizAttempt(savedAttempt);
           console.log('Quiz draft saved to server');
         }
@@ -1359,7 +1368,8 @@ export default function LessonPage() {
         setQuizAttempt(savedAttempt);
         console.log('Quiz draft finalized successfully');
       } else {
-        // Create new completed attempt
+        // Create new completed attempt with content hash for version tracking
+        const contentHash = await computeQuizContentHash(currentStep.content_text || '{}');
         const attemptData = {
           step_id: parseInt(currentStep.id.toString()),
           course_id: parseInt(courseId),
@@ -1371,7 +1381,8 @@ export default function LessonPage() {
           answers: JSON.stringify(answersToSave),
           time_spent_seconds: timeSpentSeconds,
           is_graded: isGraded,
-          is_draft: false
+          is_draft: false,
+          quiz_content_hash: contentHash
         };
 
         const savedAttempt = await apiClient.saveQuizAttempt(attemptData);

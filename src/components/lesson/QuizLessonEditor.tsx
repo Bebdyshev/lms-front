@@ -124,8 +124,10 @@ export default function QuizLessonEditor({
   };
 
   const applyDraftUpdate = (patch: Partial<Question>) => {
-    if (!draftQuestion) return;
-    setDraftQuestion({ ...draftQuestion, ...patch });
+    setDraftQuestion(prev => {
+      if (!prev) return null;
+      return { ...prev, ...patch };
+    });
   };
 
   // Parse bulk upload text format - supports flexible number of options
@@ -1795,20 +1797,42 @@ export default function QuizLessonEditor({
                                     value={gap[1] || ''}
                                     onChange={(e) => {
                                       const text = (draftQuestion.content_text || '').toString();
-                                      const newText = text.replace(
-                                        `[[${gap[1]}]]`,
-                                        `[[${e.target.value}]]`
-                                      );
-                                      applyDraftUpdate({ content_text: newText });
-                                      // Update correct_answer array immediately
+                                      // Find specific instance of this gap using index
                                       const regex = /\[\[(.*?)\]\]/g;
-                                      const updatedGaps = [];
                                       let match;
-                                      while ((match = regex.exec(newText)) !== null) {
-                                        updatedGaps.push(match);
+                                      let currentIndex = 0;
+                                      let matchStart = -1;
+                                      let matchLength = 0;
+                                      
+                                      while ((match = regex.exec(text)) !== null) {
+                                        if (currentIndex === index) {
+                                          matchStart = match.index;
+                                          matchLength = match[0].length;
+                                          break;
+                                        }
+                                        currentIndex++;
                                       }
-                                      const answers = updatedGaps.map(match => match[1].trim());
-                                      applyDraftUpdate({ correct_answer: answers });
+
+                                      if (matchStart !== -1) {
+                                        const newText = text.substring(0, matchStart) + 
+                                                      `[[${e.target.value}]]` + 
+                                                      text.substring(matchStart + matchLength);
+                                        
+                                        // Recalculate answers from the NEW text
+                                        const newRegex = /\[\[(.*?)\]\]/g;
+                                        const updatedGaps = [];
+                                        let newMatch;
+                                        while ((newMatch = newRegex.exec(newText)) !== null) {
+                                          updatedGaps.push(newMatch);
+                                        }
+                                        const answers = updatedGaps.map(match => match[1].trim());
+                                        
+                                        // Apply both updates atomically
+                                        applyDraftUpdate({ 
+                                          content_text: newText,
+                                          correct_answer: answers 
+                                        });
+                                      }
                                     }}
                                     placeholder="Correct answer"
                                     className="w-32 text-sm"
