@@ -45,26 +45,6 @@ export const PointsDisplay: React.FC = () => {
         </svg>
         <span className="points-value">{status.activity_points.toLocaleString()}</span>
       </div>
-
-      {/* Streak */}
-      {status.daily_streak > 0 && (
-        <div className="points-item streak" title={`${status.daily_streak} day streak`}>
-          <svg className="points-icon fire" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 23c-3.866 0-7-3.134-7-7 0-2.692 1.36-5.206 2.543-6.793C9.386 6.842 12 4 12 1c0 0 4.5 3.5 4.5 8.5 0 1.5-.5 2.5-.5 2.5s1.5-1 2-3c0 0 3 2.5 3 7 0 3.866-3.134 7-7 7z"/>
-          </svg>
-          <span className="points-value">{status.daily_streak}</span>
-        </div>
-      )}
-
-      {/* Monthly Rank */}
-      {status.rank_this_month && status.rank_this_month <= 10 && (
-        <div className="points-item rank" title={`Rank #${status.rank_this_month} this month`}>
-          <svg className="points-icon trophy" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 15c-3.314 0-6-2.686-6-6V3h12v6c0 3.314-2.686 6-6 6zm-8-6H2V5h2v4zm18-4h-2v4h2V5zM12 17c2.21 0 4-1.79 4-4h-8c0 2.21 1.79 4 4 4zm-2 2v2H8v2h8v-2h-2v-2h-4z"/>
-          </svg>
-          <span className="points-value">#{status.rank_this_month}</span>
-        </div>
-      )}
     </div>
   );
 };
