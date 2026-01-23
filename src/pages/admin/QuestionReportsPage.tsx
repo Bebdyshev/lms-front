@@ -23,7 +23,7 @@ import { renderTextWithLatex } from '../../utils/latex';
 
 interface QuestionReport {
   id: number;
-  question_id: number;
+  question_id: string | number;
   user_id: number;
   user_name: string;
   user_email: string;
@@ -54,7 +54,7 @@ interface QuestionReport {
 interface ReportDetail {
   report: {
     id: number;
-    question_id: number;
+    question_id: string | number;
     message: string;
     suggested_answer: string | null;
     status: string;

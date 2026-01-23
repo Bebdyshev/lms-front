@@ -2823,11 +2823,43 @@ class LMSApiClient {
     }
   }
 
+  async updateAttendance(data: {
+      group_id: number;
+      week_number: number;
+      lesson_index: number;
+      student_id: number;
+      score: number;
+      status: string;
+  }): Promise<any> {
+      try {
+          const response = await this.api.post('/leaderboard/curator/attendance', data);
+          return response.data;
+      } catch (error) {
+          console.error('Failed to update attendance:', error);
+          throw error;
+      }
+  }
+
+  async generateSchedule(data: {
+      group_id: number;
+      start_date: string; // YYYY-MM-DD
+      schedule_items: { day_of_week: number; time_of_day: string }[];
+      weeks_count: number;
+  }): Promise<any> {
+      try {
+          const response = await this.api.post('/leaderboard/curator/schedule/generate', data);
+          return response.data;
+      } catch (error) {
+          console.error('Failed to generate schedule:', error);
+          throw error;
+      }
+  }
+
   // =============================================================================
   // QUESTION ERROR REPORTING
   // =============================================================================
 
-  async reportQuestionError(questionId: number, message: string, stepId?: number, suggestedAnswer?: string): Promise<void> {
+  async reportQuestionError(questionId: string | number, message: string, stepId?: number, suggestedAnswer?: string): Promise<void> {
     try {
       await this.api.post('/questions/report-error', {
         question_id: questionId,
@@ -2871,7 +2903,7 @@ class LMSApiClient {
     }
   }
 
-  async updateQuestion(stepId: number, questionId: number, data: {
+  async updateQuestion(stepId: number, questionId: string | number, data: {
     question_text?: string;
     correct_answer?: any;
     options?: any[];
@@ -3098,6 +3130,8 @@ export const getCuratorAssignmentsAnalytics = apiClient.getCuratorAssignmentsAna
 export const getCuratorGroups = apiClient.getCuratorGroups.bind(apiClient);
 export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
 export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);
+export const updateAttendance = apiClient.updateAttendance.bind(apiClient);
+export const generateSchedule = apiClient.generateSchedule.bind(apiClient);
 
 // Admin Progress Management
 export const completeStepsForUser = apiClient.completeStepsForUser.bind(apiClient);

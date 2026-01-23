@@ -12,6 +12,9 @@ import apiClient, { getCuratorGroups } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
+import { updateAttendance } from '../services/api';
+import ScheduleGenerator from '../components/ScheduleGenerator';
+import { Calendar as CalendarIcon, Clock } from 'lucide-react';
 
 interface LeaderboardEntry {
   student_id: number;
@@ -75,6 +78,9 @@ export default function CuratorLeaderboardPage() {
       weekly_evaluation: true,
       extra_points: true
   });
+  
+  // Schedule Gen State
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
   useEffect(() => {
     const loadGroups = async () => {
@@ -173,6 +179,7 @@ export default function CuratorLeaderboardPage() {
     
     for (const entry of entriesToSave) {
         try {
+            // 1. Update Legacy / General Fields
             await apiClient.updateLeaderboardEntry({
                 user_id: entry.student_id,
                 group_id: selectedGroupId,
@@ -187,6 +194,23 @@ export default function CuratorLeaderboardPage() {
                 weekly_evaluation: entry.weekly_evaluation,
                 extra_points: entry.extra_points
             });
+            
+            // 2. Update Attendance (Specific Lessons)
+            // We assume lessons are 1, 2, 3 for now (matching UI)
+            for (let i = 1; i <= 3; i++) {
+                const key = `lesson_${i}` as keyof LeaderboardEntry;
+                const score = entry[key] as number;
+                
+                await updateAttendance({
+                    group_id: selectedGroupId,
+                    week_number: currentWeek,
+                    lesson_index: i,
+                    student_id: entry.student_id,
+                    score: score,
+                    status: score > 0 ? "present" : "absent"
+                });
+            }
+
             successCount++;
         } catch (e) {
             console.error(`Failed to save for student ${entry.student_id}`, e);
@@ -201,6 +225,8 @@ export default function CuratorLeaderboardPage() {
         toast(`Saved ${successCount}/${entriesToSave.length} entries. Please try again.`, "error");
     }
   };
+
+
 
   const ScoreSelect = ({ 
       value, 
@@ -347,6 +373,20 @@ export default function CuratorLeaderboardPage() {
                     </SelectContent>
                 </Select>
             </div>
+            
+            {/* Schedule Generator Modal */}
+            <ScheduleGenerator 
+                groupId={selectedGroupId}
+                open={isScheduleModalOpen}
+                onOpenChange={setIsScheduleModalOpen}
+                onSuccess={() => loadLeaderboard()}
+                trigger={
+                    <Button variant="outline" size="sm" className="h-8 gap-2">
+                        <CalendarIcon className="w-3.5 h-3.5" />
+                        Generate Schedule
+                    </Button>
+                }
+            />
             
             <Button 
                 onClick={handleSaveChanges} 

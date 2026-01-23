@@ -19,8 +19,10 @@ import {
   UserCheck,
   ChevronDown,
   ChevronRight,
-  Copy
+  Copy,
+  Calendar as CalendarIcon
 } from 'lucide-react';
+import ScheduleGenerator from '../components/ScheduleGenerator';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import Toast from '../components/Toast';
@@ -109,6 +111,10 @@ export default function UserManagement() {
     groupId: null,
     studentIds: []
   });
+  
+  // Schedule Generator State
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleGroupId, setScheduleGroupId] = useState<number | null>(null);
   
   // Generated password modal state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -572,6 +578,10 @@ export default function UserManagement() {
       resetGroupForm();
       loadGroups();
       loadUsers(); // Reload users to update group information
+      
+      // Open Schedule Generator
+      setScheduleGroupId(newGroup.id);
+      setShowScheduleModal(true);
     } catch (error) {
       console.error('Failed to create group:', error);
       showToast('error', 'Failed to create group');
@@ -1265,6 +1275,17 @@ export default function UserManagement() {
                           </Button>
                           <Button
                             onClick={() => {
+                              setScheduleGroupId(group.id);
+                              setShowScheduleModal(true);
+                            }}
+                            variant="ghost"
+                            size="sm"
+                            title="Manage Schedule"
+                          >
+                            <CalendarIcon className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => {
                               setSelectedGroup(group);
                               setShowDeleteModal(true);
                             }}
@@ -1463,6 +1484,14 @@ export default function UserManagement() {
           isLoading={isBulkTextLoading}
         />
       </Modal>
+      
+      {/* Schedule Generator Modal */}
+      <ScheduleGenerator 
+          groupId={scheduleGroupId}
+          open={showScheduleModal}
+          onOpenChange={setShowScheduleModal}
+          onSuccess={() => setToast({ type: 'success', message: 'Schedule updated successfully' })}
+      />
 
       {/* Toast */}
       {toast && (
