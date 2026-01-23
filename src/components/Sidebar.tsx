@@ -49,7 +49,7 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number, 
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management'],
     ['/admin/assignment-zero', 'Assignment Zero', ClipboardCheck, 0, ['admin'], 'assignment-zero-management'],
     ['/admin/question-reports', 'Question Reports', AlertTriangle, 0, ['admin'], 'question-reports-nav'],
-    ['/admin/manual-unlocks', 'Manual Unlocks', Unlock, 0, ['teacher', 'admin'], 'manual-unlocks-nav'],
+    ['/manual-unlocks', 'Manual Unlocks', Unlock, 0, ['teacher'], 'manual-unlocks-nav'],
     ['/chat', 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
   ];
 
