@@ -1,0 +1,88 @@
+.points-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.points-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.points-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.points-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.points-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Star icon for points */
+.points-item:first-child .points-icon {
+  color: #f59e0b;
+}
+
+.points-item:first-child {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.06));
+  border-color: rgba(245, 158, 11, 0.2);
+  color: #b45309;
+}
+
+/* Trophy icon for rank */
+.points-item.rank .points-icon.trophy {
+  color: #8b5cf6;
+}
+
+.points-item.rank {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.06));
+  border-color: rgba(139, 92, 246, 0.2);
+  color: #6d28d9;
+}
+
+/* Trophy pulse for top 3 */
+@keyframes trophy-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.points-item.rank .points-icon.trophy {
+  animation: trophy-pulse 2s ease-in-out infinite;
+}
+
+/* Medium screens - hide rank */
+@media (max-width: 768px) {
+  .points-item.rank {
+    display: none;
+  }
+}
+
+/* Small screens - compact style */
+@media (max-width: 480px) {
+  .points-display {
+    gap: 4px;
+  }
+  
+  .points-item {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  
+  .points-icon {
+    width: 14px;
+    height: 14px;
+  }
+}

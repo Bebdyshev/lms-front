@@ -16,7 +16,8 @@ import {
   Calendar,
   Clock,
   CheckCircle,
-  Target
+  Target,
+  Star
 } from 'lucide-react';
 import Loader from '../components/Loader';
 import { Button } from '../components/ui/button';
@@ -25,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
+import { GiveBonusModal } from '../components/gamification/GiveBonusModal';
 
 interface TeacherGroup extends Group {
   students: User[];
@@ -56,6 +58,18 @@ export default function TeacherClassPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<TeacherGroup | null>(null);
   const [studentStats, setStudentStats] = useState<{ [key: string]: StudentStats }>({});
+  
+  // Bonus Modal State
+  const [bonusModalOpen, setBonusModalOpen] = useState(false);
+  const [selectedStudentForBonus, setSelectedStudentForBonus] = useState<{id: number, name: string} | null>(null);
+
+  const handleOpenBonusModal = (student: User) => {
+    setSelectedStudentForBonus({
+      id: student.id,
+      name: student.name || student.full_name || 'Student'
+    });
+    setBonusModalOpen(true);
+  };
 
   useEffect(() => {
     loadTeacherGroups();
@@ -396,6 +410,9 @@ export default function TeacherClassPage() {
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Status
                             </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -458,6 +475,17 @@ export default function TeacherClassPage() {
                                     {student.is_active ? 'Active' : 'Inactive'}
                                   </Badge>
                                 </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-yellow-600 border-yellow-200 hover:bg-yellow-50"
+                                    onClick={() => handleOpenBonusModal(student)}
+                                  >
+                                    <Star className="w-3 h-3 mr-1" />
+                                    Bonus
+                                  </Button>
+                                </td>
                               </tr>
                             );
                           })}
@@ -470,6 +498,17 @@ export default function TeacherClassPage() {
             </Card>
           ))}
         </div>
+      )}
+      {selectedStudentForBonus && (
+        <GiveBonusModal
+          isOpen={bonusModalOpen}
+          onClose={() => setBonusModalOpen(false)}
+          studentId={selectedStudentForBonus.id}
+          studentName={selectedStudentForBonus.name}
+          onSuccess={() => {
+            // Optionally refresh stats or show toast
+          }}
+        />
       )}
     </div>
   );

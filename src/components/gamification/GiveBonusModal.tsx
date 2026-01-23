@@ -1,0 +1,122 @@
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
+import apiClient from '../../services/api';
+import { Loader2, Star, Trophy } from 'lucide-react';
+
+interface GiveBonusModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  studentId: number;
+  studentName: string;
+  onSuccess: () => void;
+}
+
+export function GiveBonusModal({ 
+  isOpen, 
+  onClose, 
+  studentId, 
+  studentName,
+  onSuccess 
+}: GiveBonusModalProps) {
+  const [amount, setAmount] = useState<number>(5);
+  const [reason, setReason] = useState('Great participation!');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiClient.giveTeacherBonus({
+        student_id: studentId,
+        amount,
+        reason
+      });
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      console.error('Failed to give bonus:', err);
+      setError(err.response?.data?.detail || 'Failed to award points');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            Award Bonus Points
+          </DialogTitle>
+          <DialogDescription>
+            Give bonus points to <strong>{studentName}</strong> for their achievements.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="amount">Points Amount (1-20)</Label>
+            <div className="relative">
+              <Star className="absolute left-3 top-2.5 h-4 w-4 text-yellow-500" />
+              <Input
+                id="amount"
+                type="number"
+                min={1}
+                max={20}
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                className="pl-9"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reason">Reason / Comment</Label>
+            <Textarea
+              id="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Excellent question in class"
+              required
+              rows={3}
+            />
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+              {error}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="bg-yellow-600 hover:bg-yellow-700 text-white">
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Awarding...
+                </>
+              ) : (
+                <>
+                  <Star className="mr-2 h-4 w-4 fill-current" />
+                  Award Points
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

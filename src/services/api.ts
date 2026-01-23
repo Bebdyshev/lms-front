@@ -2956,6 +2956,142 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // GAMIFICATION
+  // =============================================================================
+
+  async getGamificationStatus(): Promise<{
+    activity_points: number;
+    daily_streak: number;
+    monthly_points: number;
+    rank_this_month: number | null;
+  }> {
+    try {
+      const response = await this.api.get('/gamification/status');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get gamification status:', error);
+      throw error;
+    }
+  }
+
+  async giveTeacherBonus(data: {
+    student_id: number;
+    amount: number;
+    reason?: string;
+  }): Promise<{ success: boolean; message: string; new_total: number }> {
+    try {
+      const response = await this.api.post('/gamification/bonus', data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to give bonus');
+    }
+  }
+
+  async getGamificationLeaderboard(params: {
+    period?: 'monthly' | 'all_time';
+    group_id?: number;
+    limit?: number;
+  }): Promise<{
+    period: string;
+    start_date: string | null;
+    end_date: string | null;
+    entries: Array<{
+      user_id: number;
+      user_name: string;
+      avatar_url: string | null;
+      points: number;
+      rank: number;
+    }>;
+  }> {
+    try {
+      const response = await this.api.get('/gamification/leaderboard', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get leaderboard:', error);
+      throw error;
+    }
+  }
+
+  async getPointHistory(limit: number = 50): Promise<Array<{
+    id: number;
+    user_id: number;
+    amount: number;
+    reason: string;
+    description: string | null;
+    created_at: string;
+  }>> {
+    try {
+      const response = await this.api.get('/gamification/history', { params: { limit } });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get point history:', error);
+      throw error;
+    }
+  }
+
+  // =============================================================================
+  // AI TOOLS - LOOKUP
+  // =============================================================================
+
+  async lookupWord(text: string, contextSentence?: string): Promise<{
+    word: string;
+    phonetic: string | null;
+    part_of_speech: string | null;
+    definition_en: string;
+    translation_ru: string;
+    synonyms: string[];
+    usage_example: string | null;
+    etymology: string | null;
+  }> {
+    try {
+      const response = await this.api.post('/ai-tools/lookup', {
+        text,
+        context_sentence: contextSentence
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to lookup word');
+    }
+  }
+
+  async quickCreateFlashcard(data: {
+    word: string;
+    translation: string;
+    definition?: string;
+    context?: string;
+    phonetic?: string;
+  }): Promise<{ success: boolean; message: string; flashcard_id: string; favorite_id: number }> {
+    try {
+      const response = await this.api.post('/flashcards/quick_create', data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to create flashcard');
+    }
+  }
+
+  async getVocabularyCards(): Promise<{
+    vocabulary: Array<{
+      id: number;
+      flashcard_id: string;
+      word: string;
+      translation: string;
+      definition: string | null;
+      context: string | null;
+      phonetic: string | null;
+      created_at: string | null;
+    }>;
+    count: number;
+  }> {
+    try {
+      const response = await this.api.get('/flashcards/vocabulary');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get vocabulary cards:', error);
+      throw error;
+    }
+  }
+
 }
 
 // =============================================================================
@@ -3146,5 +3282,16 @@ export const submitAssignmentZero = apiClient.submitAssignmentZero.bind(apiClien
 export const uploadAssignmentZeroScreenshot = apiClient.uploadAssignmentZeroScreenshot.bind(apiClient);
 export const getAllAssignmentZeroSubmissions = apiClient.getAllAssignmentZeroSubmissions.bind(apiClient);
 export const getAssignmentZeroSubmissionByUser = apiClient.getAssignmentZeroSubmissionByUser.bind(apiClient);
+
+// Gamification
+export const getGamificationStatus = apiClient.getGamificationStatus.bind(apiClient);
+export const giveTeacherBonus = apiClient.giveTeacherBonus.bind(apiClient);
+export const getGamificationLeaderboard = apiClient.getGamificationLeaderboard.bind(apiClient);
+export const getPointHistory = apiClient.getPointHistory.bind(apiClient);
+
+// AI Tools
+export const lookupWord = apiClient.lookupWord.bind(apiClient);
+export const quickCreateFlashcard = apiClient.quickCreateFlashcard.bind(apiClient);
+export const getVocabularyCards = apiClient.getVocabularyCards.bind(apiClient);
 
 export default apiClient;

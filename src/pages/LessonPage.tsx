@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
@@ -12,6 +12,7 @@ import { renderTextWithLatex } from '../utils/latex';
 import FlashcardViewer from '../components/lesson/FlashcardViewer';
 import QuizRenderer from '../components/lesson/QuizRenderer';
 import SummaryStepRenderer from '../components/lesson/SummaryStepRenderer';
+import TextLookupPopover from '../components/lesson/TextLookupPopover';
 
 // Utility function to extract correct answers from gap text
 // If an option ends with *, it's the correct answer (without the *)
@@ -380,6 +381,9 @@ export default function LessonPage() {
     const saved = localStorage.getItem('lessonSidebarCollapsed');
     return saved ? JSON.parse(saved) : false;
   });
+
+  // Ref for text lookup popover
+  const textContentRef = useRef<HTMLDivElement>(null);
 
   // Persist sidebar state
   useEffect(() => {
@@ -1525,7 +1529,10 @@ export default function LessonPage() {
     switch (currentStep.content_type) {
       case 'text':
         return (
-          <div>
+          <div ref={textContentRef} className="relative">
+            {/* Text Lookup Popover */}
+            <TextLookupPopover containerRef={textContentRef} />
+            
             {/* Special "Read explanation" text above everything */}
             {currentStep.content_text && currentStep.content_text.includes("Read the explanation and make notes.") && (
               <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
