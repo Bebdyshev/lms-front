@@ -572,7 +572,7 @@ export default function TeacherDashboard() {
           )}
           {(user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'curator') && (
             <Button
-              onClick={() => navigate('/admin/manual-unlocks')}
+              onClick={() => navigate('/manual-unlocks')}
               variant="outline"
               className="border-blue-200 text-blue-700 hover:bg-blue-50"
             >
