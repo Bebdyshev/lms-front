@@ -508,7 +508,7 @@ export default function QuestionReportsPage() {
             </Card>
           ) : selectedReport ? (
             <Card className="overflow-hidden">
-              <CardHeader className="bg-gray-50 border-b">
+              <CardHeader className="sticky top-0 z-10 bg-gray-50 border-b">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Report Details</CardTitle>
                   <Button 
