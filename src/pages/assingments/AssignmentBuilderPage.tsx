@@ -22,6 +22,7 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
+import { DateTimePicker } from '../../components/ui/date-time-picker';
 import MultiTaskEditor from '../../components/assignments/MultiTaskEditor';
 
 interface AssignmentFormData {
@@ -487,11 +488,10 @@ export default function AssignmentBuilderPage() {
                   <Label htmlFor="due-date">
                     Due Date
                   </Label>
-                  <Input
-                    id="due-date"
-                    type="datetime-local"
-                    value={formData.due_date}
-                    onChange={(e) => handleInputChange('due_date', e.target.value)}
+                  <DateTimePicker
+                    date={formData.due_date ? new Date(formData.due_date) : undefined}
+                    setDate={(date) => handleInputChange('due_date', date ? date.toISOString() : '')}
+                    placeholder="Set due date and time"
                   />
                 </div>
               </CardContent>

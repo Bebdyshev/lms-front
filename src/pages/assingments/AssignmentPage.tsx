@@ -146,10 +146,8 @@ export default function AssignmentPage() {
       
       toast('Assignment submitted successfully!', 'success');
       
-      // Redirect to assignments progress page
-      setTimeout(() => {
-        navigate(`/homework/${id}/progress`);
-      }, 1000);
+      // Reload submission to show updated status
+      await loadSubmission(id);
     } catch (err) {
       console.error('Assignment submission error:', err);
       toast('Failed to submit assignment', 'error');
@@ -193,12 +191,10 @@ export default function AssignmentPage() {
         submitted_file_name: null
       });
       
-      toast('✅ Assignment submitted successfully! Redirecting...', 'success');
+      toast('✅ Assignment submitted successfully!', 'success');
       
-      // Redirect to assignment progress page after brief delay
-      setTimeout(() => {
-        navigate(`/homework/${assignment.id}/progress`);
-      }, 1500);
+      // Reload submission to show updated status
+      await loadSubmission(assignment.id.toString());
     } catch (err) {
       console.error('Failed to submit assignment:', err);
       toast('Failed to submit assignment', 'error');

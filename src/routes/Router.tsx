@@ -362,8 +362,8 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
-          <Route path="/admin/manual-unlocks" element={
-            <ProtectedRoute allowedRoles={['admin', 'teacher', 'curator']}>
+          <Route path="/manual-unlocks" element={
+            <ProtectedRoute allowedRoles={['admin', 'teacher']}>
               <AppLayout>
                 <ManualUnlocksPage />
               </AppLayout>
