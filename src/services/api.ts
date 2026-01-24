@@ -1528,6 +1528,15 @@ class LMSApiClient {
     }
   }
 
+  async getMyGroups(): Promise<Group[]> {
+    try {
+      const response = await this.api.get('/users/groups/me');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch my groups');
+    }
+  }
+
   async getTeacherGroups(): Promise<Group[]> {
     try {
       const response = await this.api.get('/admin/groups');
@@ -2989,13 +2998,14 @@ class LMSApiClient {
   }
 
   async getGamificationLeaderboard(params: {
-    period?: 'monthly' | 'all_time';
+    period?: 'monthly' | 'weekly' | 'all_time';
     group_id?: number;
     limit?: number;
   }): Promise<{
     period: string;
     start_date: string | null;
     end_date: string | null;
+    total_participants: number;
     entries: Array<{
       user_id: number;
       user_name: string;
@@ -3008,8 +3018,7 @@ class LMSApiClient {
       const response = await this.api.get('/gamification/leaderboard', { params });
       return response.data;
     } catch (error) {
-      console.error('Failed to get leaderboard:', error);
-      throw error;
+      throw new Error('Failed to load gamification leaderboard');
     }
   }
 

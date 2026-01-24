@@ -31,39 +31,62 @@ interface LeaderboardData {
   steps_to_next_rank: number;
 }
 
-type Period = 'all_time' | 'this_week' | 'this_month';
-
 export default function StudentLeaderboard() {
   const [entries, setEntries] = useState<any[]>([]);
+  const [totalParticipants, setTotalParticipants] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>('this_month');
+  const [scope, setScope] = useState<'all' | 'group'>('group');
+  const [myGroups, setMyGroups] = useState<any[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadUserAndLeaderboard();
-  }, [period]);
+    loadUserAndGroups();
+  }, []);
 
-  const loadUserAndLeaderboard = async () => {
+  useEffect(() => {
+    if (currentUser) {
+      loadLeaderboard();
+    }
+  }, [currentUser, scope, selectedGroupId]);
+
+  const loadUserAndGroups = async () => {
+    try {
+      const [user, groups] = await Promise.all([
+        apiClient.getCurrentUser(),
+        apiClient.getMyGroups()
+      ]);
+      setCurrentUser(user);
+      setMyGroups(groups);
+      
+      // Default to first group if available
+      if (groups.length > 0) {
+        setSelectedGroupId(groups[0].id);
+      } else {
+        // If no groups, force scope to 'all'
+        setScope('all');
+      }
+    } catch (err) {
+      console.error('Failed to load user info:', err);
+    }
+  };
+
+  const loadLeaderboard = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Load user if not loaded (for ID check)
-      let user = currentUser;
-      if (!user) {
-        user = await apiClient.getCurrentUser();
-        setCurrentUser(user);
+      const params: any = { period: 'monthly' };
+      
+      // Apply group filter if in group scope
+      if (scope === 'group' && selectedGroupId) {
+        params.group_id = selectedGroupId;
       }
       
-      // Map period to backend values
-      let backendPeriod = 'monthly'; // default
-      if (period === 'all_time') backendPeriod = 'all_time';
-      if (period === 'this_week') backendPeriod = 'weekly';
-      if (period === 'this_month') backendPeriod = 'monthly';
-      
-      const response = await apiClient.getGamificationLeaderboard({ period: backendPeriod as any });
+      const response = await apiClient.getGamificationLeaderboard(params);
       setEntries(response.entries || []);
+      setTotalParticipants(response.total_participants || 0);
       
     } catch (err: any) {
       setError(err.message || 'Failed to load leaderboard');
@@ -71,12 +94,6 @@ export default function StudentLeaderboard() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const periodLabels: Record<Period, string> = {
-    all_time: 'All Time',
-    this_week: 'Weekly',
-    this_month: 'Monthly'
   };
 
   const getUserRankInfo = () => {
@@ -104,8 +121,7 @@ export default function StudentLeaderboard() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Trophy className="h-4 w-4 text-yellow-500" />
-            Class Leaderboard
+            Leaderboard
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -117,55 +133,105 @@ export default function StudentLeaderboard() {
 
   return (
     <Card>
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 space-y-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base text-xl">
+          <CardTitle className="flex items-center gap-2 text-xl">
             Leaderboard
           </CardTitle>
-          <div className="flex gap-0.5 bg-gray-100 rounded-md p-0.5">
-            {(['this_week', 'this_month', 'all_time'] as Period[]).map(p => (
-              <Button
-                key={p}
-                variant={period === p ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setPeriod(p)}
-                className={`text-xs h-6 px-2 ${period === p ? '' : 'hover:bg-gray-200'}`}
+          
+          <div className="flex items-center gap-2">
+            <div className="flex bg-gray-100 p-0.5 rounded-lg">
+              <button
+                onClick={() => setScope('group')}
+                disabled={myGroups.length === 0}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  scope === 'group' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-700'
+                } ${myGroups.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {periodLabels[p]}
-              </Button>
-            ))}
+                My Group
+              </button>
+              <button
+                onClick={() => setScope('all')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  scope === 'all' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                All Students
+              </button>
+            </div>
           </div>
         </div>
+        
+        {/* Only show group selector if in group mode and has multiple groups */}
+        {scope === 'group' && myGroups.length > 1 && (
+          <div className="flex gap-2">
+            <select
+              value={selectedGroupId || ''}
+              onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+              className="w-full text-sm p-2 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium text-gray-700"
+            >
+              {myGroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </CardHeader>
       
       <CardContent>
-        {/* Current User Stats */}
-        {myRankInfo ? (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-blue-900">Your Rank</span>
-              <div className="flex items-center gap-1">
-                <Trophy className="w-4 h-4 text-yellow-500" />
-                <span className="text-lg font-bold text-blue-900">#{myRankInfo.rank}</span>
+        {error ? (
+          <div className="text-center py-4 text-red-500 text-sm">
+            {error}
+            <Button variant="link" size="sm" onClick={() => loadLeaderboard()} className="text-blue-500">Retry</Button>
+          </div>
+        ) : (
+          <>
+            {/* Current User Stats */}
+            {myRankInfo ? (
+          <div className="mb-4">
+            <div className="flex items-end justify-between px-2 mb-2">
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Your Rank</span>
+                <div className="flex items-center gap-2 ">
+                  <span className="text-2xl font-bold text-gray-900 tracking-tight">#{myRankInfo.rank}</span>
+                  {myRankInfo.rank === 1 ? (
+                    <span className="text-[16px] font-bold text-yellow-600 px-2 py-auto rounded-full">THE GOAT 🐐</span>
+                  ) : myRankInfo.rank <= 3 ? (
+                    <span className="text-[16px] font-bold text-orange-600 px-2 py-auto rounded-full">LEGEND 🔥</span>
+                  ) : myRankInfo.rank <= 10 ? (
+                    <span className="text-[16px] font-bold text-purple-600 px-2 py-auto rounded-full">RISING STAR 🌟</span>
+                  ) : (
+                    <span className="text-sm font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">GRINDING 💪</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Rank</span>
+                <span className="text-xl font-semibold text-gray-900">
+                  {myRankInfo.rank} <span className="text-gray-400 font-normal">/ {totalParticipants}</span>
+                </span>
               </div>
             </div>
             
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-1 text-blue-700">
-                <Zap className="w-4 h-4 fill-blue-500 text-blue-500" />
-                <span>{myRankInfo.points} pts</span>
-              </div>
-              
-              {myRankInfo.pointsToNext > 0 && (
-                <div className="flex items-center gap-1 text-green-600 text-xs">
-                  <TrendingUp className="w-3 h-3" />
-                  <span>{myRankInfo.pointsToNext} to rank #{myRankInfo.rank - 1}</span>
+            {myRankInfo.pointsToNext > 0 ? (
+              <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                <div className="flex justify-between text-xs font-medium mb-2">
+                  <span className="text-gray-500">Next Level</span>
+                  <span className="text-blue-600">{myRankInfo.pointsToNext} points needed</span>
                 </div>
-              )}
-              {myRankInfo.rank === 1 && (
-                 <span className="text-xs text-yellow-600 font-medium">Top of the class! 👑</span>
-              )}
-            </div>
+                <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full w-2/3"></div>
+                </div>
+              </div>
+            ) : myRankInfo.rank === 1 && (
+               <div className="mt-2 text-center">
+                 <p className="text-sm font-medium text-yellow-600 bg-yellow-50/50 py-2 rounded-lg">👑 Unstoppable!</p>
+               </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-2 text-gray-500 text-sm mb-2">
@@ -173,52 +239,8 @@ export default function StudentLeaderboard() {
           </div>
         )}
 
-        {/* Top 5 + me if not in top 5 */}
-        <div className="space-y-2">
-           {entries.slice(0, 5).map((entry) => (
-             <div 
-               key={entry.user_id} 
-               className={`flex items-center justify-between p-2 rounded-md ${entry.user_id === currentUser?.id ? 'bg-yellow-50 border border-yellow-100' : 'hover:bg-gray-50'}`}
-             >
-               <div className="flex items-center gap-3">
-                 <div className={`
-                   w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                   ${entry.rank === 1 ? 'bg-yellow-100 text-yellow-700' : 
-                     entry.rank === 2 ? 'bg-gray-100 text-gray-700' : 
-                     entry.rank === 3 ? 'bg-orange-100 text-orange-700' : 'text-gray-500'}
-                 `}>
-                   {entry.rank}
-                 </div>
-                 <div className="flex flex-col">
-                   <span className={`text-sm ${entry.user_id === currentUser?.id ? 'font-semibold' : ''}`}>
-                     {entry.user_name} {entry.user_id === currentUser?.id && '(You)'}
-                   </span>
-                 </div>
-               </div>
-               <div className="font-mono text-sm font-medium text-gray-600">
-                 {entry.points} pts
-               </div>
-             </div>
-           ))}
-           
-           {/* If user not in top 5, show dots and user */}
-           {currentUser && myRankInfo && myRankInfo.rank > 5 && (
-             <>
-               <div className="text-center text-gray-400 text-xs py-1">...</div>
-               <div className="flex items-center justify-between p-2 rounded-md bg-yellow-50 border border-yellow-100">
-                 <div className="flex items-center gap-3">
-                   <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">
-                     {myRankInfo.rank}
-                   </div>
-                   <span className="text-sm font-semibold">You</span>
-                 </div>
-                 <div className="font-mono text-sm font-medium text-gray-600">
-                   {myRankInfo.points} pts
-                 </div>
-               </div>
-             </>
-           )}
-        </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
