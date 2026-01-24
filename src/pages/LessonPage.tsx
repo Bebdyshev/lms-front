@@ -3,7 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward, Languages } from 'lucide-react';
+import { useSettings } from '../contexts/SettingsContext';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
@@ -343,6 +344,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect, isCo
 
 export default function LessonPage() {
   const { user } = useAuth();
+  const { isLookUpEnabled, toggleLookUp } = useSettings(); // Added useSettings hook
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1796,6 +1798,24 @@ export default function LessonPage() {
                 className="ml-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-mono text-xs"
               >
                 🚀 Auto-Complete
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Look Up Toggle */}
+            {user?.role === 'student' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleLookUp}
+                className={`h-9 w-9 p-0 rounded-lg border transition-colors ${
+                  isLookUpEnabled 
+                    ? 'text-blue-600 border-blue-100' 
+                    : 'bg-white text-gray-400 border-gray-100 hover:bg-gray-50'
+                }`}
+                title={isLookUpEnabled ? 'Disable Look Up' : 'Enable Look Up'}
+              >
+                <Languages className="w-5 h-5" />
               </Button>
             )}
           </div>

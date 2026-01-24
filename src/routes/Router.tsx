@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { NextStepProvider } from 'nextstepjs';
 import { AuthProvider } from '../contexts/AuthContext.tsx';
+import { SettingsProvider } from '../contexts/SettingsContext';
 import OnboardingManager from '../components/OnboardingManager.tsx';
 import ProtectedRoute from '../components/ProtectedRoute.tsx';
 import AppLayout from '../layouts/AppLayout.tsx';
@@ -52,7 +53,8 @@ export default function Router() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <NextStepProvider>
+        <SettingsProvider>
+          <NextStepProvider>
             <OnboardingManager>
               <Routes>
                 <Route path="/" element={
@@ -432,7 +434,8 @@ export default function Router() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
             </OnboardingManager>
-        </NextStepProvider>
+          </NextStepProvider>
+        </SettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

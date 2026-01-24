@@ -66,6 +66,8 @@ export default function Topbar({ onOpenSidebar }: TopbarProps) {
         <WhatsNewButton userRole={user?.role} />
         {/* Activity Points for Students */}
         {user?.role === 'student' && <PointsDisplay />}
+
+
         {/* Daily Streak */}
         <StreakIcon />
         <button className="lg:hidden w-10 h-10 rounded-lg bg-white border text-lg" onClick={onOpenSidebar} aria-label="Open menu">☰</button>

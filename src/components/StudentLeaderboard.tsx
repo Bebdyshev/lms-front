@@ -119,8 +119,7 @@ export default function StudentLeaderboard() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Trophy className="h-4 w-4 text-yellow-500" />
+          <CardTitle className="flex items-center gap-2 text-base text-xl">
             Leaderboard
           </CardTitle>
           <div className="flex gap-0.5 bg-gray-100 rounded-md p-0.5">

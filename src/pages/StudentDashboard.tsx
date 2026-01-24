@@ -376,7 +376,6 @@ export default function StudentDashboard({
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
                   Todo list
                 </div>
                 <div className="flex items-center space-x-2">
@@ -480,7 +479,6 @@ export default function StudentDashboard({
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
                   Your Teacher
                 </CardTitle>
               </CardHeader>
