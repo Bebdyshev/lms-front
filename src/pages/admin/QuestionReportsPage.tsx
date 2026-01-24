@@ -499,7 +499,7 @@ export default function QuestionReportsPage() {
         </div>
 
         {/* Right: Report Detail */}
-        <div className="lg:sticky lg:top-6 lg:self-start">
+        <div className="lg:sticky lg:top-24 h-fit">
           {detailLoading ? (
             <Card>
               <CardContent className="p-8 flex items-center justify-center">
