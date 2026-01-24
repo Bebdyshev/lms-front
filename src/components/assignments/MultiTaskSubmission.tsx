@@ -294,45 +294,84 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
           <div className="space-y-3">
             <div className="text-sm font-medium">{task.content.question}</div>
             {task.content.teacher_file_url && (
-              <div className="flex items-center p-2 bg-blue-50 rounded-md text-sm">
-                <FileText className="w-4 h-4 text-blue-600 mr-2" />
-                <a href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + task.content.teacher_file_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
-                  Download Reference File: {task.content.teacher_file_name || 'File'}
-                </a>
+              <div className="space-y-2">
+                {/* Image Preview for teacher's reference file */}
+                {task.content.teacher_file_name && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(task.content.teacher_file_name) && (
+                  <div className="border rounded-lg overflow-hidden bg-gray-50">
+                    <img 
+                      src={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + task.content.teacher_file_url}
+                      alt={task.content.teacher_file_name || 'Reference image'}
+                      className="w-full h-auto max-h-[600px] object-contain"
+                      onError={(e) => {
+                        // Hide image if it fails to load
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                
+                {/* Download Link */}
+                <div className="flex items-center p-2 bg-blue-50 rounded-md text-sm">
+                  <FileText className="w-4 h-4 text-blue-600 mr-2" />
+                  <a href={(import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + task.content.teacher_file_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
+                    Download Reference File: {task.content.teacher_file_name || 'File'}
+                  </a>
+                </div>
               </div>
             )}
             
+            
             {taskAnswer.file_url ? (
-              <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-800">{taskAnswer.file_name || 'Uploaded File'}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const url = taskAnswer.file_url.startsWith('http') 
+              <div className="space-y-3">
+                {/* Image Preview */}
+                {taskAnswer.file_name && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(taskAnswer.file_name) && (
+                  <div className="border rounded-lg overflow-hidden bg-gray-50">
+                    <img 
+                      src={taskAnswer.file_url.startsWith('http') 
                         ? taskAnswer.file_url 
-                        : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + taskAnswer.file_url;
-                      window.open(url, '_blank');
-                    }}
-                    className="text-blue-600 hover:text-blue-800 h-8 px-2"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    Open
-                  </Button>
-                  {!readOnly && (
+                        : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + taskAnswer.file_url}
+                      alt={taskAnswer.file_name || 'Uploaded image'}
+                      className="w-full h-auto max-h-[600px] object-contain"
+                      onError={(e) => {
+                        // Hide image if it fails to load
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                
+                {/* File Info Card */}
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-800">{taskAnswer.file_name || 'Uploaded File'}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleTaskCompletion(task.id, { file_url: null, file_name: null })}
-                      className="text-red-600 hover:text-red-800 h-8 w-8 p-0"
+                      onClick={() => {
+                        const url = taskAnswer.file_url.startsWith('http') 
+                          ? taskAnswer.file_url 
+                          : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + taskAnswer.file_url;
+                        window.open(url, '_blank');
+                      }}
+                      className="text-blue-600 hover:text-blue-800 h-8 px-2"
                     >
-                      <X className="w-4 h-4" />
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Open
                     </Button>
-                  )}
+                    {!readOnly && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleTaskCompletion(task.id, { file_url: null, file_name: null })}
+                        className="text-red-600 hover:text-red-800 h-8 w-8 p-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
