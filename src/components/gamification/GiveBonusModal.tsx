@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -13,6 +13,7 @@ interface GiveBonusModalProps {
   studentId: number;
   studentName: string;
   onSuccess: () => void;
+  defaultAmount?: number;
 }
 
 export function GiveBonusModal({ 
@@ -20,10 +21,18 @@ export function GiveBonusModal({
   onClose, 
   studentId, 
   studentName,
-  onSuccess 
+  onSuccess,
+  defaultAmount = 5
 }: GiveBonusModalProps) {
-  const [amount, setAmount] = useState<number>(5);
+  const [amount, setAmount] = useState<number>(defaultAmount);
   const [reason, setReason] = useState('Great participation!');
+
+  // Update amount when defaultAmount changes or modal reopens
+  useEffect(() => {
+    if (isOpen) {
+      setAmount(defaultAmount);
+    }
+  }, [isOpen, defaultAmount]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,14 +72,14 @@ export function GiveBonusModal({
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="amount">Points Amount (1-20)</Label>
+            <Label htmlFor="amount">Points Amount (1-50)</Label>
             <div className="relative">
               <Star className="absolute left-3 top-2.5 h-4 w-4 text-yellow-500" />
               <Input
                 id="amount"
                 type="number"
                 min={1}
-                max={20}
+                max={50}
                 value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))}
                 className="pl-9"

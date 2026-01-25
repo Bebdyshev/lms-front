@@ -35,6 +35,7 @@ import { Textarea } from '../components/ui/textarea';
 import MultiTaskSubmission from '../components/assignments/MultiTaskSubmission';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { WeeklyAwardsHub } from '../components/gamification/WeeklyAwardsHub';
 
 interface TeacherStats {
   total_courses: number;
@@ -112,6 +113,9 @@ export default function TeacherDashboard() {
   const [currentAssignment, setCurrentAssignment] = useState<any>(null);
   const [isAssignmentDataLoaded, setIsAssignmentDataLoaded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Weekly Awards Hub state
+  const [isWeeklyAwardsOpen, setIsWeeklyAwardsOpen] = useState(false);
   useEffect(() => {
     if (selectedQuizAttempt) {
       console.log('Selected Quiz Attempt:', selectedQuizAttempt);
@@ -571,14 +575,23 @@ export default function TeacherDashboard() {
             </Button>
           )}
           {(user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'curator') && (
-            <Button
-              onClick={() => navigate('/manual-unlocks')}
-              variant="outline"
-              className="border-blue-200 text-blue-700 hover:bg-blue-50"
-            >
-              <Unlock className="w-4 h-4 mr-2" />
-              Manual Unlocks
-            </Button>
+            <>
+              <Button
+                onClick={() => setIsWeeklyAwardsOpen(true)}
+                variant="outline"
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                🏆 Weekly Awards
+              </Button>
+              <Button
+                onClick={() => navigate('/manual-unlocks')}
+                variant="outline"
+                className="border-blue-200 text-blue-700 hover:bg-blue-50"
+              >
+                <Unlock className="w-4 h-4 mr-2" />
+                Manual Unlocks
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -1267,6 +1280,12 @@ export default function TeacherDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Weekly Awards Hub */}
+      <WeeklyAwardsHub 
+        isOpen={isWeeklyAwardsOpen}
+        onClose={() => setIsWeeklyAwardsOpen(false)}
+      />
     </div>
   );
 }

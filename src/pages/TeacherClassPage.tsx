@@ -1,32 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
-import type { User, Group, StudentProgressOverview } from '../types';
+import type { User, Group } from '../types';
 import { 
   GraduationCap, 
   Users, 
   BookOpen, 
   TrendingUp, 
   Search, 
-  RefreshCw,
   ChevronDown,
   ChevronRight,
   User as UserIcon,
-  Mail,
-  Calendar,
   Clock,
-  CheckCircle,
+  Star,
   Target,
-  Star
+  Loader2
 } from 'lucide-react';
 import Loader from '../components/Loader';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
 import { GiveBonusModal } from '../components/gamification/GiveBonusModal';
+import { WeeklyAwardsHub } from '../components/gamification/WeeklyAwardsHub';
 
 interface TeacherGroup extends Group {
   students: User[];
@@ -56,16 +53,24 @@ export default function TeacherClassPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState<TeacherGroup | null>(null);
   const [studentStats, setStudentStats] = useState<{ [key: string]: StudentStats }>({});
   
   // Bonus Modal State
   const [bonusModalOpen, setBonusModalOpen] = useState(false);
   const [selectedStudentForBonus, setSelectedStudentForBonus] = useState<{id: number, name: string} | null>(null);
+  const [defaultBonusAmount, setDefaultBonusAmount] = useState<number>(5);
+  
+  // Weekly Leaderboard State
+  const [groupWeeklyLeaderboard, setGroupWeeklyLeaderboard] = useState<{ [groupId: number]: any[] }>({});
+  const [activeTab, setActiveTab] = useState<{ [groupId: number]: 'general' | 'weekly' }>({});
+  const [isWeeklyLoading, setIsWeeklyLoading] = useState<{ [groupId: number]: boolean }>({});
+  
+  // Weekly Awards Hub state
+  const [isWeeklyAwardsOpen, setIsWeeklyAwardsOpen] = useState(false);
 
   const handleOpenBonusModal = (student: User) => {
     setSelectedStudentForBonus({
-      id: student.id,
+      id: Number(student.id),
       name: student.name || student.full_name || 'Student'
     });
     setBonusModalOpen(true);
@@ -189,11 +194,39 @@ export default function TeacherClassPage() {
   };
 
   const toggleGroupExpansion = (groupId: number) => {
-    setGroups(prev => prev.map(group => 
-      group.id === groupId 
+    setGroups(prev => prev.map(group => {
+      const isExpanding = group.id === groupId && !group.is_expanded;
+      if (isExpanding && !activeTab[groupId]) {
+        setActiveTab(prev => ({ ...prev, [groupId]: 'general' }));
+      }
+      return group.id === groupId 
         ? { ...group, is_expanded: !group.is_expanded }
-        : group
-    ));
+        : group;
+    }));
+  };
+
+  const loadWeeklyLeaderboard = async (groupId: number) => {
+    if (groupWeeklyLeaderboard[groupId]) return; // Already loaded
+
+    try {
+      setIsWeeklyLoading(prev => ({ ...prev, [groupId]: true }));
+      const response = await apiClient.getGamificationLeaderboard({ 
+        period: 'weekly', 
+        group_id: groupId 
+      });
+      setGroupWeeklyLeaderboard(prev => ({ ...prev, [groupId]: response.entries || [] }));
+    } catch (error) {
+      console.error(`Failed to load weekly leaderboard for group ${groupId}:`, error);
+    } finally {
+      setIsWeeklyLoading(prev => ({ ...prev, [groupId]: false }));
+    }
+  };
+
+  const handleTabChange = (groupId: number, tab: 'general' | 'weekly') => {
+    setActiveTab(prev => ({ ...prev, [groupId]: tab }));
+    if (tab === 'weekly') {
+      loadWeeklyLeaderboard(groupId);
+    }
   };
 
   const filteredGroups = groups.filter(group => 
@@ -210,18 +243,6 @@ export default function TeacherClassPage() {
     ? groups.reduce((sum, group) => sum + group.average_progress, 0) / groups.length 
     : 0;
 
-  const formatLastActivity = (lastActivity: string | null) => {
-    if (!lastActivity) return 'Never';
-    const date = new Date(lastActivity);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`;
-    return date.toLocaleDateString();
-  };
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -234,6 +255,13 @@ export default function TeacherClassPage() {
           <p className="text-gray-600 mt-1">Manage and monitor your students</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setIsWeeklyAwardsOpen(true)}
+            variant="outline"
+            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            🏆 Weekly Awards
+          </Button>
           <Button
             onClick={() => navigate('/teacher/courses')}
             variant="outline"
@@ -385,112 +413,235 @@ export default function TeacherClassPage() {
               
               {group.is_expanded && (
                 <CardContent>
-                  {group.students.length === 0 ? (
-                    <p className="text-gray-500 text-center py-4">No students in this group</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Student
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Overall Progress
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Lessons
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Steps
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Time Spent
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Status
-                            </th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {group.students.map((student) => {
-                            const stats = studentStats[student.id];
-                            return (
-                              <tr key={student.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <div>
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {student.name || student.full_name}
+                  <div className="flex border-b mb-4">
+                    <button
+                      onClick={() => handleTabChange(group.id, 'general')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                        (activeTab[group.id] || 'general') === 'general'
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      General Progress
+                    </button>
+                    <button
+                      onClick={() => handleTabChange(group.id, 'weekly')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                        activeTab[group.id] === 'weekly'
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Weekly Activity ✨
+                    </button>
+                  </div>
+
+                  {(activeTab[group.id] || 'general') === 'general' ? (
+                    group.students.length === 0 ? (
+                      <p className="text-gray-500 text-center py-4">No students in this group</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Student
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Overall Progress
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Lessons
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Steps
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Time Spent
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {group.students.map((student) => {
+                              const stats = studentStats[student.id];
+                              return (
+                                <tr key={student.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {student.name || student.full_name}
+                                      </div>
+                                      <div className="text-sm text-gray-500">{student.email}</div>
+                                      {student.student_id && (
+                                        <div className="text-xs text-gray-400">ID: {student.student_id}</div>
+                                      )}
                                     </div>
-                                    <div className="text-sm text-gray-500">{student.email}</div>
-                                    {student.student_id && (
-                                      <div className="text-xs text-gray-400">ID: {student.student_id}</div>
-                                    )}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-2">
+                                      <Progress 
+                                        value={stats?.overall_completion_percentage || 0} 
+                                        className="w-20 h-2"
+                                      />
+                                      <span className="text-sm font-medium text-gray-900">
+                                        {stats?.overall_completion_percentage?.toFixed(1) || 0}%
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      {stats?.total_courses || 0} courses
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-900">
+                                      {stats?.completed_lessons || 0}/{stats?.total_lessons || 0}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {stats?.total_lessons ? ((stats.completed_lessons / stats.total_lessons) * 100).toFixed(1) : 0}% complete
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-900">
+                                      {stats?.completed_steps || 0}/{stats?.total_steps || 0}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {stats?.completed_steps ? ((stats.completed_steps / stats.total_steps) * 100).toFixed(1) : 0}% complete
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-1 text-sm text-gray-900">
+                                      <Clock className="w-4 h-4" />
+                                      {stats?.total_time_spent_minutes || 0} min
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {stats?.total_time_spent_minutes ? Math.floor(stats.total_time_spent_minutes / 60) : 0}h {stats?.total_time_spent_minutes ? stats.total_time_spent_minutes % 60 : 0}m
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <Badge variant={student.is_active ? "default" : "secondary"}>
+                                      {student.is_active ? 'Active' : 'Inactive'}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-yellow-600 border-yellow-200 hover:bg-yellow-50"
+                                      onClick={() => handleOpenBonusModal(student)}
+                                    >
+                                      <Star className="w-3 h-3 mr-1" />
+                                      Bonus
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  ) : (
+                    /* Weekly View */
+                    <div className="space-y-4">
+                      {Object.keys(isWeeklyLoading).includes(group.id.toString()) && isWeeklyLoading[group.id] ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                        </div>
+                      ) : (!groupWeeklyLeaderboard[group.id] || groupWeeklyLeaderboard[group.id].length === 0) ? (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg">
+                          <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                          <p className="text-gray-500">No activity recorded for this week yet.</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Winner Highlight */}
+                          <div className="mb-6">
+                            <Card className="border-2 border-gray-300 bg-gray-50/50 overflow-hidden">
+                              <CardContent className="p-6">
+                                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-3xl border-2 border-gray-200">
+                                      🥇
+                                    </div>
+                                    <div>
+                                      <h3 className="text-xl font-semibold text-gray-900">Current Leader: {groupWeeklyLeaderboard[group.id][0].user_name}</h3>
+                                      <p className="text-gray-600">Points earned this week: <span className="font-semibold text-gray-900">{groupWeeklyLeaderboard[group.id][0].points}</span></p>
+                                    </div>
                                   </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <div className="flex items-center gap-2">
-                                    <Progress 
-                                      value={stats?.overall_completion_percentage || 0} 
-                                      className="w-20 h-2"
-                                    />
-                                    <span className="text-sm font-medium text-gray-900">
-                                      {stats?.overall_completion_percentage?.toFixed(1) || 0}%
-                                    </span>
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {stats?.total_courses || 0} courses
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">
-                                    {stats?.completed_lessons || 0}/{stats?.total_lessons || 0}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {stats?.total_lessons ? ((stats.completed_lessons / stats.total_lessons) * 100).toFixed(1) : 0}% complete
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">
-                                    {stats?.completed_steps || 0}/{stats?.total_steps || 0}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {stats?.total_steps ? ((stats.completed_steps / stats.total_steps) * 100).toFixed(1) : 0}% complete
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <div className="flex items-center gap-1 text-sm text-gray-900">
-                                    <Clock className="w-4 h-4" />
-                                    {stats?.total_time_spent_minutes || 0} min
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {stats?.total_time_spent_minutes ? Math.floor(stats.total_time_spent_minutes / 60) : 0}h {stats?.total_time_spent_minutes ? stats.total_time_spent_minutes % 60 : 0}m
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <Badge variant={student.is_active ? "default" : "secondary"}>
-                                    {student.is_active ? 'Active' : 'Inactive'}
-                                  </Badge>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-right">
                                   <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-yellow-600 border-yellow-200 hover:bg-yellow-50"
-                                    onClick={() => handleOpenBonusModal(student)}
+                                    size="lg"
+                                    className="bg-gray-800 hover:bg-gray-900 text-white gap-2 px-8"
+                                    onClick={() => {
+                                      setSelectedStudentForBonus({ 
+                                        id: Number(groupWeeklyLeaderboard[group.id][0].user_id), 
+                                        name: groupWeeklyLeaderboard[group.id][0].user_name 
+                                      });
+                                      setDefaultBonusAmount(50);
+                                      setBonusModalOpen(true);
+                                    }}
                                   >
-                                    <Star className="w-3 h-3 mr-1" />
-                                    Bonus
+                                    <Star className="w-5 h-5 fill-current" />
+                                    Award 50 Bonus Points
                                   </Button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+
+                          {groupWeeklyLeaderboard[group.id].length > 1 && (
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider px-1">Other active students</h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {groupWeeklyLeaderboard[group.id].slice(1).map((entry, idx) => (
+                                  <Card key={entry.user_id} className="border border-gray-100 hover:border-blue-200 transition-colors">
+                                    <CardContent className="p-3">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-400 border">
+                                            {idx + 2}
+                                          </div>
+                                          <div>
+                                            <p className="font-medium text-sm text-gray-900 truncate max-w-[120px]">{entry.user_name}</p>
+                                            <p className="text-[10px] text-gray-500">{entry.points} pts this week</p>
+                                          </div>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 px-2 text-[10px] text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                                          onClick={() => {
+                                            setSelectedStudentForBonus({ id: Number(entry.user_id), name: entry.user_name });
+                                            setDefaultBonusAmount(5);
+                                            setBonusModalOpen(true);
+                                          }}
+                                        >
+                                          Bonus
+                                        </Button>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      
+                      <div className="bg-gray-50 p-4 rounded-lg flex items-start gap-3 border border-gray-200">
+                        <Target className="w-5 h-5 text-gray-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Weekly Award Tip</p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            This view shows students ranked by points earned since last Monday. 
+                            You can reward top performers with extra bonus points to boost motivation!
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -505,11 +656,18 @@ export default function TeacherClassPage() {
           onClose={() => setBonusModalOpen(false)}
           studentId={selectedStudentForBonus.id}
           studentName={selectedStudentForBonus.name}
+          defaultAmount={defaultBonusAmount}
           onSuccess={() => {
             // Optionally refresh stats or show toast
           }}
         />
       )}
+      
+      {/* Weekly Awards Hub */}
+      <WeeklyAwardsHub 
+        isOpen={isWeeklyAwardsOpen}
+        onClose={() => setIsWeeklyAwardsOpen(false)}
+      />
     </div>
   );
 }
