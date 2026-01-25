@@ -1555,7 +1555,10 @@ export default function LessonPage() {
 
       case 'video_text':
         return (
-          <div className="space-y-4">
+          <div ref={textContentRef} className="space-y-4 relative">
+            {/* Text Lookup Popover */}
+            <TextLookupPopover containerRef={textContentRef} />
+
             {/* Special "Watch explanations" text above video */}
             {currentStep.content_text && currentStep.content_text.includes("Watch the explanations for the previous questions") && (
               <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
@@ -1632,8 +1635,11 @@ export default function LessonPage() {
         }
 
         return (
-          <QuizRenderer
-            quizState={quizState}
+          <div ref={textContentRef} className="relative">
+            <TextLookupPopover containerRef={textContentRef} />
+            <QuizRenderer
+              quizState={quizState}
+
             quizData={quizData}
             questions={questions}
             currentQuestionIndex={currentQuestionIndex}
@@ -1669,6 +1675,7 @@ export default function LessonPage() {
             highlightedQuestionId={searchParams.get('questionId') || undefined}
             isTeacher={user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'curator'}
           />
+          </div>
         );
 
       case 'flashcard':
