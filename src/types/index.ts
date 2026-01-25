@@ -183,6 +183,8 @@ export interface DailyStreakInfo {
   streak_status: 'not_started' | 'active' | 'at_risk' | 'broken';
   is_active_today: boolean;
   total_study_time_minutes: number;
+  current_multiplier?: number;
+  next_multiplier_at?: number;
 }
 
 // =============================================================================

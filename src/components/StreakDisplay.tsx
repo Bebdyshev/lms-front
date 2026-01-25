@@ -100,6 +100,28 @@ const StreakDisplay: React.FC<StreakDisplayProps> = ({ streakInfo, className = '
           💡 Изучите что-нибудь сегодня, чтобы сохранить серию!
         </div>
       )}
+
+      {/* Multiplier Badge */}
+      <div className="mt-4 pt-3 border-t border-gray-100">
+        {streakInfo.current_multiplier && streakInfo.current_multiplier > 1.0 ? (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded text-sm w-fit">
+                ⚡ {streakInfo.current_multiplier}x Boost
+              </span>
+            </div>
+            {streakInfo.next_multiplier_at && (
+              <p className="text-xs text-gray-500 mt-1 pl-1">
+                 Next: {((streakInfo.current_multiplier || 1) + 0.1).toFixed(1)}x at {streakInfo.next_multiplier_at} days
+              </p>
+            )}
+          </div>
+        ) : (
+           <div className="text-xs text-gray-500 flex items-center gap-1">
+             ⚡ Reach 5 days to unlock <span className="font-semibold text-indigo-600">1.1x Point Boost!</span>
+           </div>
+        )}
+      </div>
     </div>
   );
 };
