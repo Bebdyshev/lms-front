@@ -1,20 +1,16 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../../services/api';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import { Trophy, Loader2, Award, TrendingUp } from 'lucide-react';
+import { Trophy, Loader2, TrendingUp, Award } from 'lucide-react';
 import { toast } from '../Toast';
-import { GiveBonusModal } from './GiveBonusModal';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Input } from '../ui/input';
 
-interface GroupLeader {
-  group_id: number;
-  group_name: string;
-  leader: {
-    user_id: number;
-    user_name: string;
-    points: number;
-  } | null;
+interface GroupStudent {
+  user_id: number;
+  user_name: string;
+  points: number;
 }
 
 interface WeeklyAwardsHubProps {
@@ -23,169 +19,310 @@ interface WeeklyAwardsHubProps {
 }
 
 export function WeeklyAwardsHub({ isOpen, onClose }: WeeklyAwardsHubProps) {
-  const [groupLeaders, setGroupLeaders] = useState<GroupLeader[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [groupStudents, setGroupStudents] = useState<GroupStudent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<{ id: number; name: string } | null>(null);
-  const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
+  const [allowance, setAllowance] = useState<{ limit: number; given: number; remaining: number }>({ limit: 50, given: 0, remaining: 50 });
+  const [pointsDistribution, setPointsDistribution] = useState<{ [userId: number]: number }>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const MIN_POINTS_PER_STUDENT = 10;
 
   useEffect(() => {
     if (isOpen) {
-      loadWeeklyLeaders();
+      loadGroups();
     }
   }, [isOpen]);
 
-  const loadWeeklyLeaders = async () => {
+  useEffect(() => {
+    if (selectedGroupId) {
+      loadGroupLeaderboard(parseInt(selectedGroupId));
+      loadAllowance(parseInt(selectedGroupId));
+    }
+  }, [selectedGroupId]);
+
+  const loadAllowance = async (groupId?: number) => {
+    try {
+      if (!groupId) return;
+      
+      const data = await apiClient.getBonusAllowance(groupId);
+      setAllowance(data);
+    } catch (error) {
+      console.error('Failed to load allowance:', error);
+    }
+  };
+
+  const loadGroups = async () => {
     try {
       setIsLoading(true);
+      const teacherGroups = await apiClient.getTeacherGroups();
+      setGroups(teacherGroups || []);
       
-      // Get all teacher groups
-      const groups = await apiClient.getTeacherGroups();
-      
-      // Fetch weekly leaderboard for each group
-      const leadersPromises = groups.map(async (group: any) => {
-        try {
-          const leaderboard = await apiClient.getGamificationLeaderboard({
-            period: 'weekly',
-            group_id: group.id
-          });
-          
-          return {
-            group_id: group.id,
-            group_name: group.name,
-            leader: leaderboard.entries && leaderboard.entries.length > 0 
-              ? {
-                  user_id: leaderboard.entries[0].user_id,
-                  user_name: leaderboard.entries[0].user_name,
-                  points: leaderboard.entries[0].points
-                }
-              : null
-          };
-        } catch (error) {
-          console.error(`Failed to load leaderboard for group ${group.id}:`, error);
-          return {
-            group_id: group.id,
-            group_name: group.name,
-            leader: null
-          };
-        }
-      });
-      
-      const leaders = await Promise.all(leadersPromises);
-      setGroupLeaders(leaders);
+      if (teacherGroups && teacherGroups.length > 0) {
+        setSelectedGroupId(teacherGroups[0].id.toString());
+      }
     } catch (error) {
-      console.error('Failed to load weekly leaders:', error);
-      toast('Failed to load weekly leaders', 'error');
+      console.error('Failed to load groups:', error);
+      toast('Failed to load groups', 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAwardClick = (userId: number, userName: string) => {
-    setSelectedStudent({ id: userId, name: userName });
-    setIsBonusModalOpen(true);
+  const loadGroupLeaderboard = async (groupId: number) => {
+    try {
+      setIsLoading(true);
+      
+      const allGroups = await apiClient.getTeacherGroups();
+      const selectedGroup = allGroups.find((g: any) => g.id === groupId);
+      
+      if (!selectedGroup || !selectedGroup.students) {
+        setGroupStudents([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      const response = await apiClient.getGamificationLeaderboard({
+        period: 'weekly',
+        group_id: groupId
+      });
+      
+      const weeklyPoints: { [userId: number]: number } = {};
+      (response.entries || []).forEach((entry: any) => {
+        weeklyPoints[entry.user_id] = entry.points;
+      });
+      
+      const allStudentsWithPoints = selectedGroup.students.map((student: any) => ({
+        user_id: student.id,
+        user_name: student.name || student.full_name,
+        points: weeklyPoints[student.id] || 0
+      }));
+      
+      allStudentsWithPoints.sort((a, b) => b.points - a.points);
+      
+      setGroupStudents(allStudentsWithPoints);
+      setPointsDistribution({});
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error);
+      toast('Failed to load group leaderboard', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleBonusSuccess = () => {
-    toast('Bonus awarded successfully!', 'success');
-    setIsBonusModalOpen(false);
-    setSelectedStudent(null);
-    loadWeeklyLeaders(); // Refresh data
+  const handlePointsChange = (userId: number, value: string) => {
+    const points = parseInt(value) || 0;
+    setPointsDistribution(prev => ({
+      ...prev,
+      [userId]: points
+    }));
   };
+
+  const getTotalDistributedInBatch = () => {
+    return Object.values(pointsDistribution).reduce((sum, points) => sum + points, 0);
+  };
+
+  const getRemainingAllowance = () => {
+    return allowance.remaining - getTotalDistributedInBatch();
+  };
+
+  const canDistribute = () => {
+    const totalBatch = getTotalDistributedInBatch();
+    if (totalBatch === 0) return false;
+    
+    if (totalBatch > allowance.remaining) return false;
+    
+    for (const points of Object.values(pointsDistribution)) {
+      if (points > 0 && points < MIN_POINTS_PER_STUDENT) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
+  const handleDistribute = async () => {
+    if (!canDistribute()) return;
+
+    try {
+      setIsSaving(true);
+      const groupId = parseInt(selectedGroupId);
+      
+      for (const [userIdStr, points] of Object.entries(pointsDistribution)) {
+        if (points > 0) {
+          const userId = parseInt(userIdStr);
+          
+          await apiClient.giveTeacherBonus({
+            student_id: userId,
+            amount: points,
+            reason: `Weekly performance award`,
+            group_id: groupId
+          });
+        }
+      }
+      
+      toast('Points distributed successfully!', 'success');
+      loadAllowance(groupId);
+      onClose();
+      
+      setPointsDistribution({});
+      if (selectedGroupId) {
+        loadGroupLeaderboard(parseInt(selectedGroupId));
+      }
+    } catch (error: any) {
+      console.error('Failed to distribute points:', error);
+      toast(error.response?.data?.detail || 'Failed to distribute points', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const remainingInBatch = getRemainingAllowance();
+  const totalBatch = getTotalDistributedInBatch();
 
   return (
-    <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <Trophy className="w-5 h-5 text-gray-700" />
-              </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <Trophy className="w-5 h-5 text-gray-700" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-semibold text-gray-900">Weekly Awards Distribution</DialogTitle>
+              <DialogDescription className="text-sm text-gray-500 mt-1">
+                You can distribute up to {allowance.limit} points per week for this group. (Used: {allowance.given})
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="mt-6 space-y-6">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Select Group</label>
+            <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a group" />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((group) => (
+                  <SelectItem key={group.id} value={group.id.toString()}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className={`rounded-lg p-4 border ${allowance.remaining === 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+            <div className="flex justify-between items-center">
               <div>
-                <DialogTitle className="text-xl font-semibold text-gray-900">Weekly Award Hub</DialogTitle>
-                <DialogDescription className="text-sm text-gray-500 mt-1">
-                  Reward your top performers from this week
-                </DialogDescription>
+                <p className="text-sm text-gray-600">Available to distribute</p>
+                <p className={`text-2xl font-bold ${allowance.remaining === 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                  {allowance.remaining} points
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Selected / Remaining</p>
+                <p className={`text-2xl font-bold ${remainingInBatch < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {totalBatch} / {remainingInBatch}
+                </p>
               </div>
             </div>
-          </DialogHeader>
-
-          <div className="mt-6">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-gray-400 mb-3" />
-                <p className="text-sm text-gray-500">Loading weekly leaders...</p>
-              </div>
-            ) : groupLeaders.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-600 font-medium">No groups found</p>
-                <p className="text-sm text-gray-500 mt-1">You don't have any groups assigned yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {groupLeaders.map((group) => (
-                  <Card key={group.group_id} className="border border-gray-200 hover:border-gray-300 transition-colors">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="text-sm font-semibold text-gray-700 mb-2">{group.group_name}</h3>
-                          {group.leader ? (
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 border border-gray-200">
-                                <span className="text-sm">🥇</span>
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900">{group.leader.user_name}</p>
-                                <p className="text-xs text-gray-500">{group.leader.points} points this week</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-gray-400 italic">No activity this week</p>
-                          )}
-                        </div>
-                        
-                        {group.leader && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleAwardClick(group.leader!.user_id, group.leader!.user_name)}
-                            className="bg-gray-800 hover:bg-gray-900 text-white shadow-sm"
-                          >
-                            <Award className="w-3.5 h-3.5 mr-1.5" />
-                            Award 50
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+            {allowance.remaining === 0 ? (
+               <p className="text-sm text-red-700 mt-2 font-medium">Group limit reached. You cannot give more points this week.</p>
+            ) : remainingInBatch < 0 && (
+              <p className="text-sm text-red-600 mt-2">You've exceeded your available allowance!</p>
             )}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Tip:</span> Rankings reset every Monday. Award points to motivate top performers!
-              </p>
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          ) : groupStudents.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-lg">
+              <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-600">No students in this group</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Rank</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Student</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Weekly Points</th>
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase">Award Points</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {groupStudents.map((student, index) => {
+                    const studentPoints = pointsDistribution[student.user_id] || 0;
+                    const hasError = studentPoints > 0 && studentPoints < MIN_POINTS_PER_STUDENT;
+                    
+                    return (
+                      <tr key={student.user_id} className={`hover:bg-gray-50 ${hasError ? 'bg-red-50' : ''}`}>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 border border-gray-200">
+                            {index === 0 && student.points > 0 ? (
+                              <span className="text-base">🥇</span>
+                            ) : index === 1 && student.points > 0 ? (
+                              <span className="text-base">🥈</span>
+                            ) : index === 2 && student.points > 0 ? (
+                              <span className="text-base">🥉</span>
+                            ) : (
+                              <span className="text-xs font-medium text-gray-600">{index + 1}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <p className="text-sm font-medium text-gray-900">{student.user_name}</p>
+                        </td>
+                        <td className="px-3 py-2">
+                          <p className="text-sm text-gray-600">{student.points}</p>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-center gap-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              max={allowance.remaining}
+                              step="10"
+                              disabled={allowance.remaining === 0}
+                              value={studentPoints || ''}
+                              onChange={(e) => handlePointsChange(student.user_id, e.target.value)}
+                              placeholder="0"
+                              className={`w-20 text-center text-sm ${hasError ? 'border-red-400' : ''}`}
+                            />
+                          </div>
+                          {hasError && (
+                            <p className="text-xs text-red-600 mt-1 text-center">Min {MIN_POINTS_PER_STUDENT}</p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
-      {selectedStudent && (
-        <GiveBonusModal
-          isOpen={isBonusModalOpen}
-          onClose={() => {
-            setIsBonusModalOpen(false);
-            setSelectedStudent(null);
-          }}
-          studentId={selectedStudent.id}
-          studentName={selectedStudent.name}
-          defaultAmount={50}
-          onSuccess={handleBonusSuccess}
-        />
-      )}
-    </>
+        <DialogFooter className="mt-6">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDistribute}
+            disabled={!canDistribute() || isSaving}
+            className="bg-gray-800 hover:bg-gray-900 text-white"
+          >
+            {isSaving ? 'Distributing...' : 'Distribute Points'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

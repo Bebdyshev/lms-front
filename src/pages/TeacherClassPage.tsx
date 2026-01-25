@@ -12,7 +12,6 @@ import {
   ChevronRight,
   User as UserIcon,
   Clock,
-  Star,
   Target,
   Loader2
 } from 'lucide-react';
@@ -462,9 +461,6 @@ export default function TeacherClassPage() {
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Status
                               </th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                              </th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
@@ -527,17 +523,6 @@ export default function TeacherClassPage() {
                                       {student.is_active ? 'Active' : 'Inactive'}
                                     </Badge>
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap text-right">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="text-yellow-600 border-yellow-200 hover:bg-yellow-50"
-                                      onClick={() => handleOpenBonusModal(student)}
-                                    >
-                                      <Star className="w-3 h-3 mr-1" />
-                                      Bonus
-                                    </Button>
-                                  </td>
                                 </tr>
                               );
                             })}
@@ -559,76 +544,35 @@ export default function TeacherClassPage() {
                         </div>
                       ) : (
                         <>
-                          {/* Winner Highlight */}
-                          <div className="mb-6">
-                            <Card className="border-2 border-gray-300 bg-gray-50/50 overflow-hidden">
-                              <CardContent className="p-6">
-                                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                                  <div className="flex items-center gap-4">
-                                    <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-3xl border-2 border-gray-200">
-                                      🥇
-                                    </div>
-                                    <div>
-                                      <h3 className="text-xl font-semibold text-gray-900">Current Leader: {groupWeeklyLeaderboard[group.id][0].user_name}</h3>
-                                      <p className="text-gray-600">Points earned this week: <span className="font-semibold text-gray-900">{groupWeeklyLeaderboard[group.id][0].points}</span></p>
-                                    </div>
-                                  </div>
-                                  <Button
-                                    size="lg"
-                                    className="bg-gray-800 hover:bg-gray-900 text-white gap-2 px-8"
-                                    onClick={() => {
-                                      setSelectedStudentForBonus({ 
-                                        id: Number(groupWeeklyLeaderboard[group.id][0].user_id), 
-                                        name: groupWeeklyLeaderboard[group.id][0].user_name 
-                                      });
-                                      setDefaultBonusAmount(50);
-                                      setBonusModalOpen(true);
-                                    }}
-                                  >
-                                    <Star className="w-5 h-5 fill-current" />
-                                    Award 50 Bonus Points
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </div>
-
-                          {groupWeeklyLeaderboard[group.id].length > 1 && (
-                            <div className="space-y-3">
-                              <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider px-1">Other active students</h4>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {groupWeeklyLeaderboard[group.id].slice(1).map((entry, idx) => (
-                                  <Card key={entry.user_id} className="border border-gray-100 hover:border-blue-200 transition-colors">
-                                    <CardContent className="p-3">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-400 border">
-                                            {idx + 2}
-                                          </div>
-                                          <div>
-                                            <p className="font-medium text-sm text-gray-900 truncate max-w-[120px]">{entry.user_name}</p>
-                                            <p className="text-[10px] text-gray-500">{entry.points} pts this week</p>
-                                          </div>
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 px-2 text-[10px] text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                                          onClick={() => {
-                                            setSelectedStudentForBonus({ id: Number(entry.user_id), name: entry.user_name });
-                                            setDefaultBonusAmount(5);
-                                            setBonusModalOpen(true);
-                                          }}
-                                        >
-                                          Bonus
-                                        </Button>
+                          {/* Clean Table Layout */}
+                          <div className="overflow-hidden border border-gray-100 rounded-lg">
+                            <table className="w-full">
+                              <thead className="bg-gray-50/50">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Rank</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Student</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Weekly Points</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {groupWeeklyLeaderboard[group.id].map((student, index) => (
+                                  <tr key={student.user_id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-4 py-3 px-6">
+                                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 border border-gray-100 font-medium text-sm text-gray-600">
+                                        {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}
                                       </div>
-                                    </CardContent>
-                                  </Card>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <span className="font-medium text-gray-900">{student.user_name}</span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <span className="font-medium text-gray-700">{student.points}</span>
+                                    </td>
+                                  </tr>
                                 ))}
-                              </div>
-                            </div>
-                          )}
+                              </tbody>
+                            </table>
+                          </div>
                         </>
                       )}
                       
@@ -662,9 +606,9 @@ export default function TeacherClassPage() {
           }}
         />
       )}
-      
+
       {/* Weekly Awards Hub */}
-      <WeeklyAwardsHub 
+      <WeeklyAwardsHub
         isOpen={isWeeklyAwardsOpen}
         onClose={() => setIsWeeklyAwardsOpen(false)}
       />

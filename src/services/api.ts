@@ -25,7 +25,6 @@ import type {
   UpdateEventRequest,
   EventType,
   StudentProgress,
-  ManualLessonUnlock,
   ManualLessonUnlockCreate,
   ManualLessonUnlockListResponse
 } from '../types';
@@ -2984,10 +2983,25 @@ class LMSApiClient {
     }
   }
 
+  async getBonusAllowance(groupId?: number): Promise<{ limit: number; given: number; remaining: number }> {
+    try {
+      const url = groupId 
+        ? `/gamification/bonus-allowance?group_id=${groupId}`
+        : '/gamification/bonus-allowance';
+      const response = await this.api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get bonus allowance:', error);
+      // Fallback for offline/error
+      return { limit: 50, given: 0, remaining: 50 };
+    }
+  }
+
   async giveTeacherBonus(data: {
     student_id: number;
     amount: number;
     reason?: string;
+    group_id?: number;
   }): Promise<{ success: boolean; message: string; new_total: number }> {
     try {
       const response = await this.api.post('/gamification/bonus', data);
