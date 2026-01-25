@@ -431,7 +431,7 @@ export default function TeacherClassPage() {
                           : 'border-transparent text-gray-500 hover:text-gray-700'
                       }`}
                     >
-                      Weekly Activity ✨
+                      Weekly Activity
                     </button>
                   </div>
 
