@@ -7,8 +7,8 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
 import { Button } from './ui/button';
-import { Calendar as CalendarIcon, Clock, Loader2 } from 'lucide-react';
-import { generateSchedule } from '../services/api';
+import { Clock, Loader2 } from 'lucide-react';
+import apiClient, { generateSchedule } from '../services/api';
 import { toast } from './Toast';
 
 interface ScheduleGeneratorProps {
@@ -28,6 +28,35 @@ export default function ScheduleGenerator({ groupId, open, onOpenChange, onSucce
     
     // Config: { dayIndex: timeString }
     const [scheduleConfig, setScheduleConfig] = useState<Record<number, string>>({});
+
+    React.useEffect(() => {
+        if (open && groupId) {
+            loadExistingSchedule(groupId);
+        }
+    }, [open, groupId]);
+
+    const loadExistingSchedule = async (id: number) => {
+        try {
+            const data = await apiClient.getGroupSchedule(id);
+            if (data.schedule_items && data.schedule_items.length > 0) {
+                setStartDate(data.start_date);
+                setWeeks(data.weeks_count);
+                
+                const config: Record<number, string> = {};
+                data.schedule_items.forEach((item: { day_of_week: number; time_of_day: string }) => {
+                    config[item.day_of_week] = item.time_of_day;
+                });
+                setScheduleConfig(config);
+            } else {
+                // Reset to defaults if no schedule
+                setScheduleConfig({});
+                setStartDate(new Date().toISOString().split('T')[0]);
+                setWeeks(12);
+            }
+        } catch (e) {
+            console.error("Failed to load existing schedule", e);
+        }
+    };
 
     const handleToggleDay = (dayIndex: number) => {
         setScheduleConfig(prev => {
@@ -119,8 +148,9 @@ export default function ScheduleGenerator({ groupId, open, onOpenChange, onSucce
                                             <div className="flex items-center w-28">
                                                 <Clock className="w-3 h-3 mr-2 text-muted-foreground" />
                                                 <Input 
-                                                    type="time" 
+                                                    type="text" 
                                                     className="h-7 text-xs"
+                                                    placeholder="19:00"
                                                     value={scheduleConfig[i]}
                                                     onChange={(e) => handleTimeChange(i, e.target.value)}
                                                 />

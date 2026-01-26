@@ -26,7 +26,9 @@ import type {
   EventType,
   StudentProgress,
   ManualLessonUnlockCreate,
-  ManualLessonUnlockListResponse
+  ManualLessonUnlockListResponse,
+  EventStudent,
+  AttendanceBulkUpdate
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -839,7 +841,21 @@ class LMSApiClient {
     }
   }
 
-  async createAssignment(assignmentData: any): Promise<any> {
+  async createAssignment(assignmentData: {
+    title: string;
+    description: string;
+    assignment_type: string;
+    content: any;
+    max_score: number;
+    time_limit_minutes?: number;
+    due_date?: string;
+    group_id?: number;
+    group_ids?: number[];
+    event_id?: number;
+    event_mapping?: Record<number, number>; // group_id -> event_id
+    allowed_file_types: string[];
+    max_file_size_mb: number;
+  }): Promise<any> {
     try {
       const response = await this.api.post('/assignments/', assignmentData);
       return response.data;
@@ -2176,6 +2192,7 @@ class LMSApiClient {
     start_date?: string;
     end_date?: string;
     upcoming_only?: boolean;
+    group_id?: number;
   }): Promise<Event[]> {
     try {
       const response = await this.api.get('/events/my', { params });
@@ -2230,6 +2247,25 @@ class LMSApiClient {
       await this.api.delete(`/events/${eventId}/register`);
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Failed to unregister from event');
+    }
+  }
+
+  async getEventParticipants(eventId: number, groupId?: number): Promise<EventStudent[]> {
+    try {
+      const response = await this.api.get(`/events/${eventId}/participants`, {
+        params: { group_id: groupId }
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to load participants');
+    }
+  }
+
+  async updateEventAttendance(eventId: number, data: AttendanceBulkUpdate): Promise<void> {
+    try {
+      await this.api.post(`/events/${eventId}/attendance`, data);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to update attendance');
     }
   }
 
@@ -2804,6 +2840,20 @@ class LMSApiClient {
     }
   }
 
+  async getGroupSchedule(groupId: number): Promise<{
+    start_date: string;
+    weeks_count: number;
+    schedule_items: { day_of_week: number; time_of_day: string }[];
+  }> {
+    try {
+      const response = await this.api.get(`/leaderboard/curator/schedule/${groupId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to load group schedule:', error);
+      throw error;
+    }
+  }
+
   async getGroupLeaderboard(groupId: number, weekNumber: number): Promise<any[]> {
     try {
       const response = await this.api.get(`/leaderboard/curator/leaderboard/${groupId}`, {
@@ -2813,6 +2863,37 @@ class LMSApiClient {
     } catch (error) {
       console.error('Failed to load leaderboard:', error);
       throw error;
+    }
+  }
+
+
+  async getWeeklyLessonsWithHwStatus(groupId: number, weekNumber: number): Promise<any> {
+    try {
+      const response = await this.api.get(`/leaderboard/curator/weekly-lessons/${groupId}`, {
+        params: { week_number: weekNumber }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to load weekly lessons:', error);
+      throw error;
+    }
+  }
+
+  async updateLeaderboardConfig(data: {
+      group_id: number;
+      week_number: number;
+      curator_hour_enabled?: boolean;
+      study_buddy_enabled?: boolean;
+      self_reflection_journal_enabled?: boolean;
+      weekly_evaluation_enabled?: boolean;
+      extra_points_enabled?: boolean;
+  }): Promise<any> {
+    try {
+        const response = await this.api.post('/leaderboard/config', data);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to update leaderboard config:', error);
+        throw error;
     }
   }
 
@@ -2838,6 +2919,7 @@ class LMSApiClient {
       student_id: number;
       score: number;
       status: string;
+      event_id?: number;
   }): Promise<any> {
       try {
           const response = await this.api.post('/leaderboard/curator/attendance', data);
@@ -3216,6 +3298,8 @@ export const getAdminDashboard = apiClient.getAdminDashboard.bind(apiClient);
 export const getUsers = apiClient.getUsers.bind(apiClient);
 export const updateUser = apiClient.updateUser.bind(apiClient);
 export const deactivateUser = apiClient.deactivateUser.bind(apiClient);
+export const getWeeklyLessonsWithHwStatus = apiClient.getWeeklyLessonsWithHwStatus.bind(apiClient);
+export const updateLeaderboardConfig = apiClient.updateLeaderboardConfig.bind(apiClient);
 export const assignUserToGroup = apiClient.assignUserToGroup.bind(apiClient);
 export const bulkAssignUsersToGroup = apiClient.bulkAssignUsersToGroup.bind(apiClient);
 export const createGroup = apiClient.createGroup.bind(apiClient);

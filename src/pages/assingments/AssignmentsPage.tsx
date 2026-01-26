@@ -15,6 +15,7 @@ interface AssignmentWithStatus {
   group_id?: number;
   group_name?: string;
   due_date?: string;
+  event_start_datetime?: string;
   created_at: string;
   file_url?: string;
   allowed_file_types?: string[];
@@ -444,14 +445,25 @@ export default function AssignmentsPage() {
                             <td className="px-6 py-4 text-gray-600">
                               {assignment.extended_deadline ? (
                                 <div className="flex items-center text-green-600">
-                                  <Calendar className="w-4 h-4 mr-1" />
-                                  {new Date(assignment.extended_deadline).toLocaleDateString()}
-                                  <span className="ml-1 text-[10px] bg-green-50 px-1 rounded">(Extended)</span>
+                                  <Calendar className="w-4 h-4 mr-1 text-green-400" />
+                                  <span className="font-medium">
+                                    {new Date(assignment.extended_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  </span>
+                                  <span className="ml-1 text-[9px] bg-green-50 text-green-600 px-1 rounded border border-green-100 font-bold uppercase tracking-tight">Ext</span>
                                 </div>
                               ) : assignment.due_date ? (
                                 <div className={`flex items-center ${isOverdue(assignment.due_date) && assignment.status === 'not_submitted' ? 'text-red-600' : ''}`}>
+                                  <Calendar className={`w-4 h-4 mr-1 ${isOverdue(assignment.due_date) && assignment.status === 'not_submitted' ? 'text-red-400' : 'text-gray-400'}`} />
+                                  <span className="font-medium">
+                                    {new Date(assignment.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  </span>
+                                </div>
+                              ) : assignment.event_start_datetime ? (
+                                <div className="flex items-center">
                                   <Calendar className="w-4 h-4 mr-1" />
-                                  {new Date(assignment.due_date).toLocaleDateString()}
+                                  <span className="font-medium ">
+                                  {new Date(assignment.event_start_datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  </span>
                                 </div>
                               ) : (
                                 <span className="text-gray-400">-</span>

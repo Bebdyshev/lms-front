@@ -1049,3 +1049,22 @@ export const EVENT_TYPE_COLORS: Record<EventType, string> = {
   webinar: 'bg-red-100 text-red-800 border-red-200',
   assignment: 'bg-orange-100 text-orange-800 border-orange-200'
 };
+// =============================================================================
+// ATTENDANCE TYPES
+// =============================================================================
+
+export interface EventStudent {
+  student_id: number;
+  name: string;
+  attendance_status: string; // "attended", "missed", "late", "registered"
+  last_updated?: string;
+}
+
+export interface AttendanceRecord {
+  student_id: number;
+  status: string;
+}
+
+export interface AttendanceBulkUpdate {
+  attendance: AttendanceRecord[];
+}

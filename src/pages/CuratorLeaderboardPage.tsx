@@ -7,31 +7,61 @@ import { Skeleton } from '../components/ui/skeleton';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
-import { ChevronLeft, ChevronRight, Loader2, Save } from 'lucide-react';
-import apiClient, { getCuratorGroups } from '../services/api';
+import { ChevronLeft, ChevronRight, Loader2, Save, Eye, EyeOff } from 'lucide-react';
+import { getCuratorGroups, getWeeklyLessonsWithHwStatus, updateAttendance, updateLeaderboardEntry, updateLeaderboardConfig } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
-import { updateAttendance } from '../services/api';
-import ScheduleGenerator from '../components/ScheduleGenerator';
-import { Calendar as CalendarIcon, Clock } from 'lucide-react';
 
-interface LeaderboardEntry {
-  student_id: number;
-  student_name: string;
-  avatar_url: string | null;
-  lesson_1: number;
-  hw_lesson_1: number | null;
-  lesson_2: number;
-  hw_lesson_2: number | null;
-  lesson_3: number;
-  hw_lesson_3: number | null;
-  curator_hour: number;
-  mock_exam: number;
-  study_buddy: number;
-  self_reflection_journal: number;
-  weekly_evaluation: number;
-  extra_points: number;
+interface LessonMeta {
+    lesson_number: number;
+    event_id: number;
+    title: string;
+    start_datetime: string;
+    homework?: {
+        id: number;
+        title: string;
+    };
+}
+
+interface StudentLessonStatus {
+    event_id: number;
+    attendance_status: string;
+    homework_status: {
+        submitted: boolean;
+        score: number | null;
+        max_score?: number;
+        is_graded?: boolean;
+        submission_id?: number;
+    } | null;
+}
+
+interface StudentRow {
+    student_id: number;
+    student_name: string;
+    avatar_url: string | null;
+    lessons: { [key: string]: StudentLessonStatus }; // key is lesson_number as string "1", "2"
+    // Manual fields
+    curator_hour: number;
+    mock_exam: number;
+    study_buddy: number;
+    self_reflection_journal: number;
+    weekly_evaluation: number;
+    extra_points: number;
+}
+
+interface LeaderboardData {
+    week_number: number;
+    week_start: string;
+    lessons: LessonMeta[];
+    students: StudentRow[];
+    config: {
+        curator_hour_enabled: boolean;
+        study_buddy_enabled: boolean;
+        self_reflection_journal_enabled: boolean;
+        weekly_evaluation_enabled: boolean;
+        extra_points_enabled: boolean;
+    };
 }
 
 interface Group {
@@ -41,8 +71,7 @@ interface Group {
 
 // Configuration
 const MAX_SCORES = {
-    lesson: 10, // Attendance: 0 (absent) or 10 (present)
-    hw: 15,
+    attendance: 10,
     curator_hour: 20,
     mock_exam: 20,
     study_buddy: 15, // 0 (no) or 15 (yes)
@@ -51,14 +80,76 @@ const MAX_SCORES = {
     extra_points: 0,
 };
 
-
-
-const getBaseTotalMax = () => 
-    (MAX_SCORES.lesson * 3) + 
-    (MAX_SCORES.hw * 3) + 
-    MAX_SCORES.mock_exam; // Lessons and Mock Exam are core
-
 const getOptions = (max: number) => Array.from({ length: max + 1 }, (_, i) => i);
+
+const ScoreSelect = ({ 
+    value, 
+    max, 
+    onChange,
+}: { 
+    value: number, 
+    max: number, 
+    onChange: (val: string) => void,
+}) => (
+  <Select value={value.toString()} onValueChange={onChange}>
+      <SelectTrigger className={cn(
+          "h-full w-full border-none focus:ring-0 px-1 text-center justify-center rounded-none",
+          "hover:bg-black/5" 
+      )}>
+          <SelectValue>
+            <span className="truncate text-xs text-gray-900">{value}</span>
+          </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+          {getOptions(max).map(v => (
+              <SelectItem key={v} value={v.toString()} className="justify-center text-xs">
+                  {v}
+              </SelectItem>
+          ))}
+      </SelectContent>
+  </Select>
+);
+
+const AttendanceToggle = ({
+    initialStatus,
+    onChange,
+}: {
+    initialStatus: string,
+    onChange: (status: string) => void,
+}) => {
+  // Cycle: attended -> late -> missed -> attended
+  const handleCycle = () => {
+    if (initialStatus === 'attended') onChange('late');
+    else if (initialStatus === 'late') onChange('missed');
+    else onChange('attended');
+  };
+
+  const getStatusConfig = () => {
+    // Standardize 'absent' -> 'missed' for logic consistency
+    const s = (initialStatus === 'absent' || initialStatus === 'registered') ? 'missed' : initialStatus;
+    
+    if (s === 'attended') return { label: '✓', color: 'bg-green-500 text-white shadow-green-200', title: 'Present' };
+    if (s === 'late') return { label: 'L', color: 'bg-yellow-500 text-white shadow-yellow-200', title: 'Late' };
+    return { label: '✕', color: 'bg-red-500 text-white shadow-red-200', title: 'Absent' };
+  };
+
+  const config = getStatusConfig();
+  
+  return (
+    <div className="flex items-center justify-center h-full p-1">
+      <button
+        onClick={handleCycle}
+        className={cn(
+          "flex items-center justify-center w-7 h-7 rounded-lg text-[11px] font-extrabold transition-all shadow-sm active:scale-90 border border-black/5",
+          config.color
+        )}
+        title={`Status: ${config.title}. Click to cycle.`}
+      >
+        {config.label}
+      </button>
+    </div>
+  );
+};
 
 export default function CuratorLeaderboardPage() {
   const { user } = useAuth();
@@ -68,8 +159,11 @@ export default function CuratorLeaderboardPage() {
   
   // UI states
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<LeaderboardEntry[]>([]);
+  const [data, setData] = useState<LeaderboardData | null>(null);
+  
+  // Changes tracking: Set of student IDs that have changes
   const [changedEntries, setChangedEntries] = useState<Set<number>>(new Set());
+  const [configChanged, setConfigChanged] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [enabledCols, setEnabledCols] = useState({
       curator_hour: true,
@@ -78,9 +172,13 @@ export default function CuratorLeaderboardPage() {
       weekly_evaluation: true,
       extra_points: true
   });
-  
-  // Schedule Gen State
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+
+  const toggleColumn = (field: keyof typeof enabledCols) => {
+      setEnabledCols(prev => ({ ...prev, [field]: !prev[field] }));
+      setConfigChanged(true);
+  };
+
+
 
   useEffect(() => {
     const loadGroups = async () => {
@@ -107,9 +205,21 @@ export default function CuratorLeaderboardPage() {
     if (!selectedGroupId) return;
     setLoading(true);
     setChangedEntries(new Set()); 
+    setConfigChanged(false);
     try {
-        const result = await apiClient.getGroupLeaderboard(selectedGroupId, currentWeek);
+        const result = await getWeeklyLessonsWithHwStatus(selectedGroupId, currentWeek);
         setData(result);
+        
+        // Load persistent config
+        if (result.config) {
+            setEnabledCols({
+                curator_hour: result.config.curator_hour_enabled,
+                study_buddy: result.config.study_buddy_enabled,
+                self_reflection_journal: result.config.self_reflection_journal_enabled,
+                weekly_evaluation: result.config.weekly_evaluation_enabled,
+                extra_points: result.config.extra_points_enabled
+            });
+        }
     } catch (e) {
         console.error("Failed to load leaderboard", e);
         toast("Failed to load leaderboard", "error");
@@ -118,211 +228,205 @@ export default function CuratorLeaderboardPage() {
     }
   };
 
-  const calculateTotal = (entry: LeaderboardEntry) => {
-    const hwScores = [
-        entry.hw_lesson_1, entry.hw_lesson_2, entry.hw_lesson_3
-    ];
-    const hwTotal = hwScores.reduce((acc, val) => (acc || 0) + (val || 0), 0) || 0;
-    const lessonsTotal = 
-        entry.lesson_1 + entry.lesson_2 + entry.lesson_3;
+  const calculateTotal = (student: StudentRow) => {
+    if (!data) return 0;
     
-    // Core (non-optional in this logic)
-    const mockExam = entry.mock_exam;
+    // Sum HW and Attendance from dynamic lessons
+    let lessonsTotal = 0;
+    Object.values(student.lessons).forEach(lesson => {
+        // Attendance
+        if (lesson.attendance_status === 'attended') {
+            lessonsTotal += MAX_SCORES.attendance;
+        }
+        // Homework
+        if (lesson.homework_status && lesson.homework_status.score !== null) {
+            lessonsTotal += lesson.homework_status.score;
+        }
+    });
     
-    // Optional
-    const curatorHour = enabledCols.curator_hour ? entry.curator_hour : 0;
-    const studyBuddy = enabledCols.study_buddy ? entry.study_buddy : 0;
-    const journal = enabledCols.self_reflection_journal ? entry.self_reflection_journal : 0;
-    const weeklyEval = enabledCols.weekly_evaluation ? entry.weekly_evaluation : 0;
-    const extraPoints = enabledCols.extra_points ? entry.extra_points : 0;
+    // Manual Columns
+    const curatorHour = enabledCols.curator_hour ? student.curator_hour : 0;
+    const mockExam = student.mock_exam; // Always enabled logic-wise
+    const studyBuddy = enabledCols.study_buddy ? student.study_buddy : 0;
+    const journal = enabledCols.self_reflection_journal ? student.self_reflection_journal : 0;
+    const weeklyEval = enabledCols.weekly_evaluation ? student.weekly_evaluation : 0;
+    const extraPoints = enabledCols.extra_points ? student.extra_points : 0;
         
-    return hwTotal + lessonsTotal + mockExam + curatorHour + studyBuddy + journal + weeklyEval + extraPoints;
+    return lessonsTotal + curatorHour + mockExam + studyBuddy + journal + weeklyEval + extraPoints;
   };
   
-  const calculatePercent = (entry: LeaderboardEntry) => {
-      const total = calculateTotal(entry);
+  const calculatePercent = (student: StudentRow) => {
+      if (!data) return 0;
+      const total = calculateTotal(student);
       
-      let maxForWeek = getBaseTotalMax();
+      // Calculate Max Possible
+      // Dynamic lessons count
+      // Per lesson: Attendance (10) + HW (if exists, assume 15 or max_score?)
+      // Backend didn't return max score for HW meta, but usage implies 15 usually?
+      // Wait, assignment has max_score.
+      // Let's assume standard 15 for now or sum up actual max scores if available.
+      // In student lesson status we have `max_score`. But for total possible we need to know theoretical max.
+      // For general % calculation, let's assume 15 for HW if HW exists.
+      
+      let maxLessons = 0;
+      data.lessons.forEach(meta => {
+          maxLessons += MAX_SCORES.attendance; // 10
+          if (meta.homework) {
+              maxLessons += 15; // Assume 15 for consistency with previous config
+          }
+      });
+      
+      let maxForWeek = maxLessons + MAX_SCORES.mock_exam;
       if (enabledCols.curator_hour) maxForWeek += MAX_SCORES.curator_hour;
       if (enabledCols.study_buddy) maxForWeek += MAX_SCORES.study_buddy;
       if (enabledCols.self_reflection_journal) maxForWeek += MAX_SCORES.self_reflection_journal;
       if (enabledCols.weekly_evaluation) maxForWeek += MAX_SCORES.weekly_evaluation;
       // extra_points NOT added to maxForWeek
       
+      if (maxForWeek === 0) return 0;
       return Math.round((total / maxForWeek) * 100); 
   };
 
   const getPercentColor = (percent: number) => {
-      // Using solid bg colors for flatness
       if (percent >= 90) return "bg-[#e6f4ea] text-[#137333]"; // Green
       if (percent >= 75) return "bg-[#e8f0fe] text-[#1967d2]"; // Blue
       if (percent >= 50) return "bg-[#fef7e0] text-[#ea8600]"; // Orange
       return "bg-[#fce8e6] text-[#c5221f]"; // Red
   };
 
-  const handleScoreChange = (studentId: number, field: keyof LeaderboardEntry, value: string) => {
+  const handleManualScoreChange = (studentId: number, field: keyof StudentRow, value: string) => {
     const numValue = parseFloat(value) || 0;
     
-    setData(prev => prev.map(item => 
-        item.student_id === studentId ? { ...item, [field]: numValue } : item
-    ));
+    setData(prev => {
+        if (!prev) return null;
+        return {
+            ...prev,
+            students: prev.students.map(s => 
+                s.student_id === studentId ? { ...s, [field]: numValue } : s
+            )
+        };
+    });
     
     setChangedEntries(prev => new Set(prev).add(studentId));
   };
 
+  const handleAttendanceChange = (studentId: number, lessonNumber: string, status: string) => {
+      // Status: "attended" or "absent" (from toggles)
+      // Map to 10 or 0
+      
+      setData(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              students: prev.students.map(s => {
+                  if (s.student_id !== studentId) return s;
+                  
+                  const lesson = s.lessons[lessonNumber];
+                  if (!lesson) return s;
+                  
+                  return {
+                      ...s,
+                      lessons: {
+                          ...s.lessons,
+                          [lessonNumber]: {
+                              ...lesson,
+                              attendance_status: status
+                          }
+                      }
+                  };
+              })
+          };
+      });
+      setChangedEntries(prev => new Set(prev).add(studentId));
+  };
   const handleSaveChanges = async () => {
-    if (!selectedGroupId || changedEntries.size === 0) return;
+    if (!selectedGroupId || (!configChanged && changedEntries.size === 0) || !data) return;
     
     setIsSaving(true);
     let successCount = 0;
-    const entriesToSave = data.filter(s => changedEntries.has(s.student_id));
-    
-    for (const entry of entriesToSave) {
-        try {
-            // 1. Update Legacy / General Fields
-            await apiClient.updateLeaderboardEntry({
-                user_id: entry.student_id,
-                group_id: selectedGroupId,
-                week_number: currentWeek,
-                lesson_1: entry.lesson_1,
-                lesson_2: entry.lesson_2,
-                lesson_3: entry.lesson_3,
-                curator_hour: entry.curator_hour,
-                mock_exam: entry.mock_exam,
-                study_buddy: entry.study_buddy,
-                self_reflection_journal: entry.self_reflection_journal,
-                weekly_evaluation: entry.weekly_evaluation,
-                extra_points: entry.extra_points
-            });
-            
-            // 2. Update Attendance (Specific Lessons)
-            // We assume lessons are 1, 2, 3 for now (matching UI)
-            for (let i = 1; i <= 3; i++) {
-                const key = `lesson_${i}` as keyof LeaderboardEntry;
-                const score = entry[key] as number;
-                
-                await updateAttendance({
+
+    try {
+        // 1. Save Column Visibility Config
+        await updateLeaderboardConfig({
+            group_id: selectedGroupId,
+            week_number: currentWeek,
+            curator_hour_enabled: enabledCols.curator_hour,
+            study_buddy_enabled: enabledCols.study_buddy,
+            self_reflection_journal_enabled: enabledCols.self_reflection_journal,
+            weekly_evaluation_enabled: enabledCols.weekly_evaluation,
+            extra_points_enabled: enabledCols.extra_points
+        });
+        
+        // 2. Save Student Scores
+        const entriesToSave = data.students.filter(s => changedEntries.has(s.student_id));
+        
+        for (const student of entriesToSave) {
+            try {
+                // Update Manual Fields (LeaderboardEntry)
+                await updateLeaderboardEntry({
+                    user_id: student.student_id,
                     group_id: selectedGroupId,
                     week_number: currentWeek,
-                    lesson_index: i,
-                    student_id: entry.student_id,
-                    score: score,
-                    status: score > 0 ? "present" : "absent"
+                    curator_hour: student.curator_hour,
+                    mock_exam: student.mock_exam,
+                    study_buddy: student.study_buddy,
+                    self_reflection_journal: student.self_reflection_journal,
+                    weekly_evaluation: student.weekly_evaluation,
+                    extra_points: student.extra_points
                 });
+                
+                // Update Attendance (Events)
+                for (const [lessonKey, lessonStatus] of Object.entries(student.lessons)) {
+                    const score = lessonStatus.attendance_status === 'attended' ? 10 : 0;
+                    
+                    await updateAttendance({
+                        group_id: selectedGroupId,
+                        week_number: currentWeek,
+                        lesson_index: parseInt(lessonKey),
+                        student_id: student.student_id,
+                        score: score,
+                        status: lessonStatus.attendance_status,
+                        event_id: lessonStatus.event_id
+                    });
+                }
+
+                successCount++;
+            } catch (e) {
+                console.error(`Failed to save for student ${student.student_id}`, e);
             }
-
-            successCount++;
-        } catch (e) {
-            console.error(`Failed to save for student ${entry.student_id}`, e);
         }
-    }
-    
-    setIsSaving(false);
-    if (successCount === entriesToSave.length) {
-        toast("All changes saved successfully", "success");
-        setChangedEntries(new Set());
-    } else {
-        toast(`Saved ${successCount}/${entriesToSave.length} entries. Please try again.`, "error");
+        
+        if (successCount === entriesToSave.length) {
+            toast("All changes saved successfully", "success");
+            setChangedEntries(new Set());
+            setConfigChanged(false);
+        } else {
+            toast(`Saved ${successCount}/${entriesToSave.length} entries. Please try again.`, "error");
+        }
+    } catch (e) {
+        console.error("Failed to save configuration:", e);
+        toast("Failed to save column configuration", "error");
+    } finally {
+        setIsSaving(false);
     }
   };
 
 
 
-  const ScoreSelect = ({ 
-      value, 
-      max, 
-      onChange,
-  }: { 
-      value: number, 
-      max: number, 
-      onChange: (val: string) => void,
-  }) => (
-    <Select value={value.toString()} onValueChange={onChange}>
-        <SelectTrigger className={cn(
-            "h-full w-full border-none focus:ring-0 px-1 text-center justify-center rounded-none",
-            "hover:bg-black/5" 
-        )}>
-            <span className="truncate text-xs text-gray-900">{value}</span>
-        </SelectTrigger>
-        <SelectContent>
-            {getOptions(max).map(v => (
-                <SelectItem key={v} value={v.toString()} className="justify-center text-xs">
-                    {v}
-                </SelectItem>
-            ))}
-        </SelectContent>
-    </Select>
-  );
 
-  // Radio button toggle for attendance (lesson_1-5 and study_buddy)
-  const AttendanceToggle = ({
-      value,
-      onChange,
-      maxScore,
-  }: {
-      value: number,
-      onChange: (val: string) => void,
-      maxScore: number,
-  }) => {
-    const isPresent = value === maxScore;
-    
-    return (
-      <div className="flex items-center justify-center gap-2 h-full">
-        <button
-          type="button"
-          onClick={() => onChange(maxScore.toString())}
-          className={cn(
-            "flex items-center justify-center w-8 h-6 rounded text-[10px] font-medium transition-colors",
-            isPresent 
-              ? "bg-green-500 text-white shadow-sm" 
-              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
-          )}
-          title="Present"
-        >
-          ✓
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange("0")}
-          className={cn(
-            "flex items-center justify-center w-8 h-6 rounded text-[10px] font-medium transition-colors",
-            !isPresent 
-              ? "bg-red-500 text-white shadow-sm" 
-              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
-          )}
-          title="Absent"
-        >
-          ✕
-        </button>
-      </div>
-    );
+
+  const formatDateParts = (dateStr: string) => {
+      const dt = new Date(dateStr);
+      // Date: 20.01
+      const date = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+      // DayTime: Пн 19:00
+      const day = dt.toLocaleDateString('ru-RU', { weekday: 'short' }); // Пн, Вт
+      const time = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+      // Capitalize day
+      const dayCap = day.charAt(0).toUpperCase() + day.slice(1);
+      
+      return { date, dayTime: `${dayCap} ${time}` };
   };
-
-  const ColumnToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: () => void }) => (
-    <div 
-      className="flex flex-col items-center mb-2.5 group cursor-pointer"
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-    >
-      <div 
-        className={cn(
-          "w-9 h-5 rounded-full transition-all duration-300 ease-in-out relative flex items-center px-1 shadow-inner",
-          enabled 
-            ? "bg-blue-600 ring-2 ring-blue-100" 
-            : "bg-slate-200 ring-2 ring-transparent"
-        )}
-      >
-        <div 
-          className={cn(
-            "w-3.5 h-3.5 bg-white rounded-full transition-all duration-300 ease-in-out shadow-[0_2px_4px_rgba(0,0,0,0.2)]",
-            enabled ? "translate-x-3.5" : "translate-x-0"
-          )} 
-        />
-      </div>
-    </div>
-  );
 
   return (
     <div className="p-4 w-full h-full bg-white space-y-4">
@@ -330,7 +434,7 @@ export default function CuratorLeaderboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2 text-gray-800">
-            Class Leaderboard
+            Class Leaderboard {data && <span className="text-sm font-normal text-gray-500">(Week Starting {new Date(data.week_start).toLocaleDateString()})</span>}
           </h1>
         </div>
         
@@ -345,7 +449,19 @@ export default function CuratorLeaderboardPage() {
                 >
                     <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <div className="px-3 text-sm font-medium min-w-[3rem] text-center">W{currentWeek}</div>
+                
+                <div className="px-4 text-xs font-semibold min-w-[120px] text-center bg-gray-50/50 flex items-center justify-center h-full">
+                    {data ? (
+                        `${new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} - ${(() => {
+                            const end = new Date(data.week_start);
+                            end.setDate(end.getDate() + 6);
+                            return end.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+                        })()}`
+                    ) : (
+                        `Week ${currentWeek}`
+                    )}
+                </div>
+
                 <Button 
                     variant="ghost" 
                     size="icon"
@@ -374,27 +490,13 @@ export default function CuratorLeaderboardPage() {
                 </Select>
             </div>
             
-            {/* Schedule Generator Modal */}
-            <ScheduleGenerator 
-                groupId={selectedGroupId}
-                open={isScheduleModalOpen}
-                onOpenChange={setIsScheduleModalOpen}
-                onSuccess={() => loadLeaderboard()}
-                trigger={
-                    <Button variant="outline" size="sm" className="h-8 gap-2">
-                        <CalendarIcon className="w-3.5 h-3.5" />
-                        Generate Schedule
-                    </Button>
-                }
-            />
-            
             <Button 
                 onClick={handleSaveChanges} 
-                disabled={changedEntries.size === 0 || isSaving}
+                disabled={(!configChanged && changedEntries.size === 0) || isSaving}
                 size="sm"
                 className={cn(
                     "h-8 transition-colors rounded-md font-medium",
-                    changedEntries.size > 0 ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-100 text-gray-400"
+                    (configChanged || changedEntries.size > 0) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-100 text-gray-400"
                 )}
             >
                 {isSaving ? (
@@ -408,48 +510,25 @@ export default function CuratorLeaderboardPage() {
 
       {/* Spreadsheet Table */}
       <div className="border border-gray-300 overflow-x-auto">
-            {loading ? (
+            {loading || !data ? (
                 <Table className="border-collapse w-full text-xs">
                     <TableHeader className="bg-gray-100 sticky top-0 z-30">
                         <TableRow className="h-auto border-b border-gray-300 hover:bg-gray-100">
                              <TableHead className="w-48 sticky left-0 z-40 bg-gray-100 p-2 border-r border-gray-300"><Skeleton className="h-4 w-20 bg-gray-200" /></TableHead>
+                             {/* Skeleton columns */}
                              {[1, 2, 3].map(i => (
                                 <TableHead key={i} className="p-0 border-r border-gray-300 h-12 min-w-[100px] align-middle bg-gray-100">
                                    <div className="p-1 flex justify-center"><Skeleton className="h-3 w-12 bg-gray-200" /></div>
                                 </TableHead>
                             ))}
-                            {/* Manual Columns Skeletons */}
-                            {[1, 2, 3, 4, 5, 6].map(i => (
-                                <TableHead key={`manual-${i}`} className="p-2 w-20 bg-gray-100 border-r border-gray-300"><Skeleton className="h-8 w-16 bg-gray-200" /></TableHead>
-                            ))}
-                            <TableHead className="p-2 w-16 bg-gray-100 border-r border-gray-300"><Skeleton className="h-4 w-8 bg-gray-200" /></TableHead>
-                            <TableHead className="p-2 w-16 sticky right-0 z-40 bg-gray-100"><Skeleton className="h-4 w-8 bg-gray-200" /></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {Array.from({ length: 10 }).map((_, idx) => (
+                        {Array.from({ length: 5 }).map((_, idx) => (
                             <TableRow key={idx} className="border-b border-gray-300 h-8">
                                 <TableCell className="p-2 sticky left-0 z-30 bg-white border-r border-gray-300">
-                                    <div className="flex items-center gap-2">
-                                        <Skeleton className="h-3 w-4 bg-gray-100" />
-                                        <Skeleton className="h-3 w-32 bg-gray-100" />
-                                    </div>
+                                    <Skeleton className="h-3 w-32 bg-gray-100" />
                                 </TableCell>
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <TableCell key={i} className="p-0 border-r border-gray-300">
-                                        <div className="flex w-full h-full p-1 gap-1">
-                                            <Skeleton className="h-6 flex-1 bg-gray-50" />
-                                            <Skeleton className="h-6 flex-1 bg-gray-50" />
-                                        </div>
-                                    </TableCell>
-                                ))}
-                                {[1, 2, 3, 4, 5, 6].map(i => (
-                                    <TableCell key={`cell-${i}`} className="p-0 border-r border-gray-300">
-                                         <div className="p-1"><Skeleton className="h-6 w-full bg-gray-50" /></div>
-                                    </TableCell>
-                                ))}
-                                <TableCell className="p-2 border-r border-gray-300"><Skeleton className="h-4 w-8 mx-auto bg-gray-100" /></TableCell>
-                                <TableCell className="p-2 sticky right-0 z-30 bg-white"><Skeleton className="h-4 w-8 mx-auto bg-gray-100" /></TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -461,44 +540,91 @@ export default function CuratorLeaderboardPage() {
                     <TableHead className="w-48 sticky left-0 z-40 bg-gray-100 font-semibold text-gray-700 p-2 border-r border-gray-300 text-left align-middle">
                         Student
                     </TableHead>
-                    {/* Lesson & Homework Columns */}
-                    {[1, 2, 3].map(i => (
-                        <TableHead key={`lesson-${i}`} className="p-0 text-center border-r border-gray-300 h-auto min-w-[100px] align-top bg-gray-100">
+                    {/* Dynamic Lesson Columns */}
+                    {data.lessons.map(lesson => (
+                        <TableHead key={`lesson-${lesson.lesson_number}`} className="p-0 text-center border-r border-gray-300 h-auto min-w-[100px] align-top bg-gray-100">
                             <div className="flex flex-col h-full">
-                                <div className="py-1 border-b border-gray-300 font-semibold text-gray-700 bg-gray-200/50">
-                                    Lesson {i}
+                                <div className="py-1 border-b border-gray-300 font-semibold text-gray-700 bg-gray-200/50 text-xs flex flex-col items-center">
+                                    <span>{formatDateParts(lesson.start_datetime).date}</span>
+                                    <span className="text-[10px] font-normal text-gray-500 leading-tight">{formatDateParts(lesson.start_datetime).dayTime}</span>
                                 </div>
                                 <div className="flex flex-1">
                                     <div className="flex-1 py-1 text-[10px] font-medium text-gray-500 border-r border-gray-300">
                                         Class
                                     </div>
-                                    <div className="flex-1 py-1 text-[10px] font-medium text-gray-500 bg-gray-50">
+                                    <div className="flex-1 py-1 text-[10px] font-medium text-gray-500 bg-gray-50" title={lesson.homework?.title || "No HW"}>
                                         HW
                                     </div>
                                 </div>
                             </div>
                         </TableHead>
                     ))}
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
-                        <ColumnToggle enabled={enabledCols.curator_hour} onToggle={() => setEnabledCols(p => ({...p, curator_hour: !p.curator_hour}))} />
-                        Curator<br/>Hour
+                    
+                    <TableHead 
+                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.curator_hour && "opacity-60 bg-gray-50 text-gray-400")}
+                        onClick={() => toggleColumn('curator_hour')}
+                        title={enabledCols.curator_hour ? "Click to hide" : "Click to show"}
+                    >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <span>Curator<br/>Hour</span>
+                            {enabledCols.curator_hour 
+                                ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
+                                : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
+                            }
+                        </div>
                     </TableHead>
                     <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Mock<br/>Exam</TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
-                        <ColumnToggle enabled={enabledCols.study_buddy} onToggle={() => setEnabledCols(p => ({...p, study_buddy: !p.study_buddy}))} />
-                        Study<br/>Buddy
+                    <TableHead 
+                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.study_buddy && "opacity-60 bg-gray-50 text-gray-400")}
+                        onClick={() => toggleColumn('study_buddy')}
+                        title={enabledCols.study_buddy ? "Click to hide" : "Click to show"}
+                    >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <span>Study<br/>Buddy</span>
+                            {enabledCols.study_buddy 
+                                ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
+                                : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
+                            }
+                        </div>
                     </TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
-                        <ColumnToggle enabled={enabledCols.self_reflection_journal} onToggle={() => setEnabledCols(p => ({...p, self_reflection_journal: !p.self_reflection_journal}))} />
-                        Journal
+                    <TableHead 
+                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.self_reflection_journal && "opacity-60 bg-gray-50 text-gray-400")}
+                        onClick={() => toggleColumn('self_reflection_journal')}
+                        title={enabledCols.self_reflection_journal ? "Click to hide" : "Click to show"}
+                    >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <span>Journal</span>
+                            {enabledCols.self_reflection_journal 
+                                ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
+                                : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
+                            }
+                        </div>
                     </TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
-                        <ColumnToggle enabled={enabledCols.weekly_evaluation} onToggle={() => setEnabledCols(p => ({...p, weekly_evaluation: !p.weekly_evaluation}))} />
-                        Weekly<br/>Eval
+                    <TableHead 
+                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.weekly_evaluation && "opacity-60 bg-gray-50 text-gray-400")}
+                        onClick={() => toggleColumn('weekly_evaluation')}
+                        title={enabledCols.weekly_evaluation ? "Click to hide" : "Click to show"}
+                    >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <span>Weekly<br/>Eval</span>
+                            {enabledCols.weekly_evaluation 
+                                ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
+                                : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
+                            }
+                        </div>
                     </TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-top whitespace-normal leading-tight">
-                        <ColumnToggle enabled={enabledCols.extra_points} onToggle={() => setEnabledCols(p => ({...p, extra_points: !p.extra_points}))} />
-                        Extra
+                    <TableHead 
+                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.extra_points && "opacity-60 bg-gray-50 text-gray-400")}
+                        onClick={() => toggleColumn('extra_points')}
+                        title={enabledCols.extra_points ? "Click to hide" : "Click to show"}
+                    >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <span>Extra</span>
+                            {enabledCols.extra_points 
+                                ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
+                                : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
+                            }
+                        </div>
                     </TableHead>
                     
                     <TableHead className="text-center font-bold p-2 w-16 text-gray-800 bg-gray-100 border-r border-gray-300 align-middle">Total</TableHead>
@@ -506,7 +632,7 @@ export default function CuratorLeaderboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((student, index) => {
+                {data.students.map((student, index) => {
                     const percent = calculatePercent(student);
                     return (
                     <TableRow key={student.student_id} className="hover:bg-blue-50/50 border-b border-gray-300 h-8">
@@ -517,27 +643,32 @@ export default function CuratorLeaderboardPage() {
                             </div>
                         </TableCell>
                         
-                        {[1, 2, 3].map(i => {
-                            const lessonKey = `lesson_${i}` as keyof LeaderboardEntry;
-                            const hwKey = `hw_lesson_${i}` as keyof LeaderboardEntry;
-                            const hwScore = student[hwKey] as number | null;
+                        {/* Dynamic Lesson Cells */}
+                        {data.lessons.map(lessonInfo => {
+                            const lessonKey = lessonInfo.lesson_number.toString();
+                            const lessonStatus = student.lessons[lessonKey];
+                            // Handle cases where lesson data might not be populated for student yet
+                            const status = lessonStatus ? lessonStatus.attendance_status : 'absent';
+                            const hwStatus = lessonStatus ? lessonStatus.homework_status : null;
                             
                             return (
-                                <TableCell key={i} className="p-0 border-r border-gray-300">
+                                <TableCell key={`cell-${lessonKey}`} className="p-0 border-r border-gray-300">
                                     <div className="flex w-full h-full items-stretch">
                                         <div className="flex-1 p-1">
                                             <AttendanceToggle 
-                                                value={student[lessonKey] as number}
-                                                maxScore={MAX_SCORES.lesson}
-                                                onChange={(val) => handleScoreChange(student.student_id, lessonKey, val)}
+                                                initialStatus={status}
+                                                onChange={(newStatus) => handleAttendanceChange(student.student_id, lessonKey, newStatus)}
                                             />
                                         </div>
                                         <div className="flex-1 border-l border-gray-300 bg-gray-50 flex items-center justify-center p-0">
                                             <div className={cn(
                                                 "w-full text-center text-xs",
-                                                hwScore && hwScore >= 80 ? "text-green-700 font-medium" : "text-gray-400"
+                                                hwStatus && hwStatus.submitted ? "text-green-700 font-medium" : "text-gray-400"
                                             )}>
-                                                {hwScore !== null ? hwScore : '-'}
+                                                {hwStatus && hwStatus.submitted 
+                                                    ? `${hwStatus.score !== null ? hwStatus.score : '-'}`
+                                                    : '-'
+                                                }
                                             </div>
                                         </div>
                                     </div>
@@ -546,24 +677,23 @@ export default function CuratorLeaderboardPage() {
                         })}
 
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.curator_hour && "bg-gray-100 opacity-50 pointer-events-none")}>
-                            <ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleScoreChange(student.student_id, 'curator_hour', v)} />
+                            <ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleManualScoreChange(student.student_id, 'curator_hour', v)} />
                         </TableCell>
-                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleManualScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.study_buddy && "bg-gray-100 opacity-50 pointer-events-none")}>
                             <AttendanceToggle 
-                                value={student.study_buddy} 
-                                maxScore={MAX_SCORES.study_buddy}
-                                onChange={(v) => handleScoreChange(student.student_id, 'study_buddy', v)} 
+                                initialStatus={student.study_buddy === 15 ? 'attended' : 'absent'} 
+                                onChange={(s) => handleManualScoreChange(student.student_id, 'study_buddy', s === 'attended' ? '15' : '0')} 
                             />
                         </TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.self_reflection_journal && "bg-gray-100 opacity-50 pointer-events-none")}>
-                            <ScoreSelect value={student.self_reflection_journal} max={MAX_SCORES.self_reflection_journal} onChange={(v) => handleScoreChange(student.student_id, 'self_reflection_journal', v)} />
+                            <ScoreSelect value={student.self_reflection_journal} max={MAX_SCORES.self_reflection_journal} onChange={(v) => handleManualScoreChange(student.student_id, 'self_reflection_journal', v)} />
                         </TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.weekly_evaluation && "bg-gray-100 opacity-50 pointer-events-none")}>
-                            <ScoreSelect value={student.weekly_evaluation} max={MAX_SCORES.weekly_evaluation} onChange={(v) => handleScoreChange(student.student_id, 'weekly_evaluation', v)} />
+                            <ScoreSelect value={student.weekly_evaluation} max={MAX_SCORES.weekly_evaluation} onChange={(v) => handleManualScoreChange(student.student_id, 'weekly_evaluation', v)} />
                         </TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.extra_points && "bg-gray-100 opacity-50 pointer-events-none")}>
-                            <ScoreSelect value={student.extra_points} max={10} onChange={(v) => handleScoreChange(student.student_id, 'extra_points', v)} />
+                            <ScoreSelect value={student.extra_points} max={10} onChange={(v) => handleManualScoreChange(student.student_id, 'extra_points', v)} />
                         </TableCell>
 
                         <TableCell className="p-2 text-center font-semibold text-gray-900 border-r border-gray-300 bg-white">
