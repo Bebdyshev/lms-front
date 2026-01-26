@@ -1,16 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+
 import { 
-  Users, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Save,
-  Search,
-  AlertCircle
+  Loader2,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent } from '../components/ui/card';
 import { 
   Select, 
   SelectContent, 
@@ -19,191 +12,243 @@ import {
   SelectValue 
 } from '../components/ui/select';
 import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import apiClient from '../services/api';
+import apiClient, { getGroupFullAttendanceMatrix, updateAttendance, getCuratorGroups } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Group, Event, EventStudent } from '../types';
+import { Group } from '../types';
+import { cn } from '../lib/utils';
+import { Skeleton } from '../components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
+
+interface LessonMeta {
+    lesson_number: number;
+    event_id: number;
+    title: string;
+    start_datetime: string;
+}
+
+interface StudentLessonStatus {
+    event_id: number;
+    attendance_status: string;
+}
+
+interface StudentRow {
+    student_id: number;
+    student_name: string;
+    lessons: { [key: string]: StudentLessonStatus };
+}
+
+interface AttendanceData {
+    lessons: LessonMeta[];
+    students: StudentRow[];
+}
 
 export default function TeacherAttendancePage() {
-  const navigate = useNavigate();
-  const { } = useAuth();
+  const { user } = useAuth();
+  
   const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [events, setEvents] = useState<Event[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string>('');
-  const [students, setStudents] = useState<EventStudent[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  
+  const [data, setData] = useState<AttendanceData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Status mapping
-  const statusColors: Record<string, string> = {
-    attended: 'bg-green-100 text-green-700 border-green-200',
-    missed: 'bg-red-100 text-red-700 border-red-200',
-    late: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    registered: 'bg-slate-100 text-slate-600 border-slate-200',
-  };
+  
+  // Track changes locally: Map<studentId, Set<lessonKey>>
+  const [changedLessons, setChangedLessons] = useState<Map<number, Set<string>>>(new Map());
 
   useEffect(() => {
-    loadInitialData();
-  }, []);
+    loadGroups();
+  }, [user]);
 
-  const loadInitialData = async () => {
+  useEffect(() => {
+    if (selectedGroupId) {
+      loadAttendanceData();
+    }
+  }, [selectedGroupId]);
+
+  const loadGroups = async () => {
     try {
       setLoading(true);
-      const fetchedGroups = await apiClient.getTeacherGroups();
-      setGroups(fetchedGroups || []);
+      let fetchedGroups;
+      try {
+          fetchedGroups = await apiClient.getTeacherGroups();
+      } catch (e) {
+          fetchedGroups = await getCuratorGroups();
+      }
       
+      setGroups(fetchedGroups || []);
       if (fetchedGroups && fetchedGroups.length > 0) {
-        setSelectedGroupId(fetchedGroups[0].id.toString());
-        loadEvents(fetchedGroups[0].id.toString());
+        setSelectedGroupId(fetchedGroups[0].id);
       }
     } catch (err) {
       console.error('Failed to load groups:', err);
-      toast.error('Failed to load your groups');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadEvents = async (groupId: string) => {
+  const loadAttendanceData = async () => {
+    if (!selectedGroupId) return;
     try {
       setLoading(true);
-      // Fetch recent and upcoming events for this group
-      // We'll use getCalendarEvents for the current month as a simple source
-      const now = new Date();
-      const eventsData = await apiClient.getCalendarEvents(now.getFullYear(), now.getMonth() + 1);
-      
-      // Filter for this group and "class" type
-      const groupEvents = eventsData.filter(e => 
-        (e.group_ids?.includes(parseInt(groupId)) || e.groups?.includes(groups.find(g => g.id.toString() === groupId)?.name || '')) &&
-        e.event_type === 'class'
-      );
-      
-      // Sort by date (descending)
-      groupEvents.sort((a, b) => new Date(b.start_datetime).getTime() - new Date(a.start_datetime).getTime());
-      
-      setEvents(groupEvents);
-      if (groupEvents.length > 0) {
-        setSelectedEventId(groupEvents[0].id.toString());
-        loadParticipants(groupEvents[0].id.toString(), groupId);
-      } else {
-        setSelectedEventId('');
-        setStudents([]);
-      }
+      setChangedLessons(new Map());
+      const result = await getGroupFullAttendanceMatrix(selectedGroupId);
+      setData(result);
     } catch (err) {
-      console.error('Failed to load events:', err);
-      toast.error('Failed to load group events');
+      console.error('Failed to load attendance data:', err);
+      toast.error('Load error');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadParticipants = async (eventId: string, groupId: string) => {
-    try {
-      setLoading(true);
-      const data = await apiClient.getEventParticipants(parseInt(eventId), parseInt(groupId));
-      setStudents(data);
-    } catch (err) {
-      console.error('Failed to load students:', err);
-      toast.error('Failed to load student list');
-    } finally {
-      setLoading(false);
-    }
+  const updateStudentStatus = (studentId: number, lessonKey: string, status: string) => {
+    setData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        students: prev.students.map(s => {
+          if (s.student_id !== studentId) return s;
+          const lesson = s.lessons[lessonKey];
+          if (!lesson) return s;
+          return {
+            ...s,
+            lessons: {
+              ...s.lessons,
+              [lessonKey]: { ...lesson, attendance_status: status }
+            }
+          };
+        })
+      };
+    });
+
+    setChangedLessons(prev => {
+      const next = new Map(prev);
+      const studentChanges = next.get(studentId) || new Set<string>();
+      studentChanges.add(lessonKey);
+      next.set(studentId, studentChanges);
+      return next;
+    });
   };
 
-  const handleGroupChange = (value: string) => {
-    setSelectedGroupId(value);
-    loadEvents(value);
+  const toggleStudentStatus = (studentId: number, lessonKey: string, currentStatus: string) => {
+      let nextStatus = 'attended';
+      if (currentStatus === 'attended') nextStatus = 'late';
+      else if (currentStatus === 'late') nextStatus = 'missed';
+      else if (currentStatus === 'missed') nextStatus = 'attended';
+      
+      updateStudentStatus(studentId, lessonKey, nextStatus);
   };
 
-  const handleEventChange = (value: string) => {
-    setSelectedEventId(value);
-    loadParticipants(value, selectedGroupId);
-  };
+  const totalChangesCount = useMemo(() => {
+    let count = 0;
+    changedLessons.forEach(changes => { count += changes.size; });
+    return count;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changedLessons, data]);
 
-  const updateStudentStatus = (studentId: number, status: string) => {
-    setStudents(prev => prev.map(s => 
-      s.student_id === studentId ? { ...s, attendance_status: status } : s
-    ));
-  };
-
-  const saveAttendance = async () => {
-    if (!selectedEventId) return;
+  const saveAllChanges = async () => {
+    if (!selectedGroupId || !data || totalChangesCount === 0) return;
 
     try {
       setSaving(true);
-      const payload = {
-        attendance: students.map(s => ({
-          student_id: s.student_id,
-          status: s.attendance_status
-        }))
-      };
-      
-      await apiClient.updateEventAttendance(parseInt(selectedEventId), payload);
-      toast.success('Attendance saved successfully');
-      
-      // Refresh to update timestamps
-      loadParticipants(selectedEventId, selectedGroupId);
+      for (const [studentId, lessonKeys] of changedLessons.entries()) {
+          const student = data.students.find(s => s.student_id === studentId);
+          if (!student) continue;
+
+          for (const lessonKey of lessonKeys) {
+              const statusData = student.lessons[lessonKey];
+              if (!statusData) continue;
+
+              const score = statusData.attendance_status === 'attended' ? 10 : 0;
+              await updateAttendance({
+                group_id: selectedGroupId,
+                week_number: 1, 
+                lesson_index: parseInt(lessonKey),
+                student_id: studentId,
+                score: score,
+                status: statusData.attendance_status,
+                event_id: statusData.event_id
+              });
+          }
+      }
+      toast.success('Changes saved');
+      setChangedLessons(new Map());
     } catch (err) {
-      console.error('Failed to save attendance:', err);
-      toast.error('Failed to save attendance');
+      console.error('Save failed:', err);
     } finally {
       setSaving(false);
     }
   };
 
-  const filteredStudents = students.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStudents = useMemo(() => 
+    data?.students.filter(s => 
+        s.student_name.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || [], [data, searchTerm]);
 
-  const stats = {
-    total: students.length,
-    present: students.filter(s => s.attendance_status === 'attended').length,
-    absent: students.filter(s => s.attendance_status === 'missed').length,
-    late: students.filter(s => s.attendance_status === 'late').length,
+  const formatDate = (dateStr: string) => {
+      const dt = new Date(dateStr);
+      return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  };
+
+  const formatDay = (dateStr: string) => {
+      const dt = new Date(dateStr);
+      return dt.toLocaleDateString('ru-RU', { weekday: 'short' });
+  };
+
+  const isFutureLesson = (dateStr: string) => {
+      return new Date(dateStr) > new Date();
+  };
+
+  const lastActualLessonId = useMemo(() => {
+      if (!data) return null;
+      const pastLessons = data.lessons.filter(l => !isFutureLesson(l.start_datetime));
+      if (pastLessons.length === 0) return null;
+      // Find the one with the latest date
+      const last = [...pastLessons].sort((a, b) => 
+          new Date(b.start_datetime).getTime() - new Date(a.start_datetime).getTime()
+      )[0];
+      return last.event_id;
+  }, [data]);
+
+  const getStatusColor = (status: string) => {
+      switch (status) {
+          case 'attended': return 'bg-green-200 text-green-700 hover:bg-green-400 hover:text-white';
+          case 'late': return 'bg-yellow-200 text-yellow-700 hover:bg-yellow-500 hover:text-white';
+          case 'missed': return 'bg-rose-500 text-white hover:bg-rose-600';
+          default: return 'bg-gray-50 text-gray-400 border-gray-100';
+      }
+  };
+
+  const getStatusLabel = (status: string) => {
+      switch (status) {
+          case 'attended': return 'Present';
+          case 'late': return 'Late';
+          case 'missed': return 'Absent';
+          default: return 'None';
+      }
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-6xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-8 space-y-8 max-w-[1600px] mx-auto min-h-screen text-gray-900 font-sans">
+      {/* Header - Aligned with AnalyticsPage */}
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            Attendance Tracking
-          </h1>
-          <p className="text-slate-500 mt-1">Mark student attendance for your scheduled lessons.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Group Attendance</h1>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => navigate('/teacher/class')}
-          >
-            <Users className="w-4 h-4 mr-2" />
-            My Class
-          </Button>
-          <Button 
-            onClick={saveAttendance} 
-            disabled={saving || students.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {saving ? (
-              <Clock className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4 mr-2" />
-            )}
-            Save Attendance
-          </Button>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700">Select Group</label>
-          <Select value={selectedGroupId} onValueChange={handleGroupChange}>
-            <SelectTrigger className="bg-slate-50 border-slate-200">
-              <SelectValue placeholder="Chose group..." />
+        
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <Select value={selectedGroupId?.toString() || ''} onValueChange={(v) => setSelectedGroupId(Number(v))}>
+            <SelectTrigger className="w-full sm:w-[240px] bg-white border-gray-200">
+              <SelectValue placeholder="Select group" />
             </SelectTrigger>
             <SelectContent>
               {groups.map(g => (
@@ -211,155 +256,148 @@ export default function TeacherAttendancePage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700">Select Lesson</label>
-          <Select 
-            value={selectedEventId} 
-            onValueChange={handleEventChange}
-            disabled={!selectedGroupId || events.length === 0}
+          
+          <Button 
+            onClick={loadAttendanceData} 
+            disabled={loading || totalChangesCount === 0}
+            variant="ghost"
+            className="text-gray-400 hover:text-gray-600 font-medium"
           >
-            <SelectTrigger className="bg-slate-50 border-slate-200">
-              <SelectValue placeholder={events.length > 0 ? "Choose lesson..." : "No lessons found"} />
-            </SelectTrigger>
-            <SelectContent>
-              {events.map(e => (
-                <SelectItem key={e.id} value={e.id.toString()}>
-                  {new Date(e.start_datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {e.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            Cancel
+          </Button>
+          
+          <Button 
+            onClick={saveAllChanges} 
+            disabled={saving || totalChangesCount === 0}
+            className={cn(
+                "font-semibold shadow-sm",
+                totalChangesCount > 0 ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-gray-100 text-gray-400 border-gray-200"
+            )}
+            variant={totalChangesCount > 0 ? "default" : "outline"}
+          >
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            Save Changes {totalChangesCount > 0 && `(${totalChangesCount})`}
+          </Button>
         </div>
       </div>
 
-      {/* Stats Bar */}
-      {students.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="border-none bg-blue-50 shadow-none">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-blue-700">{stats.total}</div>
-              <div className="text-xs font-semibold text-blue-500 uppercase tracking-wider">Total Students</div>
-            </CardContent>
-          </Card>
-          <Card className="border-none bg-green-50 shadow-none">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-green-700">{stats.present}</div>
-              <div className="text-xs font-semibold text-green-500 uppercase tracking-wider">Present</div>
-            </CardContent>
-          </Card>
-          <Card className="border-none bg-red-50 shadow-none">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-red-700">{stats.absent}</div>
-              <div className="text-xs font-semibold text-red-500 uppercase tracking-wider">Absent</div>
-            </CardContent>
-          </Card>
-          <Card className="border-none bg-yellow-50 shadow-none">
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-yellow-700">{stats.late}</div>
-              <div className="text-xs font-semibold text-yellow-500 uppercase tracking-wider">Late</div>
-            </CardContent>
-          </Card>
+      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+        {/* Sub-header / Filters */}
+        <div className="px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 w-full md:w-auto">
+                <Input 
+                    placeholder="Search students..." 
+                    className="w-full md:w-64 h-9 bg-gray-50/50 border-gray-200 text-sm focus-visible:ring-blue-500/20"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+            
+            <div className="flex items-center gap-6 text-sm">
+                {data && data.lessons.length > 0 && (
+                    <button 
+                        className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                        onClick={() => {
+                            data.students.forEach(s => {
+                                data.lessons.forEach(l => {
+                                    if (!isFutureLesson(l.start_datetime)) {
+                                        updateStudentStatus(s.student_id, l.lesson_number.toString(), 'attended');
+                                    }
+                                });
+                            });
+                        }}
+                    >
+                        Mark all present
+                    </button>
+                )}
+            </div>
         </div>
-      )}
 
-      {/* Students Table */}
-      <Card className="border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-           <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input 
-                placeholder="Search students..." 
-                className="pl-10 bg-white"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-           </div>
-           
-           <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-xs uppercase font-bold text-slate-500"
-                onClick={() => students.forEach(s => updateStudentStatus(s.student_id, 'attended'))}
-              >
-                Mark All Present
-              </Button>
-           </div>
+        {/* Matrix Grid */}
+        <div className="overflow-x-auto relative min-h-[400px]">
+            {loading ? (
+                <div className="p-8 space-y-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                </div>
+            ) : !data || data.lessons.length === 0 ? (
+                <div className="py-24 text-center text-gray-500 font-medium">
+                    No lessons available for this group.
+                </div>
+            ) : (
+                <Table className="border-collapse text-left">
+                    <TableHeader>
+                        <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
+                            <TableHead className="sticky left-0 z-40 bg-gray-50 border-r border-gray-200 px-6 py-4 min-w-[220px]">
+                                <span className="text-sm font-semibold text-gray-500">Student</span>
+                            </TableHead>
+                            {data.lessons.map(lesson => {
+                                const isLastActual = lesson.event_id === lastActualLessonId;
+                                return (
+                                    <TableHead key={lesson.event_id} className={cn(
+                                        "text-center min-w-[100px] px-2 py-3 transition-colors border-r border-gray-200",
+                                        isFutureLesson(lesson.start_datetime) && "bg-gray-50/30 font-normal text-gray-400",
+                                        isLastActual && "bg-blue-50/30 border-l-2 border-r-2 border-blue-600"
+                                    )}>
+                                        <div className="flex flex-col items-center">
+                                            <span className={cn(
+                                                "text-[10px] font-medium capitalize",
+                                                isLastActual ? "text-blue-600 font-bold" : "text-gray-400"
+                                            )}>{formatDay(lesson.start_datetime)}</span>
+                                            <span className={cn(
+                                                "text-sm font-bold",
+                                                isLastActual ? "text-blue-700" : "text-gray-900"
+                                            )}>{formatDate(lesson.start_datetime)}</span>
+                                        </div>
+                                    </TableHead>
+                                );
+                            })}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-gray-100">
+                        {filteredStudents.map((student) => (
+                        <TableRow key={student.student_id} className="hover:bg-gray-50/50 transition-colors group">
+                            <TableCell className="sticky left-0 z-30 bg-white border-r border-gray-200 px-6 py-3.5 group-hover:bg-gray-50 transition-colors">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-gray-900">{student.student_name}</span>
+                                </div>
+                            </TableCell>
+                            {data.lessons.map(lesson => {
+                                const lessonKey = lesson.lesson_number.toString();
+                                const status = student.lessons[lessonKey]?.attendance_status || 'missed';
+                                const isFuture = isFutureLesson(lesson.start_datetime);
+                                const isChanged = changedLessons.get(student.student_id)?.has(lessonKey);
+                                const isLastActual = lesson.event_id === lastActualLessonId;
+                                
+                                return (
+                                <TableCell 
+                                    key={`${student.student_id}-${lesson.event_id}`} 
+                                    className={cn(
+                                        "p-0 text-center transition-colors cursor-pointer select-none border-r border-gray-100/50",
+                                        isFuture ? "bg-gray-50/10 cursor-default" : getStatusColor(status),
+                                        isLastActual && !isFuture && "border-l-2 border-r-2 border-blue-600 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.1)]",
+                                        isChanged && "brightness-95"
+                                    )}
+                                    onClick={() => !isFuture && toggleStudentStatus(student.student_id, lessonKey, status)}
+                                >
+                                    <div className="flex items-center justify-center h-10 w-full font-bold text-[11px] tracking-wide">
+                                        {isFuture ? (
+                                            <div className="w-1.5 h-1.5 bg-gray-200 rounded-full" />
+                                        ) : (
+                                            getStatusLabel(status)
+                                        )}
+                                    </div>
+                                </TableCell>
+                                );
+                            })}
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            )}
         </div>
-        
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="py-20 text-center">
-              <Clock className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />
-              <p className="text-slate-500">Loading student list...</p>
-            </div>
-          ) : filteredStudents.length === 0 ? (
-            <div className="py-20 text-center">
-              <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-slate-900">No students selected</h3>
-              <p className="text-slate-500">Select a group and a lesson to track attendance.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400 tracking-widest">
-                  <tr>
-                    <th className="px-6 py-4 text-left">Student Name</th>
-                    <th className="px-6 py-4 text-center">Attendance Status</th>
-                    <th className="px-6 py-4 text-right">Quick Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filteredStudents.map((student) => (
-                    <tr key={student.student_id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-slate-900">{student.name}</div>
-                        {student.last_updated && (
-                          <div className="text-[10px] text-slate-400 mt-1">
-                            Updated: {new Date(student.last_updated).toLocaleString()}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center">
-                          <Badge className={`${statusColors[student.attendance_status]} border px-3 py-1 shadow-none rounded-full`}>
-                            {student.attendance_status.toUpperCase()}
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end">
-                          <button
-                            onClick={() => {
-                              const next = student.attendance_status === 'attended' ? 'late' : 
-                                           student.attendance_status === 'late' ? 'missed' : 'attended';
-                              updateStudentStatus(student.student_id, next);
-                            }}
-                            className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all shadow-sm active:scale-90 border-2 ${
-                              student.attendance_status === 'attended' 
-                                ? 'bg-green-600 border-green-500 text-white' 
-                                : student.attendance_status === 'late'
-                                ? 'bg-yellow-500 border-yellow-400 text-white'
-                                : 'bg-red-600 border-red-500 text-white'
-                            }`}
-                            title="Click to Cycle: Attended -> Late -> Missed"
-                          >
-                            {student.attendance_status === 'attended' && <CheckCircle className="w-6 h-6" />}
-                            {student.attendance_status === 'late' && <Clock className="w-6 h-6" />}
-                            {(student.attendance_status === 'missed' || student.attendance_status === 'registered') && <XCircle className="w-6 h-6" />}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

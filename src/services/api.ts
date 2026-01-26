@@ -2869,13 +2869,23 @@ class LMSApiClient {
 
   async getWeeklyLessonsWithHwStatus(groupId: number, weekNumber: number): Promise<any> {
     try {
-      const response = await this.api.get(`/leaderboard/curator/weekly-lessons/${groupId}`, {
-        params: { week_number: weekNumber }
-      });
-      return response.data;
+        const response = await this.api.get(`/leaderboard/curator/weekly-lessons/${groupId}`, {
+            params: { week_number: weekNumber }
+        });
+        return response.data;
     } catch (error) {
-      console.error('Failed to load weekly lessons:', error);
-      throw error;
+        console.error('Failed to get weekly lessons:', error);
+        throw error;
+    }
+  }
+
+  async getGroupFullAttendanceMatrix(groupId: number): Promise<any> {
+    try {
+        const response = await this.api.get(`/leaderboard/curator/full-attendance/${groupId}`);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to get full attendance matrix:', error);
+        throw error;
     }
   }
 
@@ -3370,6 +3380,7 @@ export const getCuratorStudentsProgress = apiClient.getCuratorStudentsProgress.b
 export const getCuratorAssignmentsAnalytics = apiClient.getCuratorAssignmentsAnalytics.bind(apiClient);
 
 // Leaderboard
+export const getGroupFullAttendanceMatrix = apiClient.getGroupFullAttendanceMatrix.bind(apiClient);
 export const getCuratorGroups = apiClient.getCuratorGroups.bind(apiClient);
 export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
 export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);

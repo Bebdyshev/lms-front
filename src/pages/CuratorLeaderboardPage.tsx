@@ -113,40 +113,43 @@ const ScoreSelect = ({
 const AttendanceToggle = ({
     initialStatus,
     onChange,
+    disabled = false,
 }: {
     initialStatus: string,
     onChange: (status: string) => void,
+    disabled?: boolean,
 }) => {
   // Cycle: attended -> late -> missed -> attended
   const handleCycle = () => {
+    if (disabled) return;
     if (initialStatus === 'attended') onChange('late');
     else if (initialStatus === 'late') onChange('missed');
     else onChange('attended');
   };
 
   const getStatusConfig = () => {
-    // Standardize 'absent' -> 'missed' for logic consistency
-    const s = (initialStatus === 'absent' || initialStatus === 'registered') ? 'missed' : initialStatus;
+    const s = (initialStatus === 'absent' || initialStatus === 'registered' || initialStatus === 'missed') ? 'missed' : initialStatus;
     
-    if (s === 'attended') return { label: '✓', color: 'bg-green-500 text-white shadow-green-200', title: 'Present' };
-    if (s === 'late') return { label: 'L', color: 'bg-yellow-500 text-white shadow-yellow-200', title: 'Late' };
-    return { label: '✕', color: 'bg-red-500 text-white shadow-red-200', title: 'Absent' };
+    if (s === 'attended') return { label: 'Был', color: 'bg-emerald-500 text-white', title: 'Был' };
+    if (s === 'late') return { label: 'Опоздал', color: 'bg-amber-400 text-gray-900 font-bold', title: 'Опоздал' };
+    return { label: 'Не был', color: 'bg-rose-500 text-white', title: 'Не был' };
   };
 
   const config = getStatusConfig();
   
   return (
-    <div className="flex items-center justify-center h-full p-1">
-      <button
+    <div 
         onClick={handleCycle}
         className={cn(
-          "flex items-center justify-center w-7 h-7 rounded-lg text-[11px] font-extrabold transition-all shadow-sm active:scale-90 border border-black/5",
-          config.color
+            "flex items-center justify-center w-full h-full text-[11px] font-bold transition-all select-none",
+            config.color,
+            disabled ? "cursor-default brightness-[0.9] grayscale-[0.2]" : "cursor-pointer active:brightness-95 hover:brightness-105"
         )}
-        title={`Status: ${config.title}. Click to cycle.`}
-      >
-        {config.label}
-      </button>
+        title={disabled ? `Status: ${config.title} (Read-only)` : `Status: ${config.title}. Click to cycle.`}
+    >
+        <span className="flex items-center gap-1">
+            <span className="text-[10px] uppercase">{config.label}</span>
+        </span>
     </div>
   );
 };
@@ -311,6 +314,9 @@ export default function CuratorLeaderboardPage() {
   };
 
   const handleAttendanceChange = (studentId: number, lessonNumber: string, status: string) => {
+      // Security check
+      if (user?.role === 'curator') return;
+      
       // Status: "attended" or "absent" (from toggles)
       // Map to 10 or 0
       
@@ -542,7 +548,7 @@ export default function CuratorLeaderboardPage() {
                     </TableHead>
                     {/* Dynamic Lesson Columns */}
                     {data.lessons.map(lesson => (
-                        <TableHead key={`lesson-${lesson.lesson_number}`} className="p-0 text-center border-r border-gray-300 h-auto min-w-[100px] align-top bg-gray-100">
+                        <TableHead key={`lesson-${lesson.lesson_number}`} className="p-0 text-center border-r border-gray-300 h-auto min-w-[150px] align-top bg-gray-100">
                             <div className="flex flex-col h-full">
                                 <div className="py-1 border-b border-gray-300 font-semibold text-gray-700 bg-gray-200/50 text-xs flex flex-col items-center">
                                     <span>{formatDateParts(lesson.start_datetime).date}</span>
@@ -561,26 +567,26 @@ export default function CuratorLeaderboardPage() {
                     ))}
                     
                     <TableHead 
-                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.curator_hour && "opacity-60 bg-gray-50 text-gray-400")}
+                        className={cn("text-center font-semibold p-2 w-28 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.curator_hour && "opacity-60 bg-gray-50 text-gray-400")}
                         onClick={() => toggleColumn('curator_hour')}
-                        title={enabledCols.curator_hour ? "Click to hide" : "Click to show"}
+                        title={enabledCols.curator_hour ? "Нажмите, чтобы скрыть" : "Нажмите, чтобы показать"}
                     >
                         <div className="flex flex-col items-center justify-center gap-1">
-                            <span>Curator<br/>Hour</span>
+                            <span>Час<br/>куратора</span>
                             {enabledCols.curator_hour 
                                 ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
                                 : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
                             }
                         </div>
                     </TableHead>
-                    <TableHead className="text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Mock<br/>Exam</TableHead>
+                    <TableHead className="text-center font-semibold p-2 w-28 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight">Пробный<br/>экзамен</TableHead>
                     <TableHead 
-                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.study_buddy && "opacity-60 bg-gray-50 text-gray-400")}
+                        className={cn("text-center font-semibold p-2 w-28 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.study_buddy && "opacity-60 bg-gray-50 text-gray-400")}
                         onClick={() => toggleColumn('study_buddy')}
-                        title={enabledCols.study_buddy ? "Click to hide" : "Click to show"}
+                        title={enabledCols.study_buddy ? "Нажмите, чтобы скрыть" : "Нажмите, чтобы показать"}
                     >
                         <div className="flex flex-col items-center justify-center gap-1">
-                            <span>Study<br/>Buddy</span>
+                            <span>Учебный<br/>бадди</span>
                             {enabledCols.study_buddy 
                                 ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
                                 : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
@@ -588,12 +594,12 @@ export default function CuratorLeaderboardPage() {
                         </div>
                     </TableHead>
                     <TableHead 
-                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.self_reflection_journal && "opacity-60 bg-gray-50 text-gray-400")}
+                        className={cn("text-center font-semibold p-2 w-28 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.self_reflection_journal && "opacity-60 bg-gray-50 text-gray-400")}
                         onClick={() => toggleColumn('self_reflection_journal')}
-                        title={enabledCols.self_reflection_journal ? "Click to hide" : "Click to show"}
+                        title={enabledCols.self_reflection_journal ? "Нажмите, чтобы скрыть" : "Нажмите, чтобы показать"}
                     >
                         <div className="flex flex-col items-center justify-center gap-1">
-                            <span>Journal</span>
+                            <span>Журнал</span>
                             {enabledCols.self_reflection_journal 
                                 ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
                                 : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
@@ -601,12 +607,12 @@ export default function CuratorLeaderboardPage() {
                         </div>
                     </TableHead>
                     <TableHead 
-                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.weekly_evaluation && "opacity-60 bg-gray-50 text-gray-400")}
+                        className={cn("text-center font-semibold p-2 w-28 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.weekly_evaluation && "opacity-60 bg-gray-50 text-gray-400")}
                         onClick={() => toggleColumn('weekly_evaluation')}
-                        title={enabledCols.weekly_evaluation ? "Click to hide" : "Click to show"}
+                        title={enabledCols.weekly_evaluation ? "Нажмите, чтобы скрыть" : "Нажмите, чтобы показать"}
                     >
                         <div className="flex flex-col items-center justify-center gap-1">
-                            <span>Weekly<br/>Eval</span>
+                            <span>Ежен.<br/>оценка</span>
                             {enabledCols.weekly_evaluation 
                                 ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
                                 : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
@@ -614,12 +620,12 @@ export default function CuratorLeaderboardPage() {
                         </div>
                     </TableHead>
                     <TableHead 
-                        className={cn("text-center font-semibold p-2 w-20 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.extra_points && "opacity-60 bg-gray-50 text-gray-400")}
+                        className={cn("text-center font-semibold p-2 w-28 text-gray-700 bg-gray-100 border-r border-gray-300 align-middle whitespace-normal leading-tight cursor-pointer hover:bg-gray-200 transition-colors select-none group relative", !enabledCols.extra_points && "opacity-60 bg-gray-50 text-gray-400")}
                         onClick={() => toggleColumn('extra_points')}
-                        title={enabledCols.extra_points ? "Click to hide" : "Click to show"}
+                        title={enabledCols.extra_points ? "Нажмите, чтобы скрыть" : "Нажмите, чтобы показать"}
                     >
                         <div className="flex flex-col items-center justify-center gap-1">
-                            <span>Extra</span>
+                            <span>Доп.</span>
                             {enabledCols.extra_points 
                                 ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
                                 : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
@@ -653,20 +659,21 @@ export default function CuratorLeaderboardPage() {
                             
                             return (
                                 <TableCell key={`cell-${lessonKey}`} className="p-0 border-r border-gray-300">
-                                    <div className="flex w-full h-full items-stretch">
-                                        <div className="flex-1 p-1">
+                                    <div className="flex w-full h-10 items-stretch">
+                                        <div className="flex-1">
                                             <AttendanceToggle 
                                                 initialStatus={status}
                                                 onChange={(newStatus) => handleAttendanceChange(student.student_id, lessonKey, newStatus)}
+                                                disabled={user?.role === 'curator'}
                                             />
                                         </div>
                                         <div className="flex-1 border-l border-gray-300 bg-gray-50 flex items-center justify-center p-0">
                                             <div className={cn(
                                                 "w-full text-center text-xs",
-                                                hwStatus && hwStatus.submitted ? "text-green-700 font-medium" : "text-gray-400"
+                                                hwStatus?.submitted ? "text-green-700 font-medium" : (hwStatus?.score != null) ? "text-orange-700 font-medium" : "text-gray-400"
                                             )}>
-                                                {hwStatus && hwStatus.submitted 
-                                                    ? `${hwStatus.score !== null ? hwStatus.score : '-'}`
+                                                {hwStatus?.submitted 
+                                                    ? `${hwStatus.score !== null ? hwStatus.score : 'Сдано'}`
                                                     : '-'
                                                 }
                                             </div>
@@ -681,10 +688,13 @@ export default function CuratorLeaderboardPage() {
                         </TableCell>
                         <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleManualScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.study_buddy && "bg-gray-100 opacity-50 pointer-events-none")}>
-                            <AttendanceToggle 
-                                initialStatus={student.study_buddy === 15 ? 'attended' : 'absent'} 
-                                onChange={(s) => handleManualScoreChange(student.student_id, 'study_buddy', s === 'attended' ? '15' : '0')} 
-                            />
+                            <div className="h-10 w-full">
+                                <AttendanceToggle 
+                                    initialStatus={student.study_buddy === 15 ? 'attended' : 'absent'} 
+                                    onChange={(s) => handleManualScoreChange(student.student_id, 'study_buddy', s === 'attended' ? '15' : '0')} 
+                                    disabled={user?.role === 'curator'}
+                                />
+                            </div>
                         </TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.self_reflection_journal && "bg-gray-100 opacity-50 pointer-events-none")}>
                             <ScoreSelect value={student.self_reflection_journal} max={MAX_SCORES.self_reflection_journal} onChange={(v) => handleManualScoreChange(student.student_id, 'self_reflection_journal', v)} />
