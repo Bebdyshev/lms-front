@@ -14,6 +14,7 @@ import FlashcardViewer from '../components/lesson/FlashcardViewer';
 import QuizRenderer from '../components/lesson/QuizRenderer';
 import SummaryStepRenderer from '../components/lesson/SummaryStepRenderer';
 import TextLookupPopover from '../components/lesson/TextLookupPopover';
+import MaintenanceBanner from '../components/MaintenanceBanner';
 
 // Utility function to extract correct answers from gap text
 // If an option ends with *, it's the correct answer (without the *)
@@ -1767,6 +1768,7 @@ export default function LessonPage() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-screen">
+        <MaintenanceBanner />
         {/* Header */}
         <div className="h-16 border-b border-border flex items-center justify-between px-4 md:px-6 bg-card flex-shrink-0">
           <div className="flex items-center gap-3">
