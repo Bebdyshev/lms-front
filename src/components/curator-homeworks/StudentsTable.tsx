@@ -22,7 +22,7 @@ interface StudentsTableProps {
 
 const formatDate = (dateString: string | null): string => {
   if (!dateString) return '—';
-  return new Date(dateString).toLocaleString('en-US', {
+  return new Date(dateString).toLocaleString('ru-RU', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -50,8 +50,8 @@ export const StudentsTable: React.FC<StudentsTableProps> = ({
     return (
       <div className="text-center py-8 text-muted-foreground">
         {students.length === 0
-          ? 'No students in this assignment'
-          : 'No students match the filters'}
+          ? 'В этом задании нет студентов'
+          : 'Нет студентов, подходящих под фильтры'}
       </div>
     );
   }
@@ -60,10 +60,10 @@ export const StudentsTable: React.FC<StudentsTableProps> = ({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Student</TableHead>
-          <TableHead>Submitted At</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
+          <TableHead>Студент</TableHead>
+          <TableHead>Сдано в</TableHead>
+          <TableHead>Статус</TableHead>
+          <TableHead className="text-right">Действия</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -92,7 +92,7 @@ export const StudentsTable: React.FC<StudentsTableProps> = ({
                     onClick={() => onViewStudent(student)}
                   >
                     <Eye className="w-4 h-4 mr-1" />
-                    View
+                    Смотреть
                   </Button>
                 )}
               </div>

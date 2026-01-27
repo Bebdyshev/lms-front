@@ -15,7 +15,7 @@ interface AssignmentCardProps {
 
 const formatDate = (dateString: string | null): string => {
   if (!dateString) return '';
-  return new Date(dateString).toLocaleDateString('en-US', {
+  return new Date(dateString).toLocaleDateString('ru-RU', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -53,15 +53,15 @@ export const AssignmentCard: React.FC<AssignmentCardProps> = ({
         <div className="flex items-center gap-3">
           {assignment.due_date && (
             <span className="text-sm text-muted-foreground">
-              Due: {formatDate(assignment.due_date)}
+              Срок: {formatDate(assignment.due_date)}
             </span>
           )}
           <Badge variant="outline">
-            {summary.graded}/{summary.submitted} graded
+            {summary.graded}/{summary.submitted} оценено
           </Badge>
           {summary.not_submitted > 0 && (
             <Badge variant="secondary">
-              {summary.not_submitted} not submitted
+              {summary.not_submitted} не сдано
             </Badge>
           )}
         </div>

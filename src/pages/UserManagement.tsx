@@ -43,7 +43,7 @@ import { Checkbox } from '../components/ui/checkbox';
 interface UserFormData {
   name: string;
   email: string;
-  role: 'student' | 'teacher' | 'curator' | 'admin';
+  role: 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator';
   student_id?: string;
   password?: string;
   is_active: boolean;
@@ -800,6 +800,7 @@ export default function UserManagement() {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="student">Student</SelectItem>
                   <SelectItem value="teacher">Teacher</SelectItem>
+                  <SelectItem value="head_curator">Head Curator</SelectItem>
                   <SelectItem value="curator">Curator</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
@@ -1082,6 +1083,7 @@ export default function UserManagement() {
                             <span className={`px-2 py-1 text-xs rounded-full ${
                               user.role === 'admin' ? 'bg-red-100 text-red-700' :
                               user.role === 'teacher' ? 'bg-purple-100 text-purple-700' :
+                              user.role === 'head_curator' ? 'bg-indigo-100 text-indigo-700' :
                               user.role === 'curator' ? 'bg-blue-100 text-blue-700' :
                               'bg-green-100 text-green-700'
                             }`}>
@@ -1576,6 +1578,7 @@ function UserForm({ formData, setFormData, groups, onSubmit, submitText, errors 
             <SelectContent className="z-[1100]">
               <SelectItem value="student">Student</SelectItem>
               <SelectItem value="teacher">Teacher</SelectItem>
+              <SelectItem value="head_curator">Head Curator</SelectItem>
               <SelectItem value="curator">Curator</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>

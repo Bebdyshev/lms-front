@@ -22,7 +22,7 @@ interface ViewDialogProps {
 
 const formatDate = (dateString: string | null): string => {
   if (!dateString) return '—';
-  return new Date(dateString).toLocaleString('en-US', {
+  return new Date(dateString).toLocaleString('ru-RU', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -46,7 +46,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
       return (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-muted-foreground">Loading submission...</span>
+          <span className="ml-2 text-muted-foreground">Загрузка работы...</span>
         </div>
       );
     }
@@ -56,14 +56,14 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
       if (student?.status === 'graded' && student?.score !== null) {
         return (
           <div className="text-center py-8 text-muted-foreground">
-            <p>This submission was graded without digital content.</p>
-            <p className="text-sm mt-1">(May have been oral/verbal work or submitted externally)</p>
+            <p>Эта работа была оценена без цифрового контента.</p>
+            <p className="text-sm mt-1">(Возможно, работа была устной или сдана внешне)</p>
           </div>
         );
       }
       return (
         <div className="text-center py-8 text-muted-foreground">
-          No submission content available
+          Контент работы недоступен
         </div>
       );
     }
@@ -89,10 +89,10 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                 {/* Task header */}
                 <div className="bg-muted px-4 py-2 border-b">
                   <span className="text-sm font-medium text-muted-foreground">
-                    Task {idx + 1}: {task.task_type === 'text_task' ? 'Text Response' : 
-                                      task.task_type === 'file_task' ? 'File Upload' :
-                                      task.task_type === 'link_task' ? 'Link Task' :
-                                      task.task_type === 'course_unit' ? 'Course Unit' : 'Task'}
+                    Задание {idx + 1}: {task.task_type === 'text_task' ? 'Текстовый ответ' : 
+                                      task.task_type === 'file_task' ? 'Загрузка файла' :
+                                      task.task_type === 'link_task' ? 'Задание со ссылкой' :
+                                      task.task_type === 'course_unit' ? 'Юнит курса' : 'Задание'}
                   </span>
                 </div>
                 
@@ -100,14 +100,14 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                   {/* Question/Description */}
                   {task.content.question && (
                     <div>
-                      <label className="text-xs text-muted-foreground">Question</label>
+                      <label className="text-xs text-muted-foreground">Вопрос</label>
                       <p className="text-sm font-medium">{task.content.question}</p>
                     </div>
                   )}
                   
                   {task.content.link_description && (
                     <div>
-                      <label className="text-xs text-muted-foreground">Description</label>
+                      <label className="text-xs text-muted-foreground">Описание</label>
                       <p className="text-sm">{task.content.link_description}</p>
                     </div>
                   )}
@@ -130,7 +130,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
 
                   {/* Student's Answer */}
                   <div className="pt-2 border-t">
-                    <label className="text-xs text-muted-foreground block mb-1">Student's Answer</label>
+                    <label className="text-xs text-muted-foreground block mb-1">Ответ студента</label>
                     
                     {/* Text response */}
                     {task.task_type === 'text_task' && (
@@ -139,7 +139,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                           <p className="text-sm whitespace-pre-wrap">{taskAnswer.text_response}</p>
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground italic">No response provided</p>
+                        <p className="text-sm text-muted-foreground italic">Ответ не предоставлен</p>
                       )
                     )}
 
@@ -149,7 +149,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                         <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 rounded border border-green-200 dark:border-green-800">
                           <div className="flex items-center">
                             <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
-                            <span className="text-sm font-medium">{taskAnswer.file_name || 'Uploaded File'}</span>
+                            <span className="text-sm font-medium">{taskAnswer.file_name || 'Загруженный файл'}</span>
                           </div>
                           <a
                             href={
@@ -162,11 +162,11 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                             className="text-blue-600 hover:underline text-sm flex items-center"
                           >
                             <Download className="w-4 h-4 mr-1" />
-                            Download
+                            Скачать
                           </a>
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground italic">No file uploaded</p>
+                        <p className="text-sm text-muted-foreground italic">Файл не загружен</p>
                       )
                     )}
 
@@ -175,10 +175,10 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                       taskAnswer.completed ? (
                         <div className="flex items-center text-green-600">
                           <CheckCircle className="w-4 h-4 mr-2" />
-                          <span className="text-sm font-medium">Completed</span>
+                          <span className="text-sm font-medium">Завершено</span>
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground italic">Not completed</p>
+                        <p className="text-sm text-muted-foreground italic">Не завершено</p>
                       )
                     )}
                   </div>
@@ -205,7 +205,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
             <FileText className="w-5 h-5 text-blue-600 mr-3" />
             <div className="flex-1">
               <div className="font-medium">
-                {submissionDetails.submitted_file_name || 'Attached File'}
+                {submissionDetails.submitted_file_name || 'Прикрепленный файл'}
               </div>
             </div>
             <a
@@ -219,7 +219,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
               className="text-blue-600 hover:underline text-sm font-medium flex items-center"
             >
               <Download className="w-4 h-4 mr-1" />
-              Download
+              Скачать
             </a>
           </div>
         )}
@@ -231,7 +231,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
         {hasSimpleTextAnswer && (
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Student's Answer
+              Ответ студента
             </label>
             <div className="bg-muted p-4 rounded-lg border whitespace-pre-wrap">
               {answers.text}
@@ -243,7 +243,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
         {hasTaskCompletions && (
           <div>
             <label className="text-sm font-medium text-muted-foreground mb-2 block">
-              Task Responses
+              Ответы на задания
             </label>
             <div className="space-y-2">
               {Object.entries(answers)
@@ -251,11 +251,11 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                 .map(([taskId, taskAnswer]: [string, any], idx) => (
                   <div key={taskId} className="bg-muted p-3 rounded-lg border">
                     <div className="text-sm font-medium text-muted-foreground mb-2">
-                      Task {idx + 1}
+                      Задание {idx + 1}
                     </div>
                     {taskAnswer.text_response && (
                       <div className="mb-2">
-                        <span className="text-xs text-muted-foreground">Text Response:</span>
+                        <span className="text-xs text-muted-foreground">Текстовый ответ:</span>
                         <p className="text-sm whitespace-pre-wrap">{taskAnswer.text_response}</p>
                       </div>
                     )}
@@ -272,14 +272,14 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline text-sm"
                         >
-                          {taskAnswer.file_name || 'Download File'}
+                          {taskAnswer.file_name || 'Скачать файл'}
                         </a>
                       </div>
                     )}
                     {taskAnswer.completed && !taskAnswer.text_response && !taskAnswer.file_url && (
                       <div className="flex items-center text-green-600">
                         <CheckCircle className="w-4 h-4 mr-2" />
-                        <span className="text-sm">Completed</span>
+                        <span className="text-sm">Завершено</span>
                       </div>
                     )}
                   </div>
@@ -293,11 +293,11 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
           <div className="text-center py-4 text-muted-foreground">
             {student?.status === 'graded' ? (
               <>
-                <p>This submission was graded without digital content.</p>
-                <p className="text-sm mt-1">(May have been oral/verbal work or submitted externally)</p>
+                <p>Эта работа была оценена без цифрового контента.</p>
+                <p className="text-sm mt-1">(Возможно, работа была устной или сдана внешне)</p>
               </>
             ) : (
-              <p>No submission content available</p>
+              <p>Контент работы недоступен</p>
             )}
           </div>
         )}
@@ -309,14 +309,14 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Submission Details</DialogTitle>
+          <DialogTitle>Детали работы</DialogTitle>
         </DialogHeader>
         {student && assignment && (
           <div className="space-y-6 py-4">
             {/* Student & Assignment Info */}
             <div className="grid grid-cols-2 gap-4 bg-muted/50 p-4 rounded-lg">
               <div>
-                <label className="text-sm text-muted-foreground">Student</label>
+                <label className="text-sm text-muted-foreground">Студент</label>
                 <p className="font-medium">{student.student_name}</p>
               </div>
               <div>
@@ -324,19 +324,19 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
                 <p className="font-medium">{student.student_email}</p>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Assignment</label>
+                <label className="text-sm text-muted-foreground">Задание</label>
                 <p className="font-medium">{assignment.title}</p>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Course</label>
+                <label className="text-sm text-muted-foreground">Курс</label>
                 <p className="font-medium">{assignment.course_title}</p>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Submitted At</label>
+                <label className="text-sm text-muted-foreground">Сдано в</label>
                 <p className="font-medium">{formatDate(student.submitted_at)}</p>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Status</label>
+                <label className="text-sm text-muted-foreground">Статус</label>
                 <div className="mt-1">
                   <StatusBadge
                     status={student.status}
@@ -351,7 +351,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
             <div>
               <h3 className="text-sm font-semibold mb-3 flex items-center">
                 <FileText className="w-4 h-4 mr-2" />
-                Student's Work
+                Работа студента
               </h3>
               {renderSubmissionContent()}
             </div>
@@ -360,7 +360,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
             {student.feedback && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                  Teacher's Feedback
+                  Отзыв преподавателя
                 </label>
                 <p className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                   {student.feedback}
@@ -371,7 +371,7 @@ export const ViewDialog: React.FC<ViewDialogProps> = ({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            Закрыть
           </Button>
         </DialogFooter>
       </DialogContent>

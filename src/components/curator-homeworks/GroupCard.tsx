@@ -44,15 +44,15 @@ export const GroupCard: React.FC<GroupCardProps> = ({
           )}
           <Users className="w-5 h-5 text-primary" />
           <span className="font-semibold text-lg">{group.group_name}</span>
-          <Badge variant="secondary">{group.assignments.length} assignments</Badge>
+          <Badge variant="secondary">{group.assignments.length} заданий</Badge>
           {totalPending > 0 && (
             <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-              {totalPending} pending review
+              {totalPending} на проверке
             </Badge>
           )}
         </div>
         <div className="text-sm text-muted-foreground">
-          {group.students_count} students
+          {group.students_count} студентов
         </div>
       </button>
 
@@ -60,7 +60,7 @@ export const GroupCard: React.FC<GroupCardProps> = ({
         <div className="border-t">
           {group.assignments.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              No assignments in this group
+              В этой группе нет заданий
             </div>
           ) : (
             <div className="divide-y">

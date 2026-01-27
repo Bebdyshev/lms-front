@@ -21,7 +21,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, score, maxScor
     return (
       <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
         <Clock className="w-3 h-3 mr-1" />
-        Pending Review
+        На проверке
       </Badge>
     );
   }
@@ -30,7 +30,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, score, maxScor
     return (
       <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
         <AlertCircle className="w-3 h-3 mr-1" />
-        Overdue
+        Просрочено
       </Badge>
     );
   }
@@ -38,7 +38,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, score, maxScor
   return (
     <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
       <MinusCircle className="w-3 h-3 mr-1" />
-      Not Submitted
+      Не сдано
     </Badge>
   );
 };

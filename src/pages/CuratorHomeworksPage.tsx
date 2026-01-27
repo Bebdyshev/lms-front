@@ -125,8 +125,8 @@ const CuratorHomeworksPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
         <FileText className="w-16 h-16 mb-4 opacity-50" />
-        <p className="text-lg">No Homework Assignments</p>
-        <p className="text-sm">Assignments from your groups will appear here</p>
+        <p className="text-lg">Нет домашних заданий</p>
+        <p className="text-sm">Задания ваших групп появятся здесь</p>
       </div>
     );
   }
@@ -134,7 +134,7 @@ const CuratorHomeworksPage: React.FC = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Homework Assignments</h1>
+        <h1 className="text-2xl font-bold">Домашние задания</h1>
       </div>
 
       <HomeworkFilters

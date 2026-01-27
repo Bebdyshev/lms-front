@@ -468,8 +468,8 @@ export default function AnalyticsPage() {
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Analytics</h1>
-          <p className="text-gray-500 mt-1">Monitor student progress and course performance</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">{user?.role === 'head_curator' ? 'Аналитика' : 'Analytics'}</h1>
+          <p className="text-gray-500 mt-1">{user?.role === 'head_curator' ? 'Отслеживание прогресса студентов и эффективности курсов' : 'Monitor student progress and course performance'}</p>
         </div>
         
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -478,7 +478,7 @@ export default function AnalyticsPage() {
              onValueChange={handleCourseChange}
           >
             <SelectTrigger className="w-full sm:w-[280px] bg-white">
-              <SelectValue placeholder="Select course" />
+              <SelectValue placeholder={user?.role === 'head_curator' ? "Выберите курс" : "Select course"} />
             </SelectTrigger>
             <SelectContent>
               {courses.map(course => (
@@ -495,10 +495,10 @@ export default function AnalyticsPage() {
              disabled={loadingGroups}
           >
             <SelectTrigger className="w-full sm:w-[200px] bg-white">
-              <SelectValue placeholder="Filter by group" />
+              <SelectValue placeholder={user?.role === 'head_curator' ? "Фильтр по группе" : "Filter by group"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Groups</SelectItem>
+              <SelectItem value="all">{user?.role === 'head_curator' ? "Все группы" : "All Groups"}</SelectItem>
               {groups.map(group => (
                 <SelectItem key={group.id} value={String(group.id)}>
                   {group.description || group.name}
@@ -533,7 +533,7 @@ export default function AnalyticsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+              <CardTitle className="text-sm font-medium">{user?.role === 'head_curator' ? "Всего студентов" : "Total Students"}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{overview.total_students}</div>
@@ -544,7 +544,7 @@ export default function AnalyticsPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg. Progress</CardTitle>
+              <CardTitle className="text-sm font-medium">{user?.role === 'head_curator' ? "Средний прогресс" : "Avg. Progress"}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{Math.round(overview.average_progress)}%</div>
@@ -553,7 +553,7 @@ export default function AnalyticsPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg. Score</CardTitle>
+              <CardTitle className="text-sm font-medium">{user?.role === 'head_curator' ? "Средний балл" : "Avg. Score"}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{Math.round(overview.average_score)}%</div>
@@ -564,7 +564,7 @@ export default function AnalyticsPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
+              <CardTitle className="text-sm font-medium">{user?.role === 'head_curator' ? "Процент завершения" : "Completion Rate"}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{Math.round(overview.completion_rate)}%</div>
@@ -578,12 +578,12 @@ export default function AnalyticsPage() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="grid w-full grid-cols-6 h-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="students">Students</TabsTrigger>
-          <TabsTrigger value="groups">Groups</TabsTrigger>
-          <TabsTrigger value="quizzes">Quizzes</TabsTrigger>
-          <TabsTrigger value="topics">Topics</TabsTrigger>
-          <TabsTrigger value="engagement">Engagement</TabsTrigger>
+          <TabsTrigger value="overview">{user?.role === 'head_curator' ? "Обзор" : "Overview"}</TabsTrigger>
+          <TabsTrigger value="students">{user?.role === 'head_curator' ? "Студенты" : "Students"}</TabsTrigger>
+          <TabsTrigger value="groups">{user?.role === 'head_curator' ? "Группы" : "Groups"}</TabsTrigger>
+          <TabsTrigger value="quizzes">{user?.role === 'head_curator' ? "Тесты" : "Quizzes"}</TabsTrigger>
+          <TabsTrigger value="topics">{user?.role === 'head_curator' ? "Темы" : "Topics"}</TabsTrigger>
+          <TabsTrigger value="engagement">{user?.role === 'head_curator' ? "Активность" : "Engagement"}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">

@@ -29,7 +29,7 @@ export const HomeworkFilters: React.FC<HomeworkFiltersProps> = ({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search by student name..."
+            placeholder="Поиск по имени студента..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="pl-9"
@@ -42,13 +42,13 @@ export const HomeworkFilters: React.FC<HomeworkFiltersProps> = ({
       >
         <SelectTrigger className="w-[180px]">
           <Filter className="w-4 h-4 mr-2" />
-          <SelectValue placeholder="Status" />
+          <SelectValue placeholder="Статус" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All</SelectItem>
-          <SelectItem value="submitted">Pending Review</SelectItem>
-          <SelectItem value="graded">Graded</SelectItem>
-          <SelectItem value="not_submitted">Not Submitted</SelectItem>
+          <SelectItem value="all">Все</SelectItem>
+          <SelectItem value="submitted">На проверке</SelectItem>
+          <SelectItem value="graded">Оценено</SelectItem>
+          <SelectItem value="not_submitted">Не сдано</SelectItem>
         </SelectContent>
       </Select>
     </div>

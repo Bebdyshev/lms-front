@@ -34,23 +34,23 @@ import type { Course } from '../types';
 type NavItemTuple = [to: string, label: string, Icon: LucideIcon, badge: number, roles: string[] | null, dataTour?: string];
 function getNavigationItems(_userRole: string | undefined, unreadCount: number, unseenGradedCount: number = 0): NavItemTuple[] {
   const allItems: NavItemTuple[] = [
-    ['/dashboard', 'Dashboard', Home, 0, null, 'dashboard-nav'],
-    ['/calendar', 'Calendar', Calendar, 0, null, 'calendar-nav'],
+    ['/dashboard', _userRole === 'head_curator' ? 'Дашборд' : 'Dashboard', Home, 0, null, 'dashboard-nav'],
+    ['/calendar', _userRole === 'head_curator' ? 'Календарь' : 'Calendar', Calendar, 0, null, 'calendar-nav'],
     ['/courses', 'My Courses', BookOpen, 0, ['student'], 'courses-nav'],
     ['/homework', _userRole === 'student' ? 'My Homework' : 'Homework', ClipboardList, _userRole === 'student' ? unseenGradedCount : 0, ['student', 'teacher'], 'assignments-nav'],
     ['/favorites', 'My Favorites', Heart, 0, ['student'], 'favorites-nav'],
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher'], 'courses-nav'],
     ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher'], 'students-nav'],
-    ['/analytics', 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin'], 'analytics-nav'],
-    ['/curator/homeworks', 'Homework', FileText, 0, ['curator'], 'homework-analytics-nav'],
-    ['/curator/leaderboard', 'Leaderboard', Trophy, 0, ['curator'], 'leaderboard-nav'],
+    ['/analytics', _userRole === 'head_curator' ? 'Аналитика' : 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin', 'head_curator'], 'analytics-nav'],
+    ['/curator/homeworks', _userRole === 'head_curator' ? 'Домашние задания' : 'Homework', FileText, 0, ['curator', 'head_curator'], 'homework-analytics-nav'],
+    ['/curator/leaderboard', _userRole === 'head_curator' ? 'Лидерборд' : 'Leaderboard', Trophy, 0, ['curator', 'head_curator'], 'leaderboard-nav'],
     ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin'], 'courses-management'],
     ['/admin/users', 'Manage Users', Users, 0, ['admin'], 'users-management'],
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management'],
     ['/admin/assignment-zero', 'Assignment Zero', ClipboardCheck, 0, ['admin'], 'assignment-zero-management'],
     ['/admin/question-reports', 'Question Reports', AlertTriangle, 0, ['admin'], 'question-reports-nav'],
     ['/manual-unlocks', 'Manual Unlocks', Unlock, 0, ['teacher'], 'manual-unlocks-nav'],
-    ['/chat', 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
+    ['/chat', _userRole === 'head_curator' ? 'Чат' : 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
   ];
 
   return allItems;
@@ -302,7 +302,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
               {!isCollapsed && (
                 <div className="ml-3 text-left">
                   <div className="text-sm font-medium text-gray-900 line-clamp-1">{user?.name || 'User'}</div>
-                  <div className="text-xs text-gray-500 capitalize">{user?.role || 'Unknown'}</div>
+                  <div className="text-xs text-gray-500">{user?.role === 'head_curator' ? 'Руководитель кураторов' : (user?.role || 'Unknown')}</div>
                 </div>
               )}
             </div>
@@ -319,7 +319,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <UserCheck className="w-4 h-4 mr-3" />
-                Profile
+                {user?.role === 'head_curator' ? 'Профиль' : 'Profile'}
               </NavLink>
               <NavLink
                 to="/settings"
@@ -327,7 +327,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <Settings className="w-4 h-4 mr-3" />
-                Settings
+                {user?.role === 'head_curator' ? 'Настройки' : 'Settings'}
               </NavLink>
               <div className="border-t my-1"></div>
               <button
@@ -335,7 +335,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
               >
                 <LogOut className="w-4 h-4 mr-3" />
-                Logout
+                {user?.role === 'head_curator' ? 'Выйти' : 'Logout'}
               </button>
             </div>
           )}

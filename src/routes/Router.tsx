@@ -391,7 +391,7 @@ export default function Router() {
           } />
 
           <Route path="/analytics" element={
-            <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin']}>
+            <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin', 'head_curator']}>
               <AppLayout>
                 <AnalyticsPage />
               </AppLayout>
@@ -399,7 +399,7 @@ export default function Router() {
           } />
 
           <Route path="/analytics/student/:studentId" element={
-            <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin']}>
+            <ProtectedRoute allowedRoles={['teacher', 'curator', 'admin', 'head_curator']}>
               <AppLayout>
                 <StudentAnalyticsPage />
               </AppLayout>
@@ -407,7 +407,7 @@ export default function Router() {
           } />
 
           <Route path="/curator/homeworks" element={
-            <ProtectedRoute allowedRoles={['curator', 'admin']}>
+            <ProtectedRoute allowedRoles={['curator', 'admin', 'head_curator']}>
               <AppLayout>
                 <CuratorHomeworksPage />
               </AppLayout>
@@ -415,7 +415,7 @@ export default function Router() {
           } />
 
           <Route path="/curator/leaderboard" element={
-            <ProtectedRoute allowedRoles={['curator', 'admin']}>
+            <ProtectedRoute allowedRoles={['curator', 'admin', 'head_curator']}>
               <AppLayout>
                 <CuratorLeaderboardPage />
               </AppLayout>
@@ -423,7 +423,7 @@ export default function Router() {
           } />
 
           <Route path="/curator/events/create" element={
-            <ProtectedRoute allowedRoles={['curator', 'admin']}>
+            <ProtectedRoute allowedRoles={['curator', 'admin', 'head_curator']}>
               <AppLayout>
                 <CreateEvent />
               </AppLayout>

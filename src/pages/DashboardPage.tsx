@@ -7,6 +7,7 @@ import StudentDashboard from './StudentDashboard';
 import TeacherDashboard from './TeacherDashboard.tsx';
 import AdminDashboard from './admin/AdminDashboard.tsx';
 import CuratorDashboard from './CuratorDashboard.tsx';
+import HeadCuratorDashboard from './HeadCuratorDashboard.tsx';
 import apiClient from "../services/api";
 import Skeleton from '../components/Skeleton.tsx';
 import type { DashboardStats, Course, User } from '../types';
@@ -24,7 +25,7 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isTeacher, isCurator } = useAuth();
+  const { user, isTeacher } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -103,7 +104,6 @@ export default function DashboardPage() {
 
   const firstName = dashboardData?.user?.name || user?.name?.split(' ')[0] || 'User';
   const stats = dashboardData?.stats || {} as DashboardStats;
-  const recentCourses = dashboardData?.recent_courses || [];
 
   // Role-based dashboards
   if (user?.role === 'admin') {
@@ -114,6 +114,10 @@ export default function DashboardPage() {
     return <CuratorDashboard />;
   }
   
+  if (user?.role === 'head_curator') {
+    return <HeadCuratorDashboard />;
+  }
+  
   if (isTeacher()) {
     return <TeacherDashboard />;
   }
@@ -122,8 +126,6 @@ export default function DashboardPage() {
     <StudentDashboard
       firstName={firstName}
       stats={stats}
-      recentCourses={recentCourses}
-      recentActivity={dashboardData?.recent_activity || []}
       onContinueCourse={(id: string) => navigate(`/course/${id}`)}
       onGoToAllCourses={() => navigate('/courses')}
     />

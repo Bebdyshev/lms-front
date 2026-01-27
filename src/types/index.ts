@@ -25,7 +25,7 @@ export interface User {
   updated_at: string;
 }
 
-export type UserRole = 'student' | 'teacher' | 'curator' | 'admin';
+export type UserRole = 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator';
 
 // =============================================================================
 // AUTH TYPES

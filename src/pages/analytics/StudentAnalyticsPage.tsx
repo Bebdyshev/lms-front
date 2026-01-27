@@ -245,11 +245,11 @@ export const StudentAnalyticsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col space-y-2">
         <Button variant="ghost" onClick={() => navigate(-1)} className="w-fit pl-0 mb-2 hover:bg-slate-100 -ml-2 text-slate-600">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Course Analytics
+          <ArrowLeft className="mr-2 h-4 w-4" /> {isCurator() ? 'Назад к аналитике' : 'Back to Course Analytics'}
         </Button>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{data.student_info?.name || 'Student Details'}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{data.student_info?.name || (isCurator() ? 'Детали студента' : 'Student Details')}</h1>
             <p className="text-slate-500">{data.student_info?.email}</p>
           </div>
         </div>
@@ -259,7 +259,7 @@ export const StudentAnalyticsPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total Study Time</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">{isCurator() ? 'Общее время обучения' : 'Total Study Time'}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatDuration(data.total_stats?.total_study_time || 0)}</div>
@@ -267,7 +267,7 @@ export const StudentAnalyticsPage: React.FC = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Progress</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">{isCurator() ? 'Прогресс' : 'Progress'}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -285,7 +285,7 @@ export const StudentAnalyticsPage: React.FC = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Last Activity</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">{isCurator() ? 'Последняя активность' : 'Last Activity'}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold ">{formatDate(data.total_stats?.last_activity)}</div>
@@ -294,7 +294,7 @@ export const StudentAnalyticsPage: React.FC = () => {
         </Card>
         <Card>
            <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Enrollment Status</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">{isCurator() ? 'Статус зачисления' : 'Enrollment Status'}</CardTitle>
           </CardHeader>
           <CardContent>
              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
@@ -305,16 +305,16 @@ export const StudentAnalyticsPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-8 max-w-xl">
           <TabsTrigger value="performance" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" /> Performance
+            <TrendingUp className="h-4 w-4" /> {isCurator() ? 'Успеваемость' : 'Performance'}
           </TabsTrigger>
           <TabsTrigger value="curriculum" className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" /> Curriculum
+            <BookOpen className="h-4 w-4" /> {isCurator() ? 'Учебный план' : 'Curriculum'}
           </TabsTrigger>
           <TabsTrigger value="homework" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" /> Homework
+            <FileText className="h-4 w-4" /> {isCurator() ? 'Домашние задания' : 'Homework'}
           </TabsTrigger>
           <TabsTrigger value="activity" className="flex items-center gap-2">
-            <History className="h-4 w-4" /> History
+            <History className="h-4 w-4" /> {isCurator() ? 'История' : 'History'}
           </TabsTrigger>
         </TabsList>
 
