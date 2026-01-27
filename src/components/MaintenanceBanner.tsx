@@ -28,9 +28,9 @@ const MaintenanceBanner: React.FC = () => {
               <AlertCircle className="h-5 w-5 text-yellow-700" aria-hidden="true" />
             </span>
             <p className="ml-3 font-medium text-yellow-800 truncate text-sm sm:text-base">
-              <span className="md:hidden">LMS unavailable tomorrow from 18:00</span>
+              <span className="md:hidden">LMS unavailable from 18:00</span>
               <span className="hidden md:inline">
-                Attention: Tomorrow (Jan 28) at 18:00 the LMS will be temporarily unavailable due to technical updates.
+                Attention: Jan 28 at 18:00 (KZ time) the LMS will be temporarily unavailable due to technical updates.
               </span>
             </p>
           </div>
