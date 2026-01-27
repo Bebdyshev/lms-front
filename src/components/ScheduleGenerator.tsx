@@ -77,6 +77,45 @@ export default function ScheduleGenerator({ groupId, open, onOpenChange, onSucce
         }));
     };
 
+    const parseShorthand = (text: string) => {
+        const dayMap: Record<string, number> = {
+            'пн': 0, 'вт': 1, 'ср': 2, 'чт': 3, 'пт': 4, 'сб': 5, 'вс': 6,
+            'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4, 'sat': 5, 'sun': 6
+        };
+        
+        const newConfig: Record<number, string> = {};
+        const normalized = text.toLowerCase().replace(/:/g, ' ');
+        const tokens = normalized.split(/\s+/).filter(Boolean);
+        
+        let currentDays: number[] = [];
+        
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
+            const nextToken = tokens[i + 1];
+            
+            if (dayMap[token] !== undefined) {
+                currentDays.push(dayMap[token]);
+            } else if (/^\d{1,2}$/.test(token) && nextToken && /^\d{2}$/.test(nextToken)) {
+                // Time format: HH MM
+                const hh = token.padStart(2, '0');
+                const mm = nextToken;
+                const time = `${hh}:${mm}`;
+                currentDays.forEach(d => {
+                    newConfig[d] = time;
+                });
+                currentDays = [];
+                i++; // Skip nextToken
+            } else if (/^\d{1,2}:\d{2}$/.test(token)) {
+                // Time format: HH:MM (already handled by replace but safe)
+                newConfig[currentDays[0]] = token; // This case shouldn't be reached with replace(/:/g, ' ')
+            }
+        }
+        
+        if (Object.keys(newConfig).length > 0) {
+            setScheduleConfig(newConfig);
+        }
+    };
+
     const handleGenerate = async () => {
         if (!groupId) return;
         
@@ -116,14 +155,25 @@ export default function ScheduleGenerator({ groupId, open, onOpenChange, onSucce
                 <DialogHeader>
                     <DialogTitle>Generate Class Schedule</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 text-gray-700">
                     <div className="grid gap-2">
-                        <Label htmlFor="start-date">Start Date</Label>
+                        <Label htmlFor="shorthand" className="text-gray-900 font-semibold">Быстрый ввод (пн ср пт 19:00)</Label>
+                        <Input 
+                            id="shorthand" 
+                            placeholder="вт чт 20 00 сб 12 00"
+                            onChange={(e) => parseShorthand(e.target.value)}
+                            className="border-gray-300 focus:border-blue-500"
+                        />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="start-date" className="text-gray-900 font-semibold">Start Date</Label>
                         <Input 
                             id="start-date" 
                             type="date" 
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
+                            className="border-gray-300 focus:border-blue-500"
                         />
                     </div>
 

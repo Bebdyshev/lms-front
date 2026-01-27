@@ -13,7 +13,7 @@ import {
 } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
-import apiClient, { getGroupFullAttendanceMatrix, updateAttendance, getCuratorGroups } from '../services/api';
+import apiClient, { getGroupFullAttendanceMatrix, updateAttendanceBulk, getCuratorGroups } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Group } from '../types';
 import { cn } from '../lib/utils';
@@ -160,6 +160,8 @@ export default function TeacherAttendancePage() {
 
     try {
       setSaving(true);
+      const updates: any[] = [];
+
       for (const [studentId, lessonKeys] of changedLessons.entries()) {
           const student = data.students.find(s => s.student_id === studentId);
           if (!student) continue;
@@ -169,7 +171,7 @@ export default function TeacherAttendancePage() {
               if (!statusData) continue;
 
               const score = statusData.attendance_status === 'attended' ? 10 : 0;
-              await updateAttendance({
+              updates.push({
                 group_id: selectedGroupId,
                 week_number: 1, 
                 lesson_index: parseInt(lessonKey),
@@ -180,10 +182,16 @@ export default function TeacherAttendancePage() {
               });
           }
       }
+
+      if (updates.length > 0) {
+          await updateAttendanceBulk({ updates });
+      }
+
       toast.success('Changes saved');
       setChangedLessons(new Map());
     } catch (err) {
       console.error('Save failed:', err);
+      toast.error('Save failed');
     } finally {
       setSaving(false);
     }

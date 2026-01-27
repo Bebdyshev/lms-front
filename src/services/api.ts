@@ -2897,12 +2897,33 @@ class LMSApiClient {
       self_reflection_journal_enabled?: boolean;
       weekly_evaluation_enabled?: boolean;
       extra_points_enabled?: boolean;
+      curator_hour_date?: string | null;
   }): Promise<any> {
     try {
         const response = await this.api.post('/leaderboard/config', data);
         return response.data;
     } catch (error) {
         console.error('Failed to update leaderboard config:', error);
+        throw error;
+    }
+  }
+
+  async updateAttendanceBulk(data: {
+      updates: Array<{
+          group_id: number;
+          week_number: number;
+          lesson_index: number;
+          student_id: number;
+          score: number;
+          status: string;
+          event_id: number | null;
+      }>;
+  }): Promise<any> {
+    try {
+        const response = await this.api.post('/leaderboard/curator/attendance/bulk', data);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to update bulk attendance:', error);
         throw error;
     }
   }
@@ -3385,6 +3406,7 @@ export const getCuratorGroups = apiClient.getCuratorGroups.bind(apiClient);
 export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
 export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);
 export const updateAttendance = apiClient.updateAttendance.bind(apiClient);
+export const updateAttendanceBulk = apiClient.updateAttendanceBulk.bind(apiClient);
 export const generateSchedule = apiClient.generateSchedule.bind(apiClient);
 
 // Admin Progress Management

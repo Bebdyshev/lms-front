@@ -7,6 +7,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
+import { Input } from '../components/ui/input';
 import { ChevronLeft, ChevronRight, Loader2, Save, Eye, EyeOff } from 'lucide-react';
 import { getCuratorGroups, getWeeklyLessonsWithHwStatus, updateAttendance, updateLeaderboardEntry, updateLeaderboardConfig } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -61,6 +62,7 @@ interface LeaderboardData {
         self_reflection_journal_enabled: boolean;
         weekly_evaluation_enabled: boolean;
         extra_points_enabled: boolean;
+        curator_hour_date: string | null;
     };
 }
 
@@ -173,7 +175,8 @@ export default function CuratorLeaderboardPage() {
       study_buddy: true,
       self_reflection_journal: true,
       weekly_evaluation: true,
-      extra_points: true
+      extra_points: true,
+      curator_hour_date: null as string | null
   });
 
   const toggleColumn = (field: keyof typeof enabledCols) => {
@@ -220,7 +223,8 @@ export default function CuratorLeaderboardPage() {
                 study_buddy: result.config.study_buddy_enabled,
                 self_reflection_journal: result.config.self_reflection_journal_enabled,
                 weekly_evaluation: result.config.weekly_evaluation_enabled,
-                extra_points: result.config.extra_points_enabled
+                extra_points: result.config.extra_points_enabled,
+                curator_hour_date: result.config.curator_hour_date
             });
         }
     } catch (e) {
@@ -435,9 +439,9 @@ export default function CuratorLeaderboardPage() {
   };
 
   return (
-    <div className="p-4 w-full h-full bg-white space-y-4">
+    <div className="p-4 w-full h-full bg-white space-y-4 rounded">
       {/* Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4 ">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2 text-gray-800">
             Class Leaderboard {data && <span className="text-sm font-normal text-gray-500">(Week Starting {new Date(data.week_start).toLocaleDateString()})</span>}
@@ -543,23 +547,23 @@ export default function CuratorLeaderboardPage() {
             <Table className="border-collapse w-full text-xs">
               <TableHeader className="bg-gray-100 sticky top-0 z-30">
                 <TableRow className="h-auto border-b border-gray-300 hover:bg-gray-100">
-                    <TableHead className="w-48 sticky left-0 z-40 bg-gray-100 font-semibold text-gray-700 p-2 border-r border-gray-300 text-left align-middle">
-                        Student
+                    <TableHead className="w-48 sticky left-0 z-40 bg-gray-100 font-semibold text-gray-700 p-2 border-r border-gray-300 text-left align-middle text-center">
+                        Студент
                     </TableHead>
                     {/* Dynamic Lesson Columns */}
                     {data.lessons.map(lesson => (
-                        <TableHead key={`lesson-${lesson.lesson_number}`} className="p-0 text-center border-r border-gray-300 h-auto min-w-[150px] align-top bg-gray-100">
+                        <TableHead key={`lesson-${lesson.lesson_number}`} className="p-0 text-center border-r border-gray-300 h-16 min-w-[160px] align-top bg-gray-100">
                             <div className="flex flex-col h-full">
-                                <div className="py-1 border-b border-gray-300 font-semibold text-gray-700 bg-gray-200/50 text-xs flex flex-col items-center">
-                                    <span>{formatDateParts(lesson.start_datetime).date}</span>
-                                    <span className="text-[10px] font-normal text-gray-500 leading-tight">{formatDateParts(lesson.start_datetime).dayTime}</span>
+                                <div className="py-2 border-b border-gray-300 font-semibold text-gray-700 bg-gray-200/50 text-xs flex flex-col items-center">
+                                    <span className="text-sm">{formatDateParts(lesson.start_datetime).date}</span>
+                                    <span className="text-[10px] font-normal text-gray-500 leading-tight uppercase">{formatDateParts(lesson.start_datetime).dayTime}</span>
                                 </div>
-                                <div className="flex flex-1">
-                                    <div className="flex-1 py-1 text-[10px] font-medium text-gray-500 border-r border-gray-300">
-                                        Class
+                                <div className="flex flex-1 items-stretch">
+                                    <div className="w-1/2 py-2 text-[10px] font-bold text-gray-600 border-r border-gray-300 text-center uppercase tracking-tighter flex items-center justify-center">
+                                        Урок
                                     </div>
-                                    <div className="flex-1 py-1 text-[10px] font-medium text-gray-500 bg-gray-50" title={lesson.homework?.title || "No HW"}>
-                                        HW
+                                    <div className="w-1/2 py-2 text-[10px] font-bold text-gray-600 bg-gray-50 text-center uppercase tracking-tighter flex items-center justify-center" title={lesson.homework?.title || "Без ДЗ"}>
+                                        ДЗ
                                     </div>
                                 </div>
                             </div>
@@ -573,6 +577,21 @@ export default function CuratorLeaderboardPage() {
                     >
                         <div className="flex flex-col items-center justify-center gap-1">
                             <span>Час<br/>куратора</span>
+                            <Input 
+                                type="date" 
+                                className="h-6 w-24 text-[10px] p-1 mt-1 border-gray-300"
+                                value={enabledCols.curator_hour_date || ''}
+                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                    const newDate = e.target.value;
+                                    setEnabledCols(prev => ({ ...prev, curator_hour_date: newDate }));
+                                    updateLeaderboardConfig({
+                                        group_id: selectedGroupId!,
+                                        week_number: currentWeek,
+                                        curator_hour_date: newDate
+                                    });
+                                }}
+                            />
                             {enabledCols.curator_hour 
                                 ? <Eye className="w-3 h-3 text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity absolute top-1 right-1" /> 
                                 : <EyeOff className="w-3 h-3 text-gray-500 absolute top-1 right-1" />
@@ -641,7 +660,7 @@ export default function CuratorLeaderboardPage() {
                 {data.students.map((student, index) => {
                     const percent = calculatePercent(student);
                     return (
-                    <TableRow key={student.student_id} className="hover:bg-blue-50/50 border-b border-gray-300 h-8">
+                    <TableRow key={student.student_id} className="hover:bg-blue-50/50 border-b border-gray-300 h-12">
                         <TableCell className="p-2 sticky left-0 z-30 bg-white border-r border-gray-300">
                              <div className="flex items-center gap-2">
                                 <span className="text-[10px] text-gray-400 w-4 text-right font-mono">{index + 1}</span>
@@ -659,18 +678,18 @@ export default function CuratorLeaderboardPage() {
                             
                             return (
                                 <TableCell key={`cell-${lessonKey}`} className="p-0 border-r border-gray-300">
-                                    <div className="flex w-full h-10 items-stretch">
-                                        <div className="flex-1">
+                                    <div className="flex w-full h-12 items-stretch">
+                                        <div className="w-1/2 border-r border-gray-300">
                                             <AttendanceToggle 
                                                 initialStatus={status}
                                                 onChange={(newStatus) => handleAttendanceChange(student.student_id, lessonKey, newStatus)}
                                                 disabled={user?.role === 'curator'}
                                             />
                                         </div>
-                                        <div className="flex-1 border-l border-gray-300 bg-gray-50 flex items-center justify-center p-0">
+                                        <div className="w-1/2 bg-gray-50 flex items-center justify-center p-0">
                                             <div className={cn(
-                                                "w-full text-center text-xs",
-                                                hwStatus?.submitted ? "text-green-700 font-medium" : (hwStatus?.score != null) ? "text-orange-700 font-medium" : "text-gray-400"
+                                                "w-full text-center text-[11px]",
+                                                hwStatus?.submitted ? "text-green-700 font-bold" : (hwStatus?.score != null) ? "text-orange-700 font-medium" : "text-gray-400"
                                             )}>
                                                 {hwStatus?.submitted 
                                                     ? `${hwStatus.score !== null ? hwStatus.score : 'Сдано'}`
@@ -683,16 +702,16 @@ export default function CuratorLeaderboardPage() {
                             );
                         })}
 
-                        <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.curator_hour && "bg-gray-100 opacity-50 pointer-events-none")}>
+                        <TableCell className={cn("p-0 border-r border-gray-300 h-12", !enabledCols.curator_hour && "bg-gray-100 opacity-50 pointer-events-none")}>
                             <ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleManualScoreChange(student.student_id, 'curator_hour', v)} />
                         </TableCell>
-                        <TableCell className="p-0 border-r border-gray-300"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleManualScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300 h-12"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleManualScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.study_buddy && "bg-gray-100 opacity-50 pointer-events-none")}>
-                            <div className="h-10 w-full">
+                            <div className="h-12 w-full">
                                 <AttendanceToggle 
                                     initialStatus={student.study_buddy === 15 ? 'attended' : 'absent'} 
                                     onChange={(s) => handleManualScoreChange(student.student_id, 'study_buddy', s === 'attended' ? '15' : '0')} 
-                                    disabled={user?.role === 'curator'}
+                                    disabled={false}
                                 />
                             </div>
                         </TableCell>
