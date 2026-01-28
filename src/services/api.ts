@@ -355,9 +355,11 @@ class LMSApiClient {
   // DASHBOARD
   // =============================================================================
 
-  async getDashboardStats(): Promise<DashboardStats> {
+  async getDashboardStats(groupId?: number): Promise<DashboardStats> {
     try {
-      const response = await this.api.get('/dashboard/stats');
+      const response = await this.api.get('/dashboard/stats', {
+        params: { group_id: groupId }
+      });
       return response.data;
     } catch (error) {
       throw new Error('Failed to load dashboard stats');

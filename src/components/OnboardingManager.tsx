@@ -69,8 +69,17 @@ export default function OnboardingManager({ children }: OnboardingManagerProps) 
           shownInSession: onboardingShownInSession
         });
         
-        // Проверяем статус из данных пользователя (с сервера)
-        if (!user.onboarding_completed) {
+        // Не показываем онбординг для стаффа (head_curator, admin, teacher)
+        const staffRoles = ['head_curator', 'admin', 'teacher'];
+        if (staffRoles.includes(user.role)) {
+          console.log(`[OnboardingManager] Skipping onboarding for ${user.role}`);
+          setOnboardingShownInSession(true);
+          return;
+        }
+        
+        // Проверяем статус из данных пользователя (с сервера) ИЛИ из localStorage
+        const localCompleted = storage.getItem(`onboarding_completed_${user.id}`) === 'true';
+        if (!user.onboarding_completed && !localCompleted) {
           // Показываем приветственные экраны
           console.log('[OnboardingManager] Starting onboarding flow for', user.role);
           setShowWelcome(true);

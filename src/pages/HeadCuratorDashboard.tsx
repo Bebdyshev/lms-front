@@ -5,18 +5,20 @@ import apiClient from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { 
-  Users,
-  Activity,
   AlertCircle,
-  Clock,
-  CheckCircle2,
-  TrendingUp,
-  FileText,
-  ChevronRight
+  ChevronRight,
+  Info
 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 import { Badge } from '../components/ui/badge';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { 
   BarChart, 
   Bar, 
@@ -35,15 +37,27 @@ export default function HeadCuratorDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    loadGroups();
+    loadDashboardData(selectedGroupId === "all" ? undefined : parseInt(selectedGroupId));
+  }, [selectedGroupId]);
 
-  const loadDashboardData = async () => {
+  const loadGroups = async () => {
+    try {
+      const res = await apiClient.getGroups();
+      setGroups(res);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    }
+  };
+
+  const loadDashboardData = async (groupId?: number) => {
     try {
       setLoading(true);
-      const res = await apiClient.getDashboardStats();
+      const res = await apiClient.getDashboardStats(groupId);
       setData(res);
     } catch (error) {
       console.error('Failed to load HoC dashboard:', error);
@@ -76,13 +90,26 @@ export default function HeadCuratorDashboard() {
   return (
     <div className="space-y-6">
       {/* Заголовок */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Рады видеть вас, {user?.name?.split(' ')[0] || 'HoC'}!</h1>
           <p className="text-gray-500">Обзор эффективности кураторов и активности студентов</p>
         </div>
-        <div className="text-right">
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+        <div className="flex items-center gap-4">
+          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+            <SelectTrigger className="w-[180px] bg-white border-gray-200">
+              <SelectValue placeholder="Все группы" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все группы</SelectItem>
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.id.toString()}>
+                  {group.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 py-1.5 px-3">
             {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
           </Badge>
         </div>
@@ -92,72 +119,44 @@ export default function HeadCuratorDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
           <CardContent className="p-6 text-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Всего кураторов</p>
-                <h3 className="text-3xl font-bold mt-1 text-white">{stats.total_curators}</h3>
-              </div>
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Users className="w-5 h-5 text-white" />
-              </div>
-            </div>
+            <p className="text-blue-100 text-sm font-medium">Всего кураторов</p>
+            <h3 className="text-3xl font-bold mt-1 text-white">{stats.total_curators}</h3>
             <div className="mt-4 text-xs text-blue-100 flex items-center">
-              <Activity className="w-3 h-3 mr-1" /> Активных на платформе
+              Активных на платформе
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">Студентов всего</p>
-                <h3 className="text-3xl font-bold mt-1 text-gray-900">{stats.total_students}</h3>
-              </div>
-              <div className="p-2 bg-indigo-50 rounded-lg">
-                <Users className="w-5 h-5 text-indigo-600" />
-              </div>
-            </div>
+            <p className="text-gray-500 text-sm font-medium">Студентов всего</p>
+            <h3 className="text-3xl font-bold mt-1 text-gray-900">{stats.total_students}</h3>
             <div className="mt-4 text-xs text-indigo-600 flex items-center font-medium">
-              <TrendingUp className="w-3 h-3 mr-1" /> {stats.active_students_24h} активны за 24ч
+              {stats.active_students_7d} активны за 7д
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">Просрочено ДЗ</p>
-                <h3 className="text-3xl font-bold mt-1 text-red-600">
-                  {curatorPerformance.reduce((acc: number, curr: any) => acc + curr.overdue_count, 0)}
-                </h3>
-              </div>
-              <div className="p-2 bg-red-50 rounded-lg">
-                <Clock className="w-5 h-5 text-red-600" />
-              </div>
-            </div>
+            <p className="text-gray-500 text-sm font-medium">Просрочено ДЗ</p>
+            <h3 className="text-3xl font-bold mt-1 text-red-600">
+              {stats.total_overdue || 0}
+            </h3>
             <div className="mt-4 text-xs text-red-500 flex items-center font-medium">
-              <AlertCircle className="w-3 h-3 mr-1" /> Требует внимания
+              Требует внимания
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">Ожидают проверки</p>
-                <h3 className="text-3xl font-bold mt-1 text-amber-600">
-                  {curatorPerformance.reduce((acc: number, curr: any) => acc + curr.pending_grading, 0)}
-                </h3>
-              </div>
-              <div className="p-2 bg-amber-50 rounded-lg">
-                <FileText className="w-5 h-5 text-amber-600" />
-              </div>
-            </div>
+            <p className="text-gray-500 text-sm font-medium">Неактивных</p>
+            <h3 className="text-3xl font-bold mt-1 text-amber-600">
+              {stats.inactive_students || 0}
+            </h3>
             <div className="mt-4 text-xs text-amber-600 flex items-center font-medium">
-              <CheckCircle2 className="w-3 h-3 mr-1" /> Нагрузка на кураторов
+              Бездействуют на протяжении 7 дней
             </div>
           </CardContent>
         </Card>
@@ -167,7 +166,7 @@ export default function HeadCuratorDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="shadow-sm border-0">
           <CardHeader>
-            <CardTitle className="text-lg font-bold">Активность студентов (сданные шаги)</CardTitle>
+            <CardTitle className="text-lg font-bold">Активность студентов (%)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80 w-full">
@@ -188,13 +187,16 @@ export default function HeadCuratorDashboard() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fontSize: 12, fill: '#9CA3AF' }}
+                    domain={[0, 100]}
+                    tickFormatter={(val) => `${val}%`}
                   />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    formatter={(val: number) => [`${val}%`, 'Активность']}
                   />
                   <Line 
                     type="monotone" 
-                    dataKey="count" 
+                    dataKey="percentage" 
                     stroke="#3B82F6" 
                     strokeWidth={3} 
                     dot={{ r: 4, fill: '#3B82F6', strokeWidth: 2, stroke: '#fff' }}
@@ -207,8 +209,14 @@ export default function HeadCuratorDashboard() {
         </Card>
 
         <Card className="shadow-sm border-0">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-lg font-bold">Эффективность кураторов (%)</CardTitle>
+            <div 
+              className="text-gray-400 hover:text-gray-600 cursor-help p-1"
+              title="Эффективность рассчитывается на основе среднего прогресса студентов, отсутствия просрочек и скорости проверки работ."
+            >
+              <Info className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-80 w-full">
@@ -311,12 +319,16 @@ export default function HeadCuratorDashboard() {
       </Card>
 
       {/* Группы риска */}
-      <Card className="shadow-sm border-0 border-l-4 border-red-500 overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-lg font-bold flex items-center gap-2 text-red-700">
-            <AlertCircle className="w-5 h-5" />
-            Критическая зона: Группы с просрочками
-          </CardTitle>
+      <Card className="shadow-sm border-0 overflow-hidden">
+        <CardHeader className="flex flex-col pb-2">
+          <div className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-red-700">
+              Группы с просрочками
+            </CardTitle>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Здесь отображаются группы, в которых есть студенты с невыполненными вовремя заданиями или заданиями, сданными после дедлайна.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -326,7 +338,6 @@ export default function HeadCuratorDashboard() {
                   <th className="px-6 py-3 text-left">Группа</th>
                   <th className="px-6 py-3 text-left">Куратор</th>
                   <th className="px-6 py-3 text-center">Просрочено</th>
-                  <th className="px-6 py-3 text-center">Уровень риска</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-red-50">
@@ -335,11 +346,6 @@ export default function HeadCuratorDashboard() {
                     <td className="px-6 py-4 font-bold text-gray-900">{group.title}</td>
                     <td className="px-6 py-4 text-gray-600">{group.curator}</td>
                     <td className="px-6 py-4 text-center font-black text-red-600">{group.overdue_count}</td>
-                    <td className="px-6 py-4 text-center">
-                      <Badge className={group.status === 'critical' ? "bg-red-600 text-white border-0" : "bg-amber-500 text-white border-0"}>
-                        {group.status === 'critical' ? 'Критически' : 'Высокий'}
-                      </Badge>
-                    </td>
                   </tr>
                 ))}
                 {atRiskGroups.length === 0 && (
