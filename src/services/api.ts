@@ -2818,6 +2818,28 @@ class LMSApiClient {
     }
   }
 
+  async getWeeklyLessonsWithHwStatus(groupId: number, weekNumber: number) {
+    try {
+      const response = await this.api.get(`/leaderboard/curator/leaderboard-full/${groupId}`, {
+        params: { week_number: weekNumber }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to load full leaderboard:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to load full leaderboard');
+    }
+  }
+
+  async updateLeaderboardConfig(data: any) {
+    try {
+      const response = await this.api.post('/leaderboard/curator/leaderboard-config', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to update leaderboard config:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to update leaderboard config');
+    }
+  }
+
   async updateLeaderboardEntry(data: {
       user_id: number;
       group_id: number;
@@ -3290,6 +3312,8 @@ export const getCuratorAssignmentsAnalytics = apiClient.getCuratorAssignmentsAna
 // Leaderboard
 export const getCuratorGroups = apiClient.getCuratorGroups.bind(apiClient);
 export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
+export const getWeeklyLessonsWithHwStatus = apiClient.getWeeklyLessonsWithHwStatus.bind(apiClient);
+export const updateLeaderboardConfig = apiClient.updateLeaderboardConfig.bind(apiClient);
 export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);
 export const updateAttendance = apiClient.updateAttendance.bind(apiClient);
 export const generateSchedule = apiClient.generateSchedule.bind(apiClient);
