@@ -20,7 +20,6 @@ import {
 import ScheduleGenerator from '../components/ScheduleGenerator';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
-import Toast from '../components/Toast';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -126,6 +125,37 @@ export default function UserManagement() {
     failed: Array<{ email: string; error: string }>;
   } | null>(null);
   const [isBulkTextLoading, setIsBulkTextLoading] = useState(false);
+  
+  // Bulk schedule upload state
+  const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false);
+  const [bulkScheduleText, setBulkScheduleText] = useState('');
+  const [isBulkScheduleLoading, setIsBulkScheduleLoading] = useState(false);
+
+  const handleBulkScheduleUpload = async () => {
+    if (!bulkScheduleText.trim()) {
+      setToast({ message: 'Please enter some data', type: 'error' });
+      return;
+    }
+
+    setIsBulkScheduleLoading(true);
+    try {
+      const result = await apiClient.bulkScheduleUpload(bulkScheduleText);
+      setToast({ message: `Created ${result.created_groups.length} groups/schedules`, type: 'success' });
+      if (result.failed_lines.length > 0) {
+        console.error('Bulk upload failed lines:', result.failed_lines);
+        // Show failed lines in a toast or modal
+        const failedMessages = result.failed_lines.map((f: any) => `Line ${f.line_num}: ${f.error}`).join('\n');
+        setToast({ message: `Created ${result.created_groups.length} groups. Failed lines:\n${failedMessages}`, type: 'error' });
+      }
+      setShowBulkScheduleModal(false);
+      setBulkScheduleText('');
+      loadGroups();
+    } catch (e: any) {
+      setToast({ message: e.message || 'Failed to bulk upload schedules', type: 'error' });
+    } finally {
+      setIsBulkScheduleLoading(false);
+    }
+  };
 
   const handleBulkAddStudents = async () => {
     if (!bulkAddFormData.groupId) {
@@ -1180,6 +1210,14 @@ export default function UserManagement() {
                     <RefreshCw className="w-4 h-4" />
                   </Button>
                   <Button
+                    onClick={() => setShowBulkScheduleModal(true)}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Bulk Schedule
+                  </Button>
+                  <Button
                     onClick={() => setShowCreateGroupModal(true)}
                     className="flex items-center gap-2"
                   >
@@ -1306,8 +1344,6 @@ export default function UserManagement() {
           formData={formData}
           setFormData={setFormData}
           groups={groups}
-          onSubmit={handleCreateUser}
-          submitText="Create User"
           errors={formErrors}
         />
       </Modal>
@@ -1324,8 +1360,6 @@ export default function UserManagement() {
           formData={formData}
           setFormData={setFormData}
           groups={groups}
-          onSubmit={handleUpdateUser}
-          submitText="Update User"
           errors={formErrors}
         />
 
@@ -1476,11 +1510,50 @@ export default function UserManagement() {
       {/* Schedule Generator Modal */}
       <ScheduleGenerator 
           groupId={scheduleGroupId}
-          group={groups.find(g => g.id === scheduleGroupId)}
           open={showScheduleModal}
           onOpenChange={setShowScheduleModal}
           onSuccess={() => setToast({ type: 'success', message: 'Schedule updated successfully' })}
       />
+
+      {/* Bulk Schedule Upload Modal */}
+      <Modal
+        open={showBulkScheduleModal}
+        onClose={() => setShowBulkScheduleModal(false)}
+        title="Bulk Schedule Upload"
+        onSubmit={handleBulkScheduleUpload}
+        submitText={isBulkScheduleLoading ? "Uploading..." : "Upload Schedules"}
+      >
+        <div className="space-y-4">
+          <div className="p-1">
+            <Label className="text-sm font-medium">Schedule Data (TSV Format)</Label>
+            <p className="text-xs text-gray-500 mt-1 mb-2">
+              Format: Date [tab] Student [tab] Teacher [tab] Course [tab] Lessons [tab] Shorthand
+            </p>
+            <textarea
+              value={bulkScheduleText}
+              onChange={(e) => setBulkScheduleText(e.target.value)}
+              placeholder="February 5 2026	Student Name	Teacher Name	SAT 4 months	48	пн ср пт 20 00"
+              className="w-full h-64 p-3 border rounded-md text-sm font-mono resize-y focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={isBulkScheduleLoading}
+            />
+            <div className="flex justify-between items-center mt-1">
+              <p className="text-xs text-gray-500">
+                {bulkScheduleText.trim().split('\n').filter(l => l.trim()).length} lines detected
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setBulkScheduleText('')}
+                className="h-6 text-xs"
+                type="button"
+                disabled={isBulkScheduleLoading}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Toast */}
       {toast && (
@@ -1505,12 +1578,10 @@ interface UserFormProps {
   formData: UserFormData;
   setFormData: (data: UserFormData) => void;
   groups: GroupWithDetails[];
-  onSubmit: () => void;
-  submitText: string;
   errors?: { [key: string]: string };
 }
 
-function UserForm({ formData, setFormData, groups, onSubmit, submitText, errors = {} }: UserFormProps) {
+function UserForm({ formData, setFormData, groups, errors = {} }: UserFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">

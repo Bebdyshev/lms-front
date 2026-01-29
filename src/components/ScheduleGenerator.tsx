@@ -13,7 +13,6 @@ import { toast } from './Toast';
 
 interface ScheduleGeneratorProps {
     groupId: number | null;
-    group?: any; // New prop for saved config
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess?: () => void;
@@ -22,26 +21,30 @@ interface ScheduleGeneratorProps {
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function ScheduleGenerator({ groupId, group, open, onOpenChange, onSuccess, trigger }: ScheduleGeneratorProps) {
+export default function ScheduleGenerator({ groupId, open, onOpenChange, onSuccess, trigger }: ScheduleGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-    const [weeks, setWeeks] = useState(12);
+    const [lessons, setLessons] = useState(48);
     
     // Config: { dayIndex: timeString }
     const [scheduleConfig, setScheduleConfig] = useState<Record<number, string>>({});
 
     React.useEffect(() => {
         if (open && groupId) {
+            // Reset to avoid showing previous group's data while loading
+            setScheduleConfig({});
             loadExistingSchedule(groupId);
         }
     }, [open, groupId]);
 
     const loadExistingSchedule = async (id: number) => {
+        setIsLoading(true);
         try {
             const data = await apiClient.getGroupSchedule(id);
             if (data.schedule_items && data.schedule_items.length > 0) {
                 setStartDate(data.start_date);
-                setWeeks(data.weeks_count);
+                setLessons(data.lessons_count || (data.weeks_count * (data.schedule_items.length || 3)));
                 
                 const config: Record<number, string> = {};
                 data.schedule_items.forEach((item: { day_of_week: number; time_of_day: string }) => {
@@ -52,10 +55,12 @@ export default function ScheduleGenerator({ groupId, group, open, onOpenChange, 
                 // Reset to defaults if no schedule
                 setScheduleConfig({});
                 setStartDate(new Date().toISOString().split('T')[0]);
-                setWeeks(12);
+                setLessons(48);
             }
         } catch (e) {
             console.error("Failed to load existing schedule", e);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -136,7 +141,7 @@ export default function ScheduleGenerator({ groupId, group, open, onOpenChange, 
                 group_id: groupId,
                 start_date: startDate,
                 schedule_items: items,
-                weeks_count: weeks
+                lessons_count: lessons
             });
             toast("Schedule generated successfully", "success");
             onOpenChange(false);
@@ -157,73 +162,81 @@ export default function ScheduleGenerator({ groupId, group, open, onOpenChange, 
                     <DialogTitle>Generate Class Schedule</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4 text-gray-700">
-                    <div className="grid gap-2">
-                        <Label htmlFor="shorthand" className="text-gray-900 font-semibold">Быстрый ввод (пн ср пт 19:00)</Label>
-                        <Input 
-                            id="shorthand" 
-                            placeholder="вт чт 20 00 сб 12 00"
-                            onChange={(e) => parseShorthand(e.target.value)}
-                            className="border-gray-300 focus:border-blue-500"
-                        />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="start-date" className="text-gray-900 font-semibold">Start Date</Label>
-                        <Input 
-                            id="start-date" 
-                            type="date" 
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="border-gray-300 focus:border-blue-500"
-                        />
-                    </div>
-
-                    <div className="space-y-3">
-                        <Label>Weekly Schedule</Label>
-                        <div className="grid gap-2 border rounded-md p-3">
-                            {DAYS.map((day, i) => {
-                                const isSelected = scheduleConfig[i] !== undefined;
-                                return (
-                                    <div key={day} className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-2">
-                                            <Checkbox 
-                                                id={`day-${i}`} 
-                                                checked={isSelected}
-                                                onCheckedChange={() => handleToggleDay(i)}
-                                            />
-                                            <Label htmlFor={`day-${i}`} className={isSelected ? "font-medium" : "text-muted-foreground"}>
-                                                {day}
-                                            </Label>
-                                        </div>
-                                        {isSelected && (
-                                            <div className="flex items-center w-28">
-                                                <Clock className="w-3 h-3 mr-2 text-muted-foreground" />
-                                                <Input 
-                                                    type="text" 
-                                                    className="h-7 text-xs"
-                                                    placeholder="19:00"
-                                                    value={scheduleConfig[i]}
-                                                    onChange={(e) => handleTimeChange(i, e.target.value)}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                    {isLoading ? (
+                        <div className="flex justify-center items-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                         </div>
-                    </div>
+                    ) : (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="shorthand" className="text-gray-900 font-semibold">Быстрый ввод (пн ср пт 19:00)</Label>
+                                <Input 
+                                    id="shorthand" 
+                                    placeholder="вт чт 20 00 сб 12 00"
+                                    onChange={(e) => parseShorthand(e.target.value)}
+                                    className="border-gray-300 focus:border-blue-500"
+                                />
+                            </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="weeks">Duration (Weeks)</Label>
-                        <Input 
-                            id="weeks" 
-                            type="number" 
-                            min={1} 
-                            max={24}
-                            value={weeks}
-                            onChange={(e) => setWeeks(parseInt(e.target.value) || 12)}
-                        />
-                    </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="start-date" className="text-gray-900 font-semibold">Start Date</Label>
+                                <Input 
+                                    id="start-date" 
+                                    type="date" 
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="border-gray-300 focus:border-blue-500"
+                                />
+                            </div>
+
+                            <div className="space-y-3">
+                                <Label>Weekly Schedule</Label>
+                                <div className="grid gap-4 border rounded-md p-3">
+                                    {DAYS.map((day, i) => {
+                                        const isSelected = scheduleConfig[i] !== undefined;
+                                        return (
+                                            <div key={day} className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-2">
+                                                    <Checkbox 
+                                                        id={`day-${i}`} 
+                                                        checked={isSelected}
+                                                        onCheckedChange={() => handleToggleDay(i)}
+                                                    />
+                                                    <Label htmlFor={`day-${i}`} className={isSelected ? "font-medium" : "text-muted-foreground"}>
+                                                        {day}
+                                                    </Label>
+                                                </div>
+                                                {isSelected && (
+                                                    <div className="flex items-center w-28">
+                                                        <Clock className="w-3 h-3 mr-2 text-muted-foreground" />
+                                                        <Input 
+                                                            type="text" 
+                                                            className="h-7 text-xs"
+                                                            placeholder="19:00"
+                                                            value={scheduleConfig[i]}
+                                                            onChange={(e) => handleTimeChange(i, e.target.value)}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="lessons">Duration (Lessons)</Label>
+                                <Input 
+                                    id="lessons" 
+                                    type="number" 
+                                    min={1} 
+                                    max={100}
+                                    value={lessons}
+                                    onChange={(e) => setLessons(parseInt(e.target.value) || 48)}
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

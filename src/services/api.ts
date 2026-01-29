@@ -2846,6 +2846,7 @@ class LMSApiClient {
   async getGroupSchedule(groupId: number): Promise<{
     start_date: string;
     weeks_count: number;
+    lessons_count?: number;
     schedule_items: { day_of_week: number; time_of_day: string }[];
   }> {
     try {
@@ -2968,7 +2969,8 @@ class LMSApiClient {
       group_id: number;
       start_date: string; // YYYY-MM-DD
       schedule_items: { day_of_week: number; time_of_day: string }[];
-      weeks_count: number;
+      weeks_count?: number;
+      lessons_count?: number;
   }): Promise<any> {
       try {
           const response = await this.api.post('/leaderboard/curator/schedule/generate', data);
@@ -2976,6 +2978,15 @@ class LMSApiClient {
       } catch (error) {
           console.error('Failed to generate schedule:', error);
           throw error;
+      }
+  }
+
+  async bulkScheduleUpload(text: string): Promise<any> {
+      try {
+          const response = await this.api.post('/admin/groups/bulk-schedule-upload', { text });
+          return response.data;
+      } catch (error: any) {
+          throw new Error(error.response?.data?.detail || 'Failed to bulk upload schedules');
       }
   }
 
@@ -3411,6 +3422,7 @@ export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiC
 export const updateAttendance = apiClient.updateAttendance.bind(apiClient);
 export const updateAttendanceBulk = apiClient.updateAttendanceBulk.bind(apiClient);
 export const generateSchedule = apiClient.generateSchedule.bind(apiClient);
+export const bulkScheduleUpload = apiClient.bulkScheduleUpload.bind(apiClient);
 
 // Admin Progress Management
 export const completeStepsForUser = apiClient.completeStepsForUser.bind(apiClient);
