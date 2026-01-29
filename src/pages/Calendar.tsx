@@ -27,7 +27,12 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 import Loader from '../components/Loader';
-import { getCalendarEvents } from '../services/api';
+import { 
+  getCalendarEvents, 
+  getTeacherGroups, 
+  getCuratorGroups, 
+  getGroups 
+} from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Event, EventType } from '../types';
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from '../types';
@@ -48,6 +53,8 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
   const [eventTypeFilter, setEventTypeFilter] = useState<EventType | 'all'>('all');
+  const [groups, setGroups] = useState<{id: number, name: string}[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -58,7 +65,25 @@ export default function Calendar() {
 
   useEffect(() => {
     loadEvents();
+    loadGroups();
   }, [currentDate]);
+
+  const loadGroups = async () => {
+    try {
+      let fetchedGroups: any[] = [];
+      if (user?.role === 'teacher') {
+        fetchedGroups = await getTeacherGroups();
+      } else if (user?.role === 'curator') {
+        fetchedGroups = await getCuratorGroups();
+      } else if (user?.role === 'admin') {
+        fetchedGroups = await getGroups();
+      }
+      // Deduplicate if needed and sort
+      setGroups(fetchedGroups || []);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    }
+  };
 
   const loadEvents = async () => {
     try {
@@ -122,11 +147,22 @@ export default function Calendar() {
       });
 
       // Apply event type filter
-      const filteredEvents = eventTypeFilter === 'all' 
+      let filteredEvents = eventTypeFilter === 'all' 
         ? dayEvents 
         : dayEvents.filter(event => event.event_type === eventTypeFilter);
 
-      // Hide assignment events for admin users
+      // Apply group filter
+      if (selectedGroupId !== 'all') {
+        const groupId = parseInt(selectedGroupId);
+        filteredEvents = filteredEvents.filter(event => 
+          event.group_ids && event.group_ids.includes(groupId)
+        );
+      }
+
+      // Hide assignment events for admin users if needed (keeping existing logic, though admin usually wants to see everything)
+      // Actually, admin might want to see assignments too. The logic below was hiding them.
+      // I will preserve existing logic but maybe user wants assignments? 
+      // Existing logic: "Hide assignment events for admin users" - likely to declutter.
       const finalEvents = user?.role === 'admin' 
         ? filteredEvents.filter(event => event.event_type !== 'assignment')
         : filteredEvents;
@@ -249,6 +285,26 @@ export default function Calendar() {
                 <SelectItem value="assignment">Assignments</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Group Filter */}
+            {(user?.role === 'teacher' || user?.role === 'curator' || user?.role === 'admin') && groups.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="All Groups" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Groups</SelectItem>
+                    {groups.map(group => (
+                      <SelectItem key={group.id} value={group.id.toString()}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -5,23 +5,24 @@ import apiClient from '../../services/api';
 import { 
   Save, 
   Eye, 
-  X, 
-  Plus, 
+  X,
   Trash2, 
-  FileText, 
-  Calendar,
-  Clock,
-  Award,
-  BookOpen,
-  Users
+  FileText
 } from 'lucide-react';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '../../components/ui/select';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
+
 import { DateTimePicker } from '../../components/ui/date-time-picker';
 import MultiTaskEditor from '../../components/assignments/MultiTaskEditor';
 
@@ -37,14 +38,12 @@ interface AssignmentFormData {
   max_file_size_mb?: number;
   group_id?: number;
   group_ids?: number[];
+  event_mapping?: Record<number, number>; // group_id -> event_id
+  due_date_mapping?: Record<number, string>; // group_id -> ISO due date
 }
 
-const ASSIGNMENT_TYPES = [
-  { value: 'multi_task', label: 'Multi-Task Homework', description: 'Домашнее задание с несколькими задачами' }
-];
-
 export default function AssignmentBuilderPage() {
-  const { user } = useAuth();
+  const { } = useAuth();
   const navigate = useNavigate();
   const { groupId, assignmentId } = useParams();
   const [searchParams] = useSearchParams();
@@ -60,13 +59,16 @@ export default function AssignmentBuilderPage() {
     due_date: '',
     allowed_file_types: ['pdf', 'docx', 'doc', 'jpg', 'png'],
     max_file_size_mb: 10,
-    group_ids: []
+    group_ids: [],
+    event_mapping: {},
+    due_date_mapping: {}
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [previewMode, setPreviewMode] = useState(false);
   const [groups, setGroups] = useState<any[]>([]);
+  const [eventsByGroup, setEventsByGroup] = useState<Record<number, any[]>>({}); // Cache events per group
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -124,12 +126,18 @@ export default function AssignmentBuilderPage() {
         content: content || {},
         correct_answers: correct_answers || {},
         max_score: assignment.max_score,
-        due_date: assignment.due_date ? new Date(assignment.due_date).toISOString().slice(0, 16) : '',
+        due_date: assignment.due_date ? new Date(assignment.due_date).toISOString() : '', // Use full ISO for DateTimePicker
         allowed_file_types: assignment.allowed_file_types || ['pdf', 'docx', 'doc', 'jpg', 'png'],
         max_file_size_mb: assignment.max_file_size_mb || 10,
         group_id: assignment.group_id,
-        group_ids: assignment.group_id ? [assignment.group_id] : []
+        group_ids: assignment.group_id ? [assignment.group_id] : [],
+        event_mapping: assignment.event_id && assignment.group_id ? { [assignment.group_id]: assignment.event_id } : {},
+        due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: assignment.due_date } : {}
       });
+
+      if (assignment.group_id) {
+          loadEventsForGroup(assignment.group_id);
+      }
     } catch (err) {
       console.error('Failed to load assignment:', err);
       setError('Failed to load assignment details.');
@@ -156,6 +164,37 @@ export default function AssignmentBuilderPage() {
     }
   };
 
+  const loadEventsForGroup = async (groupId: number) => {
+      if (eventsByGroup[groupId]) return; // Already loaded
+
+      try {
+          // Calculate date range: 3 weeks ago to 3 weeks ahead
+          const startDate = new Date();
+          startDate.setDate(startDate.getDate() - 21);
+          
+          const endDate = new Date();
+          endDate.setDate(endDate.getDate() + 21);
+          
+          const eventsData = await apiClient.getMyEvents({ 
+              group_id: groupId, 
+              event_type: 'class',
+              upcoming_only: false,
+              start_date: startDate.toISOString().split('T')[0],
+              end_date: endDate.toISOString().split('T')[0],
+              limit: 100
+          });
+          
+          // Sort events: newest first
+          const sortedEvents = eventsData.sort((a: any, b: any) => 
+            new Date(b.start_datetime).getTime() - new Date(a.start_datetime).getTime()
+          );
+          
+          setEventsByGroup(prev => ({ ...prev, [groupId]: sortedEvents }));
+      } catch (error) {
+          console.error(`Failed to load events for group ${groupId}:`, error);
+      }
+  };
+
   const handleInputChange = (field: keyof AssignmentFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -163,12 +202,12 @@ export default function AssignmentBuilderPage() {
   const handleGroupToggle = (groupId: number, checked: boolean) => {
     setFormData(prev => {
       const currentGroups = prev.group_ids || [];
-      let newGroups;
+      const newGroups = checked 
+        ? Array.from(new Set([...currentGroups, groupId]))
+        : currentGroups.filter(id => id !== groupId);
       
       if (checked) {
-        newGroups = [...currentGroups, groupId];
-      } else {
-        newGroups = currentGroups.filter(id => id !== groupId);
+          loadEventsForGroup(groupId);
       }
       
       return {
@@ -178,6 +217,27 @@ export default function AssignmentBuilderPage() {
         group_id: newGroups.length > 0 ? newGroups[0] : undefined
       };
     });
+  };
+
+  const handleGroupDueDateChange = (groupId: number, date: string) => {
+      setFormData(prev => ({
+          ...prev,
+          due_date_mapping: {
+              ...prev.due_date_mapping,
+              [groupId]: date
+          }
+      }));
+  };
+
+
+  const handleEventMappingChange = (groupId: number, eventId: number) => {
+      setFormData(prev => ({
+          ...prev,
+          event_mapping: {
+              ...prev.event_mapping,
+              [groupId]: eventId
+          }
+      }));
   };
 
   const handleContentChange = (content: any) => {
@@ -313,8 +373,24 @@ export default function AssignmentBuilderPage() {
 
       // Create assignment data
       const assignmentData = {
-        ...formData,
-        content: finalContent
+        title: formData.title,
+        description: formData.description,
+        assignment_type: formData.assignment_type,
+        content: finalContent,
+        correct_answers: formData.correct_answers,
+        max_score: formData.max_score,
+        time_limit_minutes: undefined, // Add if you have this field in form
+        due_date: formData.due_date || undefined,
+        allowed_file_types: formData.allowed_file_types || [],
+        max_file_size_mb: formData.max_file_size_mb || 10,
+        group_id: formData.group_ids && formData.group_ids.length > 0 ? formData.group_ids[0] : undefined, // Legacy support
+        group_ids: formData.group_ids,
+        event_mapping: formData.event_mapping,
+        due_date_mapping: Object.keys(formData.due_date_mapping || {}).reduce((acc, gid) => {
+            const date = formData.due_date_mapping?.[parseInt(gid)];
+            if (date) acc[parseInt(gid)] = date;
+            return acc;
+        }, {} as Record<number, string>)
       };
       
       console.log('Submitting assignment with data:', assignmentData);
@@ -463,44 +539,10 @@ export default function AssignmentBuilderPage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Settings</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="max-score">
-                    Max Score *
-                  </Label>
-                  <Input
-                    id="max-score"
-                    type="number"
-                    value={formData.max_score}
-                    onChange={(e) => handleInputChange('max_score', parseInt(e.target.value))}
-                    min="1"
-                    max="1000"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="due-date">
-                    Due Date
-                  </Label>
-                  <DateTimePicker
-                    date={formData.due_date ? new Date(formData.due_date) : undefined}
-                    setDate={(date) => handleInputChange('due_date', date ? date.toISOString() : '')}
-                    placeholder="Set due date and time"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Assignment Context */}
             <Card>
               <CardHeader>
-                <CardTitle>Homework Context</CardTitle>
+                <CardTitle>Context</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -536,6 +578,94 @@ export default function AssignmentBuilderPage() {
                     Selected: {formData.group_ids?.length || 0} groups
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="max-score">
+                    Max Score *
+                  </Label>
+                  <Input
+                    id="max-score"
+                    type="number"
+                    value={formData.max_score}
+                    onChange={(e) => handleInputChange('max_score', parseInt(e.target.value))}
+                    min="1"
+                    max="1000"
+                    required
+                  />
+                </div>
+
+                {/* Lesson Linking Section */}
+                {(formData.group_ids || []).length > 0 && (
+                    <div className="pt-4 border-t space-y-4">
+                      <Label className="text-sm font-semibold">Link to Lesson</Label>
+                      <div className="space-y-3">
+                          {(formData.group_ids || []).map(groupId => {
+                              const group = groups.find(g => g.id === groupId);
+                              const groupEvents = eventsByGroup[groupId] || [];
+                              const selectedEventId = formData.event_mapping?.[groupId] || '';
+                              const groupDueDate = formData.due_date_mapping?.[groupId];
+
+                              return (
+                                  <div key={groupId} className="p-3 border rounded-lg bg-white shadow-sm space-y-4">
+                                      <div className="flex items-center justify-between">
+                                          <span className="text-xs font-bold text-gray-900" title={group?.name}>
+                                            {group?.name}
+                                          </span>
+                                      </div>
+                                      <div className="space-y-4">
+                                          {/* Option 1: Schedule */}
+                                          <div className="space-y-1.5">
+                                            <Select
+                                                value={selectedEventId ? selectedEventId.toString() : ""}
+                                                onValueChange={(value) => {
+                                                    handleEventMappingChange(groupId, parseInt(value));
+                                                }}
+                                            >
+                                              <SelectTrigger className="w-full bg-gray-50 border-gray-200 h-9 text-xs">
+                                                <SelectValue placeholder="Pick a lesson from schedule..." />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {groupEvents.map(event => (
+                                                    <SelectItem key={event.id} value={event.id.toString()}>
+                                                        {new Date(event.start_datetime).toLocaleDateString('en-US', { 
+                                                            weekday: 'long', 
+                                                            month: 'long', 
+                                                            day: 'numeric', 
+                                                            hour: '2-digit', 
+                                                            minute: '2-digit',
+                                                            hour12: false
+                                                        })}
+                                                    </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                            
+                                            {Number(selectedEventId) > 0 && (
+                                              <div className="pl-2 pt-1.5 space-y-1.5 border-l-2 border-blue-500">
+                                                <Label className="text-[10px] text-blue-600 uppercase font-bold tracking-tight">Set Group Deadline (Optional)</Label>
+                                                <DateTimePicker
+                                                    date={groupDueDate ? new Date(groupDueDate) : undefined}
+                                                    setDate={(date) => handleGroupDueDateChange(groupId, date ? date.toISOString() : '')}
+                                                    placeholder="Individual due date..."
+                                                />
+                                              </div>
+                                            )}
+                                          </div>
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                    </div>
+                )}
               </CardContent>
             </Card>
 

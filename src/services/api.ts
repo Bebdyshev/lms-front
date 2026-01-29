@@ -26,7 +26,9 @@ import type {
   EventType,
   StudentProgress,
   ManualLessonUnlockCreate,
-  ManualLessonUnlockListResponse
+  ManualLessonUnlockListResponse,
+  EventStudent,
+  AttendanceBulkUpdate
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -841,7 +843,21 @@ class LMSApiClient {
     }
   }
 
-  async createAssignment(assignmentData: any): Promise<any> {
+  async createAssignment(assignmentData: {
+    title: string;
+    description: string;
+    assignment_type: string;
+    content: any;
+    max_score: number;
+    time_limit_minutes?: number;
+    due_date?: string;
+    group_id?: number;
+    group_ids?: number[];
+    event_id?: number;
+    event_mapping?: Record<number, number>; // group_id -> event_id
+    allowed_file_types: string[];
+    max_file_size_mb: number;
+  }): Promise<any> {
     try {
       const response = await this.api.post('/assignments/', assignmentData);
       return response.data;
@@ -2179,6 +2195,7 @@ class LMSApiClient {
     start_date?: string;
     end_date?: string;
     upcoming_only?: boolean;
+    group_id?: number;
   }): Promise<Event[]> {
     try {
       const response = await this.api.get('/events/my', { params });
@@ -2233,6 +2250,25 @@ class LMSApiClient {
       await this.api.delete(`/events/${eventId}/register`);
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Failed to unregister from event');
+    }
+  }
+
+  async getEventParticipants(eventId: number, groupId?: number): Promise<EventStudent[]> {
+    try {
+      const response = await this.api.get(`/events/${eventId}/participants`, {
+        params: { group_id: groupId }
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to load participants');
+    }
+  }
+
+  async updateEventAttendance(eventId: number, data: AttendanceBulkUpdate): Promise<void> {
+    try {
+      await this.api.post(`/events/${eventId}/attendance`, data);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to update attendance');
     }
   }
 
@@ -2807,6 +2843,20 @@ class LMSApiClient {
     }
   }
 
+  async getGroupSchedule(groupId: number): Promise<{
+    start_date: string;
+    weeks_count: number;
+    schedule_items: { day_of_week: number; time_of_day: string }[];
+  }> {
+    try {
+      const response = await this.api.get(`/leaderboard/curator/schedule/${groupId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to load group schedule:', error);
+      throw error;
+    }
+  }
+
   async getGroupLeaderboard(groupId: number, weekNumber: number): Promise<any[]> {
     try {
       const response = await this.api.get(`/leaderboard/curator/leaderboard/${groupId}`, {
@@ -2819,27 +2869,67 @@ class LMSApiClient {
     }
   }
 
-  async getWeeklyLessonsWithHwStatus(groupId: number, weekNumber: number) {
+  async getWeeklyLessonsWithHwStatus(groupId: number, weekNumber: number): Promise<any> {
     try {
-      const response = await this.api.get(`/leaderboard/curator/leaderboard-full/${groupId}`, {
-        params: { week_number: weekNumber }
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error('Failed to load full leaderboard:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to load full leaderboard');
+        const response = await this.api.get(`/leaderboard/curator/weekly-lessons/${groupId}`, {
+            params: { week_number: weekNumber }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Failed to get weekly lessons:', error);
+        throw error;
     }
   }
 
-  async updateLeaderboardConfig(data: any) {
+  async getGroupFullAttendanceMatrix(groupId: number): Promise<any> {
     try {
-      const response = await this.api.post('/leaderboard/curator/leaderboard-config', data);
-      return response.data;
-    } catch (error: any) {
-      console.error('Failed to update leaderboard config:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to update leaderboard config');
+        const response = await this.api.get(`/leaderboard/curator/full-attendance/${groupId}`);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to get full attendance matrix:', error);
+        throw error;
     }
   }
+
+  async updateLeaderboardConfig(data: {
+      group_id: number;
+      week_number: number;
+      curator_hour_enabled?: boolean;
+      study_buddy_enabled?: boolean;
+      self_reflection_journal_enabled?: boolean;
+      weekly_evaluation_enabled?: boolean;
+      extra_points_enabled?: boolean;
+      curator_hour_date?: string | null;
+  }): Promise<any> {
+    try {
+        const response = await this.api.post('/leaderboard/config', data);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to update leaderboard config:', error);
+        throw error;
+    }
+  }
+
+  async updateAttendanceBulk(data: {
+      updates: Array<{
+          group_id: number;
+          week_number: number;
+          lesson_index: number;
+          student_id: number;
+          score: number;
+          status: string;
+          event_id: number | null;
+      }>;
+  }): Promise<any> {
+    try {
+        const response = await this.api.post('/leaderboard/curator/attendance/bulk', data);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to update bulk attendance:', error);
+        throw error;
+    }
+  }
+
 
   async updateLeaderboardEntry(data: {
       user_id: number;
@@ -2863,6 +2953,7 @@ class LMSApiClient {
       student_id: number;
       score: number;
       status: string;
+      event_id?: number;
   }): Promise<any> {
       try {
           const response = await this.api.post('/leaderboard/curator/attendance', data);
@@ -3311,12 +3402,14 @@ export const getCuratorStudentsProgress = apiClient.getCuratorStudentsProgress.b
 export const getCuratorAssignmentsAnalytics = apiClient.getCuratorAssignmentsAnalytics.bind(apiClient);
 
 // Leaderboard
+export const getGroupFullAttendanceMatrix = apiClient.getGroupFullAttendanceMatrix.bind(apiClient);
 export const getCuratorGroups = apiClient.getCuratorGroups.bind(apiClient);
 export const getGroupLeaderboard = apiClient.getGroupLeaderboard.bind(apiClient);
 export const getWeeklyLessonsWithHwStatus = apiClient.getWeeklyLessonsWithHwStatus.bind(apiClient);
 export const updateLeaderboardConfig = apiClient.updateLeaderboardConfig.bind(apiClient);
 export const updateLeaderboardEntry = apiClient.updateLeaderboardEntry.bind(apiClient);
 export const updateAttendance = apiClient.updateAttendance.bind(apiClient);
+export const updateAttendanceBulk = apiClient.updateAttendanceBulk.bind(apiClient);
 export const generateSchedule = apiClient.generateSchedule.bind(apiClient);
 
 // Admin Progress Management

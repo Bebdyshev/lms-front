@@ -140,8 +140,9 @@ export default function EventManagement() {
 
     // Group filter
     if (selectedGroupId !== 'all') {
-      // This is a simplified check - in reality, you'd need to check if the event is assigned to the selected group
-      // For now, we'll skip this filter since we don't have the group relationships loaded
+      if (!event.group_ids || !event.group_ids.includes(selectedGroupId)) {
+        return false;
+      }
     }
 
     // Date filter

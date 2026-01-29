@@ -8,7 +8,7 @@ import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
 import { Button } from './ui/button';
 import { Clock, Loader2 } from 'lucide-react';
-import { generateSchedule } from '../services/api';
+import apiClient, { generateSchedule } from '../services/api';
 import { toast } from './Toast';
 
 interface ScheduleGeneratorProps {
@@ -30,26 +30,34 @@ export default function ScheduleGenerator({ groupId, group, open, onOpenChange, 
     // Config: { dayIndex: timeString }
     const [scheduleConfig, setScheduleConfig] = useState<Record<number, string>>({});
 
-    // Pre-fill from group's saved config
     React.useEffect(() => {
-        if (open && group?.schedule_config) {
-            const config = group.schedule_config;
-            if (config.start_date) setStartDate(config.start_date.split('T')[0]);
-            if (config.weeks_count) setWeeks(config.weeks_count);
-            if (config.schedule_items) {
-                const newConfig: Record<number, string> = {};
-                config.schedule_items.forEach((item: any) => {
-                    newConfig[item.day_of_week] = item.time_of_day;
-                });
-                setScheduleConfig(newConfig);
-            }
-        } else if (open) {
-            // Reset to defaults if no config
-            setStartDate(new Date().toISOString().split('T')[0]);
-            setWeeks(12);
-            setScheduleConfig({});
+        if (open && groupId) {
+            loadExistingSchedule(groupId);
         }
-    }, [open, group]);
+    }, [open, groupId]);
+
+    const loadExistingSchedule = async (id: number) => {
+        try {
+            const data = await apiClient.getGroupSchedule(id);
+            if (data.schedule_items && data.schedule_items.length > 0) {
+                setStartDate(data.start_date);
+                setWeeks(data.weeks_count);
+                
+                const config: Record<number, string> = {};
+                data.schedule_items.forEach((item: { day_of_week: number; time_of_day: string }) => {
+                    config[item.day_of_week] = item.time_of_day;
+                });
+                setScheduleConfig(config);
+            } else {
+                // Reset to defaults if no schedule
+                setScheduleConfig({});
+                setStartDate(new Date().toISOString().split('T')[0]);
+                setWeeks(12);
+            }
+        } catch (e) {
+            console.error("Failed to load existing schedule", e);
+        }
+    };
 
     const handleToggleDay = (dayIndex: number) => {
         setScheduleConfig(prev => {
@@ -68,6 +76,45 @@ export default function ScheduleGenerator({ groupId, group, open, onOpenChange, 
             ...prev,
             [dayIndex]: time
         }));
+    };
+
+    const parseShorthand = (text: string) => {
+        const dayMap: Record<string, number> = {
+            'пн': 0, 'вт': 1, 'ср': 2, 'чт': 3, 'пт': 4, 'сб': 5, 'вс': 6,
+            'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4, 'sat': 5, 'sun': 6
+        };
+        
+        const newConfig: Record<number, string> = {};
+        const normalized = text.toLowerCase().replace(/:/g, ' ');
+        const tokens = normalized.split(/\s+/).filter(Boolean);
+        
+        let currentDays: number[] = [];
+        
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
+            const nextToken = tokens[i + 1];
+            
+            if (dayMap[token] !== undefined) {
+                currentDays.push(dayMap[token]);
+            } else if (/^\d{1,2}$/.test(token) && nextToken && /^\d{2}$/.test(nextToken)) {
+                // Time format: HH MM
+                const hh = token.padStart(2, '0');
+                const mm = nextToken;
+                const time = `${hh}:${mm}`;
+                currentDays.forEach(d => {
+                    newConfig[d] = time;
+                });
+                currentDays = [];
+                i++; // Skip nextToken
+            } else if (/^\d{1,2}:\d{2}$/.test(token)) {
+                // Time format: HH:MM (already handled by replace but safe)
+                newConfig[currentDays[0]] = token; // This case shouldn't be reached with replace(/:/g, ' ')
+            }
+        }
+        
+        if (Object.keys(newConfig).length > 0) {
+            setScheduleConfig(newConfig);
+        }
     };
 
     const handleGenerate = async () => {
@@ -109,14 +156,25 @@ export default function ScheduleGenerator({ groupId, group, open, onOpenChange, 
                 <DialogHeader>
                     <DialogTitle>Generate Class Schedule</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 text-gray-700">
                     <div className="grid gap-2">
-                        <Label htmlFor="start-date">Start Date</Label>
+                        <Label htmlFor="shorthand" className="text-gray-900 font-semibold">Быстрый ввод (пн ср пт 19:00)</Label>
+                        <Input 
+                            id="shorthand" 
+                            placeholder="вт чт 20 00 сб 12 00"
+                            onChange={(e) => parseShorthand(e.target.value)}
+                            className="border-gray-300 focus:border-blue-500"
+                        />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="start-date" className="text-gray-900 font-semibold">Start Date</Label>
                         <Input 
                             id="start-date" 
                             type="date" 
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
+                            className="border-gray-300 focus:border-blue-500"
                         />
                     </div>
 
@@ -141,8 +199,9 @@ export default function ScheduleGenerator({ groupId, group, open, onOpenChange, 
                                             <div className="flex items-center w-28">
                                                 <Clock className="w-3 h-3 mr-2 text-muted-foreground" />
                                                 <Input 
-                                                    type="time" 
+                                                    type="text" 
                                                     className="h-7 text-xs"
+                                                    placeholder="19:00"
                                                     value={scheduleConfig[i]}
                                                     onChange={(e) => handleTimeChange(i, e.target.value)}
                                                 />
