@@ -220,6 +220,7 @@ export interface Group {
   students?: User[];
   created_at: string;
   is_active: boolean;
+  schedule_config?: any;
 }
 
 export interface CourseGroupAccess {

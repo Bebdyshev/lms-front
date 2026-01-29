@@ -2106,6 +2106,7 @@ class LMSApiClient {
     skip?: number;
     limit?: number;
     event_type?: EventType;
+    exclude_type?: EventType;
     group_id?: number;
     start_date?: string;
     end_date?: string;

@@ -69,6 +69,7 @@ interface LeaderboardData {
 interface Group {
     id: number;
     name: string;
+    created_at: string;
 }
 
 // Configuration
@@ -156,6 +157,28 @@ const AttendanceToggle = ({
   );
 };
 
+const calculateCurrentWeekNumber = (createdAtStr: string) => {
+    const createdAt = new Date(createdAtStr);
+    const now = new Date();
+    
+    // Start of the week (Monday) when the group was created
+    const week1Start = new Date(createdAt);
+    const day = week1Start.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    week1Start.setDate(week1Start.getDate() - diffToMonday);
+    week1Start.setHours(0, 0, 0, 0);
+    
+    // Now's start of week
+    const nowAtStart = new Date(now);
+    nowAtStart.setHours(0, 0, 0, 0);
+    
+    const diffTime = nowAtStart.getTime() - week1Start.getTime();
+    if (diffTime < 0) return 1;
+    
+    const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+    return diffWeeks + 1;
+};
+
 export default function CuratorLeaderboardPage() {
   const { user } = useAuth();
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -192,7 +215,9 @@ export default function CuratorLeaderboardPage() {
             const myGroups = await getCuratorGroups();
             setGroups(myGroups);
             if (myGroups.length > 0) {
-                setSelectedGroupId(myGroups[0].id);
+                const firstGroup = myGroups[0];
+                setSelectedGroupId(firstGroup.id);
+                setCurrentWeek(calculateCurrentWeekNumber(firstGroup.created_at));
             }
         } catch (e) {
             console.error("Failed to load groups", e);
@@ -460,17 +485,31 @@ export default function CuratorLeaderboardPage() {
                     <ChevronLeft className="w-4 h-4" />
                 </Button>
                 
-                <div className="px-4 text-xs font-semibold min-w-[120px] text-center bg-gray-50/50 flex items-center justify-center h-full">
-                    {data ? (
-                        `${new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} - ${(() => {
-                            const end = new Date(data.week_start);
-                            end.setDate(end.getDate() + 6);
-                            return end.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-                        })()}`
-                    ) : (
-                        `Week ${currentWeek}`
-                    )}
-                </div>
+                <Select 
+                    value={currentWeek.toString()} 
+                    onValueChange={(val) => setCurrentWeek(parseInt(val))}
+                >
+                    <SelectTrigger className="px-4 text-xs font-semibold min-w-[140px] text-center bg-gray-50/50 flex items-center justify-center h-full border-none focus:ring-0 rounded-none shadow-none">
+                        <SelectValue>
+                            {data ? (
+                                `${new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} - ${(() => {
+                                    const end = new Date(data.week_start);
+                                    end.setDate(end.getDate() + 6);
+                                    return end.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+                                })()}`
+                            ) : (
+                                `Week ${currentWeek}`
+                            )}
+                        </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                        {Array.from({ length: 52 }, (_, i) => i + 1).map(w => (
+                            <SelectItem key={w} value={w.toString()} className="text-xs">
+                                Week {w}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
                 <Button 
                     variant="ghost" 
@@ -485,7 +524,14 @@ export default function CuratorLeaderboardPage() {
             <div className=" w-[200px]">
                 <Select 
                     value={selectedGroupId?.toString() || ''} 
-                    onValueChange={(value) => setSelectedGroupId(Number(value))}
+                    onValueChange={(value) => {
+                        const groupId = Number(value);
+                        setSelectedGroupId(groupId);
+                        const group = groups.find(g => g.id === groupId);
+                        if (group) {
+                            setCurrentWeek(calculateCurrentWeekNumber(group.created_at));
+                        }
+                    }}
                 >
                     <SelectTrigger className="h-8 rounded-md border-gray-300">
                         <SelectValue placeholder="Select group" />

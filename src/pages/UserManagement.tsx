@@ -1,22 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../services/api';
-import type { User, UserListResponse, CreateUserRequest, UpdateUserRequest, Group } from '../types';
+import type { User, CreateUserRequest, UpdateUserRequest, Group } from '../types';
 import { 
   Users, 
   Search, 
-  Filter, 
   Plus, 
   Edit, 
   Trash2, 
   UserPlus,
-  Eye,
-  EyeOff,
   RefreshCw,
-  Download,
   Upload,
   GraduationCap,
-  UserCheck,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -621,15 +616,6 @@ export default function UserManagement() {
     }
   };
 
-  const handleResetPassword = async (userId: number) => {
-    try {
-      const result = await apiClient.resetUserPassword(userId);
-      showToast('success', `Password reset. New password: ${result.new_password}`);
-    } catch (error) {
-      console.error('Failed to reset password:', error);
-      showToast('error', 'Failed to reset password');
-    }
-  };
 
   const openEditModal = (user: User) => {
     setSelectedUser(user);
@@ -1490,6 +1476,7 @@ export default function UserManagement() {
       {/* Schedule Generator Modal */}
       <ScheduleGenerator 
           groupId={scheduleGroupId}
+          group={groups.find(g => g.id === scheduleGroupId)}
           open={showScheduleModal}
           onOpenChange={setShowScheduleModal}
           onSuccess={() => setToast({ type: 'success', message: 'Schedule updated successfully' })}

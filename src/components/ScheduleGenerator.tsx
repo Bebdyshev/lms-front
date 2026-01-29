@@ -7,12 +7,13 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
 import { Button } from './ui/button';
-import { Calendar as CalendarIcon, Clock, Loader2 } from 'lucide-react';
+import { Clock, Loader2 } from 'lucide-react';
 import { generateSchedule } from '../services/api';
 import { toast } from './Toast';
 
 interface ScheduleGeneratorProps {
     groupId: number | null;
+    group?: any; // New prop for saved config
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess?: () => void;
@@ -21,13 +22,34 @@ interface ScheduleGeneratorProps {
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function ScheduleGenerator({ groupId, open, onOpenChange, onSuccess, trigger }: ScheduleGeneratorProps) {
+export default function ScheduleGenerator({ groupId, group, open, onOpenChange, onSuccess, trigger }: ScheduleGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [weeks, setWeeks] = useState(12);
     
     // Config: { dayIndex: timeString }
     const [scheduleConfig, setScheduleConfig] = useState<Record<number, string>>({});
+
+    // Pre-fill from group's saved config
+    React.useEffect(() => {
+        if (open && group?.schedule_config) {
+            const config = group.schedule_config;
+            if (config.start_date) setStartDate(config.start_date.split('T')[0]);
+            if (config.weeks_count) setWeeks(config.weeks_count);
+            if (config.schedule_items) {
+                const newConfig: Record<number, string> = {};
+                config.schedule_items.forEach((item: any) => {
+                    newConfig[item.day_of_week] = item.time_of_day;
+                });
+                setScheduleConfig(newConfig);
+            }
+        } else if (open) {
+            // Reset to defaults if no config
+            setStartDate(new Date().toISOString().split('T')[0]);
+            setWeeks(12);
+            setScheduleConfig({});
+        }
+    }, [open, group]);
 
     const handleToggleDay = (dayIndex: number) => {
         setScheduleConfig(prev => {

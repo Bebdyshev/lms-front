@@ -44,16 +44,18 @@ export default function EventManagement() {
   const [dateFilter, setDateFilter] = useState<'all' | 'upcoming' | 'today' | 'this_week'>('all');
   const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showLessons, setShowLessons] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const isVirtualEvent = (id: number) => id >= 1000000000;
+  const isScheduledLesson = (id: number) => id >= 2000000000;
+  const isAssignmentDeadline = (id: number) => id >= 1000000000 && id < 2000000000;
+
 
   const loadData = async () => {
     try {
       setLoading(true);
       const [eventsData, groupsData] = await Promise.all([
-        getAllEvents(),
+        getAllEvents({ exclude_type: showLessons ? undefined : 'class' }),
         getAllGroups()
       ]);
       setEvents(eventsData);
@@ -64,6 +66,10 @@ export default function EventManagement() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, [showLessons]);
 
   const handleDeleteEvent = async (eventId: number) => {
     if (!confirm('Are you sure you want to delete this event?')) {
@@ -89,8 +95,13 @@ export default function EventManagement() {
 
     try {
       setIsDeleting(true);
-      await bulkDeleteEvents(selectedEventIds);
-      setEvents(events.filter(event => !selectedEventIds.includes(event.id)));
+      const realEventIds = selectedEventIds.filter(id => !isVirtualEvent(id));
+      if (realEventIds.length === 0) {
+        alert("Cannot delete scheduled lessons or assignment deadlines from here.");
+        return;
+      }
+      await bulkDeleteEvents(realEventIds);
+      setEvents(events.filter(event => !realEventIds.includes(event.id)));
       setSelectedEventIds([]);
     } catch (error) {
       console.error('Failed to delete events:', error);
@@ -253,6 +264,20 @@ export default function EventManagement() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Lessons Toggle */}
+          <div className="flex items-center gap-2 px-2 border rounded-md bg-gray-50 h-10">
+            <input
+              type="checkbox"
+              id="show-lessons"
+              checked={showLessons}
+              onChange={(e) => setShowLessons(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+            <label htmlFor="show-lessons" className="text-sm font-medium text-gray-700 cursor-pointer whitespace-nowrap">
+              Show Lessons
+            </label>
+          </div>
         </div>
       </div>
 
@@ -316,6 +341,16 @@ export default function EventManagement() {
                           Recurring
                         </Badge>
                       )}
+                      {isScheduledLesson(event.id) && (
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
+                          Scheduled Lesson
+                        </Badge>
+                      )}
+                      {isAssignmentDeadline(event.id) && (
+                        <Badge variant="outline" className="text-orange-600 border-orange-200">
+                          Deadline
+                        </Badge>
+                      )}
                     </div>
 
                     {/* Event Details */}
@@ -375,6 +410,8 @@ export default function EventManagement() {
                       variant="outline"
                       size="sm"
                       onClick={() => navigate(`/admin/events/${event.id}/edit`)}
+                      disabled={isVirtualEvent(event.id)}
+                      title={isVirtualEvent(event.id) ? "Generated events cannot be edited" : "Edit event"}
                     >
                       <Edit3 className="w-4 h-4" />
                     </Button>
@@ -399,6 +436,7 @@ export default function EventManagement() {
                         <DropdownMenuItem
                           className="text-red-600"
                           onClick={() => handleDeleteEvent(event.id)}
+                          disabled={isVirtualEvent(event.id)}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Delete
