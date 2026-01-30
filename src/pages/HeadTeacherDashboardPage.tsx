@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -22,8 +23,8 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
-import { Calendar as CalendarIcon, ArrowRight, BarChart3, TrendingUp, Users } from 'lucide-react';
-import { addDays, format, subDays } from 'date-fns';
+import { Calendar as CalendarIcon, ArrowRight, BarChart3, TrendingUp, Users, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { format, subDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { cn } from '../lib/utils';
 import {
@@ -35,8 +36,7 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   BarChart,
-  Bar,
-  Legend
+  Bar
 } from 'recharts';
 import Skeleton from '../components/Skeleton';
 
@@ -94,9 +94,12 @@ export default function HeadTeacherDashboardPage() {
     from: subDays(new Date(), 30),
     to: new Date(),
   });
-  
+
   // Sort State
-  const [sortBy, setSortBy] = useState<string>('hw_checked');
+  type SortField = 'teacher_name' | 'groups_count' | 'students_count' | 'checked_homeworks_count' | 'feedbacks_given_count';
+  type SortDirection = 'asc' | 'desc' | null;
+  const [sortField, setSortField] = useState<SortField>('checked_homeworks_count');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   useEffect(() => {
     loadCourses();
@@ -140,6 +143,50 @@ export default function HeadTeacherDashboardPage() {
     }
   };
 
+  // Sort handler
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Toggle direction: desc -> asc -> null -> desc
+      if (sortDirection === 'desc') setSortDirection('asc');
+      else if (sortDirection === 'asc') setSortDirection(null);
+      else setSortDirection('desc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-slate-400" />;
+    if (sortDirection === 'desc') return <ArrowDown className="h-4 w-4 text-slate-700" />;
+    if (sortDirection === 'asc') return <ArrowUp className="h-4 w-4 text-slate-700" />;
+    return <ArrowUpDown className="h-4 w-4 text-slate-400" />;
+  };
+
+  // Sort teachers
+  const sortedTeachers = React.useMemo(() => {
+    if (!teachersData?.teachers || !sortDirection) return teachersData?.teachers || [];
+    
+    const sorted = [...teachersData.teachers].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+      
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return sorted;
+  }, [teachersData?.teachers, sortField, sortDirection]);
+
+  const totalTeachers = teachersData?.teachers.length || 0;
+  const totalStudents = teachersData?.teachers.reduce((sum, t) => sum + t.students_count, 0) || 0;
+  const totalHomeworksChecked = teachersData?.teachers.reduce((sum, t) => sum + t.checked_homeworks_count, 0) || 0;
+  const totalFeedbacks = teachersData?.teachers.reduce((sum, t) => sum + t.feedbacks_given_count, 0) || 0;
+
   if (loadingCourses) {
     return (
       <div className="p-8 space-y-6">
@@ -152,31 +199,10 @@ export default function HeadTeacherDashboardPage() {
     );
   }
 
-  const totalTeachers = teachersData?.teachers.length || 0;
-  const totalStudents = teachersData?.teachers.reduce((sum, t) => sum + t.students_count, 0) || 0;
-  const totalHomeworksChecked = teachersData?.teachers.reduce((sum, t) => sum + t.checked_homeworks_count, 0) || 0;
-  const totalFeedbacks = teachersData?.teachers.reduce((sum, t) => sum + t.feedbacks_given_count, 0) || 0;
-
   // Prepare chart data
   const activityData = teachersData?.daily_activity || [];
   
-  // Sort teachers based on selected criterion
-  const sortedTeachers = [...(teachersData?.teachers || [])].sort((a, b) => {
-    switch (sortBy) {
-      case 'hw_checked':
-        return b.checked_homeworks_count - a.checked_homeworks_count;
-      case 'feedbacks':
-        return b.feedbacks_given_count - a.feedbacks_given_count;
-      case 'students':
-        return b.students_count - a.students_count;
-      case 'name':
-        return a.teacher_name.localeCompare(b.teacher_name);
-      default:
-        return 0;
-    }
-  });
-  
-  // Top teachers for chart (always by HW checked)
+  // Sort teachers by activity for comparison chart (Top 10)
   const topTeachers = [...(teachersData?.teachers || [])]
     .sort((a, b) => b.checked_homeworks_count - a.checked_homeworks_count)
     .slice(0, 10);
@@ -404,9 +430,7 @@ export default function HeadTeacherDashboardPage() {
       {/* Detailed Table */}
       <Card className="border shadow-sm overflow-hidden">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Teacher Performance</CardTitle>
+          <CardTitle>Teacher Performance</CardTitle>
           <CardDescription>Detailed breakdown per teacher</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -423,11 +447,46 @@ export default function HeadTeacherDashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
-                    <TableHead className="font-bold text-slate-900">Teacher</TableHead>
-                    <TableHead className="text-center font-bold text-slate-900">Groups</TableHead>
-                    <TableHead className="text-center font-bold text-slate-900">Students</TableHead>
-                    <TableHead className="text-center font-bold text-slate-900">HW Checked</TableHead>
-                    <TableHead className="text-center font-bold text-slate-900">Feedbacks</TableHead>
+                    <TableHead className="font-bold text-slate-900">
+                      <button 
+                        onClick={() => handleSort('teacher_name')} 
+                        className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                      >
+                        Teacher {getSortIcon('teacher_name')}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-center font-bold text-slate-900">
+                      <button 
+                        onClick={() => handleSort('groups_count')} 
+                        className="flex items-center gap-1 mx-auto hover:text-blue-600 transition-colors"
+                      >
+                        Groups {getSortIcon('groups_count')}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-center font-bold text-slate-900">
+                      <button 
+                        onClick={() => handleSort('students_count')} 
+                        className="flex items-center gap-1 mx-auto hover:text-blue-600 transition-colors"
+                      >
+                        Students {getSortIcon('students_count')}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-center font-bold text-slate-900">
+                      <button 
+                        onClick={() => handleSort('checked_homeworks_count')} 
+                        className="flex items-center gap-1 mx-auto hover:text-blue-600 transition-colors"
+                      >
+                        HW Checked {getSortIcon('checked_homeworks_count')}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-center font-bold text-slate-900">
+                      <button 
+                        onClick={() => handleSort('feedbacks_given_count')} 
+                        className="flex items-center gap-1 mx-auto hover:text-blue-600 transition-colors"
+                      >
+                        Feedbacks {getSortIcon('feedbacks_given_count')}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-center font-bold text-slate-900">Activity Trend</TableHead>
                     <TableHead className="text-right font-bold text-slate-900">Action</TableHead>
                   </TableRow>
