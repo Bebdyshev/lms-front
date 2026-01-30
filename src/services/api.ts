@@ -3264,7 +3264,12 @@ class LMSApiClient {
     }
   }
 
-  async getHeadTeacherCourseTeachers(courseId: number, days: number = 30): Promise<{
+  async getHeadTeacherCourseTeachers(
+    courseId: number, 
+    days: number = 30,
+    startDate?: string,
+    endDate?: string
+  ): Promise<{
     course_id: number;
     course_title: string;
     date_range_start: string | null;
@@ -3283,10 +3288,15 @@ class LMSApiClient {
       homeworks_checked_last_7_days: number;
       homeworks_checked_last_30_days: number;
     }>;
+    daily_activity: Array<{ date: string; submissions_graded: number }>;
   }> {
     try {
+      const params: any = { days };
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+
       const response = await this.api.get(`/head-teacher/course/${courseId}/teachers`, {
-        params: { days }
+        params
       });
       return response.data;
     } catch (error) {
