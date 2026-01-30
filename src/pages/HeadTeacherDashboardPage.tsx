@@ -58,6 +58,7 @@ interface TeacherStats {
   groups_count: number;
   students_count: number;
   checked_homeworks_count: number;
+  total_submissions_count: number;
   feedbacks_given_count: number;
   avg_grading_time_hours: number | null;
   quizzes_graded_count: number;
@@ -93,6 +94,9 @@ export default function HeadTeacherDashboardPage() {
     from: subDays(new Date(), 30),
     to: new Date(),
   });
+  
+  // Sort State
+  const [sortBy, setSortBy] = useState<string>('hw_checked');
 
   useEffect(() => {
     loadCourses();
@@ -156,7 +160,23 @@ export default function HeadTeacherDashboardPage() {
   // Prepare chart data
   const activityData = teachersData?.daily_activity || [];
   
-  // Sort teachers by activity for comparison chart (Top 10)
+  // Sort teachers based on selected criterion
+  const sortedTeachers = [...(teachersData?.teachers || [])].sort((a, b) => {
+    switch (sortBy) {
+      case 'hw_checked':
+        return b.checked_homeworks_count - a.checked_homeworks_count;
+      case 'feedbacks':
+        return b.feedbacks_given_count - a.feedbacks_given_count;
+      case 'students':
+        return b.students_count - a.students_count;
+      case 'name':
+        return a.teacher_name.localeCompare(b.teacher_name);
+      default:
+        return 0;
+    }
+  });
+  
+  // Top teachers for chart (always by HW checked)
   const topTeachers = [...(teachersData?.teachers || [])]
     .sort((a, b) => b.checked_homeworks_count - a.checked_homeworks_count)
     .slice(0, 10);
@@ -256,7 +276,9 @@ export default function HeadTeacherDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{totalHomeworksChecked}</div>
-            <p className="text-xs text-slate-500 mt-1">In selected period</p>
+            <p className="text-xs text-slate-500 mt-1">
+              out of {teachersData?.teachers.reduce((sum, t) => sum + t.total_submissions_count, 0) || 0} submitted
+            </p>
           </CardContent>
         </Card>
 
@@ -316,7 +338,8 @@ export default function HeadTeacherDashboardPage() {
                     />
                     <Area 
                       type="monotone" 
-                      dataKey="submissions_graded" 
+                      dataKey="submissions_graded"
+                      name="Graded"
                       stroke="#3b82f6" 
                       strokeWidth={2}
                       fillOpacity={1} 
@@ -381,7 +404,9 @@ export default function HeadTeacherDashboardPage() {
       {/* Detailed Table */}
       <Card className="border shadow-sm overflow-hidden">
         <CardHeader>
-          <CardTitle>Teacher Performance</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Teacher Performance</CardTitle>
           <CardDescription>Detailed breakdown per teacher</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -408,7 +433,7 @@ export default function HeadTeacherDashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teachersData?.teachers.map((teacher) => (
+                  {sortedTeachers.map((teacher) => (
                     <TableRow 
                       key={teacher.teacher_id} 
                       className="hover:bg-slate-50/50 transition-colors group cursor-pointer"

@@ -3282,6 +3282,7 @@ class LMSApiClient {
       groups_count: number;
       students_count: number;
       checked_homeworks_count: number;
+      total_submissions_count: number;
       feedbacks_given_count: number;
       avg_grading_time_hours: number | null;
       quizzes_graded_count: number;
