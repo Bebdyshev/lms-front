@@ -518,9 +518,16 @@ export default function HeadTeacherDashboardPage() {
                         {teacher.students_count}
                       </TableCell>
                       <TableCell className="text-center">
-                         <Badge variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200">
-                           {teacher.checked_homeworks_count}
-                         </Badge>
+                        <div className="flex flex-col items-center gap-1">
+                          <Badge variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200">
+                            {teacher.checked_homeworks_count} / {teacher.total_submissions_count}
+                          </Badge>
+                          <span className="text-xs text-slate-500">
+                            {teacher.total_submissions_count > 0 
+                              ? `${Math.round((teacher.checked_homeworks_count / teacher.total_submissions_count) * 100)}%`
+                              : '0%'}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
