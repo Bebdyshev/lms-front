@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../services/api';
-import type { User, CreateUserRequest, UpdateUserRequest, Group } from '../types';
+import type { User, CreateUserRequest, UpdateUserRequest, Group, Course } from '../types';
 import { 
   Users, 
   Search, 
@@ -37,11 +37,12 @@ import { Checkbox } from '../components/ui/checkbox';
 interface UserFormData {
   name: string;
   email: string;
-  role: 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator';
+  role: 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator' | 'head_teacher';
   student_id?: string;
   password?: string;
   is_active: boolean;
   group_ids: number[]; // Multiple groups for students
+  course_ids: number[]; // Multiple courses for head teachers
 }
 
 interface GroupFormData {
@@ -91,6 +92,7 @@ export default function UserManagement() {
   const [teachers, setTeachers] = useState<User[]>([]);
   const [curators, setCurators] = useState<User[]>([]);
   const [students, setStudents] = useState<User[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -236,7 +238,8 @@ export default function UserManagement() {
     student_id: '',
     password: '',
     is_active: true,
-    group_ids: []
+    group_ids: [],
+    course_ids: []
   });
 
   const [groupFormData, setGroupFormData] = useState<GroupFormData>({
@@ -269,14 +272,10 @@ export default function UserManagement() {
     loadUsers();
     loadGroups();
     loadTeachersAndCurators();
+    loadCourses();
   }, [currentPage, roleFilter, groupFilter, statusFilter, searchQuery]);
 
-  // Force refresh when component mounts
-  useEffect(() => {
-    loadUsers();
-    loadGroups();
-    loadTeachersAndCurators();
-  }, []);
+
 
   // Update URL params when role filter changes to student by default
   useEffect(() => {
@@ -343,6 +342,16 @@ export default function UserManagement() {
     }
   };
 
+  const loadCourses = async () => {
+    try {
+      const coursesData = await apiClient.getCourses();
+      setCourses(coursesData);
+    } catch (error) {
+      console.error('Failed to load courses:', error);
+      setCourses([]);
+    }
+  };
+
   const loadTeachersAndCurators = async () => {
     try {
       const response = await apiClient.getUsers({ limit: 1000 });
@@ -382,8 +391,6 @@ export default function UserManagement() {
     
     students.forEach(student => {
       const teacherName = student.teacher_name || 'No Teacher Assigned';
-      console.log(`Student ${student.name} has teacher: ${teacherName}`);
-      console.log(`Student ${student.name} full data:`, student);
       
       if (!groupsMap.has(teacherName)) {
         groupsMap.set(teacherName, {
@@ -478,7 +485,8 @@ export default function UserManagement() {
         student_id: formData.student_id || undefined,
         password: formData.password || undefined,
         is_active: formData.is_active,
-        group_ids: formData.role === 'student' && formData.group_ids.length > 0 ? formData.group_ids : undefined
+        group_ids: formData.role === 'student' && formData.group_ids.length > 0 ? formData.group_ids : undefined,
+        course_ids: formData.role === 'head_teacher' && formData.course_ids.length > 0 ? formData.course_ids : undefined
       };
       
       const newUser = await apiClient.createUser(userData);
@@ -520,7 +528,8 @@ export default function UserManagement() {
         password: formData.password || undefined,
         is_active: formData.is_active,
         // Send group_ids for students - the backend will handle the group updates
-        group_ids: formData.role === 'student' ? formData.group_ids : undefined
+        group_ids: formData.role === 'student' ? formData.group_ids : undefined,
+        course_ids: formData.role === 'head_teacher' ? formData.course_ids : undefined
       };
       
       await apiClient.updateUser(Number(selectedUser.id), userData);
@@ -656,7 +665,8 @@ export default function UserManagement() {
       student_id: user.student_id || '',
       password: '',
       is_active: user.is_active ?? true,
-      group_ids: user.group_ids || [] // Use group_ids from the user (populated by backend)
+      group_ids: user.group_ids || [], // Use group_ids from the user (populated by backend)
+      course_ids: user.course_ids || []
     });
     setShowEditModal(true);
   };
@@ -674,7 +684,8 @@ export default function UserManagement() {
       student_id: '',
       password: '',
       is_active: true,
-      group_ids: []
+      group_ids: [],
+      course_ids: []
     });
     setSelectedUser(null);
     setFormErrors({});
@@ -1344,6 +1355,7 @@ export default function UserManagement() {
           formData={formData}
           setFormData={setFormData}
           groups={groups}
+          courses={courses}
           errors={formErrors}
         />
       </Modal>
@@ -1360,6 +1372,7 @@ export default function UserManagement() {
           formData={formData}
           setFormData={setFormData}
           groups={groups}
+          courses={courses}
           errors={formErrors}
         />
 
@@ -1578,10 +1591,11 @@ interface UserFormProps {
   formData: UserFormData;
   setFormData: (data: UserFormData) => void;
   groups: GroupWithDetails[];
+  courses: Course[];
   errors?: { [key: string]: string };
 }
 
-function UserForm({ formData, setFormData, groups, errors = {} }: UserFormProps) {
+function UserForm({ formData, setFormData, groups, courses, errors = {} }: UserFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
@@ -1626,7 +1640,8 @@ function UserForm({ formData, setFormData, groups, errors = {} }: UserFormProps)
                 ...formData, 
                 role: newRole,
                 // Clear groups if role is not student
-                group_ids: newRole === 'student' ? formData.group_ids : []
+                group_ids: newRole === 'student' ? formData.group_ids : [],
+                course_ids: newRole === 'head_teacher' ? formData.course_ids : []
               });
             }}
           >
@@ -1636,6 +1651,7 @@ function UserForm({ formData, setFormData, groups, errors = {} }: UserFormProps)
             <SelectContent className="z-[1100]">
               <SelectItem value="student">Student</SelectItem>
               <SelectItem value="teacher">Teacher</SelectItem>
+              <SelectItem value="head_teacher">Head Teacher</SelectItem>
               <SelectItem value="head_curator">Head Curator</SelectItem>
               <SelectItem value="curator">Curator</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
@@ -1680,6 +1696,49 @@ function UserForm({ formData, setFormData, groups, errors = {} }: UserFormProps)
             {formData.group_ids.length > 0 && (
               <p className="text-xs text-gray-500 mt-1">
                 Selected: {formData.group_ids.length} group(s)
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Courses field - checkboxes for multiple selection (head_teacher only) */}
+        {formData.role === 'head_teacher' && (
+          <div className="p-1">
+            <Label className="text-sm font-medium">Assigned Courses</Label>
+            <div className="mt-2 max-h-40 overflow-y-auto space-y-2 border rounded-md p-3">
+              {courses && courses.length > 0 ? (
+                courses.map((course) => (
+                  <div key={course.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`course-${course.id}`}
+                      checked={formData.course_ids.includes(Number(course.id))}
+                      onCheckedChange={(checked) => {
+                        const courseId = Number(course.id);
+                        if (checked) {
+                          setFormData({
+                            ...formData,
+                            course_ids: [...formData.course_ids, courseId]
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            course_ids: formData.course_ids.filter(id => id !== courseId)
+                          });
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`course-${course.id}`} className="text-sm font-normal cursor-pointer">
+                      {course.title}
+                    </Label>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No courses available</p>
+              )}
+            </div>
+            {formData.course_ids.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Selected: {formData.course_ids.length} course(s)
               </p>
             )}
           </div>

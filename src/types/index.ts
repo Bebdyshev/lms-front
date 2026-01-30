@@ -23,9 +23,10 @@ export interface User {
   assignment_zero_completed_at?: string; // When Assignment Zero was completed
   created_at: string;
   updated_at: string;
+  course_ids?: number[]; // List of course IDs for head teachers
 }
 
-export type UserRole = 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator';
+export type UserRole = 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator' | 'head_teacher';
 
 // =============================================================================
 // AUTH TYPES
@@ -295,6 +296,7 @@ export interface CreateUserRequest {
   student_id?: string;
   group_ids?: number[]; // Multiple groups for students
   is_active?: boolean;
+  course_ids?: number[]; // Courses for head teachers
 }
 
 export interface UpdateUserRequest {
@@ -305,6 +307,7 @@ export interface UpdateUserRequest {
   group_ids?: number[]; // Multiple groups for students
   is_active?: boolean;
   password?: string;
+  course_ids?: number[]; // Courses for head teachers
 }
 
 export interface BulkCreateUsersResponse {

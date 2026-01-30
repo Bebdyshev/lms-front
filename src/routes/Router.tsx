@@ -48,6 +48,7 @@ import CuratorHomeworksPage from '../pages/CuratorHomeworksPage.tsx';
 import CuratorLeaderboardPage from '../pages/CuratorLeaderboardPage.tsx';
 import AssignmentZeroPage from '../pages/AssignmentZeroPage';
 import { StudentAnalyticsPage } from '../pages/analytics/StudentAnalyticsPage.tsx';
+import HeadTeacherTeacherDetailsPage from '../pages/HeadTeacherTeacherDetailsPage.tsx';
 
 export default function Router() {
   
@@ -427,6 +428,17 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['curator', 'admin', 'head_curator']}>
               <AppLayout>
                 <CuratorLeaderboardPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Head Teacher Routes */}
+          {/* Dashboard is handled by /dashboard route and DashboardPage dispatcher */}
+
+          <Route path="/head-teacher/course/:courseId/teacher/:teacherId" element={
+            <ProtectedRoute allowedRoles={['head_teacher', 'admin']}>
+              <AppLayout>
+                <HeadTeacherTeacherDetailsPage />
               </AppLayout>
             </ProtectedRoute>
           } />

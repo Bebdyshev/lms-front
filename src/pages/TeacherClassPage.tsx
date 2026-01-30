@@ -84,35 +84,23 @@ export default function TeacherClassPage() {
       setIsLoading(true);
       setError(null);
       
-      // Загружаем группы учителя (уже содержат студентов)
       const groupsData = await apiClient.getTeacherGroups();
       const teacherGroups = groupsData || [];
       
-      console.log('Loaded teacher groups:', teacherGroups);
-      
-      // Обогащаем данные о группах
       const enrichedGroups: TeacherGroup[] = await Promise.all(
         teacherGroups.map(async (group) => {
           try {
-            console.log(`Processing group ${group.id}: ${group.name}`);
             
-            // Используем студентов, которые уже пришли с группой
             const students = group.students || [];
-            
-            console.log(`Found ${students.length} students in group ${group.id}`);
-            
-            // Получаем статистику для каждого студента
             const statsPromises = students.map(async (student) => {
               try {
-                // Use new detailed progress endpoint for specific student
                 const progressOverview = await apiClient.getStudentProgressOverviewById(student.id.toString());
                 
                 const stats = {
                   total_courses: progressOverview.total_courses,
                   completed_courses: progressOverview.courses.filter(c => c.completion_percentage >= 100).length,
                   average_progress: progressOverview.overall_completion_percentage,
-                  last_activity: null, // Would need to be calculated from step progress
-                  // New detailed fields
+                  last_activity: null, 
                   total_lessons: progressOverview.total_lessons,
                   completed_lessons: progressOverview.completed_lessons,
                   total_steps: progressOverview.total_steps,

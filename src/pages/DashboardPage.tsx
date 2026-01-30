@@ -8,6 +8,7 @@ import TeacherDashboard from './TeacherDashboard.tsx';
 import AdminDashboard from './admin/AdminDashboard.tsx';
 import CuratorDashboard from './CuratorDashboard.tsx';
 import HeadCuratorDashboard from './HeadCuratorDashboard.tsx';
+import HeadTeacherDashboardPage from './HeadTeacherDashboardPage.tsx';
 import apiClient from "../services/api";
 import Skeleton from '../components/Skeleton.tsx';
 import type { DashboardStats, Course, User } from '../types';
@@ -28,7 +29,30 @@ export default function DashboardPage() {
   const { user, isTeacher } = useAuth();
   const navigate = useNavigate();
 
+  // Role-based dashboards - Return early BEFORE loading generic student stats
+  if (user?.role === 'admin') {
+    return <AdminDashboard />;
+  }
+  
+  if (user?.role === 'curator') {
+    return <CuratorDashboard />;
+  }
+  
+  if (user?.role === 'head_curator') {
+    return <HeadCuratorDashboard />;
+  }
+  
+  if (user?.role === 'head_teacher') {
+    return <HeadTeacherDashboardPage />;
+  }
+  
+  if (isTeacher()) {
+    return <TeacherDashboard />;
+  }
+
+  // Load data only for students or if valid role not caught above (fallback)
   useEffect(() => {
+    // Only load student/generic dashboard data if we haven't returned a specialized dashboard above
     loadDashboardData();
   }, [user?.role]);
 
@@ -104,23 +128,6 @@ export default function DashboardPage() {
 
   const firstName = dashboardData?.user?.name || user?.name?.split(' ')[0] || 'User';
   const stats = dashboardData?.stats || {} as DashboardStats;
-
-  // Role-based dashboards
-  if (user?.role === 'admin') {
-    return <AdminDashboard />;
-  }
-  
-  if (user?.role === 'curator') {
-    return <CuratorDashboard />;
-  }
-  
-  if (user?.role === 'head_curator') {
-    return <HeadCuratorDashboard />;
-  }
-  
-  if (isTeacher()) {
-    return <TeacherDashboard />;
-  }
 
   return (
     <StudentDashboard
