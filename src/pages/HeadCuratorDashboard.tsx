@@ -351,14 +351,24 @@ export default function HeadCuratorDashboard() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <Badge variant={curator.overdue_count > 5 ? "destructive" : "secondary"} className={curator.overdue_count === 0 ? "bg-green-50 text-green-700 border-green-100 hover:bg-green-50" : ""}>
-                        {curator.overdue_count}
-                      </Badge>
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <Badge variant={curator.overdue_count > 5 ? "destructive" : "secondary"} className={curator.overdue_count === 0 ? "bg-green-50 text-green-700 border-green-100 hover:bg-green-50" : ""}>
+                          {curator.overdue_count}
+                        </Badge>
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          из {curator.total_due} ({curator.overdue_perc}%)
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">
-                        {curator.pending_grading}
-                      </Badge>
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">
+                          {curator.pending_grading}
+                        </Badge>
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          из {curator.total_submissions} ({curator.pending_perc}%)
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => navigate(`/head-curator/curator/${curator.id}`)}>
