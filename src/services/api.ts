@@ -357,11 +357,14 @@ class LMSApiClient {
   // DASHBOARD
   // =============================================================================
 
-  async getDashboardStats(groupId?: number): Promise<DashboardStats> {
+  async getDashboardStats(groupId?: number, startDate?: string, endDate?: string): Promise<DashboardStats> {
     try {
-      const response = await this.api.get('/dashboard/stats', {
-        params: { group_id: groupId }
-      });
+      const params: any = {};
+      if (groupId) params.group_id = groupId;
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      
+      const response = await this.api.get('/dashboard/stats', { params });
       return response.data;
     } catch (error) {
       throw new Error('Failed to load dashboard stats');
@@ -3246,6 +3249,35 @@ class LMSApiClient {
   // HEAD TEACHER DASHBOARD
   // =============================================================================
 
+  // =============================================================================
+  // HEAD CURATOR
+  // =============================================================================
+
+  async getCuratorDetails(curatorId: number): Promise<{
+    id: number;
+    name: string;
+    email: string;
+    avatar_url: string | null;
+    groups: Array<{
+      id: number;
+      name: string;
+      student_count: number;
+      overdue_count: number;
+      avg_progress: number;
+    }>;
+    total_students: number;
+    total_overdue: number;
+    avg_progress: number;
+  }> {
+    try {
+      const response = await this.api.get(`/dashboard/curator/${curatorId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator details:', error);
+      throw error;
+    }
+  }
+
   async getHeadTeacherManagedCourses(): Promise<Array<{
     id: number;
     title: string;
@@ -3601,6 +3633,9 @@ export const getVocabularyCards = apiClient.getVocabularyCards.bind(apiClient);
 // Head Teacher Dashboard
 export const getHeadTeacherManagedCourses = apiClient.getHeadTeacherManagedCourses.bind(apiClient);
 export const getHeadTeacherCourseTeachers = apiClient.getHeadTeacherCourseTeachers.bind(apiClient);
+
+// Head Curator
+export const getCuratorDetails = apiClient.getCuratorDetails.bind(apiClient);
 
 export default apiClient;
 

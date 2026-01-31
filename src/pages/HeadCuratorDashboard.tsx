@@ -4,10 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Calendar } from '../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { 
   AlertCircle,
   ChevronRight,
-  Info
+  Info,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 import { Badge } from '../components/ui/badge';
@@ -31,6 +34,9 @@ import {
   Line,
   Cell
 } from 'recharts';
+import { format, subDays } from 'date-fns';
+import { DateRange } from 'react-day-picker';
+import { cn } from '../lib/utils';
 
 export default function HeadCuratorDashboard() {
   const { user } = useAuth();
@@ -39,11 +45,26 @@ export default function HeadCuratorDashboard() {
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  
+  // Date Range State
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
 
   useEffect(() => {
     loadGroups();
-    loadDashboardData(selectedGroupId === "all" ? undefined : parseInt(selectedGroupId));
-  }, [selectedGroupId]);
+  }, []);
+  
+  useEffect(() => {
+    if (dateRange?.from && dateRange?.to) {
+      loadDashboardData(
+        selectedGroupId === "all" ? undefined : parseInt(selectedGroupId),
+        dateRange.from.toISOString().split('T')[0],
+        dateRange.to.toISOString().split('T')[0]
+      );
+    }
+  }, [selectedGroupId, dateRange]);
 
   const loadGroups = async () => {
     try {
@@ -54,10 +75,10 @@ export default function HeadCuratorDashboard() {
     }
   };
 
-  const loadDashboardData = async (groupId?: number) => {
+  const loadDashboardData = async (groupId?: number, startDate?: string, endDate?: string) => {
     try {
       setLoading(true);
-      const res = await apiClient.getDashboardStats(groupId);
+      const res = await apiClient.getDashboardStats(groupId, startDate, endDate);
       setData(res);
     } catch (error) {
       console.error('Failed to load HoC dashboard:', error);
@@ -95,7 +116,7 @@ export default function HeadCuratorDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Рады видеть вас, {user?.name?.split(' ')[0] || 'HoC'}!</h1>
           <p className="text-gray-500">Обзор эффективности кураторов и активности студентов</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
             <SelectTrigger className="w-[180px] bg-white border-gray-200">
               <SelectValue placeholder="Все группы" />
@@ -109,9 +130,43 @@ export default function HeadCuratorDashboard() {
               ))}
             </SelectContent>
           </Select>
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 py-1.5 px-3">
-            {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
-          </Badge>
+          
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="date"
+                variant="outline"
+                className={cn(
+                  "w-[260px] justify-start text-left font-normal bg-white",
+                  !dateRange && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "dd.MM.yyyy")} -{" "}
+                      {format(dateRange.to, "dd.MM.yyyy")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "dd.MM.yyyy")
+                  )
+                ) : (
+                  <span>Выберите период</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange?.from}
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={2}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -306,7 +361,7 @@ export default function HeadCuratorDashboard() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => navigate(`/curator/leaderboard`)}>
+                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => navigate(`/head-curator/curator/${curator.id}`)}>
                         Обзор <ChevronRight className="w-4 h-4 ml-1" />
                       </Button>
                     </td>

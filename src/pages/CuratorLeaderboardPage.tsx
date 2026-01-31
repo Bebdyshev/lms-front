@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { 
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -178,6 +179,7 @@ const calculateCurrentWeekNumber = (createdAtStr: string) => {
 
 export default function CuratorLeaderboardPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [currentWeek, setCurrentWeek] = useState(1);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -211,6 +213,25 @@ export default function CuratorLeaderboardPage() {
         try {
             const myGroups = await getCuratorGroups();
             setGroups(myGroups);
+            
+            // Check for groupId in URL query params
+            const groupIdParam = searchParams.get('groupId');
+            
+            if (groupIdParam && myGroups.length > 0) {
+                const targetGroupId = parseInt(groupIdParam, 10);
+                const targetGroup = myGroups.find(g => g.id === targetGroupId);
+                if (targetGroup) {
+                    setSelectedGroupId(targetGroup.id);
+                    if (targetGroup.current_week) {
+                        setCurrentWeek(targetGroup.current_week);
+                    } else {
+                        setCurrentWeek(calculateCurrentWeekNumber(targetGroup.created_at));
+                    }
+                    return;
+                }
+            }
+            
+            // Fallback to first group
             if (myGroups.length > 0) {
                 const firstGroup = myGroups[0];
                 setSelectedGroupId(firstGroup.id);
@@ -225,7 +246,7 @@ export default function CuratorLeaderboardPage() {
         }
     };
     loadGroups();
-  }, [user]);
+  }, [user, searchParams]);
 
   useEffect(() => {
     if (selectedGroupId) {
