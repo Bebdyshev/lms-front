@@ -10,6 +10,7 @@ import {
 import { Input } from '../components/ui/input';
 import { ChevronLeft, ChevronRight, Loader2, Save, Eye, EyeOff } from 'lucide-react';
 import { getCuratorGroups, getWeeklyLessonsWithHwStatus, updateAttendance, updateLeaderboardEntry, updateLeaderboardConfig } from '../services/api';
+import { Group } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
@@ -66,17 +67,13 @@ interface LeaderboardData {
     };
 }
 
-interface Group {
-    id: number;
-    name: string;
-    created_at: string;
-}
+
 
 // Configuration
 const MAX_SCORES = {
     attendance: 10,
     curator_hour: 20,
-    mock_exam: 20,
+    mock_exam: 100,
     study_buddy: 15, // 0 (no) or 15 (yes)
     self_reflection_journal: 14,
     weekly_evaluation: 10,
@@ -217,7 +214,11 @@ export default function CuratorLeaderboardPage() {
             if (myGroups.length > 0) {
                 const firstGroup = myGroups[0];
                 setSelectedGroupId(firstGroup.id);
-                setCurrentWeek(calculateCurrentWeekNumber(firstGroup.created_at));
+                if (firstGroup.current_week) {
+                    setCurrentWeek(firstGroup.current_week);
+                } else {
+                    setCurrentWeek(calculateCurrentWeekNumber(firstGroup.created_at));
+                }
             }
         } catch (e) {
             console.error("Failed to load groups", e);
@@ -452,12 +453,12 @@ export default function CuratorLeaderboardPage() {
 
   const formatDateParts = (dateStr: string) => {
       const dt = new Date(dateStr);
-      // Date: 20.01
-      const date = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+      // Date: 03 фев
+      const date = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '');
       // DayTime: Пн 19:00
       const day = dt.toLocaleDateString('ru-RU', { weekday: 'short' }); // Пн, Вт
       const time = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
-      // Capitalize day
+      // Capitalize day and month if needed
       const dayCap = day.charAt(0).toUpperCase() + day.slice(1);
       
       return { date, dayTime: `${dayCap} ${time}` };
@@ -469,7 +470,7 @@ export default function CuratorLeaderboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4 ">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2 text-gray-800">
-            Class Leaderboard {data && <span className="text-sm font-normal text-gray-500">(Week Starting {new Date(data.week_start).toLocaleDateString()})</span>}
+            Class Leaderboard {data && <span className="text-sm font-normal text-gray-500">(Week Starting {new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')})</span>}
           </h1>
         </div>
         
@@ -492,10 +493,10 @@ export default function CuratorLeaderboardPage() {
                     <SelectTrigger className="px-4 text-xs font-semibold min-w-[140px] text-center bg-gray-50/50 flex items-center justify-center h-full border-none focus:ring-0 rounded-none shadow-none">
                         <SelectValue>
                             {data ? (
-                                `${new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} - ${(() => {
+                                 `${new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')} - ${(() => {
                                     const end = new Date(data.week_start);
                                     end.setDate(end.getDate() + 6);
-                                    return end.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+                                    return end.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '');
                                 })()}`
                             ) : (
                                 `Week ${currentWeek}`
@@ -503,7 +504,7 @@ export default function CuratorLeaderboardPage() {
                         </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                        {Array.from({ length: 52 }, (_, i) => i + 1).map(w => (
+                        {Array.from({ length: groups.find(g => g.id === selectedGroupId)?.max_week || 52 }, (_, i) => i + 1).map(w => (
                             <SelectItem key={w} value={w.toString()} className="text-xs">
                                 Week {w}
                             </SelectItem>
@@ -529,7 +530,11 @@ export default function CuratorLeaderboardPage() {
                         setSelectedGroupId(groupId);
                         const group = groups.find(g => g.id === groupId);
                         if (group) {
-                            setCurrentWeek(calculateCurrentWeekNumber(group.created_at));
+                            if (group.current_week) {
+                                setCurrentWeek(group.current_week);
+                            } else {
+                                setCurrentWeek(calculateCurrentWeekNumber(group.created_at));
+                            }
                         }
                     }}
                 >
@@ -751,7 +756,15 @@ export default function CuratorLeaderboardPage() {
                         <TableCell className={cn("p-0 border-r border-gray-300 h-12", !enabledCols.curator_hour && "bg-gray-100 opacity-50 pointer-events-none")}>
                             <ScoreSelect value={student.curator_hour} max={MAX_SCORES.curator_hour} onChange={(v) => handleManualScoreChange(student.student_id, 'curator_hour', v)} />
                         </TableCell>
-                        <TableCell className="p-0 border-r border-gray-300 h-12"><ScoreSelect value={student.mock_exam} max={MAX_SCORES.mock_exam} onChange={(v) => handleManualScoreChange(student.student_id, 'mock_exam', v)} /></TableCell>
+                        <TableCell className="p-0 border-r border-gray-300 h-12">
+                            <div className="w-full h-full flex items-center justify-center text-xs font-medium">
+                                {student.mock_exam > 0 ? (
+                                    <span className="text-gray-900">{student.mock_exam}%</span>
+                                ) : (
+                                    <span className="text-gray-400 italic">Не сдано</span>
+                                )}
+                            </div>
+                        </TableCell>
                         <TableCell className={cn("p-0 border-r border-gray-300", !enabledCols.study_buddy && "bg-gray-100 opacity-50 pointer-events-none")}>
                             <div className="h-12 w-full">
                                 <AttendanceToggle 

@@ -222,6 +222,8 @@ export interface Group {
   created_at: string;
   is_active: boolean;
   schedule_config?: any;
+  current_week?: number;
+  max_week?: number;
 }
 
 export interface CourseGroupAccess {
