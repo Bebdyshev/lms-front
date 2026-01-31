@@ -301,19 +301,13 @@ export default function UserManagement() {
       
       const response = await apiClient.getUsers(params);
       
-      // Проверяем структуру ответа
-      if (Array.isArray(response)) {
-        // API возвращает массив пользователей напрямую
-        console.log('Users data (array):', response);
-        console.log('Students in users data:', response.filter((u: User) => u.role === 'student'));
-        setUsers(response);
-        setTotalUsers(response.length);
-      } else if (response && typeof response === 'object' && response.users) {
-        // API возвращает объект с полем users
-        console.log('Users data (object):', response.users);
-        console.log('Students in users data:', response.users.filter((u: User) => u.role === 'student'));
-        setUsers(response.users);
-        setTotalUsers(response.total || response.users.length);
+      if (response) {
+        const usersData = Array.isArray(response) ? response : (response.users || []);
+        const sortedUsers = [...usersData].sort((a: User, b: User) => 
+          (a.name || a.full_name || '').localeCompare(b.name || b.full_name || '', 'ru')
+        );
+        setUsers(sortedUsers);
+        setTotalUsers(response.total || usersData.length);
       } else {
         // Неожиданный формат
         console.log('Unexpected response format:', response);
@@ -335,7 +329,13 @@ export default function UserManagement() {
     try {
       const groupsData = await apiClient.getGroups();
       console.log('Groups data:', groupsData);
-      setGroups(groupsData || []);
+      
+      // Sort groups by name alphabetically to maintain stable order
+      const sortedGroups = (groupsData || []).sort((a: Group, b: Group) => 
+        a.name.localeCompare(b.name, 'ru')
+      );
+      
+      setGroups(sortedGroups);
     } catch (error) {
       console.error('Failed to load groups:', error);
       setGroups([]);
@@ -407,7 +407,17 @@ export default function UserManagement() {
       group.total_students = group.students.length;
     });
     
-    const teacherGroupsArray = Array.from(groupsMap.values());
+    const teacherGroupsArray = Array.from(groupsMap.values()).sort((a, b) => 
+      a.teacher_name.localeCompare(b.teacher_name, 'ru')
+    );
+    
+    // Sort students within each teacher group
+    teacherGroupsArray.forEach(tg => {
+      tg.students.sort((a, b) => 
+        (a.name || a.full_name || '').localeCompare(b.name || b.full_name || '', 'ru')
+      );
+    });
+
     console.log('Teacher groups:', teacherGroupsArray);
     setTeacherGroups(teacherGroupsArray);
   };
