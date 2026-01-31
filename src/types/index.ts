@@ -553,6 +553,8 @@ export interface Assignment {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  late_penalty_enabled?: boolean;
+  late_penalty_multiplier?: number;
 }
 
 export type AssignmentType =
@@ -597,6 +599,7 @@ export interface AssignmentSubmission {
   feedback?: string;
   user_name?: string;
   grader_name?: string;
+  is_late?: boolean;
 }
 
 export type SubmissionStatus = 'draft' | 'submitted' | 'graded' | 'needs_revision' | 'overdue';

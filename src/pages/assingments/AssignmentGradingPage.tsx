@@ -180,6 +180,17 @@ export default function AssignmentGradingPage() {
                         {studentExtension.reason && ` - ${studentExtension.reason}`}
                       </div>
                     )}
+                    {submission.is_late && (
+                      <div className="text-sm text-amber-600 flex items-center mt-1 font-medium">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Late Submission
+                        {assignment?.late_penalty_enabled && (
+                          <span className="ml-1 text-xs text-amber-500">
+                            (Penalty Applied: {assignment.late_penalty_multiplier}x)
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center space-x-3">
                     {submission.is_graded ? (
@@ -268,6 +279,16 @@ export default function AssignmentGradingPage() {
 
             {/* Grading Controls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-white">
+              {assignment?.late_penalty_enabled && selectedSubmission?.is_late && (
+                <div className="md:col-span-2 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800 flex items-start">
+                   <AlertCircle className="w-5 h-5 mr-2 text-amber-600 flex-shrink-0" />
+                   <div>
+                     <p className="font-semibold">Late Submission Penalty</p>
+                     <p> This submission was late. A penalty multiplier of <strong>{assignment.late_penalty_multiplier}x</strong> is enabled for this assignment.</p>
+                     <p className="mt-1 text-xs">If auto-graded, the penalty was already applied. For manual grading, please consider this penalty.</p>
+                   </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="score">Score (Max: {assignment?.max_score})</Label>
                 <Input

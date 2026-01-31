@@ -40,6 +40,8 @@ interface AssignmentFormData {
   group_ids?: number[];
   event_mapping?: Record<number, number>; // group_id -> event_id
   due_date_mapping?: Record<number, string>; // group_id -> ISO due date
+  late_penalty_enabled?: boolean;
+  late_penalty_multiplier?: number;
 }
 
 export default function AssignmentBuilderPage() {
@@ -61,7 +63,9 @@ export default function AssignmentBuilderPage() {
     max_file_size_mb: 10,
     group_ids: [],
     event_mapping: {},
-    due_date_mapping: {}
+    due_date_mapping: {},
+    late_penalty_enabled: false,
+    late_penalty_multiplier: 0.6
   });
 
   const [loading, setLoading] = useState(false);
@@ -132,7 +136,9 @@ export default function AssignmentBuilderPage() {
         group_id: assignment.group_id,
         group_ids: assignment.group_id ? [assignment.group_id] : [],
         event_mapping: assignment.event_id && assignment.group_id ? { [assignment.group_id]: assignment.event_id } : {},
-        due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: assignment.due_date } : {}
+        due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: assignment.due_date } : {},
+        late_penalty_enabled: assignment.late_penalty_enabled || false,
+        late_penalty_multiplier: assignment.late_penalty_multiplier || 0.6
       });
 
       if (assignment.group_id) {
@@ -390,7 +396,9 @@ export default function AssignmentBuilderPage() {
             const date = formData.due_date_mapping?.[parseInt(gid)];
             if (date) acc[parseInt(gid)] = date;
             return acc;
-        }, {} as Record<number, string>)
+        }, {} as Record<number, string>),
+        late_penalty_enabled: formData.late_penalty_enabled,
+        late_penalty_multiplier: formData.late_penalty_multiplier
       };
       
       console.log('Submitting assignment with data:', assignmentData);
@@ -600,6 +608,38 @@ export default function AssignmentBuilderPage() {
                     max="1000"
                     required
                   />
+                </div>
+
+                {/* Late Penalty Settings */}
+                <div className="pt-4 border-t space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="late-penalty"
+                      checked={formData.late_penalty_enabled}
+                      onCheckedChange={(checked) => handleInputChange('late_penalty_enabled', checked)}
+                    />
+                    <Label htmlFor="late-penalty" className="cursor-pointer">
+                      Penalty for late submission?
+                    </Label>
+                  </div>
+                  
+                  {formData.late_penalty_enabled && (
+                    <div className="pl-6">
+                      <Label htmlFor="penalty-multiplier" className="text-xs text-gray-500 mb-1 block">
+                        Score Multiplier (e.g. 0.6 means 60% of score)
+                      </Label>
+                      <Input
+                        id="penalty-multiplier"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="1"
+                        value={formData.late_penalty_multiplier}
+                        onChange={(e) => handleInputChange('late_penalty_multiplier', parseFloat(e.target.value))}
+                        placeholder="0.6"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Lesson Linking Section */}

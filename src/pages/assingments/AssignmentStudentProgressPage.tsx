@@ -50,6 +50,7 @@
     is_hidden?: boolean;
     assignment_source: 'course' | 'group' | 'both' | 'unknown';
     source_display: string;
+    is_late?: boolean;
   }
 
   interface AssignmentData {
@@ -62,6 +63,8 @@
     group_id: number | null;
     assignment_type?: string;
     content?: any;
+    late_penalty_enabled?: boolean;
+    late_penalty_multiplier?: number;
   }
 
   interface SummaryStats {
@@ -399,7 +402,14 @@
                 <p className="text-sm text-gray-600">Total Students</p>
                 <p className="font-medium">{data.summary.total_students} students</p>
               </div>
+
               <div>
+                <p className="text-sm text-gray-600">Late Penalty</p>
+                <p className="font-medium">
+                  {data.assignment.late_penalty_enabled 
+                    ? `${data.assignment.late_penalty_multiplier}x multiplier` 
+                    : 'Disabled'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -588,9 +598,16 @@
                           </TableCell>
                           <TableCell>
                             {student.submitted_at ? (
-                              <div className="flex items-center">
-                                <Clock className="w-4 h-4 mr-1 text-gray-600" />
-                                {new Date(student.submitted_at).toLocaleDateString()}
+                              <div className="flex flex-col">
+                                <div className="flex items-center">
+                                  <Clock className="w-4 h-4 mr-1 text-gray-600" />
+                                  {new Date(student.submitted_at).toLocaleDateString()}
+                                </div>
+                                {student.is_late && (
+                                  <Badge variant="outline" className="mt-1 w-fit border-amber-500 text-amber-600 px-1 py-0 text-[10px]">
+                                    Late
+                                  </Badge>
+                                )}
                               </div>
                             ) : (
                               <span className="text-gray-400">-</span>
