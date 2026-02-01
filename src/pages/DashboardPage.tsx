@@ -6,7 +6,6 @@ import { useAuth } from '../contexts/AuthContext.tsx';
 import StudentDashboard from './StudentDashboard';
 import TeacherDashboard from './TeacherDashboard.tsx';
 import AdminDashboard from './admin/AdminDashboard.tsx';
-import CuratorDashboard from './CuratorDashboard.tsx';
 import HeadCuratorDashboard from './HeadCuratorDashboard.tsx';
 import HeadTeacherDashboardPage from './HeadTeacherDashboardPage.tsx';
 import apiClient from "../services/api";
@@ -35,7 +34,7 @@ export default function DashboardPage() {
   }
   
   if (user?.role === 'curator') {
-    return <CuratorDashboard />;
+    return <HeadCuratorDashboard />;
   }
   
   if (user?.role === 'head_curator') {

@@ -8,6 +8,7 @@ import { Checkbox } from '../ui/checkbox';
 import apiClient from '../../services/api';
 import { toast } from '../Toast';
 import { compressImage } from '../../utils/imageCompression';
+
 interface Task {
   id: string;
   task_type: 'course_unit' | 'file_task' | 'text_task' | 'link_task' | 'pdf_text_task';
@@ -232,41 +233,91 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
     }));
   };
 
-  const handleFileUpload = async (taskId: string, file: File) => {
+  const handleFilesUpload = async (taskId: string, files: FileList) => {
     if (readOnly) return;
     
     try {
       setUploading(prev => ({ ...prev, [taskId]: true }));
       
-      let fileToUpload = file;
+      const uploadedFiles = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        let fileToUpload = files[i];
 
-      // Check if it's an image and compress
-      if (file.type.startsWith('image/')) {
-        toast('Compressing image...', 'info');
-        fileToUpload = await compressImage(file);
+        // Check if it's an image and compress
+        if (fileToUpload.type.startsWith('image/')) {
+          toast(`Compressing image ${i + 1}/${files.length}...`, 'info');
+          fileToUpload = await compressImage(fileToUpload);
+        }
+
+        console.log(`🚀 Uploading file: ${fileToUpload.name}, Size: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB`);
+        
+        // Upload file using existing API
+        const response = await apiClient.uploadTeacherFile(fileToUpload);
+        
+        uploadedFiles.push({
+          file_url: response.file_url || response.url,
+          file_name: fileToUpload.name,
+          file_size: fileToUpload.size
+        });
       }
+      
+      // Get existing files if any
+      const existingFiles = answers[taskId]?.files || [];
+      // Also check for legacy single file and migrate it if needed, but we prioritized 'files' array
+      let legacyFile = null;
+      if (!existingFiles.length && answers[taskId]?.file_url) {
+        legacyFile = {
+            file_url: answers[taskId].file_url,
+            file_name: answers[taskId].file_name,
+            file_size: answers[taskId].file_size
+        };
+      }
+      
+      const finalFiles = [...(existingFiles.length ? existingFiles : (legacyFile ? [legacyFile] : [])), ...uploadedFiles];
 
-      console.log(`🚀 Uploading file: ${fileToUpload.name}, Size: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB`);
-      
-      // Upload file using existing API
-      // We'll use the uploadTeacherFile endpoint or similar, or maybe we need a student upload endpoint
-      // For now using uploadTeacherFile as it returns a URL, but ideally should be a generic upload
-      // In a real app, we might want a specific endpoint for assignment submissions
-      // Let's assume we can use the same upload service
-      const response = await apiClient.uploadTeacherFile(fileToUpload);
-      
       handleTaskCompletion(taskId, {
-        file_url: response.file_url || response.url,
-        file_name: fileToUpload.name,
-        file_size: fileToUpload.size
+        files: finalFiles,
+        // Keep legacy fields updated with the LAST uploaded file for backward compat if needed, 
+        // strictly speaking we should probably null them out or just keep them as 'last uploaded'
+        file_url: uploadedFiles[uploadedFiles.length - 1].file_url,
+        file_name: uploadedFiles[uploadedFiles.length - 1].file_name,
+        file_size: uploadedFiles[uploadedFiles.length - 1].file_size
       });
-      toast('File uploaded successfully', 'success');
+      
+      toast('Files uploaded successfully', 'success');
     } catch (error) {
       console.error('File upload failed:', error);
-      toast('Failed to upload file. Please try again.', 'error');
+      toast('Failed to upload files. Please try again.', 'error');
     } finally {
       setUploading(prev => ({ ...prev, [taskId]: false }));
     }
+  };
+
+  const handleRemoveFile = (taskId: string, fileIndex: number) => {
+    if (readOnly) return;
+
+    const currentFiles = answers[taskId]?.files || [];
+    // Handle legacy single file case being viewed as list
+    let filesList = currentFiles;
+    if (filesList.length === 0 && answers[taskId]?.file_url) {
+        filesList = [{
+            file_url: answers[taskId].file_url,
+            file_name: answers[taskId].file_name,
+            file_size: answers[taskId].file_size
+        }];
+    }
+
+    const newFiles = [...filesList];
+    newFiles.splice(fileIndex, 1);
+
+    handleTaskCompletion(taskId, {
+        files: newFiles,
+        // Update legacy fields to last file or null
+        file_url: newFiles.length > 0 ? newFiles[newFiles.length - 1].file_url : null,
+        file_name: newFiles.length > 0 ? newFiles[newFiles.length - 1].file_name : null,
+        file_size: newFiles.length > 0 ? newFiles[newFiles.length - 1].file_size : null
+    });
   };
 
   const handleSubmit = () => {
@@ -275,7 +326,9 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
 
   const renderTaskSubmission = (task: Task) => {
     const taskAnswer = answers[task.id] || {};
-    const isCompleted = taskAnswer.completed || !!taskAnswer.file_url || !!taskAnswer.text_response;
+    const hasFiles = taskAnswer.files && taskAnswer.files.length > 0;
+    const hasLegacyFile = taskAnswer.file_url;
+    const isCompleted = taskAnswer.completed || hasFiles || hasLegacyFile || !!taskAnswer.text_response;
 
     switch (task.task_type) {
       case 'course_unit':
@@ -290,9 +343,18 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
         );
 
       case 'file_task':
+        // Prepare files list for display, merging legacy file_url if files array is empty
+        const displayFiles = hasFiles ? taskAnswer.files : (hasLegacyFile ? [{
+            file_url: taskAnswer.file_url,
+            file_name: taskAnswer.file_name,
+            file_size: taskAnswer.file_size
+        }] : []);
+
         return (
           <div className="space-y-3">
             <div className="text-sm font-medium">{task.content.question}</div>
+            
+            {/* Teacher Reference File */}
             {task.content.teacher_file_url && (
               <div className="space-y-2">
                 {/* Image Preview for teacher's reference file */}
@@ -303,7 +365,6 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
                       alt={task.content.teacher_file_name || 'Reference image'}
                       className="w-full h-auto max-h-[600px] object-contain"
                       onError={(e) => {
-                        // Hide image if it fails to load
                         e.currentTarget.style.display = 'none';
                       }}
                     />
@@ -320,67 +381,76 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
               </div>
             )}
             
-            
-            {taskAnswer.file_url ? (
-              <div className="space-y-3">
-                {/* Image Preview */}
-                {taskAnswer.file_name && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(taskAnswer.file_name) && (
-                  <div className="border rounded-lg overflow-hidden bg-gray-50">
-                    <img 
-                      src={taskAnswer.file_url.startsWith('http') 
-                        ? taskAnswer.file_url 
-                        : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + taskAnswer.file_url}
-                      alt={taskAnswer.file_name || 'Uploaded image'}
-                      className="w-full h-auto max-h-[600px] object-contain"
-                      onError={(e) => {
-                        // Hide image if it fails to load
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-                
-                {/* File Info Card */}
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">{taskAnswer.file_name || 'Uploaded File'}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const url = taskAnswer.file_url.startsWith('http') 
-                          ? taskAnswer.file_url 
-                          : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + taskAnswer.file_url;
-                        window.open(url, '_blank');
-                      }}
-                      className="text-blue-600 hover:text-blue-800 h-8 px-2"
-                    >
-                      <ExternalLink className="w-4 h-4 mr-1" />
-                      Open
-                    </Button>
-                    {!readOnly && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleTaskCompletion(task.id, { file_url: null, file_name: null })}
-                        className="text-red-600 hover:text-red-800 h-8 w-8 p-0"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
+            {/* Uploaded Files List */}
+            {displayFiles.length > 0 && (
+                <div className="space-y-3">
+                    {displayFiles.map((file: any, index: number) => (
+                        <div key={index} className="space-y-3">
+                            {/* Image Preview */}
+                            {file.file_name && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.file_name) && (
+                                <div className="border rounded-lg overflow-hidden bg-gray-50">
+                                <img 
+                                    src={file.file_url.startsWith('http') 
+                                    ? file.file_url 
+                                    : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + file.file_url}
+                                    alt={file.file_name || 'Uploaded image'}
+                                    className="w-full h-auto max-h-[600px] object-contain"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                />
+                                </div>
+                            )}
+
+                             {/* File Info Card */}
+                            <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200">
+                                <div className="flex items-center space-x-2">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-800">{file.file_name || `File ${index + 1}`}</span>
+                                {file.file_size && (
+                                    <span className="text-xs text-green-600">({(file.file_size / 1024 / 1024).toFixed(2)} MB)</span>
+                                )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                    const url = file.file_url.startsWith('http') 
+                                        ? file.file_url 
+                                        : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + file.file_url;
+                                    window.open(url, '_blank');
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 h-8 px-2"
+                                >
+                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                    Open
+                                </Button>
+                                {!readOnly && (
+                                    <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveFile(task.id, index)}
+                                    className="text-red-600 hover:text-red-800 h-8 w-8 p-0"
+                                    >
+                                    <X className="w-4 h-4" />
+                                    </Button>
+                                )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
-              </div>
-            ) : (
-              !readOnly && (
+            )}
+            
+            {/* Upload Area - Always visible if not readonly, to allow adding MORE files */}
+            {!readOnly && (
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
                   <input
                     type="file"
                     id={`file-${task.id}`}
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload(task.id, e.target.files[0])}
+                    multiple
+                    onChange={(e) => e.target.files && e.target.files.length > 0 && handleFilesUpload(task.id, e.target.files)}
                     className="hidden"
                     accept={task.content.allowed_file_types?.map((t: string) => `.${t}`).join(',')}
                   />
@@ -388,15 +458,14 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
                     <div className="flex flex-col items-center space-y-2">
                       <Upload className="w-6 h-6 text-gray-400" />
                       <span className="text-sm text-blue-600 hover:text-blue-800">
-                        {uploading[task.id] ? 'Uploading...' : 'Upload File'}
+                        {uploading[task.id] ? 'Uploading...' : (displayFiles.length > 0 ? 'Add Another File' : 'Upload File(s)')}
                       </span>
                       <span className="text-xs text-gray-500">
-                        Max {task.content.max_file_size_mb}MB
+                        Max {task.content.max_file_size_mb}MB per file
                       </span>
                     </div>
                   </label>
                 </div>
-              )
             )}
           </div>
         );
@@ -544,7 +613,7 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
       <div className="space-y-4">
         {tasks.map((task, index) => {
           const Icon = getTaskIcon(task.task_type);
-          const isCompleted = answers[task.id]?.completed || !!answers[task.id]?.file_url || !!answers[task.id]?.text_response;
+          const isCompleted = answers[task.id]?.completed || (answers[task.id]?.files?.length > 0) || !!answers[task.id]?.file_url || !!answers[task.id]?.text_response;
           
           return (
             <Card key={task.id} className={isCompleted ? "border-green-200 bg-green-50/30" : ""}>
@@ -580,7 +649,7 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
         // Check if all tasks are completed
         const completedCount = tasks.filter(task => {
           const taskAnswer = answers[task.id];
-          return taskAnswer?.completed || !!taskAnswer?.file_url || !!taskAnswer?.text_response;
+          return taskAnswer?.completed || (taskAnswer?.files?.length > 0) || !!taskAnswer?.file_url || !!taskAnswer?.text_response;
         }).length;
         const allTasksCompleted = completedCount === tasks.length && tasks.length > 0;
         

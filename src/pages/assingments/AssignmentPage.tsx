@@ -7,12 +7,12 @@ import {
   FileText,
   Calendar,
   Clock,
-  CheckCircle,
   AlertCircle,
   Upload,
   Download,
   Award,
-  Star,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import type { Assignment, AssignmentStatus, Submission } from '../../types/index.ts';
 import { Button } from '../../components/ui/button.tsx';
@@ -37,7 +37,7 @@ export default function AssignmentPage() {
   
   // State for legacy file upload and text submission
   const [text, setText] = useState<string>('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [isCompressing, setIsCompressing] = useState<boolean>(false);
@@ -121,27 +121,43 @@ export default function AssignmentPage() {
     if (!id) return;
     
     // Validation
-    if (assignment?.assignment_type === 'file_upload' && !file) return;
+    if (assignment?.assignment_type === 'file_upload' && files.length === 0) return;
     if ((assignment?.assignment_type === 'free_text' || assignment?.assignment_type === 'essay') && !text) return;
     
     setSubmitting(true);
     try {
+      const uploadedFiles = [];
       let fileUrl = null;
       let fileName = null;
 
-      // Upload file if exists
-      if (file) {
-        console.log(`🚀 Submitting file: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
-        const result = await apiClient.uploadSubmissionFile(id, file);
-        fileUrl = result.file_url;
-        fileName = result.filename;
+      // Upload files if exist
+      if (files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+            const fileToUpload = files[i];
+            console.log(`🚀 Submitting file ${i+1}/${files.length}: ${fileToUpload.name}, Size: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB`);
+            const result = await apiClient.uploadSubmissionFile(id, fileToUpload);
+            
+            uploadedFiles.push({
+                file_url: result.file_url,
+                file_name: result.filename,
+                file_size: fileToUpload.size
+            });
+
+            // Keep reference to at least one file for top-level columns (backward compatibility)
+            // Using logic: use the updated file details from the LAST uploaded file
+            fileUrl = result.file_url;
+            fileName = result.filename;
+        }
       }
       
       // Submit assignment
       await apiClient.submitAssignment(id, { 
-        answers: { text },
-        file_url: fileUrl,
-        submitted_file_name: fileName
+        answers: { 
+            text,
+            files: uploadedFiles // Store all files in answers JSON
+        },
+        file_url: fileUrl, // Top-level legacy column
+        submitted_file_name: fileName // Top-level legacy column
       });
       
       toast('Assignment submitted successfully!', 'success');
@@ -157,25 +173,38 @@ export default function AssignmentPage() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const originalFile = e.target.files[0];
+    if (e.target.files && e.target.files.length > 0) {
+      setIsCompressing(true);
+      const newFiles: File[] = [];
       
-      // Check if it's an image
-      if (originalFile.type.startsWith('image/')) {
-        setIsCompressing(true);
-        toast('Compressing image...', 'info');
-        
-        try {
-          const compressedFile = await compressImage(originalFile);
-          setFile(compressedFile);
-        } finally {
-          setIsCompressing(false);
+      try {
+        for (let i = 0; i < e.target.files.length; i++) {
+            const originalFile = e.target.files[i];
+             // Check if it's an image
+            if (originalFile.type.startsWith('image/')) {
+                toast(`Compressing image ${i + 1}/${e.target.files.length}...`, 'info');
+                const compressedFile = await compressImage(originalFile);
+                newFiles.push(compressedFile);
+            } else {
+                newFiles.push(originalFile);
+            }
         }
-      } else {
-        // Not an image, just set it
-        setFile(originalFile);
+        
+        setFiles(prev => [...prev, ...newFiles]);
+      } finally {
+        setIsCompressing(false);
+        // Reset input value to allow selecting the same file again if needed
+        e.target.value = '';
       }
     }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => {
+        const updated = [...prev];
+        updated.splice(index, 1);
+        return updated;
+    });
   };
 
   const handleMultiTaskSubmit = async (answers: any) => {
@@ -285,6 +314,12 @@ export default function AssignmentPage() {
       }
 
       // viewMode === 'details' - Show actual submission
+      // Prepare files list for display
+      const submittedFiles = submission.answers?.files || (submission.file_url ? [{
+          file_url: submission.file_url,
+          submitted_file_name: submission.submitted_file_name
+      }] : []);
+
       return (
         <div className="space-y-4">
           <Button 
@@ -310,8 +345,35 @@ export default function AssignmentPage() {
                 <CardTitle>Your Submission</CardTitle>
               </CardHeader>
               <CardContent>
-                {submission.file_url && (
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded border">
+                {submittedFiles.length > 0 && (
+                  <div className="space-y-3">
+                     {submittedFiles.map((file: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
+                            <div className="flex items-center">
+                            <FileText className="w-5 h-5 text-gray-500 mr-3" />
+                            <span>{file.file_name || file.submitted_file_name || 'File'}</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => window.open(file.file_url.startsWith('http') ? file.file_url : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + file.file_url, '_blank')}>
+                                    <ExternalLink className="w-4 h-4 text-gray-500" />
+                                </Button>
+                                <a
+                                href={file.file_url.startsWith('http') ? file.file_url : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000') + file.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 flex items-center"
+                                >
+                                <Download className="w-4 h-4" />
+                                </a>
+                            </div>
+                        </div>
+                     ))}
+                  </div>
+                )}
+                
+                {/* Fallback for very old legacy or corrupted data if no files found but file_url exists */}
+                {submittedFiles.length === 0 && submission.file_url && (
+                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded border">
                     <div className="flex items-center">
                       <FileText className="w-5 h-5 text-gray-500 mr-3" />
                       <span>{submission.submitted_file_name}</span>
@@ -326,8 +388,9 @@ export default function AssignmentPage() {
                     </a>
                   </div>
                 )}
+
                 {submission.answers?.text && (
-                  <div className="p-4 bg-gray-50 rounded border whitespace-pre-wrap">
+                  <div className="p-4 bg-gray-50 rounded border whitespace-pre-wrap mt-4">
                     {submission.answers.text}
                   </div>
                 )}
@@ -378,54 +441,8 @@ export default function AssignmentPage() {
             )}
           </div>
 
-          {submission ? (
-            <Card className="bg-gray-50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                  Submission Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-white rounded border">
-                  <div className="flex items-center">
-                    <FileText className="w-5 h-5 text-gray-500 mr-3" />
-                    <div>
-                      <div className="font-medium">{submission.submitted_file_name}</div>
-                      <div className="text-xs text-gray-500">
-                        Submitted on {new Date(submission.submitted_at).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <a
-                    href={submission.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                  >
-                    Download
-                  </a>
-                </div>
-
-                {submission.status === 'graded' && (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium">Grade</span>
-                      <Badge variant={(submission.score || 0) >= (assignment.max_score * 0.6) ? "default" : "destructive"}>
-                        {submission.score} / {assignment.max_score}
-                      </Badge>
-                    </div>
-                    {submission.feedback && (
-                      <div className="bg-white p-3 rounded border mt-2">
-                        <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Feedback</div>
-                        <p className="text-sm text-gray-700">{submission.feedback}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
+        {/* Removed the 'submitted' check block here since it is handled above in the first if-block of renderContent */}
+        
             <Card>
               <CardHeader>
                 <CardTitle>Your Submission</CardTitle>
@@ -435,6 +452,7 @@ export default function AssignmentPage() {
                   <input
                     type="file"
                     id="file-upload"
+                    multiple
                     onChange={handleFileChange}
                     className="hidden"
                     accept={assignment.allowed_file_types?.map((t: string) => `.${t}`).join(',')}
@@ -445,7 +463,7 @@ export default function AssignmentPage() {
                   >
                     <Upload className="w-12 h-12 text-gray-400 mb-3" />
                     <span className="text-lg font-medium text-gray-900 mb-1">
-                      {file ? file.name : 'Drop your file here or click to upload'}
+                      {files.length > 0 ? 'Add more files' : 'Drop your files here or click to upload'}
                     </span>
                     <span className="text-sm text-gray-500">
                       Allowed types: {assignment.allowed_file_types?.join(', ') || 'All files'}
@@ -456,38 +474,41 @@ export default function AssignmentPage() {
                   </label>
                 </div>
 
-                {file && (
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-100">
-                    <div className="flex items-center">
-                      <FileText className="w-5 h-5 text-blue-600 mr-3" />
-                      <div>
-                        <span className="font-medium text-blue-900 block">{file.name}</span>
-                        <span className="text-xs text-blue-700">
-                           Size: {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setFile(null)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </Button>
+                {files.length > 0 && (
+                 <div className="space-y-2">
+                    {files.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-100">
+                            <div className="flex items-center">
+                            <FileText className="w-5 h-5 text-blue-600 mr-3" />
+                            <div>
+                                <span className="font-medium text-blue-900 block">{file.name}</span>
+                                <span className="text-xs text-blue-700">
+                                Size: {(file.size / 1024 / 1024).toFixed(2)} MB
+                                </span>
+                            </div>
+                            </div>
+                            <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                            className="text-red-600 hover:text-red-800 h-8 w-8 p-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    ))}
                   </div>
                 )}
 
                 <Button
                   onClick={handleSubmit}
-                  disabled={!file || submitting || isCompressing}
+                  disabled={files.length === 0 || submitting || isCompressing}
                   className="w-full"
                 >
-                  {isCompressing ? 'Compressing Image...' : (submitting ? 'Submitting...' : 'Submit Assignment')}
+                  {isCompressing ? 'Compressing Images...' : (submitting ? 'Submitting...' : 'Submit Assignment')}
                 </Button>
               </CardContent>
             </Card>
-          )}
         </div>
       );
     }
@@ -654,5 +675,3 @@ export default function AssignmentPage() {
     </div>
   );
 }
-
-

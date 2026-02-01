@@ -684,54 +684,107 @@
                     )}
 
                     {/* File Upload View (Legacy or mixed) */}
-                    {selectedSubmission.file_url && (
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium text-gray-600">Submitted File</div>
-                        <div className="bg-gray-50 p-3 rounded border">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-sm">
-                              {selectedSubmission.submitted_file_name || 'Download file'}
+                    {(selectedSubmission.file_url || (selectedSubmission.answers?.files && selectedSubmission.answers.files.length > 0)) && (
+                      <div className="space-y-4">
+                        <div className="text-sm font-medium text-gray-600">Submitted Files</div>
+                        
+                        {/* Multiple Files List */}
+                        {selectedSubmission.answers?.files && selectedSubmission.answers.files.length > 0 ? (
+                            <div className="space-y-3">
+                                {selectedSubmission.answers.files.map((file: any, index: number) => (
+                                    <div key={index} className="bg-gray-50 p-3 rounded border">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="text-sm font-medium">
+                                                {file.file_name || file.submitted_file_name || `File ${index + 1}`}
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => downloadFile(file.file_url, file.file_name || file.submitted_file_name || 'submission_file')}
+                                            >
+                                                <Download className="w-4 h-4 mr-2" />
+                                                Download
+                                            </Button>
+                                        </div>
+                                        
+                                        {/* Preview Logic for each file */}
+                                        {file.file_name?.toLowerCase().endsWith('.pdf') ? (
+                                             <div className="mt-2 text-xs text-blue-600">
+                                                <a href={buildFileUrl(file.file_url)} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                                    Open PDF in new tab
+                                                </a>
+                                             </div>
+                                        ) : /\.(jpg|jpeg|png|gif|webp)$/i.test(file.file_name || '') ? (
+                                            <div className="mt-2 border rounded overflow-hidden max-h-[200px]">
+                                                <img 
+                                                    src={buildFileUrl(file.file_url)} 
+                                                    alt={file.file_name}
+                                                    className="w-full h-full object-contain"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="mt-2">
+                                                <a 
+                                                    href={buildFileUrl(file.file_url)} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-blue-600 hover:text-blue-800 text-sm underline"
+                                                >
+                                                    Open file in new tab
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => downloadFile(selectedSubmission.file_url, selectedSubmission.submitted_file_name || 'submission_file')}
-                            >
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </Button>
-                          </div>
-                          
-                          {/* PDF Viewer */}
-                          {selectedSubmission.submitted_file_name?.toLowerCase().endsWith('.pdf') && (
-                            <div className="mt-3">
-                              <div className="text-xs text-gray-500 mb-2">PDF Preview:</div>
-                              <div className="border rounded overflow-hidden h-[60vh]">
-                                <iframe
-                                  src={`${buildFileUrl(selectedSubmission.file_url)}#toolbar=0&navpanes=0&scrollbar=0`}
-                                  width="100%"
-                                  height="100%"
-                                  style={{ border: 'none' }}
-                                  title="PDF Preview"
-                                />
-                              </div>
+                        ) : selectedSubmission.file_url ? (
+                            /* Legacy Single File Fallback */
+                            <div className="bg-gray-50 p-3 rounded border">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="text-sm">
+                                    {selectedSubmission.submitted_file_name || 'Download file'}
+                                    </div>
+                                    <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => downloadFile(selectedSubmission.file_url, selectedSubmission.submitted_file_name || 'submission_file')}
+                                    >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Download
+                                    </Button>
+                                </div>
+                                
+                                {/* PDF Viewer */}
+                                {selectedSubmission.submitted_file_name?.toLowerCase().endsWith('.pdf') && (
+                                    <div className="mt-3">
+                                    <div className="text-xs text-gray-500 mb-2">PDF Preview:</div>
+                                    <div className="border rounded overflow-hidden h-[60vh]">
+                                        <iframe
+                                        src={`${buildFileUrl(selectedSubmission.file_url)}#toolbar=0&navpanes=0&scrollbar=0`}
+                                        width="100%"
+                                        height="100%"
+                                        style={{ border: 'none' }}
+                                        title="PDF Preview"
+                                        />
+                                    </div>
+                                    </div>
+                                )}
+                                
+                                {/* For non-PDF files, show a link */}
+                                {!selectedSubmission.submitted_file_name?.toLowerCase().endsWith('.pdf') && (
+                                    <div className="mt-2">
+                                    <a 
+                                        href={buildFileUrl(selectedSubmission.file_url)} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 text-sm underline"
+                                    >
+                                        Open file in new tab
+                                    </a>
+                                    </div>
+                                )}
                             </div>
-                          )}
-                          
-                          {/* For non-PDF files, show a link */}
-                          {!selectedSubmission.submitted_file_name?.toLowerCase().endsWith('.pdf') && (
-                            <div className="mt-2">
-                              <a 
-                                href={buildFileUrl(selectedSubmission.file_url)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 text-sm underline"
-                              >
-                                Open file in new tab
-                              </a>
-                            </div>
-                          )}
-                        </div>
+                        ) : null}
                       </div>
                     )}
                   </div>

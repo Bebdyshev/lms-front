@@ -114,7 +114,11 @@ export default function HeadCuratorDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Рады видеть вас, {user?.name}!</h1>
-          <p className="text-gray-500">Обзор эффективности кураторов и активности студентов</p>
+          <p className="text-gray-500">
+            {user?.role === 'head_curator' 
+              ? "Обзор эффективности кураторов и активности студентов" 
+              : "Обзор успеваемости ваших групп и активности студентов"}
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
@@ -174,10 +178,14 @@ export default function HeadCuratorDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
           <CardContent className="p-6 text-white">
-            <p className="text-blue-100 text-sm font-medium">Всего кураторов</p>
-            <h3 className="text-3xl font-bold mt-1 text-white">{stats.total_curators}</h3>
+            <p className="text-blue-100 text-sm font-medium">
+              {user?.role === 'head_curator' ? "Всего кураторов" : "Всего групп"}
+            </p>
+            <h3 className="text-3xl font-bold mt-1 text-white">
+              {user?.role === 'head_curator' ? stats.total_curators : stats.total_groups}
+            </h3>
             <div className="mt-4 text-xs text-blue-100 flex items-center">
-              Активных на платформе
+              {user?.role === 'head_curator' ? "Активных на платформе" : "Прикреплено к вам"}
             </div>
           </CardContent>
         </Card>
@@ -265,10 +273,14 @@ export default function HeadCuratorDashboard() {
 
         <Card className="shadow-sm border-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-lg font-bold">Эффективность кураторов (%)</CardTitle>
+            <CardTitle className="text-lg font-bold">
+              {user?.role === 'head_curator' ? "Эффективность кураторов (%)" : "Прогресс по группам (%)"}
+            </CardTitle>
             <div 
               className="text-gray-400 hover:text-gray-600 cursor-help p-1"
-              title="Эффективность рассчитывается на основе среднего прогресса студентов, отсутствия просрочек и скорости проверки работ."
+              title={user?.role === 'head_curator' 
+                ? "Эффективность рассчитывается на основе среднего прогресса студентов, отсутствия просрочек и скорости проверки работ."
+                : "Средний прогресс освоения курсов студентами в каждой группе."}
             >
               <Info className="h-4 w-4" />
             </div>
@@ -305,18 +317,22 @@ export default function HeadCuratorDashboard() {
         </Card>
       </div>
 
-      {/* Таблица кураторов */}
+      {/* Таблица кураторов/групп */}
       <Card className="shadow-sm border-0 overflow-hidden">
         <CardHeader className="bg-white">
-          <CardTitle className="text-lg font-bold">Сводная таблица по кураторам</CardTitle>
+          <CardTitle className="text-lg font-bold">
+            {user?.role === 'head_curator' ? "Сводная таблица по кураторам" : "Сводная таблица по группам"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50/80 text-gray-600 border-b border-gray-100 uppercase text-[10px] font-bold">
                 <tr>
-                  <th className="text-left px-6 py-4">Куратор</th>
-                  <th className="text-center px-4 py-4">Группы</th>
+                  <th className="text-left px-6 py-4">
+                    {user?.role === 'head_curator' ? "Куратор" : "Группа"}
+                  </th>
+                  {user?.role === 'head_curator' && <th className="text-center px-4 py-4">Группы</th>}
                   <th className="text-center px-4 py-4">Студенты</th>
                   <th className="text-center px-4 py-4">Ср. прогресс</th>
                   <th className="text-center px-4 py-4">Просрочено</th>
@@ -325,53 +341,67 @@ export default function HeadCuratorDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {curatorPerformance.map((curator: any) => (
-                  <tr key={curator.id} className="hover:bg-gray-50/50 transition-colors">
+                {curatorPerformance.map((item: any) => (
+                  <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold text-xs">
-                            {curator.name.charAt(0)}
+                            {item.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-semibold text-gray-900">{curator.name}</span>
+                        <span className="font-semibold text-gray-900">{item.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-center text-gray-600 font-medium">{curator.groups_count}</td>
-                    <td className="px-4 py-4 text-center text-gray-600 font-medium">{curator.students_count}</td>
+                    {user?.role === 'head_curator' && (
+                       <td className="px-4 py-4 text-center text-gray-600 font-medium">{item.groups_count}</td>
+                    )}
+                    <td className="px-4 py-4 text-center text-gray-600 font-medium">{item.students_count}</td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
                           <div 
                             className="h-full bg-green-500 rounded-full" 
-                            style={{ width: `${curator.avg_progress}%` }} 
+                            style={{ width: `${item.avg_progress}%` }} 
                           />
                         </div>
-                        <span className="text-xs font-bold text-gray-700">{curator.avg_progress}%</span>
+                        <span className="text-xs font-bold text-gray-700">{item.avg_progress}%</span>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex flex-col items-center justify-center gap-1">
-                        <Badge variant={curator.overdue_count > 5 ? "destructive" : "secondary"} className={curator.overdue_count === 0 ? "bg-green-50 text-green-700 border-green-100 hover:bg-green-50" : ""}>
-                          {curator.overdue_count}
+                        <Badge variant={item.overdue_count > 5 ? "destructive" : "secondary"} className={item.overdue_count === 0 ? "bg-green-50 text-green-700 border-green-100 hover:bg-green-50" : ""}>
+                          {item.overdue_count}
                         </Badge>
                         <span className="text-[10px] text-gray-500 font-medium">
-                          из {curator.total_due} ({curator.overdue_perc}%)
+                          из {item.total_due} ({item.overdue_perc}%)
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex flex-col items-center justify-center gap-1">
                         <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">
-                          {curator.pending_grading}
+                          {item.pending_grading}
                         </Badge>
                         <span className="text-[10px] text-gray-500 font-medium">
-                          из {curator.total_submissions} ({curator.pending_perc}%)
+                          из {item.total_submissions} ({item.pending_perc}%)
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => navigate(`/head-curator/curator/${curator.id}`)}>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                        onClick={() => {
+                          if (user?.role === 'head_curator') {
+                            navigate(`/head-curator/curator/${item.id}`);
+                          } else {
+                            // Link to Leaderboard for regular curators
+                            navigate(`/curator/leaderboard?groupId=${item.id}`);
+                          }
+                        }}
+                      >
                         Обзор <ChevronRight className="w-4 h-4 ml-1" />
                       </Button>
                     </td>
@@ -415,7 +445,7 @@ export default function HeadCuratorDashboard() {
                 ))}
                 {atRiskGroups.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-gray-400 italic bg-white">
+                    <td colSpan={3} className="px-6 py-10 text-center text-gray-400 italic bg-white">
                       Проблемных групп не обнаружено. Все задания под контролем! ✨
                     </td>
                   </tr>
