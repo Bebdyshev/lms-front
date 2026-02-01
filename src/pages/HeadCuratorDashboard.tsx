@@ -68,7 +68,9 @@ export default function HeadCuratorDashboard() {
 
   const loadGroups = async () => {
     try {
-      const res = await apiClient.getGroups();
+      const res = user?.role === 'curator' 
+        ? await apiClient.getCuratorGroups() 
+        : await apiClient.getGroups();
       setGroups(res);
     } catch (error) {
       console.error('Failed to load groups:', error);
@@ -87,7 +89,7 @@ export default function HeadCuratorDashboard() {
     }
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
@@ -114,10 +116,15 @@ export default function HeadCuratorDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Рады видеть вас, {user?.name}!</h1>
-          <p className="text-gray-500">
+          <p className="text-gray-500 flex items-center gap-2">
             {user?.role === 'head_curator' 
               ? "Обзор эффективности кураторов и активности студентов" 
               : "Обзор успеваемости ваших групп и активности студентов"}
+            {loading && (
+              <span className="inline-flex items-center text-xs text-blue-500 animate-pulse font-medium">
+                • Обновление данных...
+              </span>
+            )}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -160,14 +167,49 @@ export default function HeadCuratorDashboard() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
+            <PopoverContent className="w-auto p-0 flex flex-row" align="end">
+              <div className="flex flex-col border-r p-2 gap-1 min-w-[120px]">
+                <p className="text-[10px] font-semibold text-gray-400 px-2 py-1 uppercase tracking-wider">Периоды</p>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="justify-start font-normal text-xs"
+                  onClick={() => setDateRange({ from: subDays(new Date(), 7), to: new Date() })}
+                >
+                  7 дней
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="justify-start font-normal text-xs"
+                  onClick={() => setDateRange({ from: subDays(new Date(), 30), to: new Date() })}
+                >
+                  30 дней
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="justify-start font-normal text-xs"
+                  onClick={() => setDateRange({ from: subDays(new Date(), 90), to: new Date() })}
+                >
+                  90 дней
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="justify-start font-normal text-xs"
+                  onClick={() => setDateRange({ from: new Date(2024, 0, 1), to: new Date() })}
+                >
+                  Весь период
+                </Button>
+              </div>
               <Calendar
                 initialFocus
                 mode="range"
                 defaultMonth={dateRange?.from}
                 selected={dateRange}
                 onSelect={setDateRange}
-                numberOfMonths={2}
+                numberOfMonths={1}
               />
             </PopoverContent>
           </Popover>
