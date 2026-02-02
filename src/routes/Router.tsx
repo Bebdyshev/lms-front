@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { NextStepProvider } from 'nextstepjs';
 import { AuthProvider } from '../contexts/AuthContext.tsx';
 import { SettingsProvider } from '../contexts/SettingsContext';
+import { ThemeProvider } from '../components/ThemeProvider.tsx';
 import OnboardingManager from '../components/OnboardingManager.tsx';
 import ProtectedRoute from '../components/ProtectedRoute.tsx';
 import AppLayout from '../layouts/AppLayout.tsx';
@@ -55,14 +56,15 @@ export default function Router() {
   
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <SettingsProvider>
-          <NextStepProvider>
-            <OnboardingManager>
-              <Routes>
-                <Route path="/" element={
-                  <ProtectedRoute requireAuth={false}>
-                    <LandingPage />
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <AuthProvider>
+          <SettingsProvider>
+            <NextStepProvider>
+              <OnboardingManager>
+                <Routes>
+                  <Route path="/" element={
+                    <ProtectedRoute requireAuth={false}>
+                      <LandingPage />
                   </ProtectedRoute>
                 } />
                 {/* Auth Routes */}
@@ -468,6 +470,7 @@ export default function Router() {
           </NextStepProvider>
         </SettingsProvider>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 } 

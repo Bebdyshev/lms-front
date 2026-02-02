@@ -1,50 +1,52 @@
-import { useEffect, useState } from 'react';
+'use client';
 
-type ToastType = 'info' | 'success' | 'error';
+import { useTheme } from 'next-themes';
+import { Toaster as Sonner, toast as sonnerToast } from 'sonner';
 
-interface ToastEventDetail {
-  message: string;
-  type?: ToastType;
-}
+type ToasterProps = React.ComponentProps<typeof Sonner>;
 
-interface ToastItem {
-  id: number;
-  message: string;
-  type: ToastType;
-}
-
-export function toast(message: string, type: ToastType = 'info') {
-  window.dispatchEvent(new CustomEvent<ToastEventDetail>('app:toast', { detail: { message, type } }));
-}
-
-export default function ToastContainer() {
-  const [items, setItems] = useState<ToastItem[]>([]);
-
-  useEffect(() => {
-    function onToast(e: Event) {
-      const custom = e as CustomEvent<ToastEventDetail>;
-      const id = Date.now() + Math.random();
-      const item: ToastItem = { id, message: custom.detail.message, type: custom.detail.type || 'info' };
-      setItems(list => [...list, item]);
-      setTimeout(() => setItems(list => list.filter(x => x.id !== id)), 3000);
-    }
-    window.addEventListener('app:toast', onToast as EventListener);
-    return () => window.removeEventListener('app:toast', onToast as EventListener);
-  }, []);
-
-  const color = (type: ToastType) => ({
-    info: 'bg-gray-900 text-white',
-    success: 'bg-green-600 text-white',
-    error: 'bg-red-600 text-white',
-  }[type] || 'bg-gray-900 text-white');
+const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme = 'system' } = useTheme();
 
   return (
-    <div className="fixed bottom-6 right-6 space-y-2 z-50">
-      {items.map(t => (
-        <div key={t.id} className={`px-4 py-2 rounded-lg shadow-card ${color(t.type)}`}>{t.message}</div>
-      ))}
-    </div>
+    <Sonner
+      theme={theme as ToasterProps['theme']}
+      className="toaster group"
+      toastOptions={{
+        classNames: {
+          toast:
+            'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
+          description: 'group-[.toast]:text-muted-foreground',
+          actionButton:
+            'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
+          cancelButton:
+            'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground'
+        }
+      }}
+      {...props}
+    />
   );
+};
+
+// Export toast helper that matches the old API
+type ToastType = 'info' | 'success' | 'error';
+
+export function toast(message: string, type: ToastType = 'info') {
+  switch (type) {
+    case 'success':
+      sonnerToast.success(message);
+      break;
+    case 'error':
+      sonnerToast.error(message);
+      break;
+    case 'info':
+    default:
+      sonnerToast.info(message);
+      break;
+  }
 }
+
+export { Toaster };
+export default Toaster;
 
 

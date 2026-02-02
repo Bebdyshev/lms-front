@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SidebarDesktop, SidebarMobile } from '../components/Sidebar.tsx';
 import Topbar from '../components/Topbar.tsx';
-import ToastContainer from '../components/Toast.tsx';
+import { Toaster } from '../components/Toast.tsx';
 import PlatformUpdatesModal from '../components/PlatformUpdatesModal.tsx';
 import MaintenanceBanner from '../components/MaintenanceBanner.tsx';
 import { useAuth } from '../contexts/AuthContext.tsx';
@@ -30,7 +30,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <div className="p-4 sm:p-6 lg:p-8">
           {children}
         </div>
-        <ToastContainer />
+        <Toaster />
       </main>
       <SidebarMobile open={mobileOpen} onClose={() => setMobileOpen(false)} />
       
