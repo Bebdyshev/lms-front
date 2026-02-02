@@ -181,6 +181,8 @@ export default function AssignmentBuilderPage() {
           const endDate = new Date();
           endDate.setDate(endDate.getDate() + 21);
           
+          console.log(`Loading events for group ${groupId}, range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+          
           const eventsData = await apiClient.getMyEvents({ 
               group_id: groupId, 
               event_type: 'class',
@@ -189,6 +191,8 @@ export default function AssignmentBuilderPage() {
               end_date: endDate.toISOString().split('T')[0],
               limit: 100
           });
+          
+          console.log(`Events for group ${groupId}:`, eventsData);
           
           // Sort events: newest first
           const sortedEvents = eventsData.sort((a: any, b: any) => 
@@ -630,21 +634,6 @@ export default function AssignmentBuilderPage() {
                   />
                 </div>
 
-                {/* Global Due Date */}
-                <div>
-                  <Label htmlFor="global-due-date">
-                    Due Date (Optional)
-                  </Label>
-                  <DateTimePicker
-                    date={formData.due_date ? new Date(formData.due_date) : undefined}
-                    setDate={(date) => handleInputChange('due_date', date ? date.toISOString() : '')}
-                    placeholder="Set a deadline for all groups..."
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    This will apply to all selected groups. You can override per group below.
-                  </p>
-                </div>
-
                 {/* Late Penalty Settings */}
                 <div className="pt-4 border-t space-y-4">
                   <div className="flex items-center space-x-2">
@@ -689,7 +678,7 @@ export default function AssignmentBuilderPage() {
                               const groupDueDate = formData.due_date_mapping?.[groupId];
 
                               return (
-                                  <div key={groupId} className="p-3 border rounded-lg bg-white shadow-sm space-y-4">
+                                  <div key={groupId} className="p-3 border rounded-lg bg-white space-y-4">
                                       <div className="flex items-center justify-between">
                                           <span className="text-xs font-bold text-gray-900" title={group?.name}>
                                             {group?.name}
