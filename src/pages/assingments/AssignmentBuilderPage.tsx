@@ -237,13 +237,33 @@ export default function AssignmentBuilderPage() {
 
 
   const handleEventMappingChange = (groupId: number, eventId: number) => {
-      setFormData(prev => ({
-          ...prev,
-          event_mapping: {
-              ...prev.event_mapping,
-              [groupId]: eventId
+      // Find the selected event to get its datetime
+      const selectedEvent = eventsByGroup[groupId]?.find(e => e.id === eventId);
+      
+      setFormData(prev => {
+          const updates: any = {
+              event_mapping: {
+                  ...prev.event_mapping,
+                  [groupId]: eventId
+              }
+          };
+          
+          // Auto-populate due_date_mapping when an event is selected
+          if (selectedEvent && selectedEvent.start_datetime) {
+              const eventDateTime = new Date(selectedEvent.start_datetime).toISOString();
+              updates.due_date_mapping = {
+                  ...prev.due_date_mapping,
+                  [groupId]: eventDateTime
+              };
+              
+              // Also update the global due_date if it's not set
+              if (!prev.due_date) {
+                  updates.due_date = eventDateTime;
+              }
           }
-      }));
+          
+          return { ...prev, ...updates };
+      });
   };
 
   const handleContentChange = (content: any) => {
@@ -608,6 +628,21 @@ export default function AssignmentBuilderPage() {
                     max="1000"
                     required
                   />
+                </div>
+
+                {/* Global Due Date */}
+                <div>
+                  <Label htmlFor="global-due-date">
+                    Due Date (Optional)
+                  </Label>
+                  <DateTimePicker
+                    date={formData.due_date ? new Date(formData.due_date) : undefined}
+                    setDate={(date) => handleInputChange('due_date', date ? date.toISOString() : '')}
+                    placeholder="Set a deadline for all groups..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This will apply to all selected groups. You can override per group below.
+                  </p>
                 </div>
 
                 {/* Late Penalty Settings */}
