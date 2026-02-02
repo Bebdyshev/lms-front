@@ -179,7 +179,7 @@ const calculateCurrentWeekNumber = (createdAtStr: string) => {
 
 export default function CuratorLeaderboardPage() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentWeek, setCurrentWeek] = useState(1);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -216,13 +216,17 @@ export default function CuratorLeaderboardPage() {
             
             // Check for groupId in URL query params
             const groupIdParam = searchParams.get('groupId');
+            const weekParam = searchParams.get('week');
             
             if (groupIdParam && myGroups.length > 0) {
                 const targetGroupId = parseInt(groupIdParam, 10);
                 const targetGroup = myGroups.find(g => g.id === targetGroupId);
                 if (targetGroup) {
                     setSelectedGroupId(targetGroup.id);
-                    if (targetGroup.current_week) {
+                    
+                    if (weekParam) {
+                        setCurrentWeek(parseInt(weekParam, 10));
+                    } else if (targetGroup.current_week) {
                         setCurrentWeek(targetGroup.current_week);
                     } else {
                         setCurrentWeek(calculateCurrentWeekNumber(targetGroup.created_at));
@@ -235,7 +239,10 @@ export default function CuratorLeaderboardPage() {
             if (myGroups.length > 0) {
                 const firstGroup = myGroups[0];
                 setSelectedGroupId(firstGroup.id);
-                if (firstGroup.current_week) {
+                
+                if (weekParam) {
+                    setCurrentWeek(parseInt(weekParam, 10));
+                } else if (firstGroup.current_week) {
                     setCurrentWeek(firstGroup.current_week);
                 } else {
                     setCurrentWeek(calculateCurrentWeekNumber(firstGroup.created_at));
@@ -246,10 +253,17 @@ export default function CuratorLeaderboardPage() {
         }
     };
     loadGroups();
-  }, [user, searchParams]);
+  }, [user]); // Removed searchParams to prevent re-triggering on URL update
 
   useEffect(() => {
     if (selectedGroupId) {
+        // Update URL
+        setSearchParams(params => {
+            params.set('groupId', selectedGroupId.toString());
+            params.set('week', currentWeek.toString());
+            return params;
+        }, { replace: true });
+        
         loadLeaderboard();
     }
   }, [selectedGroupId, currentWeek]);
