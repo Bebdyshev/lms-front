@@ -136,7 +136,7 @@ export default function AssignmentBuilderPage() {
         group_id: assignment.group_id,
         group_ids: assignment.group_id ? [assignment.group_id] : [],
         event_mapping: assignment.event_id && assignment.group_id ? { [assignment.group_id]: assignment.event_id } : {},
-        due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: assignment.due_date } : {},
+        due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: new Date(assignment.due_date).toISOString() } : {},
         late_penalty_enabled: assignment.late_penalty_enabled || false,
         late_penalty_multiplier: assignment.late_penalty_multiplier || 0.6
       });
