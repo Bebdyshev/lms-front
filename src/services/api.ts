@@ -2984,6 +2984,27 @@ class LMSApiClient {
       }
   }
 
+  // Get group scheduled lessons for linking assignments
+  async getGroupSchedules(groupId: number, weeksBack: number = 1, weeksAhead: number = 8): Promise<{
+    id: number;           // Virtual ID (2000000000 + schedule_id) for display
+    schedule_id: number;  // Real schedule_id for backend use
+    title: string;
+    scheduled_at: string;
+    group_id: number;
+    lesson_number: number;
+    is_past: boolean;     // Whether the lesson has already happened
+  }[]> {
+    try {
+      const response = await this.api.get(`/leaderboard/group-schedules/${groupId}`, {
+        params: { weeks_back: weeksBack, weeks_ahead: weeksAhead }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to load group scheduled lessons:', error);
+      throw error;
+    }
+  }
+
   async bulkScheduleUpload(text: string): Promise<any> {
       try {
           const response = await this.api.post('/admin/groups/bulk-schedule-upload', { text });

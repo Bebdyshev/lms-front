@@ -38,7 +38,7 @@ interface AssignmentFormData {
   max_file_size_mb?: number;
   group_id?: number;
   group_ids?: number[];
-  event_mapping?: Record<number, number>; // group_id -> event_id
+  event_mapping?: Record<number, number>; // group_id -> event_id (class event)
   due_date_mapping?: Record<number, string>; // group_id -> ISO due date
   late_penalty_enabled?: boolean;
   late_penalty_multiplier?: number;
@@ -135,7 +135,10 @@ export default function AssignmentBuilderPage() {
         max_file_size_mb: assignment.max_file_size_mb || 10,
         group_id: assignment.group_id,
         group_ids: assignment.group_id ? [assignment.group_id] : [],
-        event_mapping: assignment.event_id && assignment.group_id ? { [assignment.group_id]: assignment.event_id } : {},
+        // Convert schedule_id to virtual event ID (2000000000 + schedule_id) for UI
+        event_mapping: assignment.schedule_id && assignment.group_id 
+          ? { [assignment.group_id]: 2000000000 + assignment.schedule_id } 
+          : {},
         due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: new Date(assignment.due_date).toISOString() } : {},
         late_penalty_enabled: assignment.late_penalty_enabled || false,
         late_penalty_multiplier: assignment.late_penalty_multiplier || 0.6
@@ -174,32 +177,13 @@ export default function AssignmentBuilderPage() {
       if (eventsByGroup[groupId]) return; // Already loaded
 
       try {
-          // Calculate date range: 3 weeks ago to 3 weeks ahead
-          const startDate = new Date();
-          startDate.setDate(startDate.getDate() - 21);
+          console.log(`Loading class events for group ${groupId}`);
           
-          const endDate = new Date();
-          endDate.setDate(endDate.getDate() + 21);
+          const eventsData = await apiClient.getGroupSchedules(groupId, 4, 4);
           
-          console.log(`Loading events for group ${groupId}, range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+          console.log(`Class events for group ${groupId}:`, eventsData);
           
-          const eventsData = await apiClient.getMyEvents({ 
-              group_id: groupId, 
-              event_type: 'class',
-              upcoming_only: false,
-              start_date: startDate.toISOString().split('T')[0],
-              end_date: endDate.toISOString().split('T')[0],
-              limit: 100
-          });
-          
-          console.log(`Events for group ${groupId}:`, eventsData);
-          
-          // Sort events: newest first
-          const sortedEvents = eventsData.sort((a: any, b: any) => 
-            new Date(b.start_datetime).getTime() - new Date(a.start_datetime).getTime()
-          );
-          
-          setEventsByGroup(prev => ({ ...prev, [groupId]: sortedEvents }));
+          setEventsByGroup(prev => ({ ...prev, [groupId]: eventsData }));
       } catch (error) {
           console.error(`Failed to load events for group ${groupId}:`, error);
       }
@@ -240,21 +224,22 @@ export default function AssignmentBuilderPage() {
   };
 
 
-  const handleEventMappingChange = (groupId: number, eventId: number) => {
-      // Find the selected event to get its datetime
-      const selectedEvent = eventsByGroup[groupId]?.find(e => e.id === eventId);
+  const handleEventMappingChange = (groupId: number, virtualEventId: number) => {
+      // Find the selected event to get its datetime and schedule_id
+      const selectedEvent = eventsByGroup[groupId]?.find((e: any) => e.id === virtualEventId);
       
       setFormData(prev => {
           const updates: any = {
               event_mapping: {
                   ...prev.event_mapping,
-                  [groupId]: eventId
+                  // Store virtual ID for UI, we'll convert to schedule_id on submit
+                  [groupId]: virtualEventId
               }
           };
           
           // Auto-populate due_date_mapping when an event is selected
-          if (selectedEvent && selectedEvent.start_datetime) {
-              const eventDateTime = new Date(selectedEvent.start_datetime).toISOString();
+          if (selectedEvent && selectedEvent.scheduled_at) {
+              const eventDateTime = new Date(selectedEvent.scheduled_at).toISOString();
               updates.due_date_mapping = {
                   ...prev.due_date_mapping,
                   [groupId]: eventDateTime
@@ -402,6 +387,19 @@ export default function AssignmentBuilderPage() {
       }
 
       // Create assignment data
+      // Convert virtual event IDs to schedule_ids for backend
+      const schedule_mapping: Record<number, number> = {};
+      if (formData.event_mapping) {
+        Object.entries(formData.event_mapping).forEach(([groupIdStr, virtualEventId]) => {
+          const groupId = parseInt(groupIdStr);
+          const groupEvents = eventsByGroup[groupId] || [];
+          const event = groupEvents.find((e: any) => e.id === virtualEventId);
+          if (event && event.schedule_id) {
+            schedule_mapping[groupId] = event.schedule_id;
+          }
+        });
+      }
+
       const assignmentData = {
         title: formData.title,
         description: formData.description,
@@ -415,7 +413,7 @@ export default function AssignmentBuilderPage() {
         max_file_size_mb: formData.max_file_size_mb || 10,
         group_id: formData.group_ids && formData.group_ids.length > 0 ? formData.group_ids[0] : undefined, // Legacy support
         group_ids: formData.group_ids,
-        event_mapping: formData.event_mapping,
+        schedule_mapping: schedule_mapping, // Real schedule_ids for backend
         due_date_mapping: Object.keys(formData.due_date_mapping || {}).reduce((acc, gid) => {
             const date = formData.due_date_mapping?.[parseInt(gid)];
             if (date) acc[parseInt(gid)] = date;
@@ -666,10 +664,10 @@ export default function AssignmentBuilderPage() {
                   )}
                 </div>
 
-                {/* Lesson Linking Section */}
+                {/* Class Event Linking Section */}
                 {(formData.group_ids || []).length > 0 && (
                     <div className="pt-4 border-t space-y-4">
-                      <Label className="text-sm font-semibold">Link to Lesson</Label>
+                      <Label className="text-sm font-semibold">Link to Class</Label>
                       <div className="space-y-3">
                           {(formData.group_ids || []).map(groupId => {
                               const group = groups.find(g => g.id === groupId);
@@ -685,7 +683,7 @@ export default function AssignmentBuilderPage() {
                                           </span>
                                       </div>
                                       <div className="space-y-4">
-                                          {/* Option 1: Schedule */}
+                                          {/* Class Event Selection */}
                                           <div className="space-y-1.5">
                                             <Select
                                                 value={selectedEventId ? selectedEventId.toString() : ""}
@@ -694,21 +692,26 @@ export default function AssignmentBuilderPage() {
                                                 }}
                                             >
                                               <SelectTrigger className="w-full bg-gray-50 border-gray-200 h-9 text-xs">
-                                                <SelectValue placeholder="Pick a lesson from schedule..." />
+                                                <SelectValue placeholder="Pick a class..." />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                {groupEvents.map(event => (
-                                                    <SelectItem key={event.id} value={event.id.toString()}>
-                                                        {new Date(event.start_datetime).toLocaleDateString('en-US', { 
-                                                            weekday: 'long', 
-                                                            month: 'long', 
+                                                {groupEvents
+                                                  .filter((event: any) => !event.is_past && new Date(event.scheduled_at) >= new Date())
+                                                  .map((event: any) => (
+                                                    <SelectItem 
+                                                      key={event.id} 
+                                                      value={event.id.toString()}
+                                                    >
+                                                        {event.title} - {new Date(event.scheduled_at).toLocaleDateString('en-US', { 
+                                                            weekday: 'short', 
+                                                            month: 'short', 
                                                             day: 'numeric', 
                                                             hour: '2-digit', 
                                                             minute: '2-digit',
                                                             hour12: false
                                                         })}
                                                     </SelectItem>
-                                                ))}
+                                                  ))}
                                               </SelectContent>
                                             </Select>
                                             
