@@ -418,7 +418,13 @@ export default function CuratorLeaderboardPage() {
 
     try {
         // 1. Save Column Visibility Config
-        await updateLeaderboardConfig({
+        console.log('Saving leaderboard config:', {
+            group_id: selectedGroupId,
+            week_number: currentWeek,
+            ...enabledCols
+        });
+        
+        const savedConfig = await updateLeaderboardConfig({
             group_id: selectedGroupId,
             week_number: currentWeek,
             curator_hour_enabled: enabledCols.curator_hour,
@@ -428,23 +434,42 @@ export default function CuratorLeaderboardPage() {
             extra_points_enabled: enabledCols.extra_points
         });
         
+        console.log('Config saved successfully:', savedConfig);
+        
         // 2. Save Student Scores
         const entriesToSave = data.students.filter(s => changedEntries.has(s.student_id));
         
         for (const student of entriesToSave) {
             try {
                 // Update Manual Fields (LeaderboardEntry)
-                await updateLeaderboardEntry({
+                // Only send fields that have actual values (not null/undefined)
+                const entryData: any = {
                     user_id: student.student_id,
                     group_id: selectedGroupId,
-                    week_number: currentWeek,
-                    curator_hour: student.curator_hour,
-                    mock_exam: student.mock_exam,
-                    study_buddy: student.study_buddy,
-                    self_reflection_journal: student.self_reflection_journal,
-                    weekly_evaluation: student.weekly_evaluation,
-                    extra_points: student.extra_points
-                });
+                    week_number: currentWeek
+                };
+                
+                // Add optional fields only if they have values
+                if (student.curator_hour !== null && student.curator_hour !== undefined) {
+                    entryData.curator_hour = student.curator_hour;
+                }
+                if (student.mock_exam !== null && student.mock_exam !== undefined) {
+                    entryData.mock_exam = student.mock_exam;
+                }
+                if (student.study_buddy !== null && student.study_buddy !== undefined) {
+                    entryData.study_buddy = student.study_buddy;
+                }
+                if (student.self_reflection_journal !== null && student.self_reflection_journal !== undefined) {
+                    entryData.self_reflection_journal = student.self_reflection_journal;
+                }
+                if (student.weekly_evaluation !== null && student.weekly_evaluation !== undefined) {
+                    entryData.weekly_evaluation = student.weekly_evaluation;
+                }
+                if (student.extra_points !== null && student.extra_points !== undefined) {
+                    entryData.extra_points = student.extra_points;
+                }
+                
+                await updateLeaderboardEntry(entryData);
                 
                 // Update Attendance (Events)
                 for (const [lessonKey, lessonStatus] of Object.entries(student.lessons)) {
@@ -471,6 +496,24 @@ export default function CuratorLeaderboardPage() {
             toast("All changes saved successfully", "success");
             setChangedEntries(new Set());
             setConfigChanged(false);
+            
+            // Reload config from server to ensure it's persisted
+            try {
+                const result = await getWeeklyLessonsWithHwStatus(selectedGroupId, currentWeek);
+                if (result.config) {
+                    console.log('Reloaded config from server:', result.config);
+                    setEnabledCols({
+                        curator_hour: result.config.curator_hour_enabled,
+                        study_buddy: result.config.study_buddy_enabled,
+                        self_reflection_journal: result.config.self_reflection_journal_enabled,
+                        weekly_evaluation: result.config.weekly_evaluation_enabled,
+                        extra_points: result.config.extra_points_enabled,
+                        curator_hour_date: result.config.curator_hour_date
+                    });
+                }
+            } catch (reloadErr) {
+                console.error('Failed to reload config:', reloadErr);
+            }
         } else {
             toast(`Saved ${successCount}/${entriesToSave.length} entries. Please try again.`, "error");
         }
