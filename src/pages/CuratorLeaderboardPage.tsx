@@ -277,14 +277,14 @@ export default function CuratorLeaderboardPage() {
         const result = await getWeeklyLessonsWithHwStatus(selectedGroupId, currentWeek);
         setData(result);
         
-        // Load persistent config
+        // Load persistent config - use exact values from server, fallback to false if null/undefined
         if (result.config) {
             setEnabledCols({
-                curator_hour: result.config.curator_hour_enabled,
-                study_buddy: result.config.study_buddy_enabled,
-                self_reflection_journal: result.config.self_reflection_journal_enabled,
-                weekly_evaluation: result.config.weekly_evaluation_enabled,
-                extra_points: result.config.extra_points_enabled,
+                curator_hour: result.config.curator_hour_enabled === true,
+                study_buddy: result.config.study_buddy_enabled === true,
+                self_reflection_journal: result.config.self_reflection_journal_enabled === true,
+                weekly_evaluation: result.config.weekly_evaluation_enabled === true,
+                extra_points: result.config.extra_points_enabled === true,
                 curator_hour_date: result.config.curator_hour_date
             });
         }
@@ -421,23 +421,28 @@ export default function CuratorLeaderboardPage() {
         console.log('Saving leaderboard config:', {
             group_id: selectedGroupId,
             week_number: currentWeek,
-            ...enabledCols
+            curator_hour_enabled: enabledCols.curator_hour === true,
+            study_buddy_enabled: enabledCols.study_buddy === true,
+            self_reflection_journal_enabled: enabledCols.self_reflection_journal === true,
+            weekly_evaluation_enabled: enabledCols.weekly_evaluation === true,
+            extra_points_enabled: enabledCols.extra_points === true
         });
         
         const savedConfig = await updateLeaderboardConfig({
             group_id: selectedGroupId,
             week_number: currentWeek,
-            curator_hour_enabled: enabledCols.curator_hour,
-            study_buddy_enabled: enabledCols.study_buddy,
-            self_reflection_journal_enabled: enabledCols.self_reflection_journal,
-            weekly_evaluation_enabled: enabledCols.weekly_evaluation,
-            extra_points_enabled: enabledCols.extra_points
+            curator_hour_enabled: enabledCols.curator_hour === true,
+            study_buddy_enabled: enabledCols.study_buddy === true,
+            self_reflection_journal_enabled: enabledCols.self_reflection_journal === true,
+            weekly_evaluation_enabled: enabledCols.weekly_evaluation === true,
+            extra_points_enabled: enabledCols.extra_points === true
         });
         
         console.log('Config saved successfully:', savedConfig);
         
         // 2. Save Student Scores
         const entriesToSave = data.students.filter(s => changedEntries.has(s.student_id));
+        console.log('Entries to save:', entriesToSave.length, 'Changed entries:', Array.from(changedEntries));
         
         for (const student of entriesToSave) {
             try {
@@ -469,21 +474,27 @@ export default function CuratorLeaderboardPage() {
                     entryData.extra_points = student.extra_points;
                 }
                 
+                console.log('Saving entry for student:', student.student_id, entryData);
                 await updateLeaderboardEntry(entryData);
+                console.log('Entry saved successfully for student:', student.student_id);
                 
-                // Update Attendance (Events)
+                // Update Attendance (Events) - wrapped in separate try/catch to not block entry save
                 for (const [lessonKey, lessonStatus] of Object.entries(student.lessons)) {
-                    const score = lessonStatus.attendance_status === 'attended' ? 10 : 0;
-                    
-                    await updateAttendance({
-                        group_id: selectedGroupId,
-                        week_number: currentWeek,
-                        lesson_index: parseInt(lessonKey),
-                        student_id: student.student_id,
-                        score: score,
-                        status: lessonStatus.attendance_status,
-                        event_id: lessonStatus.event_id
-                    });
+                    try {
+                        const score = lessonStatus.attendance_status === 'attended' ? 10 : 0;
+                        
+                        await updateAttendance({
+                            group_id: selectedGroupId,
+                            week_number: currentWeek,
+                            lesson_index: parseInt(lessonKey),
+                            student_id: student.student_id,
+                            score: score,
+                            status: lessonStatus.attendance_status,
+                            event_id: lessonStatus.event_id
+                        });
+                    } catch (attendanceError) {
+                        console.error(`Failed to update attendance for student ${student.student_id}, lesson ${lessonKey}:`, attendanceError);
+                    }
                 }
 
                 successCount++;
@@ -503,11 +514,11 @@ export default function CuratorLeaderboardPage() {
                 if (result.config) {
                     console.log('Reloaded config from server:', result.config);
                     setEnabledCols({
-                        curator_hour: result.config.curator_hour_enabled,
-                        study_buddy: result.config.study_buddy_enabled,
-                        self_reflection_journal: result.config.self_reflection_journal_enabled,
-                        weekly_evaluation: result.config.weekly_evaluation_enabled,
-                        extra_points: result.config.extra_points_enabled,
+                        curator_hour: result.config.curator_hour_enabled === true,
+                        study_buddy: result.config.study_buddy_enabled === true,
+                        self_reflection_journal: result.config.self_reflection_journal_enabled === true,
+                        weekly_evaluation: result.config.weekly_evaluation_enabled === true,
+                        extra_points: result.config.extra_points_enabled === true,
                         curator_hour_date: result.config.curator_hour_date
                     });
                 }
