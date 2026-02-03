@@ -135,9 +135,9 @@ export default function AssignmentBuilderPage() {
         max_file_size_mb: assignment.max_file_size_mb || 10,
         group_id: assignment.group_id,
         group_ids: assignment.group_id ? [assignment.group_id] : [],
-        // Convert schedule_id to virtual event ID (2000000000 + schedule_id) for UI
-        event_mapping: assignment.schedule_id && assignment.group_id 
-          ? { [assignment.group_id]: 2000000000 + assignment.schedule_id } 
+        // Use event_id directly if available
+        event_mapping: assignment.event_id && assignment.group_id 
+          ? { [assignment.group_id]: assignment.event_id } 
           : {},
         due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: new Date(assignment.due_date).toISOString() } : {},
         late_penalty_enabled: assignment.late_penalty_enabled || false,
@@ -387,15 +387,13 @@ export default function AssignmentBuilderPage() {
       }
 
       // Create assignment data
-      // Convert virtual event IDs to schedule_ids for backend
-      const schedule_mapping: Record<number, number> = {};
+      // Use event_mapping directly - event IDs are now real Event IDs
+      const event_mapping_final: Record<number, number> = {};
       if (formData.event_mapping) {
-        Object.entries(formData.event_mapping).forEach(([groupIdStr, virtualEventId]) => {
+        Object.entries(formData.event_mapping).forEach(([groupIdStr, eventId]) => {
           const groupId = parseInt(groupIdStr);
-          const groupEvents = eventsByGroup[groupId] || [];
-          const event = groupEvents.find((e: any) => e.id === virtualEventId);
-          if (event && event.schedule_id) {
-            schedule_mapping[groupId] = event.schedule_id;
+          if (eventId) {
+            event_mapping_final[groupId] = eventId;
           }
         });
       }
@@ -413,7 +411,7 @@ export default function AssignmentBuilderPage() {
         max_file_size_mb: formData.max_file_size_mb || 10,
         group_id: formData.group_ids && formData.group_ids.length > 0 ? formData.group_ids[0] : undefined, // Legacy support
         group_ids: formData.group_ids,
-        schedule_mapping: schedule_mapping, // Real schedule_ids for backend
+        event_mapping: event_mapping_final, // Real event_ids for backend
         due_date_mapping: Object.keys(formData.due_date_mapping || {}).reduce((acc, gid) => {
             const date = formData.due_date_mapping?.[parseInt(gid)];
             if (date) acc[parseInt(gid)] = date;
