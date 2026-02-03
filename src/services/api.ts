@@ -2986,21 +2986,31 @@ class LMSApiClient {
 
   // Get group scheduled lessons for linking assignments
   async getGroupSchedules(groupId: number, weeksBack: number = 1, weeksAhead: number = 8): Promise<{
-    id: number;           // Virtual ID (2000000000 + schedule_id) for display
-    schedule_id: number;  // Real schedule_id for backend use
+    id: number;
     title: string;
-    scheduled_at: string;
-    group_id: number;
-    lesson_number: number;
-    is_past: boolean;     // Whether the lesson has already happened
+    start_datetime: string;
+    end_datetime: string;
+    event_type: string;
+    is_past?: boolean;
   }[]> {
     try {
-      const response = await this.api.get(`/leaderboard/group-schedules/${groupId}`, {
+      const response = await this.api.get(`/events/group/${groupId}/classes`, {
         params: { weeks_back: weeksBack, weeks_ahead: weeksAhead }
       });
-      return response.data;
+      
+      // Transform to match expected format
+      const now = new Date();
+      return response.data.map((event: any) => ({
+        id: event.id,
+        title: event.title,
+        start_datetime: event.start_datetime,
+        end_datetime: event.end_datetime,
+        event_type: event.event_type,
+        scheduled_at: event.start_datetime, // Alias for backwards compatibility
+        is_past: new Date(event.start_datetime) < now
+      }));
     } catch (error) {
-      console.error('Failed to load group scheduled lessons:', error);
+      console.error('Failed to load group class events:', error);
       throw error;
     }
   }
