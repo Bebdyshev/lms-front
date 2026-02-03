@@ -180,9 +180,12 @@ export default function Calendar() {
   };
 
   const formatTime = (dateTimeString: string) => {
-    return new Date(dateTimeString).toLocaleTimeString('en-US', {
+    // Backend stores in UTC, convert to Kazakhstan time (GMT+5)
+    const utcDate = new Date(dateTimeString);
+    return utcDate.toLocaleTimeString('en-US', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Asia/Almaty' // Kazakhstan timezone (GMT+5)
     });
   };
 

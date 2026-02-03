@@ -541,12 +541,13 @@ export default function CuratorLeaderboardPage() {
 
 
   const formatDateParts = (dateStr: string) => {
+      // Backend stores in UTC, convert to Kazakhstan time (GMT+5)
       const dt = new Date(dateStr);
       // Date: 03 фев
-      const date = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '');
+      const date = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', timeZone: 'Asia/Almaty' }).replace('.', '');
       // DayTime: Пн 19:00
-      const day = dt.toLocaleDateString('ru-RU', { weekday: 'short' }); // Пн, Вт
-      const time = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const day = dt.toLocaleDateString('ru-RU', { weekday: 'short', timeZone: 'Asia/Almaty' }); // Пн, Вт
+      const time = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Almaty' });
       // Capitalize day and month if needed
       const dayCap = day.charAt(0).toUpperCase() + day.slice(1);
       

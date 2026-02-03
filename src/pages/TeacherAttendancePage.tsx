@@ -203,13 +203,15 @@ export default function TeacherAttendancePage() {
     ) || [], [data, searchTerm]);
 
   const formatDate = (dateStr: string) => {
+      // Backend stores in UTC, convert to Kazakhstan time (GMT+5)
       const dt = new Date(dateStr);
-      return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+      return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Almaty' });
   };
 
   const formatDay = (dateStr: string) => {
+      // Backend stores in UTC, convert to Kazakhstan time (GMT+5)
       const dt = new Date(dateStr);
-      return dt.toLocaleDateString('ru-RU', { weekday: 'short' });
+      return dt.toLocaleDateString('ru-RU', { weekday: 'short', timeZone: 'Asia/Almaty' });
   };
 
   const isFutureLesson = (dateStr: string) => {

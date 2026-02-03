@@ -455,14 +455,14 @@ export default function AssignmentsPage() {
                                 <div className={`flex items-center ${isOverdue(assignment.due_date) && assignment.status === 'not_submitted' ? 'text-red-600' : ''}`}>
                                   <Calendar className={`w-4 h-4 mr-1 ${isOverdue(assignment.due_date) && assignment.status === 'not_submitted' ? 'text-red-400' : 'text-gray-400'}`} />
                                   <span className="font-medium">
-                                    {new Date(assignment.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                                    {new Date(assignment.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Almaty' })}
                                   </span>
                                 </div>
                               ) : assignment.event_start_datetime ? (
                                 <div className="flex items-center">
                                   <Calendar className="w-4 h-4 mr-1" />
                                   <span className="font-medium ">
-                                  {new Date(assignment.event_start_datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  {new Date(assignment.event_start_datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Almaty' })}
                                   </span>
                                 </div>
                               ) : (
