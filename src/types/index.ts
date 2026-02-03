@@ -280,6 +280,8 @@ export interface CreateGroupRequest {
   name: string;
   description?: string;
   teacher_id: number;
+  curator_id?: number;
+  course_id?: number; // Курс, к которому привязана группа
   is_active?: boolean;
 }
 

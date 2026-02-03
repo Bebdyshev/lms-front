@@ -50,6 +50,7 @@ interface GroupFormData {
   description?: string;
   teacher_id: number;
   curator_id?: number;
+  course_id?: number; // Курс, к которому привязана группа
   student_ids: number[];
   is_active: boolean;
 }
@@ -601,6 +602,7 @@ export default function UserManagement() {
         description: groupFormData.description?.trim() || undefined,
         teacher_id: groupFormData.teacher_id,
         curator_id: groupFormData.curator_id || undefined,
+        course_id: groupFormData.course_id || undefined,
         is_active: groupFormData.is_active
       };
       
@@ -707,6 +709,7 @@ export default function UserManagement() {
       description: '',
       teacher_id: 0,
       curator_id: undefined,
+      course_id: undefined,
       student_ids: [],
       is_active: true
     });
@@ -1446,6 +1449,7 @@ export default function UserManagement() {
           teachers={teachers}
           curators={curators}
           students={students}
+          courses={courses}
           errors={groupFormErrors}
         />
       </Modal>
@@ -1467,6 +1471,7 @@ export default function UserManagement() {
           teachers={teachers}
           curators={curators}
           students={students}
+          courses={courses}
           errors={editGroupFormErrors}
         />
       </Modal>
@@ -1797,10 +1802,11 @@ interface GroupFormProps {
   teachers: User[];
   curators: User[];
   students: User[];
+  courses: Course[]; // Добавляем список курсов
   errors?: { [key: string]: string };
 }
 
-function GroupForm({ formData, setFormData, teachers, curators, students, errors = {} }: GroupFormProps) {
+function GroupForm({ formData, setFormData, teachers, curators, students, courses, errors = {} }: GroupFormProps) {
   // Функция для генерации названия группы
   const generateGroupName = (teacherName: string, description?: string) => {
     const firstName = teacherName.split(" ")[0]; // Берем только первое имя
@@ -1865,6 +1871,30 @@ function GroupForm({ formData, setFormData, teachers, curators, students, errors
             </SelectContent>
           </Select>
         </div>
+      </div>
+      
+      {/* Выбор курса */}
+      <div className="p-1">
+        <Label htmlFor="course" className="text-sm font-medium">Course (Optional)</Label>
+        <Select
+          value={formData.course_id?.toString() || 'none'}
+          onValueChange={(value) => setFormData({ ...formData, course_id: value && value !== 'none' ? parseInt(value) : undefined })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="No course" />
+          </SelectTrigger>
+          <SelectContent className="z-[1100]">
+            <SelectItem value="none">No course</SelectItem>
+            {courses.map((course) => (
+              <SelectItem key={course.id} value={course.id.toString()}>
+                {course.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-gray-500 mt-1">
+          Select a course to automatically grant this group access
+        </p>
       </div>
       
       {/* Затем название группы с автогенерацией */}
