@@ -651,6 +651,7 @@ export default function UserManagement() {
         description: editGroupFormData.description?.trim() || undefined,
         teacher_id: editGroupFormData.teacher_id,
         curator_id: editGroupFormData.curator_id || undefined,
+        course_id: editGroupFormData.course_id || undefined,
         is_active: editGroupFormData.is_active
       };
       
