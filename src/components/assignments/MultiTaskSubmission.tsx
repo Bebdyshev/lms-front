@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, FileText, MessageSquare, Link as LinkIcon, CheckCircle, ExternalLink, Upload, X, FileSearch } from 'lucide-react';
+import { BookOpen, FileText, MessageSquare, Link as LinkIcon, CheckCircle, ExternalLink, Upload, X, FileSearch, Star } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Label } from '../ui/label';
@@ -17,6 +17,7 @@ interface Task {
   order_index: number;
   points: number;
   content: any;
+  is_optional?: boolean; // Optional/bonus tasks give extra points
 }
 
 interface MultiTaskSubmissionProps {
@@ -610,25 +611,45 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
         </Card>
       )}
 
+      {/* Points Summary */}
+      {tasks.some(t => t.is_optional) && (
+        <div className="flex items-center gap-4 text-sm px-1">
+          <span className="text-gray-600">
+            Required: <span className="font-semibold">{tasks.filter(t => !t.is_optional).reduce((sum, t) => sum + t.points, 0)}</span> pts
+          </span>
+          <span className="text-amber-600">
+            Bonus: <span className="font-semibold">+{tasks.filter(t => t.is_optional).reduce((sum, t) => sum + t.points, 0)}</span> pts
+          </span>
+        </div>
+      )}
+
       <div className="space-y-4">
         {tasks.map((task, index) => {
           const Icon = getTaskIcon(task.task_type);
           const isCompleted = answers[task.id]?.completed || (answers[task.id]?.files?.length > 0) || !!answers[task.id]?.file_url || !!answers[task.id]?.text_response;
           
           return (
-            <Card key={task.id} className={isCompleted ? "border-green-200 bg-green-50/30" : ""}>
+            <Card key={task.id} className={`${isCompleted ? "border-green-200 bg-green-50/30" : ""} ${task.is_optional ? "border-amber-200" : ""}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-full ${isCompleted ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
+                    <div className={`p-2 rounded-full ${isCompleted ? 'bg-green-100 text-green-600' : task.is_optional ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-600'}`}>
                       <Icon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-medium text-gray-900">{task.title}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-gray-900">{task.title}</h4>
+                        {task.is_optional && (
+                          <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            Bonus
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center space-x-2 text-xs text-gray-500">
                         <span>Task {index + 1}</span>
                         <span>•</span>
-                        <span>{task.points} points</span>
+                        <span>{task.is_optional ? `+${task.points} bonus points` : `${task.points} points`}</span>
                       </div>
                     </div>
                   </div>
@@ -646,25 +667,42 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
       </div>
 
       {!readOnly && (() => {
-        // Check if all tasks are completed
-        const completedCount = tasks.filter(task => {
+        // Check if all required (non-optional) tasks are completed
+        const requiredTasks = tasks.filter(task => !task.is_optional);
+        const optionalTasks = tasks.filter(task => task.is_optional);
+        
+        const completedRequiredCount = requiredTasks.filter(task => {
           const taskAnswer = answers[task.id];
           return taskAnswer?.completed || (taskAnswer?.files?.length > 0) || !!taskAnswer?.file_url || !!taskAnswer?.text_response;
         }).length;
-        const allTasksCompleted = completedCount === tasks.length && tasks.length > 0;
+        
+        const completedOptionalCount = optionalTasks.filter(task => {
+          const taskAnswer = answers[task.id];
+          return taskAnswer?.completed || (taskAnswer?.files?.length > 0) || !!taskAnswer?.file_url || !!taskAnswer?.text_response;
+        }).length;
+        
+        const allRequiredCompleted = completedRequiredCount === requiredTasks.length && requiredTasks.length > 0;
+        const hasOnlyOptionalTasks = requiredTasks.length === 0 && optionalTasks.length > 0;
+        const canSubmit = allRequiredCompleted || (hasOnlyOptionalTasks && completedOptionalCount > 0);
         
         return (
           <div className="flex flex-col items-end gap-2 pt-4">
-            {!allTasksCompleted && tasks.length > 0 && (
+            {!canSubmit && requiredTasks.length > 0 && (
               <p className="text-sm text-amber-600">
-                Complete all tasks to submit ({completedCount}/{tasks.length} done)
+                Complete all required tasks to submit ({completedRequiredCount}/{requiredTasks.length} done)
+                {optionalTasks.length > 0 && ` • ${completedOptionalCount}/${optionalTasks.length} bonus tasks`}
+              </p>
+            )}
+            {canSubmit && optionalTasks.length > 0 && completedOptionalCount < optionalTasks.length && (
+              <p className="text-sm text-gray-500">
+                {completedOptionalCount}/{optionalTasks.length} bonus tasks completed (optional)
               </p>
             )}
             <Button 
               onClick={handleSubmit} 
               size="lg" 
               className="w-full md:w-auto" 
-              disabled={isSubmitting || !allTasksCompleted}
+              disabled={isSubmitting || !canSubmit}
             >
               {isSubmitting ? 'Submitting...' : 'Submit Assignment'}
             </Button>

@@ -1,10 +1,11 @@
 
 import { useState, useEffect } from 'react';
-import { Trash2, GripVertical, BookOpen, FileText, MessageSquare, Link as LinkIcon, FileSearch } from 'lucide-react';
+import { Trash2, GripVertical, BookOpen, FileText, MessageSquare, Link as LinkIcon, FileSearch, Star } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
+import { Checkbox } from '../ui/checkbox';
 import CourseUnitTaskEditor from './CourseUnitTaskEditor';
 import TextTaskEditor from './TextTaskEditor';
 import LinkTaskEditor from './LinkTaskEditor';
@@ -19,6 +20,7 @@ interface Task {
   order_index: number;
   points: number;
   content: any;
+  is_optional?: boolean; // Optional/bonus tasks give extra points
 }
 
 interface MultiTaskEditorProps {
@@ -49,12 +51,20 @@ export default function MultiTaskEditor({ content, onContentChange }: MultiTaskE
   }, [content.tasks, content.instructions]);
 
   useEffect(() => {
-    // Calculate total points
-    const totalPoints = tasks.reduce((sum, task) => sum + (task.points || 0), 0);
+    // Calculate total points (required) and bonus points (optional)
+    const requiredPoints = tasks
+      .filter(task => !task.is_optional)
+      .reduce((sum, task) => sum + (task.points || 0), 0);
+    const bonusPoints = tasks
+      .filter(task => task.is_optional)
+      .reduce((sum, task) => sum + (task.points || 0), 0);
+    const totalPoints = requiredPoints + bonusPoints;
     
     onContentChange({
       tasks,
       total_points: totalPoints,
+      required_points: requiredPoints,
+      bonus_points: bonusPoints,
       instructions
     });
   }, [tasks, instructions]);
@@ -67,7 +77,8 @@ export default function MultiTaskEditor({ content, onContentChange }: MultiTaskE
       description: '',
       order_index: tasks.length,
       points: 10,
-      content: {}
+      content: {},
+      is_optional: false
     };
     
     setTasks([...tasks, newTask]);
@@ -178,8 +189,15 @@ export default function MultiTaskEditor({ content, onContentChange }: MultiTaskE
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tasks ({tasks.length})</h3>
-          <div className="text-sm text-gray-600">
-            Total Points: <span className="font-semibold">{tasks.reduce((sum, t) => sum + t.points, 0)}</span>
+          <div className="text-sm text-gray-600 flex items-center gap-4">
+            <span>
+              Required: <span className="font-semibold">{tasks.filter(t => !t.is_optional).reduce((sum, t) => sum + t.points, 0)}</span> pts
+            </span>
+            {tasks.some(t => t.is_optional) && (
+              <span className="text-amber-600">
+                Bonus: <span className="font-semibold">+{tasks.filter(t => t.is_optional).reduce((sum, t) => sum + t.points, 0)}</span> pts
+              </span>
+            )}
           </div>
         </div>
 
@@ -216,6 +234,12 @@ export default function MultiTaskEditor({ content, onContentChange }: MultiTaskE
                         <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
                           {taskTypeInfo?.label}
                         </span>
+                        {task.is_optional && (
+                          <span className="text-xs px-2 py-1 bg-amber-100 text-amber-800 rounded flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            Bonus
+                          </span>
+                        )}
                       </div>
                       <input
                         type="text"
@@ -225,15 +249,25 @@ export default function MultiTaskEditor({ content, onContentChange }: MultiTaskE
                         className="mt-1 w-full text-base font-semibold border-none focus:outline-none focus:ring-0 p-0"
                       />
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        value={task.points}
-                        onChange={(e) => updateTask(index, { points: parseInt(e.target.value) || 0 })}
-                        className="w-16 px-2 py-1 text-sm border rounded"
-                        min="0"
-                      />
-                      <span className="text-sm text-gray-600">pts</span>
+                    <div className="flex items-center space-x-3">
+                      {/* Optional/Bonus Checkbox */}
+                      <label className="flex items-center space-x-1.5 cursor-pointer">
+                        <Checkbox
+                          checked={task.is_optional || false}
+                          onCheckedChange={(checked) => updateTask(index, { is_optional: !!checked })}
+                        />
+                        <span className="text-xs text-amber-700 font-medium">Bonus</span>
+                      </label>
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          value={task.points}
+                          onChange={(e) => updateTask(index, { points: parseInt(e.target.value) || 0 })}
+                          className="w-16 px-2 py-1 text-sm border rounded"
+                          min="0"
+                        />
+                        <span className="text-sm text-gray-600">pts</span>
+                      </div>
                       <Button
                         type="button"
                         variant="ghost"

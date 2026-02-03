@@ -239,6 +239,35 @@ export default function AssignmentPage() {
     // If student has submitted, show status panel first
     if (submission && (submission.status === 'submitted' || submission.status === 'graded')) {
       if (viewMode === 'status') {
+        // Calculate effective max score based on completed tasks
+        // If student didn't complete bonus tasks, don't count them in max score
+        let effectiveMaxScore = assignment.max_score;
+        
+        if (assignment.assignment_type === 'multi_task' && assignment.content?.tasks && submission.answers) {
+          const tasks = assignment.content.tasks;
+          let completedMaxScore = 0;
+          
+          tasks.forEach((task: any) => {
+            const taskAnswer = submission.answers?.[task.id];
+            const isTaskCompleted = taskAnswer?.completed || 
+              (taskAnswer?.files?.length > 0) || 
+              !!taskAnswer?.file_url || 
+              !!taskAnswer?.text_response;
+            
+            if (task.is_optional) {
+              // Only count bonus task points if completed
+              if (isTaskCompleted) {
+                completedMaxScore += task.points || 0;
+              }
+            } else {
+              // Always count required task points
+              completedMaxScore += task.points || 0;
+            }
+          });
+          
+          effectiveMaxScore = completedMaxScore;
+        }
+        
         return (
           <div className="space-y-6">
             {/* Grading Status Panel */}
@@ -267,20 +296,20 @@ export default function AssignmentPage() {
                     <div className="text-sm text-gray-600">Your Score</div>
                     <div className="text-3xl font-bold">
                       {submission.status === 'graded' ? (
-                        <span className={(submission.score || 0) >= (assignment.max_score * 0.6) ? 'text-green-600' : 'text-red-600'}>
+                        <span className={(submission.score || 0) >= (effectiveMaxScore * 0.6) ? 'text-green-600' : 'text-red-600'}>
                           {submission.score || 0}
                         </span>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
-                      <span className="text-lg text-gray-500 font-normal"> / {assignment.max_score}</span>
+                      <span className="text-lg text-gray-500 font-normal"> / {effectiveMaxScore}</span>
                     </div>
                   </div>
                   {submission.status === 'graded' && (
                     <div className="text-right">
                       <div className="text-sm text-gray-600">Percentage</div>
-                      <div className={`text-2xl font-bold ${(submission.score || 0) >= (assignment.max_score * 0.6) ? 'text-green-600' : 'text-red-600'}`}>
-                        {Math.round(((submission.score || 0) / assignment.max_score) * 100)}%
+                      <div className={`text-2xl font-bold ${(submission.score || 0) >= (effectiveMaxScore * 0.6) ? 'text-green-600' : 'text-red-600'}`}>
+                        {Math.round(((submission.score || 0) / effectiveMaxScore) * 100)}%
                       </div>
                     </div>
                   )}
