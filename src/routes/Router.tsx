@@ -3,6 +3,7 @@ import { NextStepProvider } from 'nextstepjs';
 import { AuthProvider } from '../contexts/AuthContext.tsx';
 import { SettingsProvider } from '../contexts/SettingsContext';
 import { ThemeProvider } from '../components/ThemeProvider.tsx';
+import { Toaster } from '../components/Toast';
 import OnboardingManager from '../components/OnboardingManager.tsx';
 import ProtectedRoute from '../components/ProtectedRoute.tsx';
 import AppLayout from '../layouts/AppLayout.tsx';
@@ -57,6 +58,7 @@ export default function Router() {
   return (
     <BrowserRouter>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <Toaster />
         <AuthProvider>
           <SettingsProvider>
             <NextStepProvider>

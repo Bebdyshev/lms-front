@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../services/api';
+import { toast } from '../components/Toast';
 import type { User, CreateUserRequest, UpdateUserRequest, Group, Course } from '../types';
 import { 
   Users, 
@@ -85,6 +86,7 @@ export default function UserManagement() {
   const [groupFilter, setGroupFilter] = useState(searchParams.get('group_id') || 'all');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('is_active') || 'all');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [groupStatusFilter, setGroupStatusFilter] = useState<'all' | 'true' | 'false'>('true'); // Default to active groups
   
   // Teacher groups for student grouping
   const [teacherGroups, setTeacherGroups] = useState<TeacherGroup[]>([]);
@@ -136,25 +138,25 @@ export default function UserManagement() {
 
   const handleBulkScheduleUpload = async () => {
     if (!bulkScheduleText.trim()) {
-      setToast({ message: 'Please enter some data', type: 'error' });
+      toast('Please enter some data', 'error');
       return;
     }
 
     setIsBulkScheduleLoading(true);
     try {
       const result = await apiClient.bulkScheduleUpload(bulkScheduleText);
-      setToast({ message: `Created ${result.created_groups.length} groups/schedules`, type: 'success' });
+      toast(`Created ${result.created_groups.length} groups/schedules`, 'success');
       if (result.failed_lines.length > 0) {
         console.error('Bulk upload failed lines:', result.failed_lines);
         // Show failed lines in a toast or modal
         const failedMessages = result.failed_lines.map((f: any) => `Line ${f.line_num}: ${f.error}`).join('\n');
-        setToast({ message: `Created ${result.created_groups.length} groups. Failed lines:\n${failedMessages}`, type: 'error' });
+        toast(`Created ${result.created_groups.length} groups. Failed lines:\n${failedMessages}`, 'error');
       }
       setShowBulkScheduleModal(false);
       setBulkScheduleText('');
       loadGroups();
     } catch (e: any) {
-      setToast({ message: e.message || 'Failed to bulk upload schedules', type: 'error' });
+      toast(e.message || 'Failed to bulk upload schedules', 'error');
     } finally {
       setIsBulkScheduleLoading(false);
     }
@@ -162,29 +164,29 @@ export default function UserManagement() {
 
   const handleBulkAddStudents = async () => {
     if (!bulkAddFormData.groupId) {
-      setToast({ message: 'Please select a group', type: 'error' });
+      toast('Please select a group', 'error');
       return;
     }
     if (bulkAddFormData.studentIds.length === 0) {
-      setToast({ message: 'Please select at least one student', type: 'error' });
+      toast('Please select at least one student', 'error');
       return;
     }
 
     try {
       await apiClient.bulkAddStudentsToGroup(bulkAddFormData.groupId, bulkAddFormData.studentIds);
-      setToast({ message: 'Students added successfully', type: 'success' });
+      toast('Students added successfully', 'success');
       setShowBulkAddModal(false);
       setBulkAddFormData({ groupId: null, studentIds: [] });
       loadGroups(); // Refresh groups to show updated counts
     } catch (error) {
       console.error('Failed to bulk add students:', error);
-      setToast({ message: 'Failed to add students to group', type: 'error' });
+      toast('Failed to add students to group', 'error');
     }
   };
 
   const handleBulkTextUpload = async () => {
     if (!bulkTextFormData.text.trim()) {
-      setToast({ message: 'Please paste student data', type: 'error' });
+      toast('Please paste student data', 'error');
       return;
     }
 
@@ -204,23 +206,17 @@ export default function UserManagement() {
       });
 
       if (result.created_users.length > 0) {
-        setToast({ 
-          message: `Successfully created ${result.created_users.length} students`, 
-          type: 'success' 
-        });
+        toast(`Successfully created ${result.created_users.length} students`, 'success');
         loadUsers();
         loadGroups();
       }
       
       if (result.failed_users.length > 0 && result.created_users.length === 0) {
-        setToast({ 
-          message: `Failed to create students. Check the results below.`, 
-          type: 'error' 
-        });
+        toast('Failed to create students. Check the results below.', 'error');
       }
     } catch (error: any) {
       console.error('Failed to bulk create students:', error);
-      setToast({ message: error.message || 'Failed to create students', type: 'error' });
+      toast(error.message || 'Failed to create students', 'error');
     } finally {
       setIsBulkTextLoading(false);
     }
@@ -265,9 +261,6 @@ export default function UserManagement() {
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [groupFormErrors, setGroupFormErrors] = useState<{ [key: string]: string }>({});
   const [editGroupFormErrors, setEditGroupFormErrors] = useState<{ [key: string]: string }>({});
-  
-  // Toast
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -276,7 +269,10 @@ export default function UserManagement() {
     loadCourses();
   }, [currentPage, roleFilter, groupFilter, statusFilter, searchQuery]);
 
-
+  // Reload groups when group status filter changes
+  useEffect(() => {
+    loadGroups();
+  }, [groupStatusFilter]);
 
   // Update URL params when role filter changes to student by default
   useEffect(() => {
@@ -320,7 +316,7 @@ export default function UserManagement() {
       setError('Failed to load users');
       setUsers([]);
       setTotalUsers(0);
-      showToast('error', 'Failed to load users');
+      toast('Failed to load users', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -331,8 +327,15 @@ export default function UserManagement() {
       const groupsData = await apiClient.getGroups();
       console.log('Groups data:', groupsData);
       
+      // Filter groups by status
+      let filteredGroups = groupsData || [];
+      if (groupStatusFilter !== 'all') {
+        const isActive = groupStatusFilter === 'true';
+        filteredGroups = filteredGroups.filter((g: Group) => g.is_active === isActive);
+      }
+      
       // Sort groups by name alphabetically to maintain stable order
-      const sortedGroups = (groupsData || []).sort((a: Group, b: Group) => 
+      const sortedGroups = filteredGroups.sort((a: Group, b: Group) => 
         a.name.localeCompare(b.name, 'ru')
       );
       
@@ -483,7 +486,7 @@ export default function UserManagement() {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      showToast('error', 'Please fix the form errors');
+      toast('Please fix the form errors', 'error');
       return;
     }
     setFormErrors({});
@@ -501,7 +504,7 @@ export default function UserManagement() {
       };
       
       const newUser = await apiClient.createUser(userData);
-      showToast('success', 'User created successfully');
+      toast('User created successfully', 'success');
       
       setShowCreateModal(false);
       resetForm();
@@ -515,7 +518,7 @@ export default function UserManagement() {
       loadUsers();
     } catch (error) {
       console.error('Failed to create user:', error);
-      showToast('error', 'Failed to create user');
+      toast('Failed to create user', 'error');
     }
   };
 
@@ -525,7 +528,7 @@ export default function UserManagement() {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      showToast('error', 'Please fix the form errors');
+      toast('Please fix the form errors', 'error');
       return;
     }
     setFormErrors({});
@@ -544,14 +547,14 @@ export default function UserManagement() {
       };
       
       await apiClient.updateUser(Number(selectedUser.id), userData);
-      showToast('success', 'User updated successfully');
+      toast('User updated successfully', 'success');
       
       setShowEditModal(false);
       resetForm();
       loadUsers();
     } catch (error) {
       console.error('Failed to update user:', error);
-      showToast('error', 'Failed to update user');
+      toast('Failed to update user', 'error');
     }
   };
 
@@ -560,14 +563,14 @@ export default function UserManagement() {
     
     try {
       await apiClient.deactivateUser(Number(selectedUser.id));
-      showToast('success', 'User deactivated successfully');
+      toast('User deactivated successfully', 'success');
       setShowDeleteModal(false);
       setSelectedUser(null);
       loadUsers();
     } catch (error: any) {
       console.error('Failed to deactivate user:', error);
       const errorMessage = error.response?.data?.detail || 'Failed to deactivate user';
-      showToast('error', errorMessage);
+      toast(errorMessage, 'error');
     }
   };
 
@@ -575,15 +578,16 @@ export default function UserManagement() {
     if (!selectedGroup) return;
     
     try {
-      await apiClient.deleteGroup(selectedGroup.id);
-      showToast('success', 'Group deleted successfully');
+      // Instead of deleting, deactivate the group
+      await apiClient.updateGroup(selectedGroup.id, { is_active: false });
+      toast('Group deactivated successfully', 'success');
       setShowDeleteModal(false);
       setSelectedGroup(null);
       loadGroups();
       loadUsers(); // Reload users to update group information
     } catch (error) {
-      console.error('Failed to delete group:', error);
-      showToast('error', 'Failed to delete group');
+      console.error('Failed to deactivate group:', error);
+      toast('Failed to deactivate group', 'error');
     }
   };
 
@@ -591,7 +595,7 @@ export default function UserManagement() {
     const errors = validateGroupForm();
     if (Object.keys(errors).length > 0) {
       setGroupFormErrors(errors);
-      showToast('error', 'Please fix the form errors');
+      toast('Please fix the form errors', 'error');
       return;
     }
     setGroupFormErrors({});
@@ -607,16 +611,16 @@ export default function UserManagement() {
       };
       
       const newGroup = await apiClient.createGroup(groupData);
-      showToast('success', 'Group created successfully');
+      toast('Group created successfully', 'success');
       
       // Add students to the group if any are selected
       if (groupFormData.student_ids.length > 0) {
         try {
           await apiClient.bulkAddStudentsToGroup(newGroup.id, groupFormData.student_ids);
-          showToast('success', `Group created and ${groupFormData.student_ids.length} students added`);
+          toast(`Group created and ${groupFormData.student_ids.length} students added`, 'success');
         } catch (error) {
           console.error('Failed to add students to group:', error);
-          showToast('error', 'Group created but failed to add students');
+          toast('Group created but failed to add students', 'error');
         }
       }
       
@@ -630,7 +634,7 @@ export default function UserManagement() {
       setShowScheduleModal(true);
     } catch (error) {
       console.error('Failed to create group:', error);
-      showToast('error', 'Failed to create group');
+      toast('Failed to create group', 'error');
     }
   };
 
@@ -640,7 +644,7 @@ export default function UserManagement() {
     const errors = validateEditGroupForm();
     if (Object.keys(errors).length > 0) {
       setEditGroupFormErrors(errors);
-      showToast('error', 'Please fix the form errors');
+      toast('Please fix the form errors', 'error');
       return;
     }
     setEditGroupFormErrors({});
@@ -656,7 +660,7 @@ export default function UserManagement() {
       };
       
       await apiClient.updateGroup(selectedGroup.id, groupData);
-      showToast('success', 'Group updated successfully');
+      toast('Group updated successfully', 'success');
       
       setShowEditGroupModal(false);
       resetEditGroupForm();
@@ -664,7 +668,7 @@ export default function UserManagement() {
       loadUsers(); // Reload users to update group information
     } catch (error) {
       console.error('Failed to update group:', error);
-      showToast('error', 'Failed to update group');
+      toast('Failed to update group', 'error');
     }
   };
 
@@ -741,11 +745,6 @@ export default function UserManagement() {
     });
     setSelectedGroup(null);
     setEditGroupFormErrors({});
-  };
-
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
   };
 
   const totalPages = Math.ceil(totalUsers / pageSize);
@@ -1251,6 +1250,23 @@ export default function UserManagement() {
                   </Button>
                 </div>
               </div>
+              {/* Group Status Filter */}
+              <div className="mt-4">
+                <Label htmlFor="group-status" className="text-sm font-medium">Group Status</Label>
+                <Select
+                  value={groupStatusFilter}
+                  onValueChange={(value: 'all' | 'true' | 'false') => setGroupStatusFilter(value)}
+                >
+                  <SelectTrigger className="mt-2 w-48">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Groups</SelectItem>
+                    <SelectItem value="true">Active</SelectItem>
+                    <SelectItem value="false">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             
             <div className="overflow-x-auto">
@@ -1342,7 +1358,7 @@ export default function UserManagement() {
                             }}
                             variant="ghost"
                             size="sm"
-                            title="Delete Group"
+                            title="Deactivate Group"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -1420,7 +1436,7 @@ export default function UserManagement() {
                 onClick={() => {
                   if (generatedPassword) {
                     navigator.clipboard.writeText(generatedPassword);
-                    showToast('success', 'Password copied to clipboard');
+                    toast('Password copied to clipboard', 'success');
                   }
                 }}
                 title="Copy Password"
@@ -1485,16 +1501,16 @@ export default function UserManagement() {
           setSelectedUser(null);
           setSelectedGroup(null);
         }}
-        title={selectedUser ? "Deactivate User" : "Delete Group"}
+        title={selectedUser ? "Deactivate User" : "Deactivate Group"}
         onSubmit={selectedUser ? handleDeleteUser : handleDeleteGroup}
-        submitText={selectedUser ? "Deactivate" : "Delete"}
+        submitText="Deactivate"
       >
         <div>
           <p className="text-gray-600 mb-4">
             {selectedUser ? (
               <>Are you sure you want to deactivate <strong>{selectedUser.name}</strong>? This action can be undone later.</>
             ) : (
-              <>Are you sure you want to delete <strong>{selectedGroup?.name}</strong>? This action cannot be undone.</>
+              <>Are you sure you want to deactivate <strong>{selectedGroup?.name}</strong>? This action can be undone later by reactivating the group.</>
             )}
           </p>
         </div>
@@ -1541,7 +1557,7 @@ export default function UserManagement() {
           groupId={scheduleGroupId}
           open={showScheduleModal}
           onOpenChange={setShowScheduleModal}
-          onSuccess={() => setToast({ type: 'success', message: 'Schedule updated successfully' })}
+          onSuccess={() => toast('Schedule updated successfully', 'success')}
       />
 
       {/* Bulk Schedule Upload Modal */}
@@ -1583,21 +1599,6 @@ export default function UserManagement() {
           </div>
         </div>
       </Modal>
-
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-2 rounded-lg shadow-card z-50 ${
-          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-        }`}>
-          {toast.message}
-          <button 
-            onClick={() => setToast(null)}
-            className="ml-2 text-white hover:text-gray-200"
-          >
-            ×
-          </button>
-        </div>
-      )}
     </div>
   );
 }
