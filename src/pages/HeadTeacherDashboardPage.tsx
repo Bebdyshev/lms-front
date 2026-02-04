@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
-import { Calendar as CalendarIcon, ArrowRight, BarChart3, TrendingUp, Users, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Calendar as CalendarIcon, ArrowRight, BarChart3, TrendingUp, Users, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { cn } from '../lib/utils';
@@ -39,6 +39,16 @@ import {
   Bar
 } from 'recharts';
 import Skeleton from '../components/Skeleton';
+
+interface MissingAttendanceReminder {
+  event_id: number;
+  title: string;
+  group_name: string;
+  group_id?: number | null;
+  event_date: string;
+  expected_students: number;
+  recorded_students: number;
+}
 
 interface ManagedCourse {
   id: number;
@@ -64,6 +74,7 @@ interface TeacherStats {
   quizzes_graded_count: number;
   homeworks_checked_last_7_days: number;
   homeworks_checked_last_30_days: number;
+  missed_attendance_count?: number;
 }
 
 interface ActivityHistoryItem {
@@ -85,6 +96,7 @@ export default function HeadTeacherDashboardPage() {
   const [courses, setCourses] = useState<ManagedCourse[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [teachersData, setTeachersData] = useState<CourseTeachersData | null>(null);
+  const [missingAttendance, setMissingAttendance] = useState<MissingAttendanceReminder[]>([]);
   
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
@@ -96,13 +108,14 @@ export default function HeadTeacherDashboardPage() {
   });
 
   // Sort State
-  type SortField = 'teacher_name' | 'groups_count' | 'students_count' | 'checked_homeworks_count' | 'feedbacks_given_count';
+  type SortField = 'teacher_name' | 'groups_count' | 'students_count' | 'checked_homeworks_count' | 'feedbacks_given_count' | 'missed_attendance_count';
   type SortDirection = 'asc' | 'desc' | null;
   const [sortField, setSortField] = useState<SortField>('checked_homeworks_count');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   useEffect(() => {
     loadCourses();
+    loadMissingAttendance();
   }, []);
 
   useEffect(() => {
@@ -114,6 +127,17 @@ export default function HeadTeacherDashboardPage() {
       );
     }
   }, [selectedCourseId, dateRange]);
+
+  const loadMissingAttendance = async () => {
+    try {
+      const res = await apiClient.getDashboardStats() as any;
+      if (res?.stats?.missing_attendance_reminders) {
+        setMissingAttendance(res.stats.missing_attendance_reminders);
+      }
+    } catch (error) {
+      console.error('Failed to load missing attendance:', error);
+    }
+  };
 
   const loadCourses = async () => {
     try {
@@ -168,8 +192,12 @@ export default function HeadTeacherDashboardPage() {
     if (!teachersData?.teachers || !sortDirection) return teachersData?.teachers || [];
     
     const sorted = [...teachersData.teachers].sort((a, b) => {
-      let aVal = a[sortField];
-      let bVal = b[sortField];
+      let aVal: string | number | undefined = a[sortField];
+      let bVal: string | number | undefined = b[sortField];
+      
+      // Handle undefined values (treat as 0)
+      if (aVal === undefined) aVal = 0;
+      if (bVal === undefined) bVal = 0;
       
       if (typeof aVal === 'string') aVal = aVal.toLowerCase();
       if (typeof bVal === 'string') bVal = bVal.toLowerCase();
@@ -270,6 +298,64 @@ export default function HeadTeacherDashboardPage() {
           </Popover>
         </div>
       </div>
+
+      {/* Missing Attendance Alert */}
+      {missingAttendance.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-4 mb-2">
+                <h3 className="text-sm font-semibold text-amber-900">
+                  Attendance Not Recorded ({missingAttendance.length})
+                </h3>
+                <Button
+                  onClick={() => navigate('/attendance')}
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100"
+                >
+                  Go to Attendance
+                </Button>
+              </div>
+              <p className="text-xs text-amber-700 mb-3">
+                The following classes ended more than 2 hours ago without attendance records:
+              </p>
+              <div className="space-y-2">
+                {missingAttendance.slice(0, 5).map((reminder) => (
+                  <div key={reminder.event_id} className="flex items-center justify-between bg-white/60 rounded-md px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-amber-900 truncate">{reminder.title}</p>
+                      <p className="text-xs text-amber-600">
+                        {reminder.group_name} • {new Date(reminder.event_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-xs text-amber-700">
+                        {reminder.recorded_students}/{reminder.expected_students} recorded
+                      </span>
+                      <Button
+                        onClick={() => {
+                          if (reminder.group_id) {
+                            navigate(`/attendance?group=${reminder.group_id}`);
+                          } else {
+                            navigate('/attendance');
+                          }
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-7 text-amber-700 hover:bg-amber-100"
+                      >
+                        Mark
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -487,6 +573,14 @@ export default function HeadTeacherDashboardPage() {
                         Feedbacks {getSortIcon('feedbacks_given_count')}
                       </button>
                     </TableHead>
+                    <TableHead className="text-center font-bold text-slate-900">
+                      <button 
+                        onClick={() => handleSort('missed_attendance_count')} 
+                        className="flex items-center gap-1 mx-auto hover:text-blue-600 transition-colors"
+                      >
+                        Missed Att. {getSortIcon('missed_attendance_count')}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-center font-bold text-slate-900">Activity Trend</TableHead>
                     <TableHead className="text-right font-bold text-slate-900">Action</TableHead>
                   </TableRow>
@@ -533,6 +627,17 @@ export default function HeadTeacherDashboardPage() {
                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
                            {teacher.feedbacks_given_count}
                          </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {(teacher.missed_attendance_count ?? 0) > 0 ? (
+                          <Badge variant="secondary" className="bg-red-50 text-red-700 hover:bg-red-100 border-red-200">
+                            {teacher.missed_attendance_count}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-slate-50 text-slate-500 hover:bg-slate-100 border-slate-200">
+                            0
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                          <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
