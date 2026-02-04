@@ -320,7 +320,7 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
-          <Route path="/teacher/attendance" element={
+          <Route path="/attendance" element={
             <ProtectedRoute allowedRoles={['teacher', 'admin']}>
               <AppLayout>
                 <TeacherAttendancePage />
