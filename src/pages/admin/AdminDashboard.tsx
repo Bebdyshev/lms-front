@@ -92,31 +92,31 @@ export default function AdminDashboard() {
 
       {/* Missing Attendance Reminders */}
       {stats.missing_attendance_reminders && stats.missing_attendance_reminders.length > 0 && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-900">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-medium text-yellow-900">
               Attendance Required ({stats.missing_attendance_reminders.length})
             </h3>
             <Button
               onClick={() => navigate('/attendance')}
               size="sm"
               variant="outline"
-              className="text-xs"
+              className="text-xs h-6 px-2 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
             >
               Go to Attendance
             </Button>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {stats.missing_attendance_reminders.slice(0, 5).map((reminder: MissingAttendanceReminder) => (
-              <div key={reminder.event_id} className="flex items-center justify-between text-sm py-2 border-b border-gray-100 last:border-0">
-                <div className="flex-1 min-w-0 mr-4">
-                  <p className="text-gray-900 truncate">{reminder.title}</p>
-                  <p className="text-xs text-gray-500">
+              <div key={reminder.event_id} className="flex items-center justify-between text-xs py-1.5 border-b border-yellow-100 last:border-0">
+                <div className="flex-1 min-w-0 mr-3">
+                  <p className="text-yellow-900 truncate font-medium">{reminder.title}</p>
+                  <p className="text-[11px] text-yellow-700">
                     {reminder.group_name} • {new Date(reminder.event_date).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-gray-600">
+                  <span className="text-[11px] text-yellow-700">
                     {reminder.recorded_students}/{reminder.expected_students}
                   </span>
                   <Button
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
                     }}
                     size="sm"
                     variant="ghost"
-                    className="text-xs h-7"
+                    className="text-[11px] h-6 px-2 text-yellow-700 hover:bg-yellow-100"
                   >
                     Mark
                   </Button>
