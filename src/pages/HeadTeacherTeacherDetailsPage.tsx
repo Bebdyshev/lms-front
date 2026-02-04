@@ -232,7 +232,9 @@ export default function HeadTeacherTeacherDetailsPage() {
             <div className={`text-2xl font-bold ${(teacherDetails.missed_attendance_count || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
               {teacherDetails.missed_attendance_count || 0}
             </div>
-            <p className="text-xs text-slate-400 mt-1">Unrecorded classes</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Total times forgot • {teacherDetails.missed_attendance_details?.length || 0} pending
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -243,10 +245,12 @@ export default function HeadTeacherTeacherDetailsPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-500" />
-              <CardTitle className="text-base text-red-900">Missing Attendance Records</CardTitle>
+              <CardTitle className="text-base text-red-900">
+                Missing Attendance Records ({teacherDetails.missed_attendance_details?.length})
+              </CardTitle>
             </div>
             <CardDescription className="text-red-700">
-              The following classes ended without complete attendance records
+              These classes still need attendance to be recorded
             </CardDescription>
           </CardHeader>
           <CardContent>
