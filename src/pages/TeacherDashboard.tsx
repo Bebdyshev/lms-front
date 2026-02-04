@@ -15,7 +15,9 @@ import {
   Trash2,
   Download,
   FileText,
-  Unlock
+  Unlock,
+  Activity,
+  Target
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -658,59 +660,79 @@ export default function TeacherDashboard() {
         </div>
       )}
 
-      {/* Key Stats - Simplified */}
+      {/* Key Stats - Student Dynamics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-orange-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Pending Reviews</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{stats?.pending_submissions || 0}</h3>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-full">
-                <ClipboardCheck className="w-6 h-6 text-orange-600" />
-              </div>
+        {/* Pending Reviews - Action Required */}
+        <Card className="shadow-sm border border-gray-200">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-gray-500">Pending Reviews</span>
             </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-gray-900">{stats?.pending_submissions || 0}</span>
+              {(stats?.total_submissions ?? 0) > 0 && (
+                <span className="text-sm text-gray-400">
+                  / {stats?.total_submissions}
+                </span>
+              )}
+            </div>
+            {(stats?.pending_submissions ?? 0) > 0 && (
+              <p className="text-xs text-orange-600 mt-2">Requires attention</p>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Active Students</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{stats?.active_students || 0}</h3>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-full">
-                <Users className="w-6 h-6 text-purple-600" />
-              </div>
+        {/* Activity Rate */}
+        <Card className="shadow-sm border border-gray-200">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-gray-500">Active This Week</span>
             </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-gray-900">{stats?.active_students || 0}</span>
+              <span className="text-sm text-gray-400">
+                / {stats?.total_students || 0}
+              </span>
+            </div>
+            {(stats?.total_students ?? 0) > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                {Math.round(((stats?.active_students || 0) / (stats?.total_students || 1)) * 100)}% engagement
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Total Students</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{stats?.total_students || 0}</h3>
-              </div>
-              <div className="p-3 bg-green-50 rounded-full">
-                <Users className="w-6 h-6 text-green-600" />
-              </div>
+        {/* Average Score */}
+        <Card className="shadow-sm border border-gray-200">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-gray-500">Avg Score</span>
             </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-gray-900">{stats?.avg_student_score || 0}</span>
+              <span className="text-sm text-gray-400">pts</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              From {stats?.graded_submissions || 0} graded
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Avg Progress</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{stats?.avg_student_progress || 0}%</h3>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-full">
-                <TrendingUp className="w-6 h-6 text-blue-600" />
+        {/* Overall Progress */}
+        <Card className="shadow-sm border border-gray-200">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-gray-500">Avg Progress</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-gray-900">{stats?.avg_student_progress || 0}%</span>
+            </div>
+            <div className="mt-2">
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-purple-500 rounded-full transition-all"
+                  style={{ width: `${stats?.avg_student_progress || 0}%` }}
+                />
               </div>
             </div>
           </CardContent>
