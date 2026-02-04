@@ -231,12 +231,13 @@ export default function AssignmentBuilderPage() {
   const handleEventMappingChange = (groupId: number, virtualEventId: number) => {
       // Find the selected event to get its datetime and lesson_number
       const selectedEvent = eventsByGroup[groupId]?.find((e: any) => e.id === virtualEventId);
+      console.log('handleEventMappingChange:', { groupId, virtualEventId, selectedEvent, lesson_number: selectedEvent?.lesson_number });
       
       setFormData(prev => {
           const updates: any = {
               event_mapping: {
                   ...prev.event_mapping,
-                  // Store virtual ID for UI display
+                  // Store event ID for UI display
                   [groupId]: virtualEventId
               }
           };
@@ -247,6 +248,7 @@ export default function AssignmentBuilderPage() {
                   ...prev.lesson_number_mapping,
                   [groupId]: selectedEvent.lesson_number
               };
+              console.log('Setting lesson_number_mapping:', updates.lesson_number_mapping);
           }
           
           // Auto-populate due_date_mapping when an event is selected
