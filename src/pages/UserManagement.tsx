@@ -1214,7 +1214,6 @@ export default function UserManagement() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center">
-                  <GraduationCap className="w-6 h-6 mr-2 text-blue-600" />
                   Groups Management ({groups.length})
                 </CardTitle>
                 <div className="flex items-center gap-2">
