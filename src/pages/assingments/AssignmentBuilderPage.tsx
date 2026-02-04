@@ -38,7 +38,8 @@ interface AssignmentFormData {
   max_file_size_mb?: number;
   group_id?: number;
   group_ids?: number[];
-  event_mapping?: Record<number, number>; // group_id -> event_id (class event)
+  event_mapping?: Record<number, number>; // group_id -> virtual event_id (for UI display only)
+  lesson_number_mapping?: Record<number, number>; // group_id -> lesson_number (for backend)
   due_date_mapping?: Record<number, string>; // group_id -> ISO due date
   late_penalty_enabled?: boolean;
   late_penalty_multiplier?: number;
@@ -63,6 +64,7 @@ export default function AssignmentBuilderPage() {
     max_file_size_mb: 10,
     group_ids: [],
     event_mapping: {},
+    lesson_number_mapping: {},
     due_date_mapping: {},
     late_penalty_enabled: false,
     late_penalty_multiplier: 0.6
@@ -135,9 +137,11 @@ export default function AssignmentBuilderPage() {
         max_file_size_mb: assignment.max_file_size_mb || 10,
         group_id: assignment.group_id,
         group_ids: assignment.group_id ? [assignment.group_id] : [],
-        // Use event_id directly if available
-        event_mapping: assignment.event_id && assignment.group_id 
-          ? { [assignment.group_id]: assignment.event_id } 
+        // Keep event_mapping for UI display
+        event_mapping: {},
+        // Use lesson_number if available
+        lesson_number_mapping: assignment.lesson_number && assignment.group_id 
+          ? { [assignment.group_id]: assignment.lesson_number } 
           : {},
         due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: new Date(assignment.due_date).toISOString() } : {},
         late_penalty_enabled: assignment.late_penalty_enabled || false,
@@ -225,17 +229,25 @@ export default function AssignmentBuilderPage() {
 
 
   const handleEventMappingChange = (groupId: number, virtualEventId: number) => {
-      // Find the selected event to get its datetime and schedule_id
+      // Find the selected event to get its datetime and lesson_number
       const selectedEvent = eventsByGroup[groupId]?.find((e: any) => e.id === virtualEventId);
       
       setFormData(prev => {
           const updates: any = {
               event_mapping: {
                   ...prev.event_mapping,
-                  // Store virtual ID for UI, we'll convert to schedule_id on submit
+                  // Store virtual ID for UI display
                   [groupId]: virtualEventId
               }
           };
+          
+          // Store lesson_number for backend
+          if (selectedEvent && selectedEvent.lesson_number) {
+              updates.lesson_number_mapping = {
+                  ...prev.lesson_number_mapping,
+                  [groupId]: selectedEvent.lesson_number
+              };
+          }
           
           // Auto-populate due_date_mapping when an event is selected
           if (selectedEvent && selectedEvent.scheduled_at) {
@@ -387,13 +399,13 @@ export default function AssignmentBuilderPage() {
       }
 
       // Create assignment data
-      // Use event_mapping directly - event IDs are now real Event IDs
-      const event_mapping_final: Record<number, number> = {};
-      if (formData.event_mapping) {
-        Object.entries(formData.event_mapping).forEach(([groupIdStr, eventId]) => {
+      // Use lesson_number_mapping for linking homework to lessons
+      const lesson_number_mapping_final: Record<number, number> = {};
+      if (formData.lesson_number_mapping) {
+        Object.entries(formData.lesson_number_mapping).forEach(([groupIdStr, lessonNumber]) => {
           const groupId = parseInt(groupIdStr);
-          if (eventId) {
-            event_mapping_final[groupId] = eventId;
+          if (lessonNumber) {
+            lesson_number_mapping_final[groupId] = lessonNumber;
           }
         });
       }
@@ -411,7 +423,7 @@ export default function AssignmentBuilderPage() {
         max_file_size_mb: formData.max_file_size_mb || 10,
         group_id: formData.group_ids && formData.group_ids.length > 0 ? formData.group_ids[0] : undefined, // Legacy support
         group_ids: formData.group_ids,
-        event_mapping: event_mapping_final, // Real event_ids for backend
+        lesson_number_mapping: lesson_number_mapping_final, // lesson_number for linking homework to lessons
         due_date_mapping: Object.keys(formData.due_date_mapping || {}).reduce((acc, gid) => {
             const date = formData.due_date_mapping?.[parseInt(gid)];
             if (date) acc[parseInt(gid)] = date;
