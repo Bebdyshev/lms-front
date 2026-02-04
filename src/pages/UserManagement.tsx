@@ -755,19 +755,11 @@ export default function UserManagement() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
-            <Users className="w-7 h-7 sm:w-8 sm:h-8 mr-3 text-blue-600" />
             User Management
           </h1>
           <p className="text-gray-600 mt-1">Manage system users and permissions</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <Button
-            onClick={() => navigate('/admin/dashboard')}
-            variant="outline"
-            className="w-full sm:w-auto"
-          >
-            Back to Dashboard
-          </Button>
           <Button
             onClick={() => setShowCreateGroupModal(true)}
             variant="outline"
