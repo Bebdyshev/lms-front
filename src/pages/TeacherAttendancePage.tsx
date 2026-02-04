@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { 
   Loader2,
+  Star,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { 
@@ -26,6 +28,13 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../components/ui/dialog";
 
 interface LessonMeta {
     lesson_number: number;
@@ -37,6 +46,7 @@ interface LessonMeta {
 interface StudentLessonStatus {
     event_id: number;
     attendance_status: string;
+    activity_score?: number;
 }
 
 interface StudentRow {
@@ -52,6 +62,7 @@ interface AttendanceData {
 
 export default function TeacherAttendancePage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
@@ -63,6 +74,15 @@ export default function TeacherAttendancePage() {
   
   // Track changes locally: Map<studentId, Set<lessonKey>>
   const [changedLessons, setChangedLessons] = useState<Map<number, Set<string>>>(new Map());
+  
+  // Activity score modal state
+  const [activityModal, setActivityModal] = useState<{
+    open: boolean;
+    studentId: number | null;
+    lessonKey: string | null;
+    studentName: string;
+    currentScore: number;
+  }>({ open: false, studentId: null, lessonKey: null, studentName: '', currentScore: 0 });
 
   useEffect(() => {
     loadGroups();
@@ -85,7 +105,17 @@ export default function TeacherAttendancePage() {
       }
       
       setGroups(fetchedGroups || []);
-      if (fetchedGroups && fetchedGroups.length > 0) {
+      
+      // Update selected group based on URL or default to first group
+      const urlGroupId = searchParams.get('group');
+      if (urlGroupId) {
+          const groupExists = fetchedGroups?.find(g => g.id === Number(urlGroupId));
+          if (groupExists) {
+              setSelectedGroupId(Number(urlGroupId));
+          } else if (fetchedGroups && fetchedGroups.length > 0) {
+              setSelectedGroupId(fetchedGroups[0].id);
+          }
+      } else if (fetchedGroups && fetchedGroups.length > 0) {
         setSelectedGroupId(fetchedGroups[0].id);
       }
     } catch (err) {
@@ -97,6 +127,13 @@ export default function TeacherAttendancePage() {
 
   const loadAttendanceData = async () => {
     if (!selectedGroupId) return;
+    
+    // Update URL when group changes
+    setSearchParams(prev => {
+        prev.set('group', selectedGroupId.toString());
+        return prev;
+    });
+
     try {
       setLoading(true);
       setChangedLessons(new Map());
@@ -110,7 +147,7 @@ export default function TeacherAttendancePage() {
     }
   };
 
-  const updateStudentStatus = (studentId: number, lessonKey: string, status: string) => {
+  const updateStudentStatus = (studentId: number, lessonKey: string, status: string, activityScore?: number) => {
     setData(prev => {
       if (!prev) return null;
       return {
@@ -123,7 +160,40 @@ export default function TeacherAttendancePage() {
             ...s,
             lessons: {
               ...s.lessons,
-              [lessonKey]: { ...lesson, attendance_status: status }
+              [lessonKey]: { 
+                ...lesson, 
+                attendance_status: status,
+                ...(activityScore !== undefined && { activity_score: activityScore })
+              }
+            }
+          };
+        })
+      };
+    });
+
+    setChangedLessons(prev => {
+      const next = new Map(prev);
+      const studentChanges = next.get(studentId) || new Set<string>();
+      studentChanges.add(lessonKey);
+      next.set(studentId, studentChanges);
+      return next;
+    });
+  };
+
+  const updateActivityScore = (studentId: number, lessonKey: string, score: number) => {
+    setData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        students: prev.students.map(s => {
+          if (s.student_id !== studentId) return s;
+          const lesson = s.lessons[lessonKey];
+          if (!lesson) return s;
+          return {
+            ...s,
+            lessons: {
+              ...s.lessons,
+              [lessonKey]: { ...lesson, activity_score: score }
             }
           };
         })
@@ -141,9 +211,10 @@ export default function TeacherAttendancePage() {
 
   const toggleStudentStatus = (studentId: number, lessonKey: string, currentStatus: string) => {
       let nextStatus = 'attended';
-      if (currentStatus === 'attended') nextStatus = 'late';
+      if (currentStatus === 'pending') nextStatus = 'attended';
+      else if (currentStatus === 'attended') nextStatus = 'late';
       else if (currentStatus === 'late') nextStatus = 'missed';
-      else if (currentStatus === 'missed') nextStatus = 'attended';
+      else if (currentStatus === 'missed') nextStatus = 'pending';
       
       updateStudentStatus(studentId, lessonKey, nextStatus);
   };
@@ -178,7 +249,8 @@ export default function TeacherAttendancePage() {
                 student_id: studentId,
                 score: score,
                 status: statusData.attendance_status,
-                event_id: statusData.event_id
+                event_id: statusData.event_id,
+                activity_score: statusData.activity_score
               });
           }
       }
@@ -234,6 +306,7 @@ export default function TeacherAttendancePage() {
           case 'attended': return 'bg-green-200 text-green-700 hover:bg-green-400 hover:text-white';
           case 'late': return 'bg-yellow-200 text-yellow-700 hover:bg-yellow-500 hover:text-white';
           case 'missed': return 'bg-rose-500 text-white hover:bg-rose-600';
+          case 'pending': return 'bg-gray-100/50 text-gray-400 hover:bg-gray-200';
           default: return 'bg-gray-50 text-gray-400 border-gray-100';
       }
   };
@@ -243,6 +316,7 @@ export default function TeacherAttendancePage() {
           case 'attended': return 'Present';
           case 'late': return 'Late';
           case 'missed': return 'Absent';
+          case 'pending': return '-';
           default: return 'None';
       }
   };
@@ -375,7 +449,9 @@ export default function TeacherAttendancePage() {
                             </TableCell>
                             {data.lessons.map(lesson => {
                                 const lessonKey = lesson.lesson_number.toString();
-                                const status = student.lessons[lessonKey]?.attendance_status || 'missed';
+                                const lessonData = student.lessons[lessonKey];
+                                const status = lessonData?.attendance_status || 'pending';
+                                const activityScore = lessonData?.activity_score;
                                 const isFuture = isFutureLesson(lesson.start_datetime);
                                 const isChanged = changedLessons.get(student.student_id)?.has(lessonKey);
                                 const isLastActual = lesson.event_id === lastActualLessonId;
@@ -390,12 +466,34 @@ export default function TeacherAttendancePage() {
                                         isChanged && "brightness-95"
                                     )}
                                     onClick={() => !isFuture && toggleStudentStatus(student.student_id, lessonKey, status)}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        if (!isFuture && (status === 'attended' || status === 'late')) {
+                                            setActivityModal({
+                                                open: true,
+                                                studentId: student.student_id,
+                                                lessonKey,
+                                                studentName: student.student_name,
+                                                currentScore: activityScore || 0
+                                            });
+                                        }
+                                    }}
                                 >
-                                    <div className="flex items-center justify-center h-10 w-full font-bold text-[11px] tracking-wide">
+                                    <div className="flex flex-col items-center justify-center h-10 w-full">
                                         {isFuture ? (
                                             <div className="w-1.5 h-1.5 bg-gray-200 rounded-full" />
                                         ) : (
-                                            getStatusLabel(status)
+                                            <>
+                                                <span className="font-bold text-[11px] tracking-wide">
+                                                    {getStatusLabel(status)}
+                                                </span>
+                                                {(status === 'attended' || status === 'late') && activityScore !== undefined && activityScore > 0 && (
+                                                    <div className="flex items-center gap-0.5 mt-0.5">
+                                                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                                        <span className="text-[9px] font-medium text-yellow-600">{activityScore}</span>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </TableCell>
@@ -408,6 +506,58 @@ export default function TeacherAttendancePage() {
             )}
         </div>
       </div>
+
+      {/* Activity Score Modal */}
+      <Dialog open={activityModal.open} onOpenChange={(open) => !open && setActivityModal(prev => ({ ...prev, open: false }))}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Activity Score</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-600">
+              Set activity score for <strong>{activityModal.studentName}</strong>
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
+                <Button
+                  key={score}
+                  variant={activityModal.currentScore === score ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "w-10 h-10",
+                    activityModal.currentScore === score && "bg-yellow-500 hover:bg-yellow-600"
+                  )}
+                  onClick={() => setActivityModal(prev => ({ ...prev, currentScore: score }))}
+                >
+                  {score}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 text-center">
+              Click a number to set the activity score (0-10)
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setActivityModal({ open: false, studentId: null, lessonKey: null, studentName: '', currentScore: 0 })}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (activityModal.studentId && activityModal.lessonKey) {
+                  updateActivityScore(activityModal.studentId, activityModal.lessonKey, activityModal.currentScore);
+                }
+                setActivityModal({ open: false, studentId: null, lessonKey: null, studentName: '', currentScore: 0 });
+              }}
+              className="bg-yellow-500 hover:bg-yellow-600"
+            >
+              Save Score
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

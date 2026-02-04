@@ -15,7 +15,8 @@ import {
   Trash2,
   Download,
   FileText,
-  Unlock
+  Unlock,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -49,6 +50,17 @@ interface TeacherStats {
   total_submissions: number;
   graded_submissions: number;
   grading_progress: number;
+  missing_attendance_reminders?: MissingAttendanceReminder[];
+}
+
+interface MissingAttendanceReminder {
+  event_id: number;
+  title: string;
+  group_name: string;
+  group_id?: number | null;
+  event_date: string;
+  expected_students: number;
+  recorded_students: number;
 }
 
 interface StudentProgress {
@@ -595,6 +607,51 @@ export default function TeacherDashboard() {
           )}
         </div>
       </div>
+
+      {/* Missing Attendance Reminders */}
+      {stats?.missing_attendance_reminders && stats.missing_attendance_reminders.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-yellow-800">Missing Attendance</h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                You have {stats.missing_attendance_reminders.length} recent lesson(s) with incomplete attendance records.
+              </p>
+              <div className="mt-2 space-y-1">
+                {stats.missing_attendance_reminders.slice(0, 3).map((reminder) => (
+                  <div key={reminder.event_id} className="text-sm text-yellow-700 flex items-center justify-between">
+                    <span>
+                      {reminder.group_id ? (
+                        <button 
+                            className="font-bold hover:underline"
+                            onClick={() => navigate(`/attendance?group=${reminder.group_id}`)}
+                        >
+                            {reminder.group_name}
+                        </button>
+                      ) : (
+                        <strong>{reminder.group_name}</strong>
+                      )}
+                      : {reminder.title} ({new Date(reminder.event_date).toLocaleDateString()})
+                    </span>
+                    <span className="text-yellow-600">
+                      {reminder.recorded_students}/{reminder.expected_students} recorded
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={() => navigate('/attendance')}
+                size="sm"
+                variant="outline"
+                className="mt-3 border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+              >
+                Go to Attendance
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Key Stats - Simplified */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
