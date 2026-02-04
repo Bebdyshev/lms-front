@@ -303,7 +303,7 @@ export default function TeacherAttendancePage() {
 
   const getStatusColor = (status: string) => {
       switch (status) {
-          case 'attended': return 'bg-green-200 text-green-700 hover:bg-green-400 hover:text-white';
+          case 'attended': return 'bg-green-200 text-green-700 hover:bg-green-300';
           case 'late': return 'bg-yellow-200 text-yellow-700 hover:bg-yellow-500 hover:text-white';
           case 'missed': return 'bg-rose-500 text-white hover:bg-rose-600';
           case 'pending': return 'bg-gray-100/50 text-gray-400 hover:bg-gray-200';
@@ -413,14 +413,14 @@ export default function TeacherAttendancePage() {
                 <Table className="border-collapse text-left">
                     <TableHeader>
                         <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                            <TableHead className="sticky left-0 z-40 bg-gray-50 border-r border-gray-200 px-6 py-4 min-w-[220px]">
+                            <TableHead className="sticky left-0 z-40 bg-gray-50 border-r border-gray-200 px-3 py-3 md:px-6 md:py-4 min-w-[140px] md:min-w-[220px]">
                                 <span className="text-sm font-semibold text-gray-500">Student</span>
                             </TableHead>
                             {data.lessons.map(lesson => {
                                 const isLastActual = lesson.event_id === lastActualLessonId;
                                 return (
                                     <TableHead key={lesson.event_id} className={cn(
-                                        "text-center min-w-[100px] px-2 py-3 transition-colors border-r border-gray-200",
+                                        "text-center min-w-[110px] px-1 py-2 md:px-2 md:py-3 transition-colors border-r border-gray-200",
                                         isFutureLesson(lesson.start_datetime) && "bg-gray-50/30 font-normal text-gray-400",
                                         isLastActual && "bg-blue-50/30 border-l-2 border-r-2 border-blue-600"
                                     )}>
@@ -442,9 +442,9 @@ export default function TeacherAttendancePage() {
                     <TableBody className="divide-y divide-gray-100">
                         {filteredStudents.map((student) => (
                         <TableRow key={student.student_id} className="hover:bg-gray-50/50 transition-colors group">
-                            <TableCell className="sticky left-0 z-30 bg-white border-r border-gray-200 px-6 py-3.5 group-hover:bg-gray-50 transition-colors">
+                            <TableCell className="sticky left-0 z-30 bg-white border-r border-gray-200 px-3 py-3 md:px-6 md:py-3.5 group-hover:bg-gray-50 transition-colors">
                                 <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-gray-900">{student.student_name}</span>
+                                    <span className="text-sm font-medium text-gray-900 truncate max-w-[120px] md:max-w-none">{student.student_name}</span>
                                 </div>
                             </TableCell>
                             {data.lessons.map(lesson => {
@@ -460,7 +460,7 @@ export default function TeacherAttendancePage() {
                                 <TableCell 
                                     key={`${student.student_id}-${lesson.event_id}`} 
                                     className={cn(
-                                        "p-0 text-center transition-colors cursor-pointer select-none border-r border-gray-100/50",
+                                        "p-0 text-center transition-colors cursor-pointer select-none border-r border-gray-100/50 min-w-[110px]",
                                         isFuture ? "bg-gray-50/10 cursor-default" : getStatusColor(status),
                                         isLastActual && !isFuture && "border-l-2 border-r-2 border-blue-600 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.1)]",
                                         isChanged && "brightness-95"
@@ -479,7 +479,7 @@ export default function TeacherAttendancePage() {
                                         }
                                     }}
                                 >
-                                    <div className="flex flex-col items-center justify-center h-10 w-full">
+                                    <div className="flex flex-row items-center justify-center h-10 w-full gap-1 lg:flex-col lg:gap-0">
                                         {isFuture ? (
                                             <div className="w-1.5 h-1.5 bg-gray-200 rounded-full" />
                                         ) : (
@@ -487,10 +487,32 @@ export default function TeacherAttendancePage() {
                                                 <span className="font-bold text-[11px] tracking-wide">
                                                     {getStatusLabel(status)}
                                                 </span>
-                                                {(status === 'attended' || status === 'late') && activityScore !== undefined && activityScore > 0 && (
-                                                    <div className="flex items-center gap-0.5 mt-0.5">
-                                                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                                        <span className="text-[9px] font-medium text-yellow-600">{activityScore}</span>
+                                                {(status === 'attended' || status === 'late') && (
+                                                    <div className="flex items-center gap-0.5 lg:mt-0.5">
+                                                        {activityScore !== undefined && activityScore > 0 ? (
+                                                            <>
+                                                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                                                <span className="text-[9px] font-medium text-yellow-600">{activityScore}</span>
+                                                            </>
+                                                        ) : (
+                                                            <div 
+                                                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer flex items-center gap-0.5"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setActivityModal({
+                                                                        open: true,
+                                                                        studentId: student.student_id,
+                                                                        lessonKey,
+                                                                        studentName: student.student_name,
+                                                                        currentScore: 0
+                                                                    });
+                                                                }}
+                                                                title="Add Activity Score"
+                                                            >
+                                                                <Star className="w-3 h-3 text-gray-400 hover:fill-gray-200" />
+                                                                <span className="text-[9px] text-gray-400">+</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </>

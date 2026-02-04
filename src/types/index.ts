@@ -246,6 +246,15 @@ export interface AdminStats {
   total_courses: number;
   total_active_enrollments: number;
   recent_registrations: number;
+  missing_attendance_reminders?: Array<{
+    event_id: number;
+    title: string;
+    group_name: string;
+    group_id?: number | null;
+    event_date: string;
+    expected_students: number;
+    recorded_students: number;
+  }>;
 }
 
 export interface AdminDashboard {

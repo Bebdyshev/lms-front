@@ -17,6 +17,16 @@ import {
 import Loader from '../../components/Loader';
 import { Button } from '../../components/ui/button';
 
+interface MissingAttendanceReminder {
+  event_id: number;
+  title: string;
+  group_name: string;
+  group_id?: number | null;
+  event_date: string;
+  expected_students: number;
+  recorded_students: number;
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<AdminDashboardType | null>(null);
@@ -79,6 +89,56 @@ export default function AdminDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Missing Attendance Reminders */}
+      {stats.missing_attendance_reminders && stats.missing_attendance_reminders.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-900">
+              Attendance Required ({stats.missing_attendance_reminders.length})
+            </h3>
+            <Button
+              onClick={() => navigate('/attendance')}
+              size="sm"
+              variant="outline"
+              className="text-xs"
+            >
+              Go to Attendance
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {stats.missing_attendance_reminders.slice(0, 5).map((reminder: MissingAttendanceReminder) => (
+              <div key={reminder.event_id} className="flex items-center justify-between text-sm py-2 border-b border-gray-100 last:border-0">
+                <div className="flex-1 min-w-0 mr-4">
+                  <p className="text-gray-900 truncate">{reminder.title}</p>
+                  <p className="text-xs text-gray-500">
+                    {reminder.group_name} • {new Date(reminder.event_date).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-gray-600">
+                    {reminder.recorded_students}/{reminder.expected_students}
+                  </span>
+                  <Button
+                    onClick={() => {
+                      if (reminder.group_id) {
+                        navigate(`/attendance?group=${reminder.group_id}`);
+                      } else {
+                        navigate('/attendance');
+                      }
+                    }}
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs h-7"
+                  >
+                    Mark
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" data-tour="dashboard-overview">
