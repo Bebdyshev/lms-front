@@ -31,8 +31,19 @@ import {
   MessageSquare,
   FileText,
   Calendar,
-  Clock
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
+
+interface MissedAttendanceItem {
+  event_id: number;
+  event_title: string;
+  group_id: number;
+  group_name: string;
+  event_date: string;
+  expected_count: number;
+  recorded_count: number;
+}
 
 interface TeacherDetails {
   teacher_id: number;
@@ -45,6 +56,8 @@ interface TeacherDetails {
   activity_history: Array<{ date: string; submissions_graded: number }>;
   total_feedbacks: number;
   avg_score_given: number | null;
+  missed_attendance_count?: number;
+  missed_attendance_details?: MissedAttendanceItem[];
 }
 
 interface FeedbackItem {
@@ -213,13 +226,51 @@ export default function HeadTeacherTeacherDetailsPage() {
 
         <Card>
            <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Status</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">Missed Attendance</CardTitle>
           </CardHeader>
           <CardContent>
-             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
+            <div className={`text-2xl font-bold ${(teacherDetails.missed_attendance_count || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              {teacherDetails.missed_attendance_count || 0}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Unrecorded classes</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Missed Attendance Alert */}
+      {(teacherDetails.missed_attendance_details?.length || 0) > 0 && (
+        <Card className="border-red-200 bg-red-50/50">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <CardTitle className="text-base text-red-900">Missing Attendance Records</CardTitle>
+            </div>
+            <CardDescription className="text-red-700">
+              The following classes ended without complete attendance records
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {teacherDetails.missed_attendance_details?.map((item) => (
+                <div 
+                  key={`${item.event_id}-${item.group_id}`} 
+                  className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-red-100"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{item.event_title}</p>
+                    <p className="text-xs text-slate-500">
+                      {item.group_name} • {new Date(item.event_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="bg-red-100 text-red-700 border-red-200">
+                    {item.recorded_count}/{item.expected_count} recorded
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
