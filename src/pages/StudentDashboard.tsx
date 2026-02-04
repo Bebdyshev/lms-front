@@ -6,7 +6,7 @@ import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
 import { Checkbox } from "../components/ui/checkbox";
 import type { DashboardStats, StudentProgressOverview, Assignment, Event, AssignmentSubmission } from "../types";
-import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap, MessageCircle, User } from "lucide-react";
+import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../services/api";
@@ -181,7 +181,7 @@ export default function StudentDashboard({
     });
   };
 
-  // Get current and relevant assignments (due soon or recent)
+  // Get current and relevant assignments (due soon, overdue, or recent)
   const relevantAssignments = assignments
     .filter(assignment => {
       const submission = submissions.find(sub => sub.assignment_id === assignment.id);
@@ -202,8 +202,8 @@ export default function StudentDashboard({
         return false;
       }
       
-      // Don't show overdue assignments
-      if (dueDate < now) return false;
+      // Show overdue assignments (not submitted yet)
+      if (dueDate < now && !submission) return true;
       
       // Show assignments due within 3 days
       if (dueDate <= threeDaysFromNow) return true;
@@ -220,12 +220,21 @@ export default function StudentDashboard({
       const bDate = new Date(b.due_date);
       const now = new Date();
       
-      // If showing completed, prioritize current tasks first
+      // Prioritize overdue assignments (not submitted)
+      const aSubmission = submissions.find(sub => sub.assignment_id === a.id);
+      const bSubmission = submissions.find(sub => sub.assignment_id === b.id);
+      const aOverdue = aDate < now && !aSubmission;
+      const bOverdue = bDate < now && !bSubmission;
+      
+      if (aOverdue && !bOverdue) return -1; // Overdue tasks first
+      if (!aOverdue && bOverdue) return 1;
+      
+      // If showing completed, prioritize current tasks after overdue
       if (showCompleted) {
-        const aOverdue = aDate < now;
-        const bOverdue = bDate < now;
-        if (aOverdue && !bOverdue) return 1; // Current tasks first
-        if (!aOverdue && bOverdue) return -1;
+        const aOverdueCompleted = aDate < now;
+        const bOverdueCompleted = bDate < now;
+        if (aOverdueCompleted && !bOverdueCompleted) return 1; // Current tasks before completed overdue
+        if (!aOverdueCompleted && bOverdueCompleted) return -1;
       }
       
       // Sort by date (earliest first)
@@ -403,6 +412,7 @@ export default function StudentDashboard({
                     const allDeadlines = [
                       ...relevantAssignments.map(assignment => ({
                         id: `assignment-${assignment.id}`,
+                        assignmentId: assignment.id,
                         title: assignment.title,
                         date: assignment.due_date,
                         type: 'assignment' as const,
@@ -411,6 +421,7 @@ export default function StudentDashboard({
                       })),
                       ...relevantEvents.map(event => ({
                         id: `event-${event.id}`,
+                        eventId: event.id,
                         title: event.title,
                         date: event.start_datetime,
                         type: 'event' as const,
@@ -430,7 +441,17 @@ export default function StudentDashboard({
 
                     return allDeadlines.length > 0 ? (
                       allDeadlines.map((deadline) => (
-                        <div key={deadline.id} className="flex items-center gap-3 p-2 border rounded-lg hover:bg-gray-50">
+                        <div 
+                          key={deadline.id} 
+                          className="flex items-center gap-3 p-2 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => {
+                            if (deadline.type === 'assignment' && 'assignmentId' in deadline) {
+                              navigate(`/homework/${deadline.assignmentId}`);
+                            } else if (deadline.type === 'event' && 'eventId' in deadline) {
+                              navigate(`/calendar`);
+                            }
+                          }}
+                        >
                           {deadline.type === 'assignment' ? (
                             <>
                               <deadline.status.icon className="h-4 w-4 text-gray-500" />
