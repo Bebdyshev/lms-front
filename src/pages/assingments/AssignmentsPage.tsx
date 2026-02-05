@@ -8,6 +8,21 @@ import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Group } from '../../types';
 
+// Helper to format UTC datetime string to Kazakhstan time
+const formatToKZTime = (dateStr: string | undefined) => {
+  if (!dateStr) return '-';
+  // Ensure UTC is properly interpreted by adding Z if not present
+  const utcDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  return new Date(utcDateStr).toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false, 
+    timeZone: 'Asia/Almaty' 
+  });
+};
+
 interface AssignmentWithStatus {
   id: number;
   title: string;
@@ -447,7 +462,7 @@ export default function AssignmentsPage() {
                                 <div className="flex items-center text-green-600">
                                   <Calendar className="w-4 h-4 mr-1 text-green-400" />
                                   <span className="font-medium">
-                                    {new Date(assignment.extended_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                                    {formatToKZTime(assignment.extended_deadline)}
                                   </span>
                                   <span className="ml-1 text-[9px] bg-green-50 text-green-600 px-1 rounded border border-green-100 font-bold uppercase tracking-tight">Ext</span>
                                 </div>
@@ -455,14 +470,14 @@ export default function AssignmentsPage() {
                                 <div className={`flex items-center ${isOverdue(assignment.due_date) && assignment.status === 'not_submitted' ? 'text-red-600' : ''}`}>
                                   <Calendar className={`w-4 h-4 mr-1 ${isOverdue(assignment.due_date) && assignment.status === 'not_submitted' ? 'text-red-400' : 'text-gray-400'}`} />
                                   <span className="font-medium">
-                                    {new Date(assignment.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Almaty' })}
+                                    {formatToKZTime(assignment.due_date)}
                                   </span>
                                 </div>
                               ) : assignment.event_start_datetime ? (
                                 <div className="flex items-center">
                                   <Calendar className="w-4 h-4 mr-1" />
                                   <span className="font-medium ">
-                                  {new Date(assignment.event_start_datetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Almaty' })}
+                                    {formatToKZTime(assignment.event_start_datetime)}
                                   </span>
                                 </div>
                               ) : (
