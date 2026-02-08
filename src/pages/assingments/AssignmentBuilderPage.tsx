@@ -132,7 +132,9 @@ export default function AssignmentBuilderPage() {
         content: content || {},
         correct_answers: correct_answers || {},
         max_score: assignment.max_score,
-        due_date: assignment.due_date ? new Date(assignment.due_date).toISOString() : '', // Use full ISO for DateTimePicker
+        due_date: assignment.due_date 
+          ? (assignment.due_date.endsWith('Z') ? assignment.due_date : new Date(assignment.due_date + 'Z').toISOString())
+          : '',
         allowed_file_types: assignment.allowed_file_types || ['pdf', 'docx', 'doc', 'jpg', 'png'],
         max_file_size_mb: assignment.max_file_size_mb || 10,
         group_id: assignment.group_id,
@@ -143,7 +145,9 @@ export default function AssignmentBuilderPage() {
         lesson_number_mapping: assignment.lesson_number && assignment.group_id 
           ? { [assignment.group_id]: assignment.lesson_number } 
           : {},
-        due_date_mapping: assignment.due_date && assignment.group_id ? { [assignment.group_id]: new Date(assignment.due_date).toISOString() } : {},
+        due_date_mapping: assignment.due_date && assignment.group_id 
+          ? { [assignment.group_id]: (assignment.due_date.endsWith('Z') ? assignment.due_date : new Date(assignment.due_date + 'Z').toISOString()) } 
+          : {},
         late_penalty_enabled: assignment.late_penalty_enabled || false,
         late_penalty_multiplier: assignment.late_penalty_multiplier || 0.6
       });
@@ -253,7 +257,12 @@ export default function AssignmentBuilderPage() {
           
           // Auto-populate due_date_mapping when an event is selected
           if (selectedEvent && selectedEvent.scheduled_at) {
-              const eventDateTime = new Date(selectedEvent.scheduled_at).toISOString();
+              // Ensure scheduled_at is treated as UTC if it's naive
+              const dateStr = selectedEvent.scheduled_at;
+              const eventDateTime = (dateStr.endsWith('Z') || dateStr.includes('+')) 
+                 ? new Date(dateStr).toISOString()
+                 : new Date(dateStr + 'Z').toISOString();
+
               updates.due_date_mapping = {
                   ...prev.due_date_mapping,
                   [groupId]: eventDateTime
@@ -641,6 +650,32 @@ export default function AssignmentBuilderPage() {
                     min="1"
                     max="1000"
                     required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="due-date" className="mb-2 block">
+                    Global Due Date
+                  </Label>
+                  <DateTimePicker
+                    date={formData.due_date ? new Date(formData.due_date) : undefined}
+                    setDate={(date) => {
+                      const isoDate = date ? date.toISOString() : '';
+                      setFormData(prev => {
+                        const newMapping = { ...prev.due_date_mapping };
+                        // If setting global date, apply to all selected groups that don't have one yet
+                        // or just overwrite all if that's more useful. Let's overwrite all for simplicity.
+                        (prev.group_ids || []).forEach(gid => {
+                          newMapping[gid] = isoDate;
+                        });
+                        return { 
+                          ...prev, 
+                          due_date: isoDate,
+                          due_date_mapping: newMapping
+                        };
+                      });
+                    }}
+                    placeholder="Set deadline for all groups..."
                   />
                 </div>
 
