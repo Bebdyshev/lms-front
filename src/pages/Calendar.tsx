@@ -45,6 +45,21 @@ interface CalendarDay {
   isWeekend: boolean;
 }
 
+// Palette of distinct, readable pastel colors for classes
+const CLASS_COLORS = [
+  'bg-emerald-100 text-emerald-800 border-emerald-200',
+  'bg-violet-100 text-violet-800 border-violet-200',
+  'bg-amber-100 text-amber-800 border-amber-200',
+  'bg-cyan-100 text-cyan-800 border-cyan-200',
+  'bg-pink-100 text-pink-800 border-pink-200',
+  'bg-indigo-100 text-indigo-800 border-indigo-200',
+  'bg-teal-100 text-teal-800 border-teal-200',
+  'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
+  'bg-lime-100 text-lime-800 border-lime-200',
+  'bg-sky-100 text-sky-800 border-sky-200',
+  'bg-rose-100 text-rose-800 border-rose-200',
+];
+
 export default function Calendar() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -159,10 +174,6 @@ export default function Calendar() {
         );
       }
 
-      // Hide assignment events for admin users if needed (keeping existing logic, though admin usually wants to see everything)
-      // Actually, admin might want to see assignments too. The logic below was hiding them.
-      // I will preserve existing logic but maybe user wants assignments? 
-      // Existing logic: "Hide assignment events for admin users" - likely to declutter.
       const finalEvents = user?.role === 'admin' 
         ? filteredEvents.filter(event => event.event_type !== 'assignment')
         : filteredEvents;
@@ -189,8 +200,30 @@ export default function Calendar() {
     });
   };
 
-  const getEventTypeColor = (eventType: EventType) => {
-    return EVENT_TYPE_COLORS[eventType] || 'bg-gray-100 text-gray-800';
+  // Helper to generate a consistent hash from a string
+  const getStringHash = (str: string): number => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  // Get color based on event type and content
+  const getEventColor = (event: Event) => {
+    if (event.event_type === 'class') {
+      // Use title or the first group ID to determine color
+      // Title is better as it groups same-subject classes
+      const seed = event.title || 'default'; 
+      const hash = getStringHash(seed);
+      const colorIndex = hash % CLASS_COLORS.length;
+      return CLASS_COLORS[colorIndex];
+    }
+    
+    // For other types, use standard defined colors
+    return EVENT_TYPE_COLORS[event.event_type] || 'bg-gray-100 text-gray-800';
   };
 
   const calendarDays = generateCalendarDays();
@@ -353,7 +386,7 @@ export default function Calendar() {
                     key={event.id}
                     className={`
                       text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer
-                      ${getEventTypeColor(event.event_type)}
+                      ${getEventColor(event)}
                     `}
                     title={`${event.title} - ${formatTime(event.start_datetime)}`}
                   >
@@ -382,8 +415,8 @@ export default function Calendar() {
         <h3 className="font-medium text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Event Types:</h3>
         <div className="flex flex-wrap gap-2 sm:gap-3">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-blue-100 border border-blue-200 flex-shrink-0"></div>
-            <span className="text-xs sm:text-sm text-gray-600">Classes</span>
+            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-gradient-to-br from-emerald-100 to-indigo-100 border border-gray-200 flex-shrink-0"></div>
+            <span className="text-xs sm:text-sm text-gray-600">Classes (Varied)</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-yellow-100 border border-yellow-200 flex-shrink-0"></div>
@@ -418,7 +451,7 @@ export default function Calendar() {
               <div key={event.id} className="border rounded-lg p-3 sm:p-4">
                 <div className="flex items-start justify-between mb-2 gap-2">
                   <h3 className="font-semibold text-gray-900 text-sm sm:text-base flex-1 min-w-0">{event.title}</h3>
-                  <Badge className={`${getEventTypeColor(event.event_type)} border text-xs flex-shrink-0`}>
+                  <Badge className={`${getEventColor(event)} border text-xs flex-shrink-0`}>
                     {EVENT_TYPE_LABELS[event.event_type]}
                   </Badge>
                 </div>
