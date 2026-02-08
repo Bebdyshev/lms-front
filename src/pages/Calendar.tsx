@@ -45,19 +45,19 @@ interface CalendarDay {
   isWeekend: boolean;
 }
 
-// Palette of distinct, readable pastel colors for classes
+// Palette of distinct, readable saturated pastel colors with high-contrast text
 const CLASS_COLORS = [
-  'bg-emerald-100 text-emerald-800 border-emerald-200',
-  'bg-violet-100 text-violet-800 border-violet-200',
-  'bg-amber-100 text-amber-800 border-amber-200',
-  'bg-cyan-100 text-cyan-800 border-cyan-200',
-  'bg-pink-100 text-pink-800 border-pink-200',
-  'bg-indigo-100 text-indigo-800 border-indigo-200',
-  'bg-teal-100 text-teal-800 border-teal-200',
-  'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
-  'bg-lime-100 text-lime-800 border-lime-200',
-  'bg-sky-100 text-sky-800 border-sky-200',
-  'bg-rose-100 text-rose-800 border-rose-200',
+  'bg-emerald-100 text-emerald-900 border-emerald-200',
+  'bg-violet-100 text-violet-900 border-violet-200',
+  'bg-amber-100 text-amber-900 border-amber-200',
+  'bg-cyan-100 text-cyan-900 border-cyan-200',
+  'bg-pink-100 text-pink-900 border-pink-200',
+  'bg-indigo-100 text-indigo-900 border-indigo-200',
+  'bg-teal-100 text-teal-900 border-teal-200',
+  'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-200',
+  'bg-lime-100 text-lime-900 border-lime-200',
+  'bg-sky-100 text-sky-900 border-sky-200',
+  'bg-rose-100 text-rose-900 border-rose-200',
 ];
 
 export default function Calendar() {
@@ -82,6 +82,21 @@ export default function Calendar() {
     loadEvents();
     loadGroups();
   }, [currentDate]);
+
+  // Auto-scroll to current time or first event when dialog opens
+  useEffect(() => {
+    if (selectedDay) {
+      setTimeout(() => {
+        const timeIndicator = document.getElementById('current-time-indicator');
+        if (timeIndicator) {
+          timeIndicator.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          // If no time indicator (e.g. not today), scroll to first event?
+          // Default behavior is top, which is fine.
+        }
+      }, 100);
+    }
+  }, [selectedDay]);
 
   const loadGroups = async () => {
     try {
@@ -445,65 +460,186 @@ export default function Calendar() {
 
       {/* Day Events Dialog */}
       <Dialog open={!!selectedDay} onOpenChange={() => setSelectedDay(null)}>
-        <DialogContent className="max-w-2xl mx-4 sm:mx-0 max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle className="text-lg sm:text-xl">
-              Events on {selectedDay?.date.toLocaleDateString('en-US', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              })}
+        <DialogContent className="max-w-4xl mx-4 sm:mx-0 h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="p-4 sm:p-6 pb-2 sm:pb-4 border-b flex-shrink-0 bg-white z-10">
+            <DialogTitle className="text-xl sm:text-2xl flex items-center gap-2">
+              <span className="font-bold text-gray-900">
+                {selectedDay?.date.toLocaleDateString('en-US', { weekday: 'long' })}
+              </span>
+              <span className="text-gray-500 font-normal">
+                {selectedDay?.date.toLocaleDateString('en-US', { day: 'numeric', month: 'long' })}
+              </span>
+              {selectedDay?.isToday && (
+                <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">Today</Badge>
+              )}
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-3 sm:space-y-4 max-h-96 overflow-y-auto flex-1">
-            {selectedDay?.events.map(event => (
-              <div key={event.id} className="border rounded-lg p-3 sm:p-4">
-                <div className="flex items-start justify-between mb-2 gap-2">
-                  <h3 className="font-semibold text-gray-900 text-sm sm:text-base flex-1 min-w-0">{event.title}</h3>
-                  <Badge className={`${getEventColor(event)} border text-xs flex-shrink-0`}>
-                    {EVENT_TYPE_LABELS[event.event_type]}
-                  </Badge>
-                </div>
-                
-                <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                    <span className="truncate">{formatTime(event.start_datetime)} - {formatTime(event.end_datetime)}</span>
-                  </div>
-                  
-                  {event.location && (
-                    <div className="flex items-center gap-2">
-                      {event.is_online ? <Video className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" /> : <MapPin className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />}
-                      {event.location.startsWith('http://') || event.location.startsWith('https://') ? (
-                        <a 
-                          href={event.location} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 hover:underline truncate"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {event.location}
-                        </a>
-                      ) : (
-                        <span className="truncate">{event.location}</span>
-                      )}
-                    </div>
-                  )}
-                  
-                  {event.groups && event.groups.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Users className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                      <span className="truncate">{event.groups.join(', ')}</span>
-                    </div>
-                  )}
-                </div>
-                
-                {event.description && (
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2 line-clamp-2">{event.description}</p>
-                )}
+          <div className="flex-1 overflow-y-auto bg-gray-50/50 p-4 sm:p-6" id="day-view-container">
+            {selectedDay?.events.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                <CalendarIcon className="w-12 h-12 mb-2 opacity-20" />
+                <p>No events scheduled for this day</p>
               </div>
-            ))}
+            ) : (
+              <div className="relative max-w-3xl mx-auto space-y-6">
+                 {/* Current Time Indicator (only for Today) */}
+                 {selectedDay?.isToday && (() => {
+                    const now = new Date();
+                    // We render this absolutely or interjected? 
+                    // Let's interject it into the flow visually using a custom component helper logic below
+                    return null; 
+                 })()}
+
+                {/* Events List with Time Indicators */}
+                {(() => {
+                  const now = new Date();
+                  const isToday = selectedDay?.isToday;
+                  const currentHour = now.getHours();
+                  const currentMinute = now.getMinutes();
+                  const currentTimeValue = currentHour * 60 + currentMinute;
+
+                  // Sort events by start time
+                  const sortedEvents = [...(selectedDay?.events || [])].sort((a, b) => {
+                    return new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime();
+                  });
+
+                  let hasRenderedTimeLine = false;
+
+                  return sortedEvents.map((event) => {
+                    const startInfo = new Date(event.start_datetime);
+                    const eventTimeValue = startInfo.getHours() * 60 + startInfo.getMinutes();
+                    
+                    // Check if we should render the time line before this event
+                    // Render if it's today, we haven't rendered it yet, and this event is in the future (or now)
+                    const showTimeLine = isToday && !hasRenderedTimeLine && eventTimeValue > currentTimeValue;
+                    
+                    if (showTimeLine) {
+                      hasRenderedTimeLine = true;
+                    }
+                    
+                    return (
+                      <div key={`container-${event.id}`}>
+                        {showTimeLine && (
+                           <div 
+                             id="current-time-indicator" 
+                             className="flex items-center gap-4 my-6 scroll-mt-24"
+                           >
+                              <div className="text-red-500 font-bold text-sm w-16 text-right">
+                                {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                              </div>
+                              <div className="flex-1 h-px bg-red-500 relative">
+                                <div className="absolute left-0 -top-1 w-2 h-2 rounded-full bg-red-500"></div>
+                              </div>
+                           </div>
+                        )}
+
+                        <div className="flex gap-4 group">
+                          {/* Time Column */}
+                          <div className="flex flex-col items-end w-16 flex-shrink-0 pt-1">
+                            <span className="text-sm font-bold text-gray-900">
+                              {formatTime(event.start_datetime).split(' ')[0]}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {formatTime(event.start_datetime).split(' ')[1]}
+                            </span>
+                          </div>
+
+                          {/* Event Card */}
+                          <div className={`
+                            flex-1 p-4 rounded-xl border transition-all
+                            ${getEventColor(event)}
+                            hover:brightness-95
+                          `}>
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div>
+                                <h3 className="font-bold text-base sm:text-lg">{event.title}</h3>
+                                {event.description && (
+                                  <p className="text-sm opacity-90 mt-1 line-clamp-2">{event.description}</p>
+                                )}
+                              </div>
+                              <Badge variant="outline" className="border-current opacity-75 hidden sm:flex">
+                                {EVENT_TYPE_LABELS[event.event_type]}
+                              </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm opacity-90">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 opacity-75" />
+                                <span>
+                                  {formatTime(event.start_datetime)} - {formatTime(event.end_datetime)}
+                                </span>
+                              </div>
+
+                              {event.location && (
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                  {event.is_online ? (
+                                    <Video className="w-4 h-4 opacity-75 flex-shrink-0" />
+                                  ) : (
+                                    <MapPin className="w-4 h-4 opacity-75 flex-shrink-0" />
+                                  )}
+                                  {event.location.startsWith('http') ? (
+                                    <a 
+                                      href={event.location}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="hover:underline truncate underline-offset-4"
+                                    >
+                                      Enter Class
+                                    </a>
+                                  ) : (
+                                    <span className="truncate">{event.location}</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {event.groups && event.groups.length > 0 && (
+                                <div className="flex items-center gap-2 col-span-1 sm:col-span-2">
+                                  <Users className="w-4 h-4 opacity-75 flex-shrink-0" />
+                                  <span className="truncate">
+                                    {event.groups.join(', ')}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+                
+                {/* Fallback timestamp at the end if all events passed today */}
+                {selectedDay?.isToday && (() => {
+                   const now = new Date();
+                   const events = selectedDay.events;
+                   const lastEvent = events.length > 0 
+                     ? events.sort((a,b) => new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime())[events.length-1] 
+                     : null;
+                   
+                   const lastEventEnd = lastEvent ? new Date(lastEvent.end_datetime) : new Date(0);
+                   
+                   // If now is after the last event, show the line at the bottom
+                   if (now > lastEventEnd) {
+                     return (
+                       <div 
+                         id="current-time-indicator" 
+                         className="flex items-center gap-4 my-6 scroll-mt-24 opacity-50"
+                       >
+                          <div className="text-red-500 font-bold text-sm w-16 text-right">
+                            {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                          </div>
+                          <div className="flex-1 h-px bg-red-500 relative">
+                             <div className="absolute left-0 -top-1 w-2 h-2 rounded-full bg-red-500"></div>
+                          </div>
+                       </div>
+                     )
+                   }
+                   return null;
+                })()}
+
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
