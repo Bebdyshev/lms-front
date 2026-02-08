@@ -653,31 +653,6 @@ export default function AssignmentBuilderPage() {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="due-date" className="mb-2 block">
-                    Global Due Date
-                  </Label>
-                  <DateTimePicker
-                    date={formData.due_date ? new Date(formData.due_date) : undefined}
-                    setDate={(date) => {
-                      const isoDate = date ? date.toISOString() : '';
-                      setFormData(prev => {
-                        const newMapping = { ...prev.due_date_mapping };
-                        // If setting global date, apply to all selected groups that don't have one yet
-                        // or just overwrite all if that's more useful. Let's overwrite all for simplicity.
-                        (prev.group_ids || []).forEach(gid => {
-                          newMapping[gid] = isoDate;
-                        });
-                        return { 
-                          ...prev, 
-                          due_date: isoDate,
-                          due_date_mapping: newMapping
-                        };
-                      });
-                    }}
-                    placeholder="Set deadline for all groups..."
-                  />
-                </div>
 
                 {/* Late Penalty Settings */}
                 <div className="pt-4 border-t space-y-4">
@@ -817,7 +792,7 @@ interface EditorProps {
   onCorrectAnswersChange: (correct_answers: any) => void;
 }
 
-function FileUploadEditor({ content, correct_answers, onContentChange, onCorrectAnswersChange }: EditorProps) {
+function FileUploadEditor({ content, onContentChange, onCorrectAnswersChange }: EditorProps) {
   const [question, setQuestion] = useState(content.question || '');
   const [allowedTypes, setAllowedTypes] = useState(content.allowed_file_types || ['pdf', 'docx']);
   const [maxSize, setMaxSize] = useState(content.max_file_size_mb || 10);
