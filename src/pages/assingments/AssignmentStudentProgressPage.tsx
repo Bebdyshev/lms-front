@@ -804,6 +804,58 @@
                     </div>
 
                     <div className="space-y-3">
+                      {/* Auto-Check Results */}
+                      {selectedSubmission.answers?.auto_check_result && (
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-semibold text-blue-900">Auto-Check Results</span>
+                            <Badge variant="outline" className={
+                              selectedSubmission.answers.auto_check_result.correct_count === selectedSubmission.answers.auto_check_result.total_count
+                                ? 'border-green-500 text-green-700'
+                                : 'border-amber-500 text-amber-700'
+                            }>
+                              {selectedSubmission.answers.auto_check_result.correct_count}/{selectedSubmission.answers.auto_check_result.total_count} correct
+                            </Badge>
+                          </div>
+                          
+                          {/* Per-field breakdown */}
+                          {data?.assignment.content?.answer_fields && (
+                            <div className="space-y-2">
+                              {data.assignment.content.answer_fields.map((field: any) => {
+                                const isCorrect = selectedSubmission.answers.auto_check_result.details?.[field.id];
+                                const studentAnswer = selectedSubmission.answers.field_answers?.[field.id] || '(no answer)';
+                                return (
+                                  <div 
+                                    key={field.id} 
+                                    className={`flex items-center justify-between p-2 rounded text-sm ${
+                                      isCorrect 
+                                        ? 'bg-green-100 border border-green-200' 
+                                        : 'bg-red-100 border border-red-200'
+                                    }`}
+                                  >
+                                    <div className="flex-1">
+                                      <span className="font-medium">{field.label}:</span>
+                                      <span className="ml-2 font-mono">{studentAnswer}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {!isCorrect && (
+                                        <span className="text-xs text-gray-500">
+                                          (correct: <span className="font-mono">{field.correct_answer}</span>)
+                                        </span>
+                                      )}
+                                      {isCorrect 
+                                        ? <CheckCircle className="w-4 h-4 text-green-600" /> 
+                                        : <AlertCircle className="w-4 h-4 text-red-600" />
+                                      }
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div>
                         <label className="text-sm text-gray-600">Score</label>
                         <Input

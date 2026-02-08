@@ -41,6 +41,7 @@ export default function AssignmentPage() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [isCompressing, setIsCompressing] = useState<boolean>(false);
+  const [fieldAnswers, setFieldAnswers] = useState<Record<string, string>>({});
 
 
   const loadAssignment = async (assignmentId: string) => {
@@ -154,7 +155,8 @@ export default function AssignmentPage() {
       await apiClient.submitAssignment(id, { 
         answers: { 
             text,
-            files: uploadedFiles // Store all files in answers JSON
+            files: uploadedFiles, // Store all files in answers JSON
+            field_answers: fieldAnswers // Answer fields for auto-check
         },
         file_url: fileUrl, // Top-level legacy column
         submitted_file_name: fileName // Top-level legacy column
@@ -526,6 +528,35 @@ export default function AssignmentPage() {
                             </Button>
                         </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Answer Fields for Auto-Check */}
+                {assignment.content?.answer_fields && assignment.content.answer_fields.length > 0 && (
+                  <div className="pt-4 border-t space-y-4">
+                    <div>
+                      <Label className="text-sm font-semibold">Enter Your Answers</Label>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Fill in your answers below. They will be auto-checked.
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      {assignment.content.answer_fields.map((field: any) => (
+                        <div key={field.id} className="space-y-1">
+                          <Label className="text-sm">{field.label}</Label>
+                          <input
+                            type="text"
+                            value={fieldAnswers[field.id] || ''}
+                            onChange={(e) => setFieldAnswers(prev => ({
+                              ...prev,
+                              [field.id]: e.target.value
+                            }))}
+                            className="w-full px-3 py-2 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter your answer..."
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

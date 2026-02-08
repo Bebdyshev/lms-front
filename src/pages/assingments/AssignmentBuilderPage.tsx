@@ -815,10 +815,19 @@ function FileUploadEditor({ content, onContentChange, onCorrectAnswersChange }: 
       allowed_file_types: allowedTypes, 
       max_file_size_mb: maxSize,
       teacher_file: teacherFile,
-      teacher_file_name: teacherFileName
+      teacher_file_name: teacherFileName,
+      answer_fields: content.answer_fields || []
     });
-    onCorrectAnswersChange({ requires_file: true });
-  }, [question, allowedTypes, maxSize, teacherFile, teacherFileName]);
+    // Sync answer_fields to correct_answers for backend auto-check
+    const answerFieldsData = (content.answer_fields || []).reduce((acc: any, field: any) => {
+      acc[field.id] = field.correct_answer;
+      return acc;
+    }, {});
+    onCorrectAnswersChange({ 
+      requires_file: true,
+      answer_fields: answerFieldsData
+    });
+  }, [question, allowedTypes, maxSize, teacherFile, teacherFileName, content.answer_fields]);
 
   const fileTypes = [
     { value: 'pdf', label: 'PDF' },
@@ -973,6 +982,77 @@ function FileUploadEditor({ content, onContentChange, onCorrectAnswersChange }: 
           min="1"
           max="100"
         />
+      </div>
+
+      {/* Answer Fields for Auto-Check */}
+      <div className="pt-4 border-t">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <Label className="text-sm font-semibold">Answer Fields (Optional)</Label>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Add fields for students to enter answers. System will auto-check correctness.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const newFields = [...(content.answer_fields || [])];
+              newFields.push({ 
+                id: Date.now(), 
+                label: `Problem ${newFields.length + 1}`, 
+                correct_answer: '' 
+              });
+              onContentChange({ ...content, answer_fields: newFields });
+            }}
+          >
+            + Add Field
+          </Button>
+        </div>
+        
+        {(content.answer_fields || []).length > 0 && (
+          <div className="space-y-3">
+            {(content.answer_fields || []).map((field: any, index: number) => (
+              <div key={field.id} className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg border">
+                <div className="flex-1 space-y-2">
+                  <Input
+                    placeholder="Field label (e.g., Problem 1)"
+                    value={field.label}
+                    onChange={(e) => {
+                      const updated = [...content.answer_fields];
+                      updated[index] = { ...field, label: e.target.value };
+                      onContentChange({ ...content, answer_fields: updated });
+                    }}
+                    className="text-sm"
+                  />
+                  <Input
+                    placeholder="Correct answer"
+                    value={field.correct_answer}
+                    onChange={(e) => {
+                      const updated = [...content.answer_fields];
+                      updated[index] = { ...field, correct_answer: e.target.value };
+                      onContentChange({ ...content, answer_fields: updated });
+                    }}
+                    className="text-sm font-mono"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const updated = content.answer_fields.filter((_: any, i: number) => i !== index);
+                    onContentChange({ ...content, answer_fields: updated });
+                  }}
+                  className="text-red-600 hover:text-red-800 h-8 w-8 p-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

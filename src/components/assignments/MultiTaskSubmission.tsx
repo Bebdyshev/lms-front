@@ -3,6 +3,7 @@ import { BookOpen, FileText, MessageSquare, Link as LinkIcon, CheckCircle, Exter
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 import apiClient from '../../services/api';
@@ -43,11 +44,9 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
   const [lessonsData, setLessonsData] = useState<any[]>([]);
   const [lessonProgress, setLessonProgress] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   const fetchCourseAndLessons = async () => {
     try {
-      setRefreshing(true);
       
       // Fetch course details
       const course = await apiClient.getCourse(task.content.course_id);
@@ -95,7 +94,6 @@ function CourseUnitTaskDisplay({ task, isCompleted, onCompletion, readOnly, stud
       console.error('Failed to fetch course data:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -468,6 +466,63 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
                   </label>
                 </div>
             )}
+
+            {/* Answer Fields for Auto-Check */}
+            {task.content.answer_fields && task.content.answer_fields.length > 0 && (
+              <div className="space-y-2 mt-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Answer Fields</Label>
+                  {readOnly && taskAnswer.auto_check_result && (
+                    <div className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      taskAnswer.auto_check_result.correct_count === taskAnswer.auto_check_result.total_count 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {taskAnswer.auto_check_result.correct_count}/{taskAnswer.auto_check_result.total_count} Correct
+                    </div>
+                  )}
+                </div>
+                {task.content.answer_fields.map((field: any, fieldIndex: number) => {
+                  const isCorrect = taskAnswer.auto_check_result?.details?.[field.id];
+                  const showValidation = readOnly && taskAnswer.auto_check_result;
+                  
+                  return (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <span className="text-base font-semibold text-gray-700 min-w-[24px]">{field.label || (fieldIndex + 1)}.</span>
+                      <div className="relative flex-1">
+                        <Input
+                          type="text"
+                          value={taskAnswer.field_answers?.[field.id] || taskAnswer.field_answers?.[String(field.id)] || ''}
+                          onChange={(e) => {
+                            const newFieldAnswers = { 
+                              ...(taskAnswer.field_answers || {}), 
+                              [field.id]: e.target.value 
+                            };
+                            handleTaskCompletion(task.id, { field_answers: newFieldAnswers });
+                          }}
+                          placeholder="Enter your answer..."
+                          className={`text-sm font-mono flex-1 ${
+                            showValidation 
+                              ? (isCorrect ? 'border-green-500 bg-green-50 pr-8' : 'border-red-500 bg-red-50 pr-8')
+                              : ''
+                          }`}
+                          disabled={readOnly}
+                        />
+                        {showValidation && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {isCorrect ? (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <X className="w-4 h-4 text-red-600" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
 
@@ -497,6 +552,63 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
             {task.content.keywords && task.content.keywords.length > 0 && readOnly && (
               <div className="text-xs text-gray-500 mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
                 <span className="font-medium">Keywords for grading:</span> {task.content.keywords.join(', ')}
+              </div>
+            )}
+
+            {/* Answer Fields for Auto-Check */}
+            {task.content.answer_fields && task.content.answer_fields.length > 0 && (
+              <div className="space-y-2 mt-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Answer Fields</Label>
+                  {readOnly && taskAnswer.auto_check_result && (
+                    <div className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      taskAnswer.auto_check_result.correct_count === taskAnswer.auto_check_result.total_count 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {taskAnswer.auto_check_result.correct_count}/{taskAnswer.auto_check_result.total_count} Correct
+                    </div>
+                  )}
+                </div>
+                {task.content.answer_fields.map((field: any, fieldIndex: number) => {
+                  const isCorrect = taskAnswer.auto_check_result?.details?.[field.id];
+                  const showValidation = readOnly && taskAnswer.auto_check_result;
+                  
+                  return (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <span className="text-base font-semibold text-gray-700 min-w-[24px]">{field.label || (fieldIndex + 1)}.</span>
+                      <div className="relative flex-1">
+                        <Input
+                          type="text"
+                          value={taskAnswer.field_answers?.[field.id] || taskAnswer.field_answers?.[String(field.id)] || ''}
+                          onChange={(e) => {
+                            const newFieldAnswers = { 
+                              ...(taskAnswer.field_answers || {}), 
+                              [field.id]: e.target.value 
+                            };
+                            handleTaskCompletion(task.id, { field_answers: newFieldAnswers });
+                          }}
+                          placeholder="Enter your answer..."
+                          className={`text-sm font-mono flex-1 ${
+                            showValidation 
+                              ? (isCorrect ? 'border-green-500 bg-green-50 pr-8' : 'border-red-500 bg-red-50 pr-8')
+                              : ''
+                          }`}
+                          disabled={readOnly}
+                        />
+                        {showValidation && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {isCorrect ? (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <X className="w-4 h-4 text-red-600" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -581,11 +693,103 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
                 <span className="font-medium">Keywords for grading:</span> {task.content.keywords.join(', ')}
               </div>
             )}
+
+            {/* Answer Fields for Auto-Check */}
+            {task.content.answer_fields && task.content.answer_fields.length > 0 && (
+              <div className="space-y-2 mt-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Answer Fields</Label>
+                  {readOnly && taskAnswer.auto_check_result && (
+                    <div className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      taskAnswer.auto_check_result.correct_count === taskAnswer.auto_check_result.total_count 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {taskAnswer.auto_check_result.correct_count}/{taskAnswer.auto_check_result.total_count} Correct
+                    </div>
+                  )}
+                </div>
+                {task.content.answer_fields.map((field: any, fieldIndex: number) => {
+                  const isCorrect = taskAnswer.auto_check_result?.details?.[field.id];
+                  const showValidation = readOnly && taskAnswer.auto_check_result;
+                  
+                  return (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <span className="text-base font-semibold text-gray-700 min-w-[24px]">{field.label || (fieldIndex + 1)}.</span>
+                      <div className="relative flex-1">
+                        <Input
+                          type="text"
+                          value={taskAnswer.field_answers?.[field.id] || taskAnswer.field_answers?.[String(field.id)] || ''}
+                          onChange={(e) => {
+                            const newFieldAnswers = { 
+                              ...(taskAnswer.field_answers || {}), 
+                              [field.id]: e.target.value 
+                            };
+                            handleTaskCompletion(task.id, { field_answers: newFieldAnswers });
+                          }}
+                          placeholder="Enter your answer..."
+                          className={`text-sm font-mono flex-1 ${
+                            showValidation 
+                              ? (isCorrect ? 'border-green-500 bg-green-50 pr-8' : 'border-red-500 bg-red-50 pr-8')
+                              : ''
+                          }`}
+                          disabled={readOnly}
+                        />
+                        {showValidation && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {isCorrect ? (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <X className="w-4 h-4 text-red-600" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
 
       default:
         return <div>Unknown task type</div>;
+    }
+  };
+
+  // Helper to check if a specific task is truly completed based on its requirements
+  const checkTaskCompletion = (task: Task) => {
+    const taskAnswer = answers[task.id];
+    if (!taskAnswer) return false;
+
+    switch (task.task_type) {
+      case 'file_task':
+        // Must have uploaded files OR a legacy file_url
+        const hasFiles = (taskAnswer.files && taskAnswer.files.length > 0) || !!taskAnswer.file_url;
+        // If answer fields exist, they should ideally be filled, but strict enforcement might be annoying? 
+        // For now, let's enforce file upload as the primary requirement for file_task.
+        return hasFiles; 
+        
+      case 'text_task':
+        // Must have a text response
+        return !!taskAnswer.text_response && taskAnswer.text_response.trim().length > 0;
+        
+      case 'pdf_text_task':
+        // Must have a text response
+        return !!taskAnswer.text_response && taskAnswer.text_response.trim().length > 0;
+        
+      case 'link_task':
+        // Must be marked as completed
+        return !!taskAnswer.completed;
+        
+      case 'course_unit':
+        // Must be marked as completed
+        return !!taskAnswer.completed;
+        
+      default:
+        // Fallback to generic completed flag
+        return !!taskAnswer.completed;
     }
   };
 
@@ -626,7 +830,7 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
       <div className="space-y-4">
         {tasks.map((task, index) => {
           const Icon = getTaskIcon(task.task_type);
-          const isCompleted = answers[task.id]?.completed || (answers[task.id]?.files?.length > 0) || !!answers[task.id]?.file_url || !!answers[task.id]?.text_response;
+          const isCompleted = checkTaskCompletion(task);
           
           return (
             <Card key={task.id} className={`${isCompleted ? "border-green-200 bg-green-50/30" : ""} ${task.is_optional ? "border-amber-200" : ""}`}>
@@ -671,15 +875,8 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
         const requiredTasks = tasks.filter(task => !task.is_optional);
         const optionalTasks = tasks.filter(task => task.is_optional);
         
-        const completedRequiredCount = requiredTasks.filter(task => {
-          const taskAnswer = answers[task.id];
-          return taskAnswer?.completed || (taskAnswer?.files?.length > 0) || !!taskAnswer?.file_url || !!taskAnswer?.text_response;
-        }).length;
-        
-        const completedOptionalCount = optionalTasks.filter(task => {
-          const taskAnswer = answers[task.id];
-          return taskAnswer?.completed || (taskAnswer?.files?.length > 0) || !!taskAnswer?.file_url || !!taskAnswer?.text_response;
-        }).length;
+        const completedRequiredCount = requiredTasks.filter(checkTaskCompletion).length;
+        const completedOptionalCount = optionalTasks.filter(checkTaskCompletion).length;
         
         const allRequiredCompleted = completedRequiredCount === requiredTasks.length && requiredTasks.length > 0;
         const hasOnlyOptionalTasks = requiredTasks.length === 0 && optionalTasks.length > 0;
