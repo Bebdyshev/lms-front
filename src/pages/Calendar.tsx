@@ -212,11 +212,21 @@ export default function Calendar() {
   };
 
   // Get color based on event type and content
+  // Prioritize using group_ids to determine color, so all lessons for the same group(s) have the same color.
+  // This avoids unique colors for each "Lesson N" title.
   const getEventColor = (event: Event) => {
     if (event.event_type === 'class') {
-      // Use title or the first group ID to determine color
-      // Title is better as it groups same-subject classes
-      const seed = event.title || 'default'; 
+      let seed = event.title || 'default';
+      
+      // If groups are assigned, use them as the seed to ensure all lessons for the same group(s) have the same color
+      if (event.group_ids && event.group_ids.length > 0) {
+        // Sort group IDs to ensure consistent color regardless of order
+        seed = [...event.group_ids].sort((a, b) => a - b).join(',');
+      } else if (event.groups && event.groups.length > 0) {
+        // Fallback to group names if IDs are missing for some reason
+        seed = [...event.groups].sort().join(',');
+      }
+
       const hash = getStringHash(seed);
       const colorIndex = hash % CLASS_COLORS.length;
       return CLASS_COLORS[colorIndex];
