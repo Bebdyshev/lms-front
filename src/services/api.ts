@@ -573,9 +573,11 @@ class LMSApiClient {
     }
   }
 
-  async getCourseLessons(courseId: string): Promise<Lesson[]> {
+  async getCourseLessons(courseId: string, lightweight: boolean = false): Promise<Lesson[]> {
     try {
-      const response = await this.api.get(`/courses/${courseId}/lessons`);
+      const response = await this.api.get(`/courses/${courseId}/lessons`, {
+        params: lightweight ? { lightweight: true } : undefined
+      });
       return response.data;
     } catch (error) {
       throw new Error('Failed to load course lessons');
@@ -843,6 +845,23 @@ class LMSApiClient {
     } catch (error) {
       console.error('getAssignment error:', error);
       throw new Error('Failed to load assignment');
+    }
+  }
+
+  async getAssignedLessonsForCourse(courseId: string): Promise<Array<{
+    lesson_id: number;
+    assignment_id: number;
+    assignment_title: string;
+    group_id: number;
+    group_name: string;
+    created_at: string;
+  }>> {
+    try {
+      const response = await this.api.get(`/assignments/assigned-lessons/${courseId}`);
+      return response.data;
+    } catch (error) {
+      console.error('getAssignedLessonsForCourse error:', error);
+      return [];
     }
   }
 
