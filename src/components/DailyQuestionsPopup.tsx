@@ -60,9 +60,13 @@ export default function DailyQuestionsPopup({
       setLoading(true);
       const status = await apiClient.getDailyQuestionsStatus();
       
+      // if (status.completed_today) {
+      //   setCompleted(true);
+      //   // return; // Don't return early, load questions to show results if available
+      // }
+      
       if (status.completed_today) {
         setCompleted(true);
-        return;
       }
 
       // Try to load from localStorage first
@@ -154,6 +158,29 @@ export default function DailyQuestionsPopup({
 
       if (questions.length > 0) {
         setAllQuestions(questions);
+        // Check for saved results in localStorage
+        const resultsKey = `daily_questions_results_${user.id}_${today}`;
+        const savedResults = localStorage.getItem(resultsKey);
+        
+        if (savedResults && status.completed_today) {
+          try {
+            const parsedResults = JSON.parse(savedResults);
+            if (parsedResults.answers && parsedResults.score) {
+              setAnswers(parsedResults.answers);
+              setScore(parsedResults.score);
+              setShowResults(true);
+              console.log('Restored daily questions results from storage');
+            }
+          } catch (e) {
+            console.error('Failed to parse saved results', e);
+          }
+        } else if (status.completed_today && status.score != null && status.total_questions != null) {
+          // Fallback if no local results but we have status score
+          setScore({ correct: status.score, total: status.total_questions });
+          // Show results even if we don't have the user's specific answers
+          setShowResults(true);
+        }
+
         setIsDialogOpen(true);
       } else {
         setError('No questions available. Please complete some tests first.');
@@ -194,6 +221,9 @@ export default function DailyQuestionsPopup({
       setLoading(true);
       setError(null);
       
+      // Start status check immediately
+      const statusPromise = apiClient.getDailyQuestionsStatus();
+      
       // Try to load from localStorage first
       const today = new Date().toISOString().split('T')[0];
       const cacheKey = `daily_questions_${user.id}_${today}`;
@@ -203,8 +233,8 @@ export default function DailyQuestionsPopup({
       
       if (cachedData) {
         try {
-          recs = JSON.parse(cachedData);
-          console.log('Loaded questions from cache');
+          recs = JSON.parse(cachedData); 
+          // console.log('Loaded questions from cache');
         } catch (e) {
           console.warn('Failed to parse cached questions:', e);
           localStorage.removeItem(cacheKey);
@@ -248,6 +278,31 @@ export default function DailyQuestionsPopup({
       }
 
       setAllQuestions(questions);
+      
+      // Await status check
+      const status = await statusPromise;
+      if (status.completed_today && user) {
+        setCompleted(true);
+        
+        const resultsKey = `daily_questions_results_${user.id}_${today}`;
+        const savedResults = localStorage.getItem(resultsKey);
+        
+        if (savedResults) {
+          try {
+            const parsedResults = JSON.parse(savedResults);
+            if (parsedResults.answers && parsedResults.score) {
+              setAnswers(parsedResults.answers);
+              setScore(parsedResults.score);
+              setShowResults(true);
+            }
+          } catch (e) {
+            console.error('Failed to parse saved results', e);
+          }
+        } else if (status.score != null && status.total_questions != null) {
+             setScore({ correct: status.score, total: status.total_questions });
+             setShowResults(true);
+        }
+      }
     } catch (err: any) {
       console.error('Failed to load daily questions:', err);
       const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to load daily questions';
@@ -267,6 +322,7 @@ export default function DailyQuestionsPopup({
   };
 
   const handleComplete = async () => {
+    if (!user) return;
     try {
       setCompleting(true);
       
@@ -292,6 +348,15 @@ export default function DailyQuestionsPopup({
       });
       
       setScore({ correct: correctCount, total: totalCount });
+      
+      // Save results to localStorage
+      const today = new Date().toISOString().split('T')[0];
+      const resultsKey = `daily_questions_results_${user.id}_${today}`;
+      localStorage.setItem(resultsKey, JSON.stringify({
+        answers,
+        score: { correct: correctCount, total: totalCount },
+        timestamp: new Date().toISOString()
+      }));
       
       await apiClient.completeDailyQuestions({
         answers,
