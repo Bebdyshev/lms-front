@@ -71,6 +71,7 @@ export interface Step {
   order_index: number;
   created_at: string;
   is_completed?: boolean;
+  is_optional?: boolean;
 }
 
 // =============================================================================

@@ -378,6 +378,7 @@ export default function LessonEditPage() {
  const [stepContentType, setStepContentType] = useState<'text' | 'video_text' | 'quiz' | 'flashcard' | 'summary'>('text');
   const [stepContent, setStepContent] = useState('');
   const [stepVideoUrl, setStepVideoUrl] = useState('');
+  const [stepIsOptional, setStepIsOptional] = useState(false);
   const [stepQuizTitle, setStepQuizTitle] = useState('');
   const [stepQuizQuestions, setStepQuizQuestions] = useState<Question[]>([]);
   const [stepQuizDisplayMode, setStepQuizDisplayMode] = useState<'one_by_one' | 'all_at_once'>('one_by_one');
@@ -532,6 +533,11 @@ export default function LessonEditPage() {
     markAsUnsaved();
   };
 
+  const handleStepIsOptionalChange = (checked: boolean) => {
+    setStepIsOptional(checked);
+    markAsUnsaved();
+  };
+
   // Unsaved changes warning - block navigation if there are unsaved changes
   const { confirmLeave, cancelLeave, isBlocked } = useUnsavedChangesWarning({
     hasUnsavedChanges,
@@ -614,6 +620,7 @@ export default function LessonEditPage() {
         setStepContentType(firstStep.content_type);
         setStepContent(firstStep.content_text || '');
         setStepVideoUrl(firstStep.video_url || '');
+        setStepIsOptional(firstStep.is_optional || false);
         
         if (firstStep.content_type === 'quiz') {
           try {
@@ -650,7 +657,9 @@ export default function LessonEditPage() {
         setSelectedStepId(localDefaultStep.id);
         setStepTitle(localDefaultStep.title);
         setStepContentType(localDefaultStep.content_type);
+        setStepContentType(localDefaultStep.content_type);
         setStepContent(localDefaultStep.content_text || '');
+        setStepIsOptional(false);
         setTimeout(() => setIsLoadingStep(false), 0);
          
         // Default to text
@@ -691,6 +700,7 @@ export default function LessonEditPage() {
     setStepContentType(newLocalStep.content_type);
     setStepContent('');
     setStepVideoUrl('');
+    setStepIsOptional(false);
     
     // Initialize quiz with default question if it's a quiz step
     if (newStepType === 'quiz') {
@@ -774,6 +784,7 @@ export default function LessonEditPage() {
     setStepContentType(step.content_type);
     setStepContent(step.content_text || '');
     setStepVideoUrl(step.video_url || '');
+    setStepIsOptional(step.is_optional || false);
 
     if (step.content_type === 'quiz') {
       try {
@@ -918,6 +929,7 @@ export default function LessonEditPage() {
         title: stepTitle,
         content_type: stepContentType,
         attachments: s.attachments, // Preserve existing attachments
+        is_optional: stepIsOptional,
       };
       if (stepContentType === 'text') {
         updated.content_text = stepContent;
@@ -957,6 +969,7 @@ export default function LessonEditPage() {
             title: stepTitle,
             content_type: stepContentType,
             attachments: s.attachments, // Preserve existing attachments
+            is_optional: stepIsOptional,
           };
           if (stepContentType === 'text') {
             updated.content_text = stepContent;
@@ -1020,7 +1033,8 @@ export default function LessonEditPage() {
           order_index: s.order_index,
           content_text: s.content_text || '',
           video_url: s.video_url || '',
-          attachments: s.attachments || undefined
+          attachments: s.attachments || undefined,
+          is_optional: s.is_optional
         };
         
         let actualStepId: number;
@@ -1067,6 +1081,7 @@ export default function LessonEditPage() {
           setStepContentType(match.content_type as any);
           setStepContent(match.content_text || '');
           setStepVideoUrl(match.video_url || '');
+          setStepIsOptional(match.is_optional || false);
           
           // Load quiz data if it's a quiz step
           if (match.content_type === 'quiz') {
@@ -1415,9 +1430,25 @@ export default function LessonEditPage() {
                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
                      >
                        <Trash2 className="w-4 h-4" />
-                     </Button>
-                   </div>
-                   <div>
+                      </Button>
+                    </div>
+                    {/* Optional Step Toggle */}
+                    <div className="flex items-center space-x-2 my-2 p-2 bg-muted/30 rounded-md">
+                      <input
+                        type="checkbox"
+                        id="is-optional"
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={stepIsOptional}
+                        onChange={(e) => handleStepIsOptionalChange(e.target.checked)}
+                      />
+                      <label 
+                        htmlFor="is-optional" 
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        Optional Step (students can skip this step)
+                      </label>
+                    </div>
+                    <div>
                     {stepContentType === 'text' && (
                       <div className="space-y-3">
                         <TextLessonEditor

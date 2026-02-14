@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, Edit3, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward, Languages } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward, Languages } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { Progress } from '../components/ui/progress';
 import apiClient from '../services/api';
@@ -289,18 +289,8 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect, isCo
                             const isSelected = selectedLessonId === lecture.id.toString();
                             const isAccessible = (lecture as any).is_accessible !== false; // Default to accessible if not specified
                             
-                            const getLessonIcon = (steps: Step[] = []) => {
-                              // Determine icon based on first step content type
-                              if (steps.length > 0) {
-                                switch (steps[0].content_type) {
-                                  case 'video_text': return <Play className="w-4 h-4" />;
-                                  case 'quiz': return <HelpCircle className="w-4 h-4" />;
-                                  case 'summary': return <Trophy className="w-4 h-4" />;
-                                  case 'text': return <FileText className="w-4 h-4" />;
-                                  default: return <Edit3 className="w-4 h-4" />;
-                                }
-                              }
-                              return <Edit3 className="w-4 h-4" />;
+                            const getLessonIcon = () => {
+                              return <Play className="w-4 h-4" />;
                             };
 
                             return (
@@ -319,7 +309,7 @@ const LessonSidebar = ({ course, modules, selectedLessonId, onLessonSelect, isCo
                                   }`}
                               >
                                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50">
-                                  {!isAccessible ? <Lock className="w-4 h-4 text-muted-foreground" /> : getLessonIcon(lecture.steps || [])}
+                                  {!isAccessible ? <Lock className="w-4 h-4 text-muted-foreground" /> : getLessonIcon()}
                                 </div>
                                 <div className="flex items-center justify-between w-full min-w-0">
                                   <span className="truncate">{lecture.title}</span>
@@ -1017,6 +1007,9 @@ export default function LessonPage() {
 
     if (!currentStep) return false;
 
+    // Optional steps can always be skipped
+    if (currentStep.is_optional) return true;
+
     const stepId = currentStep.id.toString();
 
     // Check if already completed in backend/local state
@@ -1529,195 +1522,217 @@ export default function LessonPage() {
       );
     }
 
-    switch (currentStep.content_type) {
-      case 'text':
-        return (
-          <div ref={textContentRef} className="relative">
-            {/* Text Lookup Popover */}
-            <TextLookupPopover containerRef={textContentRef} />
-            
-            {/* Special "Read explanation" text above everything */}
-            {currentStep.content_text && currentStep.content_text.includes("Read the explanation and make notes.") && (
-              <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
-                <p className="font-medium">Read the explanation and make notes.</p>
-              </div>
-            )}
 
-            {renderAttachments(currentStep.attachments)}
-            <div className="prose max-w-none">
-              <div dangerouslySetInnerHTML={{ 
-                __html: renderTextWithLatex(
-                  (currentStep.content_text || '').replace(/<p><strong>Read the explanation and make notes.<\/strong><\/p>/g, '')
-                ) 
-              }} />
-            </div>
-          </div>
-        );
 
-      case 'video_text':
-        return (
-          <div ref={textContentRef} className="space-y-4 relative">
-            {/* Text Lookup Popover */}
-            <TextLookupPopover containerRef={textContentRef} />
+    const optionalBanner = currentStep.is_optional ? (
+      <div className="bg-indigo-50 border-1 border-indigo-200 rounded-md p-3 mb-4 flex items-start gap-3">
+         <div>
+            <h4 className="text-sm font-medium text-indigo-800">Optional Step</h4>
+            <p className="text-xs text-indigo-600 mt-1">
+              You can skip this step and proceed to the next one without completing it.
+            </p>
+         </div>
+      </div>
+    ) : null;
 
-            {/* Special "Watch explanations" text above video */}
-            {currentStep.content_text && currentStep.content_text.includes("Watch the explanations for the previous questions") && (
-              <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
-                <p className="font-medium">Watch the explanations for the previous questions</p>
-              </div>
-            )}
-
-            {currentStep.video_url && (
-              <div className="bg-gray-100 rounded-lg overflow-hidden">
-                <YouTubeVideoPlayer
-                  key={currentStep.id}
-                  url={currentStep.video_url}
-                  title={currentStep.title || 'Lesson Video'}
-                  className="w-full"
-                  onProgress={(progress) => {
-                    setVideoProgress(prev => new Map(prev.set(currentStep.id.toString(), progress)));
-
-                    // Auto-complete video step when 90%+ is watched
-                    if (progress >= 0.9) {
-                      const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
-                      if (!stepProgress || stepProgress.status !== 'completed') {
-                        // Calculate time spent based on video duration and progress
-                        const timeSpent = Math.ceil(progress * 10); // Estimate time spent in minutes
-                        markStepAsVisited(currentStep.id.toString(), timeSpent);
-                      }
-                    }
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Video Progress Indicator */}
-            {currentStep && currentStep.video_url && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-800">Video Watch Progress</span>
-                  <span className="text-sm text-blue-600">
-                    {Math.round((videoProgress.get(currentStep.id.toString()) || 0) * 100)}%
-                  </span>
+    const content = (() => {
+      switch (currentStep.content_type) {
+        case 'text':
+          return (
+            <div ref={textContentRef} className="relative">
+              {/* Text Lookup Popover */}
+              <TextLookupPopover containerRef={textContentRef} />
+              
+              {/* Special "Read explanation" text above everything */}
+              {currentStep.content_text && currentStep.content_text.includes("Read the explanation and make notes.") && (
+                <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
+                  <p className="font-medium">Read the explanation and make notes.</p>
                 </div>
-                <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(videoProgress.get(currentStep.id.toString()) || 0) * 100}%` }}
-                  />
-                </div>
-                <p className="text-xs text-blue-600 mt-2">
-                  You need to watch 90% or more of the video to proceed to the next step
-                </p>
-              </div>
-            )}
-
-            {renderAttachments(currentStep.attachments)}
-
-            {currentStep.content_text && (
+              )}
+  
+              {renderAttachments(currentStep.attachments)}
               <div className="prose max-w-none">
                 <div dangerouslySetInnerHTML={{ 
                   __html: renderTextWithLatex(
-                    currentStep.content_text.replace(/<p><strong>Watch the explanations for the previous questions<\/strong><\/p>/g, '')
+                    (currentStep.content_text || '').replace(/<p><strong>Read the explanation and make notes.<\/strong><\/p>/g, '')
                   ) 
                 }} />
               </div>
-            )}
-          </div>
-        );
-
-      case 'quiz':
-        if (!isQuizReady) {
-          return (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
           );
-        }
-
-        return (
-          <div ref={textContentRef} className="relative">
-            <TextLookupPopover containerRef={textContentRef} />
-            <QuizRenderer
-              quizState={quizState}
-
-            quizData={quizData}
-            questions={questions}
-            currentQuestionIndex={currentQuestionIndex}
-            quizAnswers={quizAnswers}
-            gapAnswers={gapAnswers}
-            feedChecked={feedChecked}
-            startQuiz={startQuiz}
-            handleQuizAnswer={handleQuizAnswer}
-            setGapAnswers={setGapAnswers}
-            checkAnswer={checkAnswer}
-            nextQuestion={nextQuestion}
-            resetQuiz={resetQuiz}
-            getScore={getScore}
-            getCurrentQuestion={getCurrentQuestion}
-            getCurrentUserAnswer={getCurrentUserAnswer}
-            goToNextStep={goToNextStep}
-            setQuizCompleted={setQuizCompleted}
-            markStepAsVisited={markStepAsVisited}
-            currentStep={currentStep}
-            saveQuizAttempt={saveQuizAttempt}
-            setFeedChecked={setFeedChecked}
-            getGapStatistics={getGapStatistics}
-            setQuizAnswers={setQuizAnswers}
-            steps={steps}
-            goToStep={goToStep}
-            currentStepIndex={currentStepIndex}
-            nextLessonId={nextLessonId}
-            courseId={courseId}
-            finishQuiz={finishQuiz}
-            reviewQuiz={reviewQuiz}
-            autoFillCorrectAnswers={autoFillCorrectAnswers}
-            quizAttempt={quizAttempt}
-            highlightedQuestionId={searchParams.get('questionId') || undefined}
-            isTeacher={user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'curator'}
-          />
-          </div>
-        );
-
-      case 'flashcard':
-        try {
-          const flashcardData = JSON.parse(currentStep.content_text || '{}');
+  
+        case 'video_text':
           return (
-            <div>
-              <FlashcardViewer
-                flashcardSet={flashcardData}
-                stepId={currentStep.id}
-                lessonId={parseInt(lessonId || '0')}
-                courseId={parseInt(courseId || '0')}
-                onComplete={() => {
-                  // Mark flashcard step as completed
-                  if (currentStep) {
-                    markStepAsVisited(currentStep.id.toString(), 5); // 5 minutes for flashcard completion
-                  }
-                }}
-                onProgress={(completed, total) => {
-                  // Optional: track flashcard progress
-                  console.log(`Flashcard progress: ${completed}/${total}`);
-                }}
-              />
+            <div ref={textContentRef} className="space-y-4 relative">
+              {/* Text Lookup Popover */}
+              <TextLookupPopover containerRef={textContentRef} />
+  
+              {/* Special "Watch explanations" text above video */}
+              {currentStep.content_text && currentStep.content_text.includes("Watch the explanations for the previous questions") && (
+                <div className="mb-4 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
+                  <p className="font-medium">Watch the explanations for the previous questions</p>
+                </div>
+              )}
+  
+              {currentStep.video_url && (
+                <div className="bg-gray-100 rounded-lg overflow-hidden">
+                  <YouTubeVideoPlayer
+                    key={currentStep.id}
+                    url={currentStep.video_url}
+                    title={currentStep.title || 'Lesson Video'}
+                    className="w-full"
+                    onProgress={(progress) => {
+                      setVideoProgress(prev => new Map(prev.set(currentStep.id.toString(), progress)));
+  
+                      // Auto-complete video step when 90%+ is watched
+                      if (progress >= 0.9) {
+                        const stepProgress = stepsProgress.find(p => p.step_id === currentStep.id);
+                        if (!stepProgress || stepProgress.status !== 'completed') {
+                          // Calculate time spent based on video duration and progress
+                          const timeSpent = Math.ceil(progress * 10); // Estimate time spent in minutes
+                          markStepAsVisited(currentStep.id.toString(), timeSpent);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              )}
+  
+              {/* Video Progress Indicator */}
+              {currentStep && currentStep.video_url && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-800">Video Watch Progress</span>
+                    <span className="text-sm text-blue-600">
+                      {Math.round((videoProgress.get(currentStep.id.toString()) || 0) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(videoProgress.get(currentStep.id.toString()) || 0) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    You need to watch 90% or more of the video to proceed to the next step
+                  </p>
+                </div>
+              )}
+  
+              {renderAttachments(currentStep.attachments)}
+  
+              {currentStep.content_text && (
+                <div className="prose max-w-none">
+                  <div dangerouslySetInnerHTML={{ 
+                    __html: renderTextWithLatex(
+                      currentStep.content_text.replace(/<p><strong>Watch the explanations for the previous questions<\/strong><\/p>/g, '')
+                    ) 
+                  }} />
+                </div>
+              )}
             </div>
           );
-        } catch (error) {
-          console.error('Failed to parse flashcard data:', error);
-          return <div>Error loading flashcards</div>;
-        }
+  
+        case 'quiz':
+          if (!isQuizReady) {
+            return (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            );
+          }
+  
+          return (
+            <div ref={textContentRef} className="relative">
+              <TextLookupPopover containerRef={textContentRef} />
+              <QuizRenderer
+                quizState={quizState}
+  
+              quizData={quizData}
+              questions={questions}
+              currentQuestionIndex={currentQuestionIndex}
+              quizAnswers={quizAnswers}
+              gapAnswers={gapAnswers}
+              feedChecked={feedChecked}
+              startQuiz={startQuiz}
+              handleQuizAnswer={handleQuizAnswer}
+              setGapAnswers={setGapAnswers}
+              checkAnswer={checkAnswer}
+              nextQuestion={nextQuestion}
+              resetQuiz={resetQuiz}
+              getScore={getScore}
+              getCurrentQuestion={getCurrentQuestion}
+              getCurrentUserAnswer={getCurrentUserAnswer}
+              goToNextStep={goToNextStep}
+              setQuizCompleted={setQuizCompleted}
+              markStepAsVisited={markStepAsVisited}
+              currentStep={currentStep}
+              saveQuizAttempt={saveQuizAttempt}
+              setFeedChecked={setFeedChecked}
+              getGapStatistics={getGapStatistics}
+              setQuizAnswers={setQuizAnswers}
+              steps={steps}
+              goToStep={goToStep}
+              currentStepIndex={currentStepIndex}
+              nextLessonId={nextLessonId}
+              courseId={courseId}
+              finishQuiz={finishQuiz}
+              reviewQuiz={reviewQuiz}
+              autoFillCorrectAnswers={autoFillCorrectAnswers}
+              quizAttempt={quizAttempt}
+              highlightedQuestionId={searchParams.get('questionId') || undefined}
+              isTeacher={user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'curator'}
+            />
+            </div>
+          );
+  
+        case 'flashcard':
+          try {
+            const flashcardData = JSON.parse(currentStep.content_text || '{}');
+            return (
+              <div>
+                <FlashcardViewer
+                  flashcardSet={flashcardData}
+                  stepId={currentStep.id}
+                  lessonId={parseInt(lessonId || '0')}
+                  courseId={parseInt(courseId || '0')}
+                  onComplete={() => {
+                    // Mark flashcard step as completed
+                    if (currentStep) {
+                      markStepAsVisited(currentStep.id.toString(), 5); // 5 minutes for flashcard completion
+                    }
+                  }}
+                  onProgress={(completed, total) => {
+                    // Optional: track flashcard progress
+                    console.log(`Flashcard progress: ${completed}/${total}`);
+                  }}
+                />
+              </div>
+            );
+          } catch (error) {
+            console.error('Failed to parse flashcard data:', error);
+            return <div>Error loading flashcards</div>;
+          }
+  
+        case 'summary':
+          return (
+            <SummaryStepRenderer 
+              lessonId={lessonId || ''} 
+              onLoad={handleSummaryLoad}
+            />
+          );
+  
+        default:
+          return <div>Unsupported content type</div>;
+      }
+    })();
 
-      case 'summary':
-        return (
-          <SummaryStepRenderer 
-            lessonId={lessonId || ''} 
-            onLoad={handleSummaryLoad}
-          />
-        );
-
-      default:
-        return <div>Unsupported content type</div>;
-    }
+    return (
+      <div className="step-content-wrapper">
+        {optionalBanner}
+        {content}
+      </div>
+    );
   };
 
   const handleLessonSelect = (newLessonId: string) => {
@@ -1863,7 +1878,9 @@ export default function LessonPage() {
                               ? 'bg-blue-800 ring-2 ring-blue-400'
                               : isCompleted
                                 ? `bg-green-600 ${isClickable ? 'hover:bg-green-700' : ''}`
-                                : `bg-gray-500 ${isClickable ? 'hover:bg-gray-600' : ''}`
+                                : step.is_optional
+                                  ? `bg-indigo-400 ${isClickable ? 'hover:bg-indigo-500' : ''}`
+                                  : `bg-gray-500 ${isClickable ? 'hover:bg-gray-600' : ''}`
                               }`}
                           >
                             {/* Striped overlay for locked steps */}
@@ -1919,7 +1936,13 @@ export default function LessonPage() {
                     <span>Step {currentStep?.order_index ?? currentStepIndex + 1} of {steps.length}</span>
                     <span className="hidden sm:inline">•</span>
                     <span>Lesson {lesson.module_id}.{lesson.order_index}</span>
-                    {currentStep && !isStepCompleted(currentStep) && (
+                    {currentStep?.is_optional && (
+                      <>
+                        <span className="hidden sm:inline">•</span>
+                        <span className="text-blue-600 font-medium">(Optional)</span>
+                      </>
+                    )}
+                    {currentStep && !isStepCompleted(currentStep) && !currentStep.is_optional && (
                       <>
                         <span className="hidden sm:inline">•</span>
                         <span className="text-orange-600 font-medium">
