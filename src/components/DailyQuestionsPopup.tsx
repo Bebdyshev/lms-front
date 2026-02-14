@@ -63,8 +63,63 @@ export default function DailyQuestionsPopup({
         return;
       }
 
-      // Fetch recommendations
+      // Try to load from localStorage first
+      const today = new Date().toISOString().split('T')[0];
+      const cacheKey = `daily_questions_${user.id}_${today}`;
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          const questions: QuestionWithSection[] = [];
+          
+          if (parsed.mathRecommendations?.questions) {
+            parsed.mathRecommendations.questions.forEach((q: any) => {
+              const hasValidText = q.text && q.text !== '\\\\' && q.text !== '\\' && q.text !== '//' && q.text.trim() !== '';
+              const hasImage = q.imageUrl && q.imageUrl !== 'None';
+              
+              if (hasValidText || hasImage) {
+                questions.push({ ...q, section: 'math' });
+              }
+            });
+          }
+          
+          if (parsed.verbalRecommendations?.questions) {
+            parsed.verbalRecommendations.questions.forEach((q: any) => {
+              const hasValidText = q.text && q.text !== '\\\\' && q.text !== '\\' && q.text !== '//' && q.text.trim() !== '';
+              const hasImage = q.imageUrl && q.imageUrl !== 'None';
+              
+              if (hasValidText || hasImage) {
+                questions.push({ ...q, section: 'verbal' });
+              }
+            });
+          }
+          
+          if (questions.length > 0) {
+            setAllQuestions(questions);
+            setIsDialogOpen(true);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to parse cached questions:', e);
+          localStorage.removeItem(cacheKey);
+        }
+      }
+
+      // Fetch recommendations from API
       const recs = await apiClient.getDailyQuestionsRecommendations();
+      
+      // Save to localStorage for today
+      localStorage.setItem(cacheKey, JSON.stringify(recs));
+      
+      // Clean up old cache entries (older than today)
+      const allKeys = Object.keys(localStorage);
+      allKeys.forEach(key => {
+        if (key.startsWith(`daily_questions_${user.id}_`) && !key.endsWith(today)) {
+          localStorage.removeItem(key);
+        }
+      });
 
       // Combine math + verbal questions
       const questions: QuestionWithSection[] = [];
@@ -137,12 +192,40 @@ export default function DailyQuestionsPopup({
       setLoading(true);
       setError(null);
       
-      const recs = await apiClient.getDailyQuestionsRecommendations();
+      // Try to load from localStorage first
+      const today = new Date().toISOString().split('T')[0];
+      const cacheKey = `daily_questions_${user.id}_${today}`;
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      let recs;
+      
+      if (cachedData) {
+        try {
+          recs = JSON.parse(cachedData);
+          console.log('Loaded questions from cache');
+        } catch (e) {
+          console.warn('Failed to parse cached questions:', e);
+          localStorage.removeItem(cacheKey);
+          recs = await apiClient.getDailyQuestionsRecommendations();
+          localStorage.setItem(cacheKey, JSON.stringify(recs));
+        }
+      } else {
+        recs = await apiClient.getDailyQuestionsRecommendations();
+        localStorage.setItem(cacheKey, JSON.stringify(recs));
+        
+        // Clean up old cache entries
+        const allKeys = Object.keys(localStorage);
+        allKeys.forEach(key => {
+          if (key.startsWith(`daily_questions_${user.id}_`) && !key.endsWith(today)) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
 
       // Combine math + verbal questions
       const questions: QuestionWithSection[] = [];
       if (recs.mathRecommendations?.questions) {
-        recs.mathRecommendations.questions.forEach(q => {
+        recs.mathRecommendations.questions.forEach((q: any) => {
           const hasValidText = q.text && q.text !== '\\\\' && q.text !== '\\' && q.text !== '//' && q.text.trim() !== '';
           const hasImage = q.imageUrl && q.imageUrl !== 'None';
           
@@ -152,7 +235,7 @@ export default function DailyQuestionsPopup({
         });
       }
       if (recs.verbalRecommendations?.questions) {
-        recs.verbalRecommendations.questions.forEach(q => {
+        recs.verbalRecommendations.questions.forEach((q: any) => {
           const hasValidText = q.text && q.text !== '\\\\' && q.text !== '\\' && q.text !== '//' && q.text.trim() !== '';
           const hasImage = q.imageUrl && q.imageUrl !== 'None';
           
