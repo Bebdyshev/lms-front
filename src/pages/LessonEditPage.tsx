@@ -1258,7 +1258,7 @@ export default function LessonEditPage() {
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <MaintenanceBanner />
+        {/* <MaintenanceBanner /> */}
         {/* Header */}
         <Card className="border-0 rounded-none border-b">
           <CardHeader className="pb-3">
