@@ -315,7 +315,7 @@ export default function StudentDashboard({
             <Button 
               onClick={() => setShowDailyQuestions(true)}
               disabled={dailyQuestionsCompleted}
-              variant={dailyQuestionsCompleted ? "outline" : "secondary"}
+              variant={"outline"}
               className={`flex items-center gap-2 ${dailyQuestionsCompleted ? "text-gray-500" : "text-black-500"}`}            >
               {dailyQuestionsCompleted ? 'Tasks completed ✓' : 'Daily questions'}
             </Button>
