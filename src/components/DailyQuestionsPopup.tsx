@@ -411,7 +411,7 @@ export default function DailyQuestionsPopup({
 
   // Don't render if not student, already completed (in auto mode), or dismissed (in auto mode)
   if (!user || user.role !== 'student') return null;
-  if (!controlled && (completed || dismissed)) return null;
+  if (!controlled && ((completed && !showResults) || dismissed)) return null;
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={(val) => { if (!val) handleDismiss(); }}>

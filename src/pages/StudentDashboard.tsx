@@ -6,7 +6,7 @@ import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
 import { Checkbox } from "../components/ui/checkbox";
 import type { DashboardStats, StudentProgressOverview, Assignment, Event, AssignmentSubmission } from "../types";
-import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap, MessageCircle, Sparkles } from "lucide-react";
+import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../services/api";
@@ -318,7 +318,7 @@ export default function StudentDashboard({
             </Button>
             <Button 
               onClick={() => setShowDailyQuestions(true)}
-              disabled={dailyQuestionsCompleted}
+              // disabled={dailyQuestionsCompleted} // Allow viewing results
               variant={"outline"}
               className={`flex items-center gap-2 text-black`}            >
               {dailyQuestionsCompleted 
@@ -850,7 +850,8 @@ export default function StudentDashboard({
         onOpenChange={setShowDailyQuestions}
         onComplete={() => {
           setDailyQuestionsCompleted(true);
-          setShowDailyQuestions(false);
+          // Don't close immediately to show results
+          // setShowDailyQuestions(false); 
           loadDailyQuestionsStatus(); // Reload to get the score
         }}
       />
