@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import type { DailyQuestionItem } from '../types';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, X, Loader2 } from 'lucide-react';
 import { InlineMath, BlockMath } from 'react-katex';
 import 'katex/dist/katex.min.css';
 
@@ -31,6 +31,8 @@ export default function DailyQuestionsPopup({
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [score, setScore] = useState<{ correct: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -267,8 +269,34 @@ export default function DailyQuestionsPopup({
   const handleComplete = async () => {
     try {
       setCompleting(true);
+      
+      // Calculate score by comparing answers with correctAnswer
+      let correctCount = 0;
+      const totalCount = allQuestions.length;
+      
+      allQuestions.forEach(q => {
+        const userAnswer = answers[q.questionId];
+        if (userAnswer && q.correctAnswer) {
+          // For multiple choice, compare letter; for free text, compare trimmed lowercase
+          const isMultiple = q.isMultipleChoice || q.questionType === 'Multiple Choice' || (q.optionA && q.optionB);
+          if (isMultiple) {
+            if (userAnswer.toUpperCase() === q.correctAnswer.toUpperCase()) {
+              correctCount++;
+            }
+          } else {
+            if (userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) {
+              correctCount++;
+            }
+          }
+        }
+      });
+      
+      setScore({ correct: correctCount, total: totalCount });
+      
       await apiClient.completeDailyQuestions({
         answers,
+        score: correctCount,
+        total_questions: totalCount,
         questions: allQuestions.map(q => ({
           questionId: q.questionId,
           section: q.section,
@@ -276,13 +304,12 @@ export default function DailyQuestionsPopup({
         }))
       });
       setCompleted(true);
+      setShowResults(true);
       
       // Call onComplete callback if provided
       if (onComplete) {
         onComplete();
       }
-      
-      setTimeout(() => setIsDialogOpen(false), 1500);
     } catch (err) {
       console.error('Failed to complete daily questions:', err);
     } finally {
@@ -399,7 +426,7 @@ export default function DailyQuestionsPopup({
           </div>
 
           {/* Progress indicator */}
-          {allQuestions.length > 0 && (
+          {allQuestions.length > 0 && !completed && (
             <div className="flex items-center gap-2 mt-4">
               <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <div 
@@ -431,7 +458,7 @@ export default function DailyQuestionsPopup({
             </p>
             <Button variant="outline" onClick={handleDismiss}>Close</Button>
           </div>
-        ) : currentQuestion ? (
+        ) : currentQuestion && !completed ? (
           <div className="pt-4">
             {/* Question metadata */}
             <div className="flex items-center gap-2 mb-4 flex-wrap text-sm">
@@ -580,8 +607,88 @@ export default function DailyQuestionsPopup({
           </div>
         ) : null}
 
-        {/* Completion state */}
-        {completed && (
+        {/* Completion state with results */}
+        {completed && showResults && score && (
+          <div className="pt-4">
+            {/* Score header */}
+            <div className="text-center mb-6">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                score.correct === score.total ? 'bg-green-100' : score.correct >= score.total / 2 ? 'bg-yellow-100' : 'bg-red-100'
+              }`}>
+                <span className={`text-2xl font-bold ${
+                  score.correct === score.total ? 'text-green-600' : score.correct >= score.total / 2 ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {score.correct}/{score.total}
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                {score.correct === score.total ? 'Perfect! 🎉' : score.correct >= score.total / 2 ? 'Good job! 👍' : 'Keep practicing! 💪'}
+              </h3>
+              <p className="text-sm text-gray-600">
+                You got {score.correct} out of {score.total} questions correct
+              </p>
+            </div>
+
+            {/* Per-question breakdown */}
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+              {allQuestions.map((q, idx) => {
+                const userAnswer = answers[q.questionId];
+                const isMultiple = q.isMultipleChoice || q.questionType === 'Multiple Choice' || (q.optionA && q.optionB);
+                const isCorrect = userAnswer && q.correctAnswer
+                  ? isMultiple
+                    ? userAnswer.toUpperCase() === q.correctAnswer.toUpperCase()
+                    : userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+                  : false;
+                const wasAnswered = !!userAnswer;
+
+                return (
+                  <div key={q.questionId} className={`flex items-center gap-3 p-3 rounded-lg border ${
+                    !wasAnswered ? 'bg-gray-50 border-gray-200' : isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                  }`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      !wasAnswered ? 'bg-gray-200' : isCorrect ? 'bg-green-500' : 'bg-red-500'
+                    }`}>
+                      {wasAnswered ? (
+                        isCorrect ? <Check className="h-3.5 w-3.5 text-white" /> : <X className="h-3.5 w-3.5 text-white" />
+                      ) : (
+                        <span className="text-xs text-gray-500">—</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-800">
+                        Question {idx + 1} <span className="text-gray-400">•</span>{' '}
+                        <span className="text-gray-500 font-normal">{formatTag(q.primaryTag)}</span>
+                      </div>
+                      {!isCorrect && q.correctAnswer && (
+                        <div className="text-xs text-gray-600 mt-0.5">
+                          Correct answer: <span className="font-medium text-green-700">{q.correctAnswer}</span>
+                          {wasAnswered && (
+                            <span className="ml-2 text-red-600">Your answer: {userAnswer}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                      q.section === 'math' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      {q.section === 'math' ? 'Math' : 'Verbal'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Close button */}
+            <div className="flex justify-center mt-6 pt-4 border-t">
+              <Button onClick={() => setIsDialogOpen(false)} className="px-8">
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Simple completion state (fallback) */}
+        {completed && !showResults && (
           <div className="p-8 text-center">
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <Check className="h-6 w-6 text-green-600" />

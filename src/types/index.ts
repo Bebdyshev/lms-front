@@ -1107,6 +1107,7 @@ export interface DailyQuestionItem {
   optionD?: string;
   passageText?: string;
   questionType?: string; // 'Multiple Choice' | 'Student Response'
+  correctAnswer?: string; // The correct answer (e.g. 'A', 'B', 'C', 'D' or text)
 }
 
 export interface DailyRecommendationSection {
@@ -1127,4 +1128,6 @@ export interface DailyQuestionsStatus {
   completed_today: boolean;
   completed_at?: string;
   message?: string;
+  score?: number | null;
+  total_questions?: number | null;
 }

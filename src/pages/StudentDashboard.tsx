@@ -40,6 +40,7 @@ export default function StudentDashboard({
   
   // Daily questions state
   const [dailyQuestionsCompleted, setDailyQuestionsCompleted] = useState(false);
+  const [dailyQuestionsScore, setDailyQuestionsScore] = useState<{ score: number; total: number } | null>(null);
   const [showDailyQuestions, setShowDailyQuestions] = useState(false);
 
   useEffect(() => {
@@ -98,6 +99,9 @@ export default function StudentDashboard({
     try {
       const status = await apiClient.getDailyQuestionsStatus();
       setDailyQuestionsCompleted(status.completed_today);
+      if (status.score != null && status.total_questions != null) {
+        setDailyQuestionsScore({ score: status.score, total: status.total_questions });
+      }
     } catch (error) {
       console.error('Failed to load daily questions status:', error);
     }
@@ -316,8 +320,12 @@ export default function StudentDashboard({
               onClick={() => setShowDailyQuestions(true)}
               disabled={dailyQuestionsCompleted}
               variant={"outline"}
-              className={`flex items-center gap-2 ${dailyQuestionsCompleted ? "text-gray-500" : "text-black-500"}`}            >
-              {dailyQuestionsCompleted ? 'Tasks completed ✓' : 'Daily questions'}
+              className={`flex items-center gap-2 text-black`}            >
+              {dailyQuestionsCompleted 
+                ? dailyQuestionsScore 
+                  ? `Result: ${dailyQuestionsScore.score}/${dailyQuestionsScore.total} ✓` 
+                  : 'Tasks completed ✓' 
+                : 'Daily questions'}
             </Button>
           </div>
         </CardFooter>
@@ -843,6 +851,7 @@ export default function StudentDashboard({
         onComplete={() => {
           setDailyQuestionsCompleted(true);
           setShowDailyQuestions(false);
+          loadDailyQuestionsStatus(); // Reload to get the score
         }}
       />
     </div>
