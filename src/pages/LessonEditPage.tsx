@@ -20,7 +20,8 @@ import {
   Play,
   Edit3,
   GripVertical,
-  Trophy
+  Trophy,
+  Scissors
 } from 'lucide-react';
 import {
   DndContext,
@@ -864,6 +865,33 @@ export default function LessonEditPage() {
     }
   };
 
+  const splitLessonAtStep = async (stepId: number) => {
+    if (!courseId || !lessonId) return;
+    const sortedSteps = [...steps].sort((a, b) => a.order_index - b.order_index);
+    const stepIndex = sortedSteps.findIndex(s => s.id === stepId);
+    if (stepIndex < 0 || stepIndex >= sortedSteps.length - 1) {
+      alert('Cannot split: this must not be the last step.');
+      return;
+    }
+    const stepsAfter = sortedSteps.length - stepIndex - 1;
+    if (!confirm(`Split lesson after step ${stepIndex + 1}? ${stepsAfter} step(s) will be moved to a new lesson.`)) return;
+    try {
+      const result = await apiClient.splitLesson(courseId, lessonId, stepIndex);
+      alert(`Lesson split! New lesson "${result.new_lesson_title}" created with ${result.steps_moved} step(s).`);
+      // Reload current lesson (now shorter)
+      const stepsData = await apiClient.getLessonSteps(lessonId);
+      setSteps(stepsData);
+      if (stepsData.length > 0) {
+        selectStep(stepsData[0]);
+      } else {
+        setSelectedStepId(null);
+      }
+    } catch (error) {
+      console.error('Failed to split lesson:', error);
+      alert('Failed to split lesson. Please try again.');
+    }
+  };
+
   // Handle drag end for step reordering
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -1423,14 +1451,25 @@ export default function LessonEditPage() {
                      <h3>
                        Step {steps.find(s => s.id === selectedStepId)?.order_index}: {stepContentType === 'video_text' ? 'Video + Text' : stepContentType.charAt(0).toUpperCase() + stepContentType.slice(1)}
                      </h3>
-                     <Button 
-                       variant="outline" 
-                       size="icon"
-                       onClick={() => deleteStep(selectedStepId)}
-                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                     >
-                       <Trash2 className="w-4 h-4" />
-                      </Button>
+                     <div className="flex items-center gap-1 ml-auto">
+                       <Button 
+                         variant="outline" 
+                         size="icon"
+                         onClick={() => splitLessonAtStep(selectedStepId)}
+                         className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                         title="Split lesson after this step"
+                       >
+                         <Scissors className="w-4 h-4" />
+                       </Button>
+                       <Button 
+                         variant="outline" 
+                         size="icon"
+                         onClick={() => deleteStep(selectedStepId)}
+                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                       >
+                         <Trash2 className="w-4 h-4" />
+                       </Button>
+                     </div>
                     </div>
                     {/* Optional Step Toggle */}
                     <div className="flex items-center space-x-2 my-2 p-2 bg-muted/30 rounded-md">

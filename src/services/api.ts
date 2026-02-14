@@ -726,6 +726,17 @@ class LMSApiClient {
     }
   }
 
+  async splitLesson(courseId: string, lessonId: string, afterStepIndex: number): Promise<{ message: string; original_lesson_id: number; new_lesson_id: number; new_lesson_title: string; steps_moved: number }> {
+    try {
+      const response = await this.api.post(`/courses/courses/${courseId}/lessons/${lessonId}/split`, {
+        after_step_index: afterStepIndex
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to split lesson');
+    }
+  }
+
   async uploadStepAttachment(stepId: string, file: File): Promise<{
     attachment_id: number;
     filename: string;
