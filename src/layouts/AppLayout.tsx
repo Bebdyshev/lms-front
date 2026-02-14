@@ -4,6 +4,7 @@ import Topbar from '../components/Topbar.tsx';
 import { Toaster } from '../components/Toast.tsx';
 import PlatformUpdatesModal from '../components/PlatformUpdatesModal.tsx';
 import MaintenanceBanner from '../components/MaintenanceBanner.tsx';
+import DailyQuestionsPopup from '../components/DailyQuestionsPopup.tsx';
 import { useAuth } from '../contexts/AuthContext.tsx';
 
 interface AppLayoutProps {
@@ -36,6 +37,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
       
       {/* Platform Updates Modal - shows automatically to teachers/admins */}
       <PlatformUpdatesModal userRole={user?.role} />
+      
+      {/* Daily Questions Popup - shows automatically to students */}
+      {user?.role === 'student' && <DailyQuestionsPopup />}
     </div>
   );
 }

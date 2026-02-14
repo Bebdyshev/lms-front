@@ -227,6 +227,20 @@
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+    /* Force GPU compositing to prevent rendering artifacts */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  /* Ensure YouTube iframe fills its container properly */
+  .youtube-player-frame,
+  .youtube-player-frame iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none;
+    display: block;
   }
 
   /* Custom scrollbar styles */

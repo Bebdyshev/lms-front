@@ -6,12 +6,13 @@ import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
 import { Checkbox } from "../components/ui/checkbox";
 import type { DashboardStats, StudentProgressOverview, Assignment, Event, AssignmentSubmission } from "../types";
-import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap, MessageCircle } from "lucide-react";
+import { Clock, BookOpen, LineChart, CheckCircle, Target, Calendar, FileText, AlertCircle, Video, GraduationCap, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../services/api";
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import StudentLeaderboard from '../components/StudentLeaderboard';
+import DailyQuestionsPopup from '../components/DailyQuestionsPopup';
 
 interface StudentDashboardProps {
   firstName: string;
@@ -36,10 +37,15 @@ export default function StudentDashboard({
   const [submissions, setSubmissions] = useState<AssignmentSubmission[]>([]);
   const [isLoadingTodo, setIsLoadingTodo] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
+  
+  // Daily questions state
+  const [dailyQuestionsCompleted, setDailyQuestionsCompleted] = useState(false);
+  const [showDailyQuestions, setShowDailyQuestions] = useState(false);
 
   useEffect(() => {
     loadProgressData();
     loadTodoData();
+    loadDailyQuestionsStatus();
   }, []);
 
   const loadProgressData = async () => {
@@ -85,6 +91,15 @@ export default function StudentDashboard({
       }
     } finally {
       setIsLoadingProgress(false);
+    }
+  };
+
+  const loadDailyQuestionsStatus = async () => {
+    try {
+      const status = await apiClient.getDailyQuestionsStatus();
+      setDailyQuestionsCompleted(status.completed_today);
+    } catch (error) {
+      console.error('Failed to load daily questions status:', error);
     }
   };
 
@@ -293,9 +308,19 @@ export default function StudentDashboard({
           </CardDescription>
         </CardHeader>
         <CardFooter className="p-5 sm:p-6 pt-0">
-          <Button onClick={onGoToAllCourses} variant="secondary">
-            Go to courses
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={onGoToAllCourses} variant="secondary">
+              Go to courses
+            </Button>
+            <Button 
+              onClick={() => setShowDailyQuestions(true)}
+              disabled={dailyQuestionsCompleted}
+              variant={dailyQuestionsCompleted ? "outline" : "secondary"}
+              className="flex items-center text-gray-500 gap-2"
+            >
+              {dailyQuestionsCompleted ? 'Tasks completed ✓' : 'Daily questions'}
+            </Button>
+          </div>
         </CardFooter>
       </Card>
 
@@ -810,6 +835,17 @@ export default function StudentDashboard({
       </Tabs>
         </div>
       </div>
+      
+      {/* Daily Questions Popup - controlled from dashboard button */}
+      <DailyQuestionsPopup 
+        controlled={true}
+        isOpen={showDailyQuestions}
+        onOpenChange={setShowDailyQuestions}
+        onComplete={() => {
+          setDailyQuestionsCompleted(true);
+          setShowDailyQuestions(false);
+        }}
+      />
     </div>
   );
 }

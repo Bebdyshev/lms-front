@@ -16,10 +16,8 @@ export default function YouTubeVideoPlayer({
   onError,
   onProgress 
 }: YouTubeVideoPlayerProps) {
-  const [iframeError, setIframeError] = useState(false);
   const [player, setPlayer] = useState<any>(null);
   const [isPlayerActive, setIsPlayerActive] = useState(false);
-  // iframeRef removed
   const playerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<number>();
   const playerInstanceRef = useRef<any>(null);
@@ -91,6 +89,8 @@ export default function YouTubeVideoPlayer({
         try {
           playerInstanceRef.current = new window.YT.Player(playerRef.current as any, {
             videoId: videoInfo.video_id,
+            width: '100%',
+            height: '100%',
             playerVars: {
               autoplay: 1, // Autoplay when activated
               modestbranding: 1,
@@ -162,33 +162,9 @@ export default function YouTubeVideoPlayer({
     };
   }, [videoInfo.video_id, isPlayerActive]);
 
-  // Fallback UI for Zen browser or iframe errors
-  if (iframeError) {
-    return (
-      <div className={`bg-gray-100 rounded-lg p-4 text-center ${className}`}>
-        <div className="text-gray-500">
-          <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
-          </svg>
-          <h3 className="text-lg font-medium mb-2">Видео недоступно для встраивания</h3>
-          <p className="text-sm mb-4">
-            Ваш браузер не поддерживает встраивание YouTube видео. 
-            Нажмите кнопку ниже, чтобы открыть видео в новом окне.
-          </p>
-          <button
-            onClick={openInNewWindow}
-            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            Открыть видео на YouTube
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`bg-gray-900 rounded-lg overflow-hidden relative youtube-iframe-container ${className}`}>
-      {/* Educational overlay */}
+      {/* Video player */}
       <div className="aspect-video w-full relative group">
         {!isPlayerActive ? (
           /* Thumbnail and Play Button */
@@ -212,7 +188,7 @@ export default function YouTubeVideoPlayer({
         ) : (
           /* Player Container */
           <>
-            <div ref={playerRef} className="w-full h-full" />
+            <div ref={playerRef} className="absolute inset-0 w-full h-full youtube-player-frame" />
             
             {/* Loading spinner while player is initializing */}
             {!player && (
@@ -222,18 +198,10 @@ export default function YouTubeVideoPlayer({
             )}
           </>
         )}
-        {/* Debug info - removed console.log from JSX */}
-      </div>
-      
-      {/* Warning overlay on hover */}
-      <div className="absolute inset-0 bg-transparent hover:bg-black hover:bg-opacity-10 transition-all duration-200 pointer-events-none">
-        <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity duration-200">
-          Видео воспроизводится в учебных целях
-        </div>
       </div>
 
       {/* Fallback button for Zen browser */}
-      <div className="absolute top-2 right-2">
+      <div className="absolute top-2 right-2 z-10">
         <button
           onClick={openInNewWindow}
           className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded hover:bg-opacity-90 transition-all duration-200 opacity-0 hover:opacity-100"

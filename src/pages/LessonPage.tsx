@@ -1568,12 +1568,12 @@ export default function LessonPage() {
             )}
 
             {currentStep.video_url && (
-              <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+              <div className="bg-gray-100 rounded-lg overflow-hidden">
                 <YouTubeVideoPlayer
                   key={currentStep.id}
                   url={currentStep.video_url}
                   title={currentStep.title || 'Lesson Video'}
-                  className="w-full h-full"
+                  className="w-full"
                   onProgress={(progress) => {
                     setVideoProgress(prev => new Map(prev.set(currentStep.id.toString(), progress)));
 

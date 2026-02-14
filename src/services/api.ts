@@ -28,7 +28,9 @@ import type {
   ManualLessonUnlockCreate,
   ManualLessonUnlockListResponse,
   EventStudent,
-  AttendanceBulkUpdate
+  AttendanceBulkUpdate,
+  DailyQuestionsRecommendations,
+  DailyQuestionsStatus
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -3463,6 +3465,42 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // DAILY QUESTIONS - Personalized daily question recommendations
+  // =============================================================================
+
+  async getDailyQuestionsStatus(): Promise<DailyQuestionsStatus> {
+    try {
+      const response = await this.api.get('/daily-questions/status');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get daily questions status:', error);
+      throw error;
+    }
+  }
+
+  async getDailyQuestionsRecommendations(): Promise<DailyQuestionsRecommendations> {
+    try {
+      const response = await this.api.get('/daily-questions/recommendations');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get daily question recommendations:', error);
+      throw error;
+    }
+  }
+
+  async completeDailyQuestions(questionsData?: Record<string, any>): Promise<{ message: string; completed_today: boolean }> {
+    try {
+      const response = await this.api.post('/daily-questions/complete', {
+        questions_data: questionsData || null
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to complete daily questions:', error);
+      throw error;
+    }
+  }
+
 }
 
 // =============================================================================
@@ -3676,6 +3714,11 @@ export const getHeadTeacherCourseTeachers = apiClient.getHeadTeacherCourseTeache
 
 // Head Curator
 export const getCuratorDetails = apiClient.getCuratorDetails.bind(apiClient);
+
+// Daily Questions
+export const getDailyQuestionsStatus = apiClient.getDailyQuestionsStatus.bind(apiClient);
+export const getDailyQuestionsRecommendations = apiClient.getDailyQuestionsRecommendations.bind(apiClient);
+export const completeDailyQuestions = apiClient.completeDailyQuestions.bind(apiClient);
 
 export default apiClient;
 

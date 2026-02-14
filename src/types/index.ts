@@ -1088,3 +1088,43 @@ export interface AttendanceRecord {
 export interface AttendanceBulkUpdate {
   attendance: AttendanceRecord[];
 }
+
+// =============================================================================
+// DAILY QUESTIONS TYPES
+// =============================================================================
+
+export interface DailyQuestionItem {
+  questionId: number;
+  text: string;
+  imageUrl?: string;
+  primaryTag: string;
+  secondaryTags?: string | string[];
+  difficulty: string;
+  isMultipleChoice?: boolean;
+  optionA?: string;
+  optionB?: string;
+  optionC?: string;
+  optionD?: string;
+  passageText?: string;
+  questionType?: string; // 'Multiple Choice' | 'Student Response'
+}
+
+export interface DailyRecommendationSection {
+  questions: DailyQuestionItem[];
+  reasoning: string;
+}
+
+export interface DailyQuestionsRecommendations {
+  email: string;
+  studentName: string;
+  mathTestId?: number;
+  verbalTestId?: number;
+  mathRecommendations?: DailyRecommendationSection;
+  verbalRecommendations?: DailyRecommendationSection;
+}
+
+export interface DailyQuestionsStatus {
+  completed_today: boolean;
+  completed_at?: string;
+  message?: string;
+}
