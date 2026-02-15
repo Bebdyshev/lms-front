@@ -281,11 +281,8 @@ export default function FavoriteFlashcardsPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-red-100 rounded-lg">
-              <Heart className="h-8 w-8 text-red-600 fill-current" />
-            </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Favorite Flashcards</h1>
+              <h1 className="text-3xl font-bold text-gray-900">My Flashcards</h1>
               <p className="text-gray-600">
                 {favorites.length} flashcard{favorites.length !== 1 ? 's' : ''} saved
               </p>

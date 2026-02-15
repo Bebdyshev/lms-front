@@ -438,19 +438,20 @@ export default function LessonPage() {
       const stepParam = searchParams.get('step');
       const stepIdParam = searchParams.get('stepId');
       
-      let targetIndex = -1;
+      let targetIndex = 0;
 
       if (stepIdParam) {
         // Try to find step by its unique ID
         const stepId = parseInt(stepIdParam, 10);
-        targetIndex = steps.findIndex(s => s.id === stepId);
+        const foundIndex = steps.findIndex(s => s.id === stepId);
+        if (foundIndex !== -1) targetIndex = foundIndex;
       } else if (stepParam) {
         // Try to find step by its 1-based index
         const stepNumber = parseInt(stepParam, 10);
         targetIndex = Math.max(1, Math.min(stepNumber, steps.length)) - 1;
       }
 
-      if (targetIndex !== -1 && targetIndex !== currentStepIndex) {
+      if (targetIndex !== currentStepIndex) {
         setCurrentStepIndex(targetIndex);
       }
     }
@@ -1054,6 +1055,7 @@ export default function LessonPage() {
     if (currentStepIndex < steps.length - 1) {
       goToStep(currentStepIndex + 1);
     } else if (nextLessonId) {
+      setCurrentStepIndex(0);
       navigate(`/course/${courseId}/lesson/${nextLessonId}`);
     }
   };
@@ -1737,6 +1739,7 @@ export default function LessonPage() {
 
   const handleLessonSelect = (newLessonId: string) => {
     if (newLessonId !== lessonId) {
+      setCurrentStepIndex(0);
       navigate(`/course/${courseId}/lesson/${newLessonId}`);
     }
   };
