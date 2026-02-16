@@ -30,7 +30,10 @@ import type {
   EventStudent,
   AttendanceBulkUpdate,
   DailyQuestionsRecommendations,
-  DailyQuestionsStatus
+  DailyQuestionsStatus,
+  LessonRequest,
+  CreateLessonRequest,
+  AvailableTeacher
 } from '../types';
 
 // API Base URL - adjust for your backend
@@ -3512,6 +3515,120 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // LESSON REQUESTS (Substitution / Reschedule)
+  // =============================================================================
+
+  async getLessonRequests(status?: string): Promise<LessonRequest[]> {
+    try {
+      const params = status ? { status_filter: status } : {};
+      const response = await this.api.get('/lesson-requests/', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get lesson requests:', error);
+      throw error;
+    }
+  }
+
+  async getMyLessonRequests(status?: string): Promise<LessonRequest[]> {
+    try {
+      const params = status ? { status_filter: status } : {};
+      const response = await this.api.get('/lesson-requests/me', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get my lesson requests:', error);
+      throw error;
+    }
+  }
+
+  async getIncomingRequests(history: boolean = false): Promise<LessonRequest[]> {
+    try {
+      const response = await this.api.get('/lesson-requests/incoming', { params: { history } });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get incoming requests:', error);
+      throw error;
+    }
+  }
+
+  async createLessonRequest(data: CreateLessonRequest): Promise<LessonRequest> {
+    try {
+      const response = await this.api.post('/lesson-requests/', data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create lesson request:', error);
+      throw error;
+    }
+  }
+
+  async approveLessonRequest(requestId: number, adminComment?: string): Promise<LessonRequest> {
+    try {
+      const response = await this.api.post(`/lesson-requests/${requestId}/approve`, {
+        admin_comment: adminComment || null
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to approve lesson request:', error);
+      throw error;
+    }
+  }
+
+  async rejectLessonRequest(requestId: number, adminComment?: string): Promise<LessonRequest> {
+    try {
+      const response = await this.api.post(`/lesson-requests/${requestId}/reject`, {
+        admin_comment: adminComment || null
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to reject lesson request:', error);
+      throw error;
+    }
+  }
+
+  async confirmLessonRequest(requestId: number): Promise<LessonRequest> {
+    try {
+      const response = await this.api.post(`/lesson-requests/${requestId}/confirm`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to confirm lesson request:', error);
+      throw error;
+    }
+  }
+
+  async declineLessonRequest(requestId: number): Promise<LessonRequest> {
+    try {
+      const response = await this.api.post(`/lesson-requests/${requestId}/decline`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to decline lesson request:', error);
+      throw error;
+    }
+  }
+
+  async getAvailableTeachers(datetime: string, groupId?: number): Promise<{ available_teachers: AvailableTeacher[] }> {
+    try {
+      const params: any = { datetime_str: datetime };
+      if (groupId) params.group_id = groupId;
+      const response = await this.api.get('/lesson-requests/teachers/available', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get available teachers:', error);
+      throw error;
+    }
+  }
+
+  async updateSubstitutionPreference(enabled: boolean): Promise<{ detail: string; no_substitutions: boolean }> {
+    try {
+      const response = await this.api.put('/lesson-requests/preferences/no-substitutions', null, {
+        params: { enabled }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update substitution preference:', error);
+      throw error;
+    }
+  }
+
 }
 
 // =============================================================================
@@ -3730,6 +3847,18 @@ export const getCuratorDetails = apiClient.getCuratorDetails.bind(apiClient);
 export const getDailyQuestionsStatus = apiClient.getDailyQuestionsStatus.bind(apiClient);
 export const getDailyQuestionsRecommendations = apiClient.getDailyQuestionsRecommendations.bind(apiClient);
 export const completeDailyQuestions = apiClient.completeDailyQuestions.bind(apiClient);
+
+// Lesson Requests
+export const getLessonRequests = apiClient.getLessonRequests.bind(apiClient);
+export const getMyLessonRequests = apiClient.getMyLessonRequests.bind(apiClient);
+export const createLessonRequest = apiClient.createLessonRequest.bind(apiClient);
+export const approveLessonRequest = apiClient.approveLessonRequest.bind(apiClient);
+export const rejectLessonRequest = apiClient.rejectLessonRequest.bind(apiClient);
+export const confirmLessonRequest = apiClient.confirmLessonRequest.bind(apiClient);
+export const declineLessonRequest = apiClient.declineLessonRequest.bind(apiClient);
+export const getIncomingRequests = apiClient.getIncomingRequests.bind(apiClient);
+export const getAvailableTeachers = apiClient.getAvailableTeachers.bind(apiClient);
+export const updateSubstitutionPreference = apiClient.updateSubstitutionPreference.bind(apiClient);
 
 export default apiClient;
 

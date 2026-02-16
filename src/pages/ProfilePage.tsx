@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
-import { User, Mail, Shield, Calendar, Clock, Save } from 'lucide-react';
+import { User, Mail, Shield, Calendar, Clock, Save, BellOff } from 'lucide-react';
 import { useUnsavedChangesWarning } from '../hooks/useUnsavedChangesWarning';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import ResetOnboardingButton from '../components/ResetOnboardingButton';
@@ -12,6 +12,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string>('');
+  const [noSubstitutions, setNoSubstitutions] = useState(false);
+  const [savingPref, setSavingPref] = useState(false);
 
   // Track if name was changed
   const hasUnsavedChanges = user ? name !== user.name && name.trim() !== '' : false;
@@ -29,6 +31,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       setName(user.name || '');
+      setNoSubstitutions((user as any).no_substitutions || false);
       setLoading(false);
     }
   }, [user]);
@@ -40,7 +43,7 @@ export default function ProfilePage() {
       setSaving(true);
       setMessage('');
       
-      await apiClient.updateProfile(user.id, { name: name.trim() });
+      await apiClient.updateProfile(user.id as any, { name: name.trim() });
       setMessage('Profile updated successfully!');
       
       // Refresh user data in context
@@ -50,6 +53,20 @@ export default function ProfilePage() {
       console.error('Failed to update profile:', error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleSubstitutions = async () => {
+    try {
+      setSavingPref(true);
+      const newVal = !noSubstitutions;
+      await apiClient.updateSubstitutionPreference(newVal);
+      setNoSubstitutions(newVal);
+      await refreshUser();
+    } catch (error) {
+      console.error('Failed to update substitution preference:', error);
+    } finally {
+      setSavingPref(false);
     }
   };
 
@@ -148,6 +165,36 @@ export default function ProfilePage() {
                 value={user.student_id}
                 disabled
               />
+            </div>
+          )}
+
+          {/* Teacher Substitution Preference */}
+          {user?.role === 'teacher' && (
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <BellOff className="w-5 h-5 text-gray-600" />
+                  <div>
+                    <p className="font-medium text-gray-900">Hide from substitution requests</p>
+                    <p className="text-sm text-gray-500">
+                      When enabled, other teachers will not see you as available for substitutions
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleToggleSubstitutions}
+                  disabled={savingPref}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    noSubstitutions ? 'bg-blue-600' : 'bg-gray-300'
+                  } ${savingPref ? 'opacity-50 cursor-wait' : ''}`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      noSubstitutions ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           )}
 

@@ -1,0 +1,223 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { getAvailableTeachers, createLessonRequest } from '../services/api';
+import type { AvailableTeacher } from '../types';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Checkbox } from '../components/ui/checkbox';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+
+export default function SubstitutionRequestPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Parse query params
+  const eventId = searchParams.get('event_id') ? Number(searchParams.get('event_id')) : undefined;
+  const groupId = searchParams.get('group_id') ? Number(searchParams.get('group_id')) : 0;
+  const eventTitle = searchParams.get('title') || 'Lesson';
+  const eventDatetime = searchParams.get('datetime') || '';
+  const initialType = (searchParams.get('type') as 'substitution' | 'reschedule') || 'substitution';
+
+  const [requestType, setRequestType] = useState<'substitution' | 'reschedule'>(initialType);
+  const [availableTeachers, setAvailableTeachers] = useState<AvailableTeacher[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<number[]>([]);
+  const [newDatetime, setNewDatetime] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (requestType === 'substitution' && eventDatetime) {
+      loadTeachers();
+    }
+  }, [requestType, eventDatetime]);
+
+  const loadTeachers = async () => {
+    try {
+      setLoadingTeachers(true);
+      setAvailableTeachers([]);
+      setSelectedTeacherIds([]);
+      const data = await getAvailableTeachers(eventDatetime, groupId || 0);
+      setAvailableTeachers(data.available_teachers || []);
+    } catch (error) {
+      console.error('Failed to load available teachers:', error);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
+
+  const toggleTeacher = (id: number) => {
+    setSelectedTeacherIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const selectAll = () => {
+    if (selectedTeacherIds.length === availableTeachers.length) {
+      setSelectedTeacherIds([]);
+    } else {
+      setSelectedTeacherIds(availableTeachers.map(t => t.id));
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      setSubmitting(true);
+      await createLessonRequest({
+        request_type: requestType,
+        event_id: eventId,
+        group_id: groupId,
+        original_datetime: eventDatetime,
+        substitute_teacher_ids: requestType === 'substitution' ? selectedTeacherIds : undefined,
+        new_datetime: requestType === 'reschedule' ? newDatetime : undefined,
+        reason: reason || undefined,
+      });
+      setSubmitted(true);
+    } catch (error) {
+      console.error('Failed to submit request:', error);
+      alert('Failed to submit request. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const canSubmit = requestType === 'substitution'
+    ? selectedTeacherIds.length > 0
+    : !!newDatetime;
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <CardTitle>Request Submitted</CardTitle>
+            <CardDescription>
+              Your {requestType} request has been sent successfully.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button onClick={() => navigate('/calendar')}>
+              Back to Calendar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">New Request</h1>
+            <p className="text-muted-foreground">Submit a substitution or reschedule request</p>
+          </div>
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            Cancel
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{eventTitle}</CardTitle>
+            <CardDescription>
+              {eventDatetime ? new Date(eventDatetime).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : 'N/A'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Tabs value={requestType} onValueChange={(v) => setRequestType(v as any)} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="substitution">Substitution</TabsTrigger>
+                <TabsTrigger value="reschedule">Reschedule</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="substitution" className="space-y-4 mt-4">
+                <div className="flex items-center justify-between">
+                  <Label>Select Substitute Teachers</Label>
+                  {availableTeachers.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={selectAll} className="h-6 text-xs">
+                      {selectedTeacherIds.length === availableTeachers.length ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  )}
+                </div>
+
+                {loadingTeachers ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    Loading available teachers...
+                  </div>
+                ) : availableTeachers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm border rounded-md bg-muted/50">
+                    No available teachers found for this time slot
+                    <Button variant="link" onClick={loadTeachers} className="h-auto p-0 ml-1">Retry</Button>
+                  </div>
+                ) : (
+                  <div className="grid gap-2 border rounded-md p-2 max-h-60 overflow-y-auto">
+                    {availableTeachers.map(t => (
+                      <div key={t.id} className="flex items-center space-x-2 p-2 rounded hover:bg-muted/50 transition-colors">
+                        <Checkbox 
+                          id={`teacher-${t.id}`} 
+                          checked={selectedTeacherIds.includes(t.id)} 
+                          onCheckedChange={() => toggleTeacher(t.id)}
+                        />
+                        <div className="grid gap-0.5 leading-none">
+                          <label
+                            htmlFor={`teacher-${t.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {t.name}
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            {t.email}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  The request will be sent to selected teachers. The first one to confirm will take the class.
+                </p>
+              </TabsContent>
+
+              <TabsContent value="reschedule" className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-date">New Date & Time</Label>
+                  <Input
+                    id="new-date"
+                    type="datetime-local"
+                    value={newDatetime}
+                    onChange={e => setNewDatetime(e.target.value)}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div className="space-y-2">
+              <Label htmlFor="reason">Reason (Optional)</Label>
+              <Textarea
+                id="reason"
+                placeholder="Explain why you need this change..."
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                className="resize-none"
+              />
+            </div>
+
+            <Button 
+              className="w-full" 
+              onClick={handleSubmit} 
+              disabled={submitting || !canSubmit}
+            >
+              {submitting ? 'Submitting...' : 'Submit Request'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

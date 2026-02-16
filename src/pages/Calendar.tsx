@@ -9,7 +9,7 @@ import {
   Clock,
   MapPin,
   Video,
-  Users
+  Users,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -31,10 +31,11 @@ import {
   getCalendarEvents, 
   getTeacherGroups, 
   getCuratorGroups, 
-  getGroups 
+  getGroups,
+  getMyLessonRequests,
 } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import type { Event, EventType } from '../types';
+import type { Event, EventType, LessonRequest } from '../types';
 import { EVENT_TYPE_LABELS, EVENT_TYPE_COLORS } from '../types';
 
 interface CalendarDay {
@@ -70,6 +71,7 @@ export default function Calendar() {
   const [eventTypeFilter, setEventTypeFilter] = useState<EventType | 'all'>('all');
   const [groups, setGroups] = useState<{id: number, name: string}[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
+  const [myRequests, setMyRequests] = useState<Map<number, LessonRequest>>(new Map()); // event_id -> request object
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -120,8 +122,19 @@ export default function Calendar() {
       setLoading(true);
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
-      const eventsData = await getCalendarEvents(year, month);
+      const [eventsData, requestsData] = await Promise.all([
+        getCalendarEvents(year, month),
+        user?.role === 'teacher' ? getMyLessonRequests() : Promise.resolve([])
+      ]);
       setEvents(eventsData);
+      
+      // Map event_id -> request
+      const reqMap = new Map<number, LessonRequest>();
+      requestsData.forEach(r => {
+        if (r.event_id) reqMap.set(r.event_id, r);
+      });
+      setMyRequests(reqMap);
+
     } catch (error) {
       console.error('Failed to load calendar events:', error);
     } finally {
@@ -224,6 +237,31 @@ export default function Calendar() {
       hash = hash & hash; // Convert to 32bit integer
     }
     return Math.abs(hash);
+  };
+
+  const checkMonthlyLimit = (event: Event): boolean => {
+      if (!event.group_ids || event.group_ids.length === 0) return false;
+      
+      const eventDate = new Date(event.start_datetime);
+      const eMonth = eventDate.getMonth();
+      const eYear = eventDate.getFullYear();
+      
+      let count = 0;
+      // Count requests for this group in this month
+      // Iterate all myRequests
+      for (const req of myRequests.values()) {
+          // Check if request is for one of the event's groups
+          const reqGroupId = req.group_id; // number
+          if (!event.group_ids.includes(reqGroupId)) continue;
+          
+          if (req.status === 'rejected') continue;
+          
+          const reqDate = new Date(req.original_datetime);
+          if (reqDate.getMonth() === eMonth && reqDate.getFullYear() === eYear) {
+              count++;
+          }
+      }
+      return count >= 2;
   };
 
   // Get color based on event type and content
@@ -406,23 +444,28 @@ export default function Calendar() {
               
               {/* Events */}
               <div className="space-y-0.5 sm:space-y-1">
-                {day.events.slice(0, 2).map(event => (
-                  <div
-                    key={event.id}
-                    className={`
-                      text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer
-                      ${getEventColor(event)}
-                    `}
-                    title={`${event.title} - ${formatTime(event.start_datetime)}`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span className="truncate text-xs">{event.title}</span>
-                    </div>
-                    <div className="text-xs opacity-75 hidden sm:block">
-                      {formatTime(event.start_datetime)}
-                    </div>
-                  </div>
-                ))}
+                  {day.events.slice(0, 2).map(event => {
+                    const isSubstituted = user?.role === 'teacher' && event.teacher_id && Number(event.teacher_id) !== Number(user.id);
+                    return (
+                      <div
+                        key={event.id}
+                        className={`
+                          text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer
+                          ${getEventColor(event)}
+                          ${isSubstituted ? 'border-dashed border-2 opacity-75' : ''}
+                        `}
+                        title={`${event.title} - ${formatTime(event.start_datetime)}${isSubstituted ? ' (Substituted)' : ''}`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="truncate text-xs">{event.title}</span>
+                          {isSubstituted && <span className="text-[10px] uppercase font-bold tracking-tighter opacity-80">(SUB)</span>}
+                        </div>
+                        <div className="text-xs opacity-75 hidden sm:block">
+                          {formatTime(event.start_datetime)}
+                        </div>
+                      </div>
+                    );
+                  })}
                 
                 {day.events.length > 2 && (
                   <div className="text-xs text-gray-500 text-center py-0.5 sm:py-1">
@@ -518,6 +561,8 @@ export default function Calendar() {
                       hasRenderedTimeLine = true;
                     }
                     
+                    const isSubstituted = user?.role === 'teacher' && event.teacher_id && Number(event.teacher_id) !== Number(user.id);
+                    
                     return (
                       <div key={`container-${event.id}`}>
                         {showTimeLine && (
@@ -549,6 +594,7 @@ export default function Calendar() {
                           <div className={`
                             flex-1 p-4 rounded-xl border transition-all
                             ${getEventColor(event)}
+                            ${isSubstituted ? 'border-dashed border-2 opacity-75' : ''}
                             hover:brightness-95
                           `}>
                             <div className="flex items-start justify-between gap-3 mb-2">
@@ -602,6 +648,74 @@ export default function Calendar() {
                                 </div>
                               )}
                             </div>
+
+                            {/* Substituted Indicator */}
+                            {isSubstituted && (
+                                <div className="text-xs font-semibold mt-2 px-2 py-1 text-amber-800 bg-amber-50 rounded border border-amber-200 w-fit">
+                                    Substituted by: {event.teacher_name || 'Another Teacher'}
+                                </div>
+                            )}
+
+                            {/* Substitute Teacher Indicator */}
+                            {event.is_substitution && !isSubstituted && (
+                                <div className="text-xs font-semibold mt-2 px-2 py-1 text-blue-800 bg-blue-50 rounded border border-blue-200 w-fit">
+                                    You are substituting
+                                </div>
+                            )}
+
+                            {/* Substitution / Reschedule buttons for teachers */}
+                            {(user?.role === 'teacher' || user?.role === 'admin') && 
+                             event.event_type === 'class' && 
+                             !isSubstituted &&
+                             !event.is_substitution &&
+                             new Date(event.start_datetime) > new Date() && (
+                              <div className="flex gap-2 mt-3 pt-3 border-t border-current/10 flex-wrap">
+                                {myRequests.has(event.id) ? (
+                                    <div className="text-xs font-semibold px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                                        Request {myRequests.get(event.id)?.status.replace('_', ' ')}
+                                    </div>
+                                ) : checkMonthlyLimit(event) ? (
+                                    <div className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-800 rounded border border-red-200">
+                                        Monthly request limit reached (2/2)
+                                    </div>
+                                ) : (
+                                    <>
+                                        <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const params = new URLSearchParams({
+                                            type: 'substitution',
+                                            event_id: String(event.id),
+                                            group_id: String(event.group_ids?.[0] || 0),
+                                            title: event.title,
+                                            datetime: event.start_datetime,
+                                            });
+                                            navigate(`/lesson-requests/new?${params.toString()}`);
+                                        }}
+                                        className="text-xs font-medium px-3 py-1.5 rounded-md bg-white/60 hover:bg-white/80 transition text-gray-700"
+                                        >
+                                        Find Substitute
+                                        </button>
+                                        <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const params = new URLSearchParams({
+                                            type: 'reschedule',
+                                            event_id: String(event.id),
+                                            group_id: String(event.group_ids?.[0] || 0),
+                                            title: event.title,
+                                            datetime: event.start_datetime,
+                                            });
+                                            navigate(`/lesson-requests/new?${params.toString()}`);
+                                        }}
+                                        className="text-xs font-medium px-3 py-1.5 rounded-md bg-white/60 hover:bg-white/80 transition text-gray-700"
+                                        >
+                                        Reschedule
+                                        </button>
+                                    </>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

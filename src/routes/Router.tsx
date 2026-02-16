@@ -37,12 +37,15 @@ import AssignmentZeroSubmissions from '../pages/admin/AssignmentZeroSubmissions.
 import QuestionReportsPage from '../pages/admin/QuestionReportsPage.tsx';
 import UserManagement from '../pages/UserManagement.tsx';
 import ManualUnlocksPage from '../pages/admin/ManualUnlocksPage.tsx';
+import LessonRequestManagement from '../pages/admin/LessonRequestManagement.tsx';
 import LessonPage from '../pages/LessonPage.tsx';
 import CourseProgressPage from '../pages/CourseProgressPage.tsx';
 import EventManagement from '../pages/EventManagement.tsx';
 import CreateEvent from '../pages/CreateEvent.tsx';
 import EditEvent from '../pages/EditEvent.tsx';
 import Calendar from '../pages/Calendar.tsx';
+import SubstitutionRequestPage from '../pages/SubstitutionRequestPage.tsx';
+import MyLessonRequests from '../pages/MyLessonRequests.tsx';
 import LandingPage from '../pages/LandingPage.tsx';
 import AnalyticsPage from '../pages/analytics/AnalyticsPage.tsx';
 import FavoriteFlashcardsPage from '../pages/FavoriteFlashcardsPage.tsx';
@@ -377,6 +380,14 @@ export default function Router() {
             </ProtectedRoute>
           } />
 
+          <Route path="/admin/lesson-requests" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AppLayout>
+                <LessonRequestManagement />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
           <Route path="/manual-unlocks" element={
             <ProtectedRoute allowedRoles={['admin', 'teacher']}>
               <AppLayout>
@@ -401,6 +412,22 @@ export default function Router() {
             <ProtectedRoute>
               <AppLayout>
                 <Calendar />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/my-requests" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <MyLessonRequests />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/lesson-requests/new" element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <AppLayout>
+                <SubstitutionRequestPage />
               </AppLayout>
             </ProtectedRoute>
           } />

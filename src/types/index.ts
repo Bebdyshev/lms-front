@@ -24,6 +24,7 @@ export interface User {
   created_at: string;
   updated_at: string;
   course_ids?: number[]; // List of course IDs for head teachers
+  no_substitutions?: boolean; // Teacher opt-out of substitutions
 }
 
 export type UserRole = 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator' | 'head_teacher';
@@ -969,6 +970,7 @@ export interface Event {
   recurrence_end_date?: string;
   max_participants?: number;
   participant_count: number;
+  is_substitution?: boolean;
   groups?: string[];
   courses?: string[];
   group_ids?: number[];
@@ -1131,4 +1133,51 @@ export interface DailyQuestionsStatus {
   message?: string;
   score?: number | null;
   total_questions?: number | null;
+}
+
+// =============================================================================
+// LESSON REQUEST TYPES (Substitution / Reschedule)
+// =============================================================================
+
+export interface LessonRequest {
+  id: number;
+  request_type: 'substitution' | 'reschedule';
+  status: 'pending' | 'approved' | 'rejected' | 'pending_teacher';
+  requester_id: number;
+  requester_name?: string;
+  lesson_schedule_id?: number;
+  event_id?: number;
+  group_id: number;
+  group_name?: string;
+  original_datetime: string;
+  substitute_teacher_id?: number;
+  substitute_teacher_name?: string;
+  substitute_teacher_ids?: number[]; // List of candidate IDs
+  substitute_teacher_names?: string[]; // List of candidate names
+  confirmed_teacher_id?: number | null;
+  confirmed_teacher_name?: string | null;
+  new_datetime?: string; // ISO string;
+  reason?: string;
+  admin_comment?: string;
+  created_at: string;
+  resolved_at?: string;
+  resolved_by?: number;
+}
+
+export interface CreateLessonRequest {
+  request_type: 'substitution' | 'reschedule';
+  lesson_schedule_id?: number;
+  event_id?: number;
+  group_id: number;
+  original_datetime: string;
+  substitute_teacher_ids?: number[];
+  substitute_teacher_id?: number;
+  new_datetime?: string;
+  reason?: string;
+}
+
+export interface AvailableTeacher {
+  id: number;
+  name: string;
+  email: string;
 }
