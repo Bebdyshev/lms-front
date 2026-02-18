@@ -55,6 +55,7 @@ import AssignmentZeroPage from '../pages/AssignmentZeroPage';
 import { StudentAnalyticsPage } from '../pages/analytics/StudentAnalyticsPage.tsx';
 import HeadTeacherTeacherDetailsPage from '../pages/HeadTeacherTeacherDetailsPage.tsx';
 import HeadCuratorCuratorPage from '../pages/HeadCuratorCuratorPage.tsx';
+import CuratorTasksPage from '../pages/CuratorTasksPage.tsx';
 
 export default function Router() {
   
@@ -480,6 +481,14 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['head_curator', 'admin']}>
               <AppLayout>
                 <HeadCuratorCuratorPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/curator/tasks" element={
+            <ProtectedRoute allowedRoles={['curator', 'admin', 'head_curator']}>
+              <AppLayout>
+                <CuratorTasksPage />
               </AppLayout>
             </ProtectedRoute>
           } />

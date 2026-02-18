@@ -3629,6 +3629,110 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // CURATOR TASKS
+  // =============================================================================
+
+  async getCuratorTasks(params?: {
+    status?: string;
+    task_type?: string;
+    student_id?: number;
+    group_id?: number;
+    week?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ total: number; tasks: any[] }> {
+    try {
+      const response = await this.api.get('/curator-tasks/my-tasks', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator tasks:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorTasksSummary(): Promise<{
+    pending: number;
+    in_progress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+  }> {
+    try {
+      const response = await this.api.get('/curator-tasks/my-tasks/summary');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator tasks summary:', error);
+      throw error;
+    }
+  }
+
+  async updateCuratorTask(taskId: number, data: {
+    status?: string;
+    result_text?: string;
+    screenshot_url?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.api.patch(`/curator-tasks/my-tasks/${taskId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update curator task:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorTaskTemplates(taskType?: string): Promise<any[]> {
+    try {
+      const params = taskType ? { task_type: taskType } : {};
+      const response = await this.api.get('/curator-tasks/templates', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator task templates:', error);
+      throw error;
+    }
+  }
+
+  async seedCuratorTaskTemplates(): Promise<{ detail: string }> {
+    try {
+      const response = await this.api.post('/curator-tasks/seed-templates');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to seed curator task templates:', error);
+      throw error;
+    }
+  }
+
+  // --- Head Curator: all tasks & summary ---
+
+  async getAllCuratorTasks(params?: {
+    curator_id?: number;
+    status?: string;
+    task_type?: string;
+    group_id?: number;
+    week?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ total: number; tasks: any[] }> {
+    try {
+      const response = await this.api.get('/curator-tasks/all-tasks', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get all curator tasks:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorsSummary(week?: string): Promise<any[]> {
+    try {
+      const params = week ? { week } : {};
+      const response = await this.api.get('/curator-tasks/curators-summary', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curators summary:', error);
+      throw error;
+    }
+  }
+
 }
 
 // =============================================================================
@@ -3859,6 +3963,15 @@ export const declineLessonRequest = apiClient.declineLessonRequest.bind(apiClien
 export const getIncomingRequests = apiClient.getIncomingRequests.bind(apiClient);
 export const getAvailableTeachers = apiClient.getAvailableTeachers.bind(apiClient);
 export const updateSubstitutionPreference = apiClient.updateSubstitutionPreference.bind(apiClient);
+
+// Curator Tasks
+export const getCuratorTasks = apiClient.getCuratorTasks.bind(apiClient);
+export const getCuratorTasksSummary = apiClient.getCuratorTasksSummary.bind(apiClient);
+export const updateCuratorTask = apiClient.updateCuratorTask.bind(apiClient);
+export const getCuratorTaskTemplates = apiClient.getCuratorTaskTemplates.bind(apiClient);
+export const seedCuratorTaskTemplates = apiClient.seedCuratorTaskTemplates.bind(apiClient);
+export const getAllCuratorTasks = apiClient.getAllCuratorTasks.bind(apiClient);
+export const getCuratorsSummary = apiClient.getCuratorsSummary.bind(apiClient);
 
 export default apiClient;
 
