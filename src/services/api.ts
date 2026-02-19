@@ -3639,6 +3639,7 @@ class LMSApiClient {
     student_id?: number;
     group_id?: number;
     week?: string;
+    program_week?: number;
     limit?: number;
     offset?: number;
   }): Promise<{ total: number; tasks: any[] }> {
@@ -3647,6 +3648,24 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       console.error('Failed to get curator tasks:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorTaskGroups(): Promise<Array<{
+    id: number;
+    name: string;
+    start_date: string | null;
+    lessons_count: number | null;
+    program_week: number | null;
+    total_weeks: number | null;
+    has_schedule: boolean;
+  }>> {
+    try {
+      const response = await this.api.get('/curator-tasks/my-groups');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator task groups:', error);
       throw error;
     }
   }
@@ -3702,9 +3721,11 @@ class LMSApiClient {
     }
   }
 
-  async generateWeeklyTasks(week?: string): Promise<{ detail: string; created: number }> {
+  async generateWeeklyTasks(week?: string, group_id?: number): Promise<{ detail: string; created: number; week: string }> {
     try {
-      const params = week ? { week } : {};
+      const params: any = {};
+      if (week) params.week = week;
+      if (group_id) params.group_id = group_id;
       const response = await this.api.post('/curator-tasks/generate-weekly', null, { params });
       return response.data;
     } catch (error) {

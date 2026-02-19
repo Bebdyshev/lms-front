@@ -16,6 +16,18 @@ import {
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface CuratorGroup {
+  id: number;
+  name: string;
+  start_date: string | null;
+  lessons_count: number | null;
+  program_week: number | null;
+  total_weeks: number | null;
+  has_schedule: boolean;
+}
+
 interface CuratorTask {
   id: number;
   template_id: number;
@@ -35,6 +47,7 @@ interface CuratorTask {
   result_text: string | null;
   screenshot_url: string | null;
   week_reference: string | null;
+  program_week: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,30 +62,19 @@ interface TaskGroup {
   isGrouped: boolean;
 }
 
+// ─── Category config ─────────────────────────────────────────────────────────
+
 type CategoryKey = 'os_parent' | 'os_student' | 'post' | 'group' | 'lesson' | 'practice' | 'call' | 'renewal' | 'onboarding';
 
 const CATEGORY_DOT: Record<CategoryKey, string> = {
-  os_parent: '#3b82f6',
-  os_student: '#ef4444',
-  post: '#f97316',
-  group: '#a855f7',
-  lesson: '#6366f1',
-  practice: '#ef4444',
-  call: '#10b981',
-  renewal: '#dc2626',
-  onboarding: '#22c55e',
+  os_parent: '#3b82f6', os_student: '#ef4444', post: '#f97316',
+  group: '#a855f7', lesson: '#6366f1', practice: '#ef4444',
+  call: '#10b981', renewal: '#dc2626', onboarding: '#22c55e',
 };
-
 const CATEGORY_LABEL: Record<CategoryKey, string> = {
-  os_parent: 'ОС род.',
-  os_student: 'ОС учен.',
-  post: 'Посты',
-  group: 'Группа',
-  lesson: 'Урок',
-  practice: 'Practice',
-  call: 'Созвон',
-  renewal: 'Продление',
-  onboarding: 'Онбординг',
+  os_parent: 'ОС род.', os_student: 'ОС учен.', post: 'Посты',
+  group: 'Группа', lesson: 'Урок', practice: 'Practice',
+  call: 'Созвон', renewal: 'Продление', onboarding: 'Онбординг',
 };
 
 function classifyTask(task: CuratorTask): CategoryKey {
@@ -92,15 +94,18 @@ function classifyTask(task: CuratorTask): CategoryKey {
   return 'os_student';
 }
 
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-  pending: { label: 'Ожидает', bg: 'bg-gray-50', text: 'text-gray-600' },
-  in_progress: { label: 'В процессе', bg: 'bg-blue-50', text: 'text-blue-700' },
-  completed: { label: 'Готово', bg: 'bg-emerald-50', text: 'text-emerald-700' },
-  overdue: { label: 'Просрочено', bg: 'bg-red-50', text: 'text-red-700' },
-};
+// ─── Status config ────────────────────────────────────────────────────────────
 
+const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  pending:     { label: 'Ожидает',    bg: 'bg-gray-50',    text: 'text-gray-600'   },
+  in_progress: { label: 'В процессе', bg: 'bg-blue-50',    text: 'text-blue-700'   },
+  completed:   { label: 'Готово',     bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  overdue:     { label: 'Просрочено', bg: 'bg-red-50',     text: 'text-red-700'    },
+};
 const ALL_STATUSES = ['pending', 'in_progress', 'completed', 'overdue'];
 const DAY_LABELS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+
+// ─── Week / date helpers ──────────────────────────────────────────────────────
 
 function getISOWeekString(date: Date): string {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -112,28 +117,20 @@ function getISOWeekString(date: Date): string {
 
 function getWeekDates(weekStr: string): Date[] {
   const [yearStr, weekPart] = weekStr.split('-W');
-  const year = parseInt(yearStr);
-  const week = parseInt(weekPart);
+  const year = parseInt(yearStr), week = parseInt(weekPart);
   const jan4 = new Date(year, 0, 4);
-  const dayOfWeek = jan4.getDay() || 7;
+  const dow = jan4.getDay() || 7;
   const monday = new Date(jan4);
-  monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d;
-  });
+  monday.setDate(jan4.getDate() - dow + 1 + (week - 1) * 7);
+  return Array.from({ length: 7 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d; });
 }
 
-function getWeekNumber(weekStr: string): number {
-  return parseInt(weekStr.split('-W')[1]);
-}
-
-function shiftWeek(weekStr: string, delta: number): string {
-  const dates = getWeekDates(weekStr);
-  const shifted = new Date(dates[0]);
-  shifted.setDate(shifted.getDate() + delta * 7);
-  return getISOWeekString(shifted);
+/** Given a group's start_date and total_weeks, calculate the ISO week string for program_week N */
+function isoWeekForProgramWeek(startDate: string, programWeek: number): string {
+  const start = new Date(startDate);
+  const target = new Date(start);
+  target.setDate(start.getDate() + (programWeek - 1) * 7);
+  return getISOWeekString(target);
 }
 
 function formatDeadlineTime(dueDate: string | null): string | null {
@@ -159,7 +156,7 @@ function getDueDayIndex(dueDate: string | null): number | null {
 
 function getWeekDateRange(weekStr: string): string {
   const dates = getWeekDates(weekStr);
-  const m = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const m = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
   const f = dates[0], l = dates[6];
   if (f.getMonth() === l.getMonth()) return `${f.getDate()} – ${l.getDate()} ${m[f.getMonth()]}`;
   return `${f.getDate()} ${m[f.getMonth()]} – ${l.getDate()} ${m[l.getMonth()]}`;
@@ -172,11 +169,9 @@ function groupTasksForDay(dayTasks: CuratorTask[]): TaskGroup[] {
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(t);
   }
-
   const groups: TaskGroup[] = [];
   for (const [key, tasks] of map) {
     const first = tasks[0];
-    const isGrouped = tasks.length > 1 && tasks.every(t => t.student_id !== null);
     groups.push({
       key,
       templateTitle: first.template_title || 'Задача',
@@ -184,15 +179,14 @@ function groupTasksForDay(dayTasks: CuratorTask[]): TaskGroup[] {
       category: classifyTask(first),
       tasks,
       dueDate: first.due_date,
-      isGrouped,
+      isGrouped: tasks.length > 1 && tasks.every(t => t.student_id !== null),
     });
   }
   return groups;
 }
 
 function getGroupStatus(tasks: CuratorTask[]): string {
-  const total = tasks.length;
-  const done = tasks.filter(t => t.status === 'completed').length;
+  const total = tasks.length, done = tasks.filter(t => t.status === 'completed').length;
   const overdue = tasks.filter(t => t.status === 'overdue').length;
   if (done === total) return 'completed';
   if (overdue > 0) return 'overdue';
@@ -202,8 +196,13 @@ function getGroupStatus(tasks: CuratorTask[]): string {
 
 const sLabel = (s: string) => STATUS_CONFIG[s]?.label || s;
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function CuratorTasksPage() {
-  const [currentWeek, setCurrentWeek] = useState(() => getISOWeekString(new Date()));
+  const [groups, setGroups] = useState<CuratorGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [viewProgramWeek, setViewProgramWeek] = useState<number | null>(null); // null = current week
+
   const [tasks, setTasks] = useState<CuratorTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -226,13 +225,50 @@ export default function CuratorTasksPage() {
   const [studentEditScreenshot, setStudentEditScreenshot] = useState('');
   const [studentSaving, setStudentSaving] = useState<number | null>(null);
 
-  const weekNumber = getWeekNumber(currentWeek);
+  // ─── Derived values ────────────────────────────────────────────────────────
+
+  const selectedGroup_data = groups.find(g => g.id === selectedGroupId) ?? null;
+  const currentProgramWeek = selectedGroup_data?.program_week ?? null;
+  const totalWeeks = selectedGroup_data?.total_weeks ?? null;
+
+  // The program week we're currently viewing
+  const activeProgramWeek = viewProgramWeek ?? currentProgramWeek;
+
+  // ISO week string for the active program week
+  const activeIsoWeek = useMemo(() => {
+    if (selectedGroup_data?.start_date && activeProgramWeek) {
+      return isoWeekForProgramWeek(selectedGroup_data.start_date, activeProgramWeek);
+    }
+    return getISOWeekString(new Date());
+  }, [selectedGroup_data, activeProgramWeek]);
+
+  // ─── Load groups ────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    apiClient.getCuratorTaskGroups().then(data => {
+      setGroups(data);
+      if (data.length > 0 && selectedGroupId === null) {
+        // Auto-select the group with the highest program_week (most "current")
+        const sorted = [...data].sort((a, b) => (b.program_week ?? 0) - (a.program_week ?? 0));
+        setSelectedGroupId(sorted[0].id);
+      }
+    }).catch(console.error);
+  }, []);
+
+  // ─── Load tasks ────────────────────────────────────────────────────────────
 
   const loadTasks = useCallback(async () => {
+    if (!selectedGroupId) { setLoading(false); return; }
     try {
       setLoading(true);
-      const params: any = { week: currentWeek, limit: 200 };
+      const params: any = { group_id: selectedGroupId, limit: 200 };
       if (filterStatus !== 'all') params.status = filterStatus;
+      // Filter by program_week if group has a schedule, else fall back to ISO week
+      if (activeProgramWeek !== null) {
+        params.program_week = activeProgramWeek;
+      } else {
+        params.week = activeIsoWeek;
+      }
       const result = await apiClient.getCuratorTasks(params);
       setTasks(result.tasks || []);
     } catch (error) {
@@ -240,20 +276,24 @@ export default function CuratorTasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentWeek, filterStatus]);
+  }, [selectedGroupId, activeProgramWeek, activeIsoWeek, filterStatus]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  // ─── Generate ──────────────────────────────────────────────────────────────
 
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const r = await apiClient.generateWeeklyTasks(currentWeek);
+      const r = await apiClient.generateWeeklyTasks(activeIsoWeek, selectedGroupId ?? undefined);
       toast(r.detail, 'success');
       await loadTasks();
     } catch (e: any) {
       toast(e?.response?.data?.detail || 'Ошибка генерации', 'error');
     } finally { setGenerating(false); }
   };
+
+  // ─── Tasks by day ──────────────────────────────────────────────────────────
 
   const tasksByDay = useMemo(() => {
     const b: CuratorTask[][] = Array.from({ length: 7 }, () => []);
@@ -267,19 +307,16 @@ export default function CuratorTasksPage() {
     return b;
   }, [tasks]);
 
-  const groupsByDay = useMemo(() => {
-    return tasksByDay.map(dayTasks => groupTasksForDay(dayTasks));
-  }, [tasksByDay]);
+  const groupsByDay = useMemo(() => tasksByDay.map(dayTasks => groupTasksForDay(dayTasks)), [tasksByDay]);
 
   const done = tasks.filter(t => t.status === 'completed').length;
   const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
 
-  // Single task dialog handlers
+  // ─── Dialog handlers ───────────────────────────────────────────────────────
+
   const openSingleDialog = (t: CuratorTask) => {
-    setSelectedTask(t);
-    setEditStatus(t.status);
-    setEditResultText(t.result_text || '');
-    setEditScreenshotUrl(t.screenshot_url || '');
+    setSelectedTask(t); setEditStatus(t.status);
+    setEditResultText(t.result_text || ''); setEditScreenshotUrl(t.screenshot_url || '');
     setSingleDialogOpen(true);
   };
 
@@ -291,33 +328,18 @@ export default function CuratorTasksPage() {
       if (editStatus !== selectedTask.status) d.status = editStatus;
       if (editResultText !== (selectedTask.result_text || '')) d.result_text = editResultText;
       if (editScreenshotUrl !== (selectedTask.screenshot_url || '')) d.screenshot_url = editScreenshotUrl;
-      if (Object.keys(d).length > 0) {
-        await apiClient.updateCuratorTask(selectedTask.id, d);
-        toast('Задача обновлена', 'success');
-        await loadTasks();
-      }
+      if (Object.keys(d).length > 0) { await apiClient.updateCuratorTask(selectedTask.id, d); toast('Задача обновлена', 'success'); await loadTasks(); }
       setSingleDialogOpen(false);
-    } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Ошибка', 'error');
-    } finally { setSaving(false); }
+    } catch (e: any) { toast(e?.response?.data?.detail || 'Ошибка', 'error'); }
+    finally { setSaving(false); }
   };
 
-  // Grouped task dialog handlers
-  const openGroupDialog = (group: TaskGroup) => {
-    setSelectedGroup(group);
-    setExpandedStudentId(null);
-    setGroupDialogOpen(true);
-  };
+  const openGroupDialog = (group: TaskGroup) => { setSelectedGroup(group); setExpandedStudentId(null); setGroupDialogOpen(true); };
 
   const expandStudent = (task: CuratorTask) => {
-    if (expandedStudentId === task.id) {
-      setExpandedStudentId(null);
-      return;
-    }
-    setExpandedStudentId(task.id);
-    setStudentEditStatus(task.status);
-    setStudentEditResult(task.result_text || '');
-    setStudentEditScreenshot(task.screenshot_url || '');
+    if (expandedStudentId === task.id) { setExpandedStudentId(null); return; }
+    setExpandedStudentId(task.id); setStudentEditStatus(task.status);
+    setStudentEditResult(task.result_text || ''); setStudentEditScreenshot(task.screenshot_url || '');
   };
 
   const handleSaveStudent = async (task: CuratorTask) => {
@@ -327,26 +349,18 @@ export default function CuratorTasksPage() {
       if (studentEditStatus !== task.status) d.status = studentEditStatus;
       if (studentEditResult !== (task.result_text || '')) d.result_text = studentEditResult;
       if (studentEditScreenshot !== (task.screenshot_url || '')) d.screenshot_url = studentEditScreenshot;
-      if (Object.keys(d).length > 0) {
-        await apiClient.updateCuratorTask(task.id, d);
-        toast('Обновлено', 'success');
-        await loadTasks();
-      }
+      if (Object.keys(d).length > 0) { await apiClient.updateCuratorTask(task.id, d); toast('Обновлено', 'success'); await loadTasks(); }
       setExpandedStudentId(null);
-    } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Ошибка', 'error');
-    } finally { setStudentSaving(null); }
+    } catch (e: any) { toast(e?.response?.data?.detail || 'Ошибка', 'error'); }
+    finally { setStudentSaving(null); }
   };
 
   const handleToggleComplete = async (task: CuratorTask) => {
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     setStudentSaving(task.id);
-    try {
-      await apiClient.updateCuratorTask(task.id, { status: newStatus });
-      await loadTasks();
-    } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Ошибка', 'error');
-    } finally { setStudentSaving(null); }
+    try { await apiClient.updateCuratorTask(task.id, { status: newStatus }); await loadTasks(); }
+    catch (e: any) { toast(e?.response?.data?.detail || 'Ошибка', 'error'); }
+    finally { setStudentSaving(null); }
   };
 
   const handleCompleteAll = async (group: TaskGroup) => {
@@ -355,35 +369,78 @@ export default function CuratorTasksPage() {
     setStudentSaving(-1);
     try {
       await Promise.all(pending.map(t => apiClient.updateCuratorTask(t.id, { status: 'completed' })));
-      toast(`${pending.length} задач выполнено`, 'success');
-      await loadTasks();
-    } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Ошибка', 'error');
-    } finally { setStudentSaving(null); }
+      toast(`${pending.length} задач выполнено`, 'success'); await loadTasks();
+    } catch (e: any) { toast(e?.response?.data?.detail || 'Ошибка', 'error'); }
+    finally { setStudentSaving(null); }
   };
 
-  // Keep selectedGroup tasks in sync after loadTasks
   const liveGroup = useMemo(() => {
     if (!selectedGroup) return null;
     const liveTasks = tasks.filter(t => String(t.template_id) === selectedGroup.key);
-    if (liveTasks.length === 0) return selectedGroup;
-    return { ...selectedGroup, tasks: liveTasks };
+    return liveTasks.length === 0 ? selectedGroup : { ...selectedGroup, tasks: liveTasks };
   }, [selectedGroup, tasks]);
+
+  // ─── Header labels ─────────────────────────────────────────────────────────
+
+  const weekLabel = activeProgramWeek
+    ? `Неделя ${activeProgramWeek}${totalWeeks ? ` из ${totalWeeks}` : ''}`
+    : `Неделя ${getISOWeekString(new Date()).split('-W')[1]}`;
+
+  const phaseLabel = activeProgramWeek === 1 ? 'Онбординг'
+    : totalWeeks && activeProgramWeek && activeProgramWeek >= totalWeeks - 1 ? 'Продление'
+    : null;
+
+  const canGoPrev = activeProgramWeek ? activeProgramWeek > 1 : true;
+  const canGoNext = totalWeeks && activeProgramWeek ? activeProgramWeek < totalWeeks : true;
+
+  const handlePrevWeek = () => {
+    if (activeProgramWeek && canGoPrev) setViewProgramWeek(activeProgramWeek - 1);
+  };
+  const handleNextWeek = () => {
+    if (activeProgramWeek && canGoNext) setViewProgramWeek(activeProgramWeek + 1);
+  };
+  const handleCurrentWeek = () => setViewProgramWeek(null);
 
   return (
     <div className="p-4 md:p-6 max-w-[1440px] mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">Задачи · Неделя {weekNumber}</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{getWeekDateRange(currentWeek)}</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-gray-900">{weekLabel}</h1>
+              {phaseLabel && (
+                <span className={cn(
+                  'text-[10px] font-semibold px-2 py-0.5 rounded-full text-white',
+                  phaseLabel === 'Онбординг' ? 'bg-emerald-500' : 'bg-red-500'
+                )}>{phaseLabel}</span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">{getWeekDateRange(activeIsoWeek)}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Group selector */}
+          {groups.length > 1 && (
+            <Select value={selectedGroupId ? String(selectedGroupId) : ''} onValueChange={v => { setSelectedGroupId(Number(v)); setViewProgramWeek(null); }}>
+              <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue placeholder="Группа" /></SelectTrigger>
+              <SelectContent>
+                {groups.map(g => (
+                  <SelectItem key={g.id} value={String(g.id)}>
+                    {g.name}{g.program_week ? ` · нед. ${g.program_week}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Week navigation */}
           <div className="flex items-center border rounded-lg overflow-hidden bg-white h-8">
-            <button className="h-full px-2.5 text-xs text-gray-500 hover:bg-gray-50 border-r transition-colors" onClick={() => setCurrentWeek(p => shiftWeek(p, -1))}>←</button>
-            <button className="h-full px-3 text-xs text-gray-600 font-medium hover:bg-gray-50 transition-colors" onClick={() => setCurrentWeek(getISOWeekString(new Date()))}>Сегодня</button>
-            <button className="h-full px-2.5 text-xs text-gray-500 hover:bg-gray-50 border-l transition-colors" onClick={() => setCurrentWeek(p => shiftWeek(p, 1))}>→</button>
+            <button className="h-full px-2.5 text-xs text-gray-500 hover:bg-gray-50 border-r transition-colors disabled:opacity-30" onClick={handlePrevWeek} disabled={!canGoPrev}>←</button>
+            <button className="h-full px-3 text-xs text-gray-600 font-medium hover:bg-gray-50 transition-colors" onClick={handleCurrentWeek}>Текущая</button>
+            <button className="h-full px-2.5 text-xs text-gray-500 hover:bg-gray-50 border-l transition-colors disabled:opacity-30" onClick={handleNextWeek} disabled={!canGoNext}>→</button>
           </div>
+
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -408,9 +465,13 @@ export default function CuratorTasksPage() {
       {/* Board */}
       {loading ? (
         <div className="flex items-center justify-center h-64 text-sm text-gray-400">Загрузка...</div>
+      ) : !selectedGroupId ? (
+        <div className="flex items-center justify-center h-64 text-sm text-gray-400">Выберите группу</div>
       ) : tasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
-          <p className="text-sm text-gray-400">Нет задач на эту неделю</p>
+          <p className="text-sm text-gray-400">
+            Нет задач {activeProgramWeek ? `на неделю ${activeProgramWeek}` : 'на эту неделю'}
+          </p>
           <Button onClick={handleGenerate} disabled={generating} size="sm" variant="outline">
             {generating ? 'Генерация...' : 'Сгенерировать задачи'}
           </Button>
@@ -418,41 +479,23 @@ export default function CuratorTasksPage() {
       ) : (
         <div className="grid grid-cols-7 gap-3">
           {DAY_LABELS.map((label, dayIdx) => {
-            const groups = groupsByDay[dayIdx];
-            const dates = getWeekDates(currentWeek);
+            const dayGroups = groupsByDay[dayIdx];
+            const dates = getWeekDates(activeIsoWeek);
             const isToday = dates[dayIdx].toDateString() === new Date().toDateString();
             const dayDate = dates[dayIdx].getDate();
 
             return (
               <div key={dayIdx} className="flex flex-col min-h-[300px]">
-                {/* Column header */}
-                <div className={cn(
-                  'flex items-center justify-between px-3 py-2.5 rounded-lg mb-2',
-                  isToday ? 'bg-gray-900' : 'bg-gray-100'
-                )}>
-                  <span className={cn('text-xs font-semibold uppercase tracking-wide', isToday ? 'text-white' : 'text-gray-500')}>
-                    {label}
-                  </span>
-                  <span className={cn('text-xs font-medium', isToday ? 'text-gray-300' : 'text-gray-400')}>
-                    {dayDate}
-                  </span>
+                <div className={cn('flex items-center justify-between px-3 py-2.5 rounded-lg mb-2', isToday ? 'bg-gray-900' : 'bg-gray-100')}>
+                  <span className={cn('text-xs font-semibold uppercase tracking-wide', isToday ? 'text-white' : 'text-gray-500')}>{label}</span>
+                  <span className={cn('text-xs font-medium', isToday ? 'text-gray-300' : 'text-gray-400')}>{dayDate}</span>
                 </div>
-
-                {/* Cards */}
                 <div className="flex-1 space-y-2.5">
-                  {groups.map(group => {
-                    if (group.isGrouped) {
-                      return <GroupedCard key={group.key} group={group} onClick={() => openGroupDialog(group)} />;
-                    }
-                    const task = group.tasks[0];
-                    return <SingleCard key={task.id} task={task} onClick={() => openSingleDialog(task)} />;
-                  })}
-
-                  {groups.length === 0 && (
-                    <div className="flex-1 flex items-center justify-center min-h-[60px]">
-                      <span className="text-[10px] text-gray-300">—</span>
-                    </div>
+                  {dayGroups.map(group => group.isGrouped
+                    ? <GroupedCard key={group.key} group={group} onClick={() => openGroupDialog(group)} />
+                    : <SingleCard key={group.tasks[0].id} task={group.tasks[0]} onClick={() => openSingleDialog(group.tasks[0])} />
                   )}
+                  {dayGroups.length === 0 && <div className="flex items-center justify-center min-h-[60px]"><span className="text-[10px] text-gray-300">—</span></div>}
                 </div>
               </div>
             );
@@ -467,7 +510,6 @@ export default function CuratorTasksPage() {
             <DialogTitle className="text-base font-semibold pr-6">{selectedTask?.template_title}</DialogTitle>
             <DialogDescription className="sr-only">Детали задачи</DialogDescription>
           </DialogHeader>
-
           {selectedTask && (() => {
             const cat = classifyTask(selectedTask);
             const statusCfg = STATUS_CONFIG[selectedTask.status] || STATUS_CONFIG.pending;
@@ -475,53 +517,34 @@ export default function CuratorTasksPage() {
               <div className="space-y-4 py-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge variant="outline" className="text-[10px] gap-1.5 font-normal">
-                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: CATEGORY_DOT[cat] }} />
-                    {CATEGORY_LABEL[cat]}
+                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: CATEGORY_DOT[cat] }} />{CATEGORY_LABEL[cat]}
                   </Badge>
-                  <Badge className={cn('border-0 text-[10px] px-2 py-0.5 rounded', statusCfg.bg, statusCfg.text)}>
-                    {statusCfg.label}
-                  </Badge>
+                  <Badge className={cn('border-0 text-[10px] px-2 py-0.5 rounded', statusCfg.bg, statusCfg.text)}>{statusCfg.label}</Badge>
                   {selectedTask.student_name && <Badge variant="outline" className="text-[10px] font-normal">{selectedTask.student_name}</Badge>}
                   {selectedTask.group_name && <Badge variant="outline" className="text-[10px] font-normal">{selectedTask.group_name}</Badge>}
+                  {selectedTask.program_week && <Badge variant="outline" className="text-[10px] font-normal">Нед. {selectedTask.program_week}</Badge>}
                 </div>
-
-                {selectedTask.template_description && (
-                  <p className="text-sm text-gray-500 leading-relaxed bg-gray-50 rounded-lg p-3">{selectedTask.template_description}</p>
-                )}
-
-                {selectedTask.due_date && (
-                  <p className="text-xs text-gray-400">
-                    Дедлайн: {new Date(selectedTask.due_date).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                )}
-
+                {selectedTask.template_description && <p className="text-sm text-gray-500 leading-relaxed bg-gray-50 rounded-lg p-3">{selectedTask.template_description}</p>}
+                {selectedTask.due_date && <p className="text-xs text-gray-400">Дедлайн: {new Date(selectedTask.due_date).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>}
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Статус</label>
                   <Select value={editStatus} onValueChange={setEditStatus}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{sLabel(s)}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{sLabel(s)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Результат</label>
                   <Textarea value={editResultText} onChange={e => setEditResultText(e.target.value)} placeholder="Опишите результат..." className="text-sm min-h-[70px] resize-none" />
                 </div>
-
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Скриншот (ссылка)</label>
                   <Input value={editScreenshotUrl} onChange={e => setEditScreenshotUrl(e.target.value)} placeholder="https://..." className="text-sm h-9" />
                 </div>
-
-                {selectedTask.screenshot_url && (
-                  <a href={selectedTask.screenshot_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-block">Открыть скриншот →</a>
-                )}
+                {selectedTask.screenshot_url && <a href={selectedTask.screenshot_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-block">Открыть скриншот →</a>}
               </div>
             );
           })()}
-
           <DialogFooter className="gap-2">
             <Button variant="ghost" size="sm" onClick={() => setSingleDialogOpen(false)}>Закрыть</Button>
             <Button size="sm" onClick={handleSaveSingle} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</Button>
@@ -536,188 +559,111 @@ export default function CuratorTasksPage() {
             <DialogTitle className="text-base font-semibold pr-6">{liveGroup?.templateTitle}</DialogTitle>
             <DialogDescription className="sr-only">Групповая задача</DialogDescription>
           </DialogHeader>
-
           {liveGroup && (() => {
             const doneCnt = liveGroup.tasks.filter(t => t.status === 'completed').length;
             const totalCnt = liveGroup.tasks.length;
             const groupPct = totalCnt > 0 ? Math.round((doneCnt / totalCnt) * 100) : 0;
             const groupSt = getGroupStatus(liveGroup.tasks);
             const statusCfg = STATUS_CONFIG[groupSt] || STATUS_CONFIG.pending;
-
             return (
               <div className="flex-1 overflow-hidden flex flex-col gap-3 py-1">
-                {/* Group meta */}
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px] gap-1.5 font-normal">
-                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: CATEGORY_DOT[liveGroup.category] }} />
-                    {CATEGORY_LABEL[liveGroup.category]}
+                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: CATEGORY_DOT[liveGroup.category] }} />{CATEGORY_LABEL[liveGroup.category]}
                   </Badge>
-                  <Badge className={cn('border-0 text-[10px] px-2 py-0.5 rounded', statusCfg.bg, statusCfg.text)}>
-                    {statusCfg.label}
-                  </Badge>
+                  <Badge className={cn('border-0 text-[10px] px-2 py-0.5 rounded', statusCfg.bg, statusCfg.text)}>{statusCfg.label}</Badge>
                   <span className="text-xs text-gray-400 ml-auto tabular-nums">{doneCnt}/{totalCnt}</span>
                 </div>
-
-                {/* Progress */}
                 <Progress value={groupPct} className="h-1.5" />
-
-                {liveGroup.templateDescription && (
-                  <p className="text-sm text-gray-500 leading-relaxed bg-gray-50 rounded-lg p-3">{liveGroup.templateDescription}</p>
-                )}
-
-                {/* Bulk action */}
+                {liveGroup.templateDescription && <p className="text-sm text-gray-500 leading-relaxed bg-gray-50 rounded-lg p-3">{liveGroup.templateDescription}</p>}
                 {doneCnt < totalCnt && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="self-start text-xs"
-                    onClick={() => handleCompleteAll(liveGroup)}
-                    disabled={studentSaving === -1}
-                  >
+                  <Button size="sm" variant="outline" className="self-start text-xs" onClick={() => handleCompleteAll(liveGroup)} disabled={studentSaving === -1}>
                     {studentSaving === -1 ? 'Выполняем...' : `Отметить все как готово (${totalCnt - doneCnt})`}
                   </Button>
                 )}
-
-                {/* Student list */}
                 <div className="flex-1 overflow-y-auto -mx-1 px-1 space-y-1">
-                  {liveGroup.tasks
-                    .slice()
-                    .sort((a, b) => {
-                      const order: Record<string, number> = { overdue: 0, pending: 1, in_progress: 2, completed: 3 };
-                      return (order[a.status] ?? 1) - (order[b.status] ?? 1);
-                    })
-                    .map(task => {
-                      const isExpanded = expandedStudentId === task.id;
-                      const tStatusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
-                      const isSavingThis = studentSaving === task.id;
-
-                      return (
-                        <div key={task.id} className="border border-gray-100 rounded-lg overflow-hidden">
-                          {/* Row */}
-                          <div
-                            className={cn(
-                              'flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors',
-                              isExpanded && 'bg-gray-50'
-                            )}
-                            onClick={() => expandStudent(task)}
-                          >
-                            {/* Quick complete checkbox */}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleToggleComplete(task); }}
-                              disabled={isSavingThis}
-                              className={cn(
-                                'w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors text-[10px]',
-                                task.status === 'completed'
-                                  ? 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-400'
-                                  : 'border-gray-300 hover:border-emerald-400 text-transparent hover:text-emerald-400'
-                              )}
-                            >
-                              ✓
-                            </button>
-
-                            <span className={cn(
-                              'text-sm flex-1 truncate',
-                              task.status === 'completed' ? 'text-gray-400 line-through' : 'text-gray-700'
-                            )}>
-                              {task.student_name || task.group_name || '—'}
-                            </span>
-
-                            <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded', tStatusCfg.bg, tStatusCfg.text)}>
-                              {tStatusCfg.label}
-                            </span>
-
-                            <span className={cn('text-[10px] transition-transform', isExpanded && 'rotate-180')}>▾</span>
-                          </div>
-
-                          {/* Expanded edit form */}
-                          {isExpanded && (
-                            <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-100 bg-gray-50/50">
-                              <div>
-                                <label className="block text-[10px] text-gray-400 mb-0.5">Статус</label>
-                                <Select value={studentEditStatus} onValueChange={setStudentEditStatus}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{sLabel(s)}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-gray-400 mb-0.5">Результат</label>
-                                <Textarea value={studentEditResult} onChange={e => setStudentEditResult(e.target.value)} placeholder="Опишите результат..." className="text-xs min-h-[50px] resize-none" />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] text-gray-400 mb-0.5">Скриншот</label>
-                                <Input value={studentEditScreenshot} onChange={e => setStudentEditScreenshot(e.target.value)} placeholder="https://..." className="text-xs h-8" />
-                              </div>
-                              <div className="flex justify-end gap-1.5 pt-1">
-                                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setExpandedStudentId(null)}>Отмена</Button>
-                                <Button size="sm" className="text-xs h-7" onClick={() => handleSaveStudent(task)} disabled={isSavingThis}>
-                                  {isSavingThis ? '...' : 'Сохранить'}
-                                </Button>
-                              </div>
-                            </div>
-                          )}
+                  {liveGroup.tasks.slice().sort((a, b) => {
+                    const order: Record<string, number> = { overdue: 0, pending: 1, in_progress: 2, completed: 3 };
+                    return (order[a.status] ?? 1) - (order[b.status] ?? 1);
+                  }).map(task => {
+                    const isExpanded = expandedStudentId === task.id;
+                    const tStatusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
+                    const isSavingThis = studentSaving === task.id;
+                    return (
+                      <div key={task.id} className="border border-gray-100 rounded-lg overflow-hidden">
+                        <div className={cn('flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors', isExpanded && 'bg-gray-50')} onClick={() => expandStudent(task)}>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleToggleComplete(task); }}
+                            disabled={isSavingThis}
+                            className={cn('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors text-[10px]',
+                              task.status === 'completed' ? 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-400' : 'border-gray-300 hover:border-emerald-400 text-transparent hover:text-emerald-400'
+                            )}>✓</button>
+                          <span className={cn('text-sm flex-1 truncate', task.status === 'completed' ? 'text-gray-400 line-through' : 'text-gray-700')}>
+                            {task.student_name || task.group_name || '—'}
+                          </span>
+                          <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded', tStatusCfg.bg, tStatusCfg.text)}>{tStatusCfg.label}</span>
+                          <span className={cn('text-[10px] transition-transform', isExpanded && 'rotate-180')}>▾</span>
                         </div>
-                      );
-                    })
-                  }
+                        {isExpanded && (
+                          <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-100 bg-gray-50/50">
+                            <div>
+                              <label className="block text-[10px] text-gray-400 mb-0.5">Статус</label>
+                              <Select value={studentEditStatus} onValueChange={setStudentEditStatus}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>{ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{sLabel(s)}</SelectItem>)}</SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-gray-400 mb-0.5">Результат</label>
+                              <Textarea value={studentEditResult} onChange={e => setStudentEditResult(e.target.value)} placeholder="Опишите результат..." className="text-xs min-h-[50px] resize-none" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-gray-400 mb-0.5">Скриншот</label>
+                              <Input value={studentEditScreenshot} onChange={e => setStudentEditScreenshot(e.target.value)} placeholder="https://..." className="text-xs h-8" />
+                            </div>
+                            <div className="flex justify-end gap-1.5 pt-1">
+                              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setExpandedStudentId(null)}>Отмена</Button>
+                              <Button size="sm" className="text-xs h-7" onClick={() => handleSaveStudent(task)} disabled={isSavingThis}>{isSavingThis ? '...' : 'Сохранить'}</Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
           })()}
-
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setGroupDialogOpen(false)}>Закрыть</Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="ghost" size="sm" onClick={() => setGroupDialogOpen(false)}>Закрыть</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-/* ── Card components ── */
+// ─── Card components ──────────────────────────────────────────────────────────
 
 function SingleCard({ task, onClick }: { task: CuratorTask; onClick: () => void }) {
   const cat = classifyTask(task);
-  const dotColor = CATEGORY_DOT[cat];
   const deadline = formatDeadlineTime(task.due_date);
   const isCompleted = task.status === 'completed';
   const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
-
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full text-left bg-white rounded-lg border border-gray-200 p-3 transition-all',
-        'hover:shadow-md hover:border-gray-300 hover:-translate-y-px',
-        'active:shadow-sm active:translate-y-0',
-        isCompleted && 'opacity-50',
-      )}
-    >
-      <p className={cn(
-        'text-[13px] font-medium leading-snug line-clamp-2',
-        isCompleted ? 'text-gray-400 line-through' : 'text-gray-800'
-      )}>
-        {task.template_title}
-      </p>
-      {(task.student_name || task.group_name) && (
-        <p className="text-[11px] text-gray-400 mt-1.5 line-clamp-1">{task.student_name || task.group_name}</p>
-      )}
+    <button onClick={onClick} className={cn('w-full text-left bg-white rounded-lg border border-gray-200 p-3 transition-all hover:shadow-md hover:border-gray-300 hover:-translate-y-px active:shadow-sm active:translate-y-0', isCompleted && 'opacity-50')}>
+      <p className={cn('text-[13px] font-medium leading-snug line-clamp-2', isCompleted ? 'text-gray-400 line-through' : 'text-gray-800')}>{task.template_title}</p>
+      {(task.student_name || task.group_name) && <p className="text-[11px] text-gray-400 mt-1.5 line-clamp-1">{task.student_name || task.group_name}</p>}
       <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-gray-100">
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: dotColor }} />
+          <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: CATEGORY_DOT[cat] }} />
           <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded', statusCfg.bg, statusCfg.text)}>{statusCfg.label}</span>
         </div>
-        {deadline && (
-          <span className={cn('text-[10px]', task.status === 'overdue' ? 'text-red-500 font-medium' : 'text-gray-400')}>{deadline}</span>
-        )}
+        {deadline && <span className={cn('text-[10px]', task.status === 'overdue' ? 'text-red-500 font-medium' : 'text-gray-400')}>{deadline}</span>}
       </div>
     </button>
   );
 }
 
 function GroupedCard({ group, onClick }: { group: TaskGroup; onClick: () => void }) {
-  const dotColor = CATEGORY_DOT[group.category];
   const deadline = formatDeadlineTime(group.dueDate);
   const doneCnt = group.tasks.filter(t => t.status === 'completed').length;
   const totalCnt = group.tasks.length;
@@ -725,44 +671,21 @@ function GroupedCard({ group, onClick }: { group: TaskGroup; onClick: () => void
   const allDone = doneCnt === totalCnt;
   const groupSt = getGroupStatus(group.tasks);
   const statusCfg = STATUS_CONFIG[groupSt] || STATUS_CONFIG.pending;
-
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full text-left bg-white rounded-lg border border-gray-200 p-3 transition-all',
-        'hover:shadow-md hover:border-gray-300 hover:-translate-y-px',
-        'active:shadow-sm active:translate-y-0',
-        allDone && 'opacity-50',
-      )}
-    >
-      <p className={cn(
-        'text-[13px] font-medium leading-snug line-clamp-2',
-        allDone ? 'text-gray-400 line-through' : 'text-gray-800'
-      )}>
-        {group.templateTitle}
-      </p>
-
-      {/* Mini progress */}
+    <button onClick={onClick} className={cn('w-full text-left bg-white rounded-lg border border-gray-200 p-3 transition-all hover:shadow-md hover:border-gray-300 hover:-translate-y-px active:shadow-sm active:translate-y-0', allDone && 'opacity-50')}>
+      <p className={cn('text-[13px] font-medium leading-snug line-clamp-2', allDone ? 'text-gray-400 line-through' : 'text-gray-800')}>{group.templateTitle}</p>
       <div className="mt-2 flex items-center gap-2">
         <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={cn('h-full rounded-full transition-all', allDone ? 'bg-emerald-400' : 'bg-blue-400')}
-            style={{ width: `${groupPct}%` }}
-          />
+          <div className={cn('h-full rounded-full transition-all', allDone ? 'bg-emerald-400' : 'bg-blue-400')} style={{ width: `${groupPct}%` }} />
         </div>
         <span className="text-[11px] text-gray-400 tabular-nums">{doneCnt}/{totalCnt}</span>
       </div>
-
-      {/* Footer */}
       <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-gray-100">
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: dotColor }} />
+          <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: CATEGORY_DOT[group.category] }} />
           <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded', statusCfg.bg, statusCfg.text)}>{statusCfg.label}</span>
         </div>
-        {deadline && (
-          <span className={cn('text-[10px]', groupSt === 'overdue' ? 'text-red-500 font-medium' : 'text-gray-400')}>{deadline}</span>
-        )}
+        {deadline && <span className={cn('text-[10px]', groupSt === 'overdue' ? 'text-red-500 font-medium' : 'text-gray-400')}>{deadline}</span>}
       </div>
     </button>
   );
