@@ -3,9 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
+import { Card, CardContent } from '../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { Textarea } from '../components/ui/textarea';
 import { Input } from '../components/ui/input';
+import { Progress } from '../components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -13,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+import { cn } from '../lib/utils';
+import { toast } from '../components/Toast';
 
 interface CuratorTask {
   id: number;
@@ -39,9 +41,6 @@ interface CuratorTask {
   updated_at: string;
 }
 
-// ─── Category Colors ─────────────────────────────────────────────────────────
-// Maps task titles/patterns to color categories that match the screenshot
-
 type CategoryKey =
   | 'os_parent'
   | 'os_student'
@@ -53,28 +52,16 @@ type CategoryKey =
   | 'renewal'
   | 'onboarding';
 
-const CATEGORY_COLORS: Record<CategoryKey, { border: string; dot: string; bg: string }> = {
-  os_parent:   { border: '#4ade80', dot: '#4ade80', bg: '#f0fdf4' },
-  os_student:  { border: '#60a5fa', dot: '#60a5fa', bg: '#eff6ff' },
-  post:        { border: '#fbbf24', dot: '#fbbf24', bg: '#fffbeb' },
-  group:       { border: '#c084fc', dot: '#c084fc', bg: '#faf5ff' },
-  lesson:      { border: '#818cf8', dot: '#818cf8', bg: '#eef2ff' },
-  practice:    { border: '#f87171', dot: '#f87171', bg: '#fef2f2' },
-  call:        { border: '#2dd4bf', dot: '#2dd4bf', bg: '#f0fdfa' },
-  renewal:     { border: '#fb923c', dot: '#fb923c', bg: '#fff7ed' },
-  onboarding:  { border: '#34d399', dot: '#34d399', bg: '#ecfdf5' },
-};
-
-const CATEGORY_LABELS: Record<CategoryKey, string> = {
-  os_parent:  'ОС род.',
-  os_student: 'ОС учен.',
-  post:       'Посты',
-  group:      'Группа',
-  lesson:     'Урок',
-  practice:   'Practice',
-  call:       'Созвон',
-  renewal:    'Продление',
-  onboarding: 'Онбординг',
+const CATEGORY_CONFIG: Record<CategoryKey, { color: string; bg: string; label: string }> = {
+  os_parent:   { color: '#3b82f6', bg: '#eff6ff', label: 'ОС род.' },
+  os_student:  { color: '#ef4444', bg: '#fef2f2', label: 'ОС учен.' },
+  post:        { color: '#f97316', bg: '#fff7ed', label: 'Посты' },
+  group:       { color: '#a855f7', bg: '#faf5ff', label: 'Группа' },
+  lesson:      { color: '#6366f1', bg: '#eef2ff', label: 'Урок' },
+  practice:    { color: '#ef4444', bg: '#fef2f2', label: 'Practice' },
+  call:        { color: '#10b981', bg: '#ecfdf5', label: 'Созвон' },
+  renewal:     { color: '#dc2626', bg: '#fef2f2', label: 'Продление' },
+  onboarding:  { color: '#22c55e', bg: '#f0fdf4', label: 'Онбординг' },
 };
 
 function classifyTask(task: CuratorTask): CategoryKey {
@@ -83,22 +70,17 @@ function classifyTask(task: CuratorTask): CategoryKey {
 
   if (type === 'onboarding') return 'onboarding';
   if (type === 'renewal') return 'renewal';
-
   if (title.includes('родител')) return 'os_parent';
   if (title.includes('обратная связь') && title.includes('лс')) return 'os_student';
   if (title.includes('ос ученику')) return 'os_student';
   if (title.includes('пост в беседу')) return 'post';
   if (title.includes('лидерборд')) return 'group';
   if (title.includes('кураторский час')) return 'call';
-  if (title.includes('напоминание о уроке') || title.includes('напоминание урок') || title.includes('вебинар')) return 'lesson';
+  if (title.includes('напоминание') && (title.includes('урок') || title.includes('вебинар'))) return 'lesson';
   if (title.includes('weekly practice') || title.includes('practice')) return 'practice';
-
-  // Fallback by scope
   if (task.scope === 'group') return 'group';
   return 'os_student';
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const DAY_LABELS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
 
@@ -111,17 +93,13 @@ function getISOWeekString(date: Date): string {
 }
 
 function getWeekDates(weekStr: string): Date[] {
-  // Parse "2026-W08" → array of 7 Date objects (Mon-Sun)
   const [yearStr, weekPart] = weekStr.split('-W');
   const year = parseInt(yearStr);
   const week = parseInt(weekPart);
-
-  // Jan 4 is always in week 1
   const jan4 = new Date(year, 0, 4);
-  const dayOfWeek = jan4.getDay() || 7; // Mon=1..Sun=7
+  const dayOfWeek = jan4.getDay() || 7;
   const monday = new Date(jan4);
   monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
-
   const dates: Date[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
@@ -135,19 +113,17 @@ function getWeekNumber(weekStr: string): number {
   return parseInt(weekStr.split('-W')[1]);
 }
 
-function getMonthLabel(weekStr: string): string {
+function shiftWeek(weekStr: string, delta: number): string {
   const dates = getWeekDates(weekStr);
-  const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-  // Use the Thursday of the week to determine the month
-  return months[dates[3].getMonth()];
+  const shifted = new Date(dates[0]);
+  shifted.setDate(shifted.getDate() + delta * 7);
+  return getISOWeekString(shifted);
 }
 
 function formatDeadlineTime(dueDate: string | null): string | null {
   if (!dueDate) return null;
   try {
     const d = new Date(dueDate);
-    // Convert to Almaty time (UTC+5)
     const almatyOffset = 5 * 60;
     const utcMs = d.getTime() + d.getTimezoneOffset() * 60000;
     const almatyDate = new Date(utcMs + almatyOffset * 60000);
@@ -161,47 +137,52 @@ function getDueDayIndex(dueDate: string | null): number | null {
   if (!dueDate) return null;
   try {
     const d = new Date(dueDate);
-    // Convert to Almaty (UTC+5)
     const almatyOffset = 5 * 60;
     const utcMs = d.getTime() + d.getTimezoneOffset() * 60000;
     const almatyDate = new Date(utcMs + almatyOffset * 60000);
-    const day = almatyDate.getDay(); // 0=Sun
-    return day === 0 ? 6 : day - 1; // Convert to 0=Mon..6=Sun
+    const day = almatyDate.getDay();
+    return day === 0 ? 6 : day - 1;
   } catch {
     return null;
   }
 }
 
-function shiftWeek(weekStr: string, delta: number): string {
-  const dates = getWeekDates(weekStr);
-  const shifted = new Date(dates[0]);
-  shifted.setDate(shifted.getDate() + delta * 7);
-  return getISOWeekString(shifted);
+function getWeekPhaseLabel(tasks: CuratorTask[]): { label: string; color: string } {
+  const hasOnboarding = tasks.some(t => t.task_type === 'onboarding');
+  const hasRenewal = tasks.some(t => t.task_type === 'renewal');
+  if (hasOnboarding) return { label: 'Онбординг', color: 'bg-emerald-500' };
+  if (hasRenewal) return { label: 'Продление', color: 'bg-red-500' };
+  return { label: 'Прогресс', color: 'bg-green-500' };
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+function getWeekDateRange(weekStr: string): string {
+  const dates = getWeekDates(weekStr);
+  const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const first = dates[0];
+  const last = dates[6];
+  if (first.getMonth() === last.getMonth()) {
+    return `${first.getDate()} – ${last.getDate()} ${months[first.getMonth()]}`;
+  }
+  return `${first.getDate()} ${months[first.getMonth()]} – ${last.getDate()} ${months[last.getMonth()]}`;
+}
 
 export default function CuratorTasksPage() {
   const { user } = useAuth();
-  const isHeadCurator = user?.role === 'head_curator';
-
   const [currentWeek, setCurrentWeek] = useState(() => getISOWeekString(new Date()));
   const [tasks, setTasks] = useState<CuratorTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [selectedTask, setSelectedTask] = useState<CuratorTask | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Update form
   const [editStatus, setEditStatus] = useState('');
   const [editResultText, setEditResultText] = useState('');
   const [editScreenshotUrl, setEditScreenshotUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Filter
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const weekNumber = getWeekNumber(currentWeek);
-  const monthLabel = getMonthLabel(currentWeek);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -221,11 +202,22 @@ export default function CuratorTasksPage() {
     loadTasks();
   }, [loadTasks]);
 
-  // Organize tasks into day buckets
+  const handleGenerateTasks = async () => {
+    setGenerating(true);
+    try {
+      const result = await apiClient.generateWeeklyTasks(currentWeek);
+      toast(result.detail, 'success');
+      await loadTasks();
+    } catch (error: any) {
+      toast(error?.response?.data?.detail || 'Не удалось сгенерировать задачи', 'error');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const tasksByDay = useMemo(() => {
     const buckets: CuratorTask[][] = Array.from({ length: 7 }, () => []);
     const noDayTasks: CuratorTask[] = [];
-
     for (const task of tasks) {
       const dayIdx = getDueDayIndex(task.due_date);
       if (dayIdx !== null && dayIdx >= 0 && dayIdx < 7) {
@@ -234,17 +226,15 @@ export default function CuratorTasksPage() {
         noDayTasks.push(task);
       }
     }
-
-    // Put tasks without a day in Monday
     if (noDayTasks.length > 0) {
       buckets[0] = [...noDayTasks, ...buckets[0]];
     }
-
     return buckets;
   }, [tasks]);
 
-  // Count tasks with onboarding type
-  const hasOnboarding = tasks.some(t => t.task_type === 'onboarding');
+  const weekPhase = getWeekPhaseLabel(tasks);
+  const completedCount = tasks.filter(t => t.status === 'completed').length;
+  const progressPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
 
   const openTaskDialog = (task: CuratorTask) => {
     setSelectedTask(task);
@@ -265,26 +255,26 @@ export default function CuratorTasksPage() {
 
       if (Object.keys(data).length > 0) {
         await apiClient.updateCuratorTask(selectedTask.id, data);
+        toast('Задача обновлена', 'success');
         await loadTasks();
       }
       setDialogOpen(false);
     } catch (error: any) {
-      alert(error?.response?.data?.detail || 'Failed to update task');
+      toast(error?.response?.data?.detail || 'Не удалось обновить задачу', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs font-medium">Выполнено</Badge>;
-      case 'in_progress':
-        return <Badge className="bg-blue-100 text-blue-700 border-0 text-xs font-medium">В процессе</Badge>;
-      case 'overdue':
-        return <Badge className="bg-red-100 text-red-700 border-0 text-xs font-medium">Просрочено</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-600 border-0 text-xs font-medium">Ожидает</Badge>;
+  const handleQuickComplete = async (task: CuratorTask, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (task.status === 'completed') return;
+    try {
+      await apiClient.updateCuratorTask(task.id, { status: 'completed' });
+      toast('Задача выполнена', 'success');
+      await loadTasks();
+    } catch (error: any) {
+      toast(error?.response?.data?.detail || 'Ошибка', 'error');
     }
   };
 
@@ -298,121 +288,190 @@ export default function CuratorTasksPage() {
     return map[currentStatus] || [];
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  const statusLabel = (s: string) => {
+    const labels: Record<string, string> = {
+      pending: 'Ожидает',
+      in_progress: 'В процессе',
+      completed: 'Выполнено',
+      overdue: 'Просрочено',
+    };
+    return labels[s] || s;
+  };
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
+    <div className="p-4 md:p-6 max-w-[1440px] mx-auto space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">
-            {isHeadCurator ? `Неделя ${weekNumber}` : `Week ${weekNumber}`}
+            Неделя {weekNumber}
           </h1>
-          {hasOnboarding && (
-            <Badge className="bg-emerald-500 text-white border-0 px-4 py-1 text-sm rounded-full font-medium">
-              {isHeadCurator ? 'Онбординг' : 'Onboarding'}
-            </Badge>
-          )}
+          <span className="text-sm text-gray-400 hidden sm:inline">—</span>
+          <Badge className={cn('text-white border-0 px-3 py-0.5 text-xs rounded-full font-medium', weekPhase.color)}>
+            {weekPhase.label}
+          </Badge>
         </div>
-        <div className="flex items-center gap-3 text-sm text-gray-500">
-          <span>{monthLabel}</span>
-          <span className="text-gray-300">|</span>
-          <span>{currentWeek}</span>
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span>{getWeekDateRange(currentWeek)}</span>
+          <span className="text-gray-300">•</span>
+          <span className="font-mono text-xs text-gray-400">{currentWeek}</span>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentWeek(prev => shiftWeek(prev, -1))}
-            className="h-8 px-3 text-xs"
-          >
-            &larr;
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentWeek(getISOWeekString(new Date()))}
-            className="h-8 px-3 text-xs"
-          >
-            {isHeadCurator ? 'Сегодня' : 'Today'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentWeek(prev => shiftWeek(prev, 1))}
-            className="h-8 px-3 text-xs"
-          >
-            &rarr;
-          </Button>
+      {/* Stats + Controls */}
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <Card className="flex-1 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
+            <CardContent className="p-3">
+              <p className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider">Всего</p>
+              <p className="text-xl font-bold text-gray-900">{tasks.length}</p>
+            </CardContent>
+          </Card>
+          <Card className="flex-1 border-0 shadow-sm">
+            <CardContent className="p-3">
+              <p className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider">В работе</p>
+              <p className="text-xl font-bold text-amber-600">
+                {tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="flex-1 border-0 shadow-sm">
+            <CardContent className="p-3">
+              <p className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider">Выполнено</p>
+              <p className="text-xl font-bold text-emerald-600">{completedCount}</p>
+            </CardContent>
+          </Card>
+          <Card className="flex-1 border-0 shadow-sm">
+            <CardContent className="p-3">
+              <p className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider">Просрочено</p>
+              <p className="text-xl font-bold text-red-600">
+                {tasks.filter(t => t.status === 'overdue').length}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[160px] h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{isHeadCurator ? 'Все статусы' : 'All statuses'}</SelectItem>
-            <SelectItem value="pending">{isHeadCurator ? 'Ожидает' : 'Pending'}</SelectItem>
-            <SelectItem value="in_progress">{isHeadCurator ? 'В процессе' : 'In Progress'}</SelectItem>
-            <SelectItem value="completed">{isHeadCurator ? 'Выполнено' : 'Completed'}</SelectItem>
-            <SelectItem value="overdue">{isHeadCurator ? 'Просрочено' : 'Overdue'}</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center border rounded-lg overflow-hidden bg-white h-9">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-full px-3 rounded-none border-r hover:bg-gray-50 text-xs"
+              onClick={() => setCurrentWeek(prev => shiftWeek(prev, -1))}
+            >
+              ←
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-full px-4 rounded-none text-xs font-medium hover:bg-gray-50"
+              onClick={() => setCurrentWeek(getISOWeekString(new Date()))}
+            >
+              Сегодня
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-full px-3 rounded-none border-l hover:bg-gray-50 text-xs"
+              onClick={() => setCurrentWeek(prev => shiftWeek(prev, 1))}
+            >
+              →
+            </Button>
+          </div>
+
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[140px] h-9 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все статусы</SelectItem>
+              <SelectItem value="pending">Ожидает</SelectItem>
+              <SelectItem value="in_progress">В процессе</SelectItem>
+              <SelectItem value="completed">Выполнено</SelectItem>
+              <SelectItem value="overdue">Просрочено</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
+      {/* Progress bar */}
+      {tasks.length > 0 && (
+        <div className="flex items-center gap-3">
+          <Progress value={progressPercent} className="flex-1 h-2" />
+          <span className="text-xs font-semibold text-gray-500 tabular-nums min-w-[48px] text-right">
+            {completedCount}/{tasks.length}
+          </span>
+        </div>
+      )}
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 mb-6 text-xs text-gray-600">
-        {(Object.keys(CATEGORY_COLORS) as CategoryKey[]).map(key => (
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-gray-500">
+        {(Object.keys(CATEGORY_CONFIG) as CategoryKey[]).map(key => (
           <div key={key} className="flex items-center gap-1.5">
             <span
-              className="w-2.5 h-2.5 rounded-full inline-block"
-              style={{ backgroundColor: CATEGORY_COLORS[key].dot }}
+              className="w-2 h-2 rounded-full inline-block"
+              style={{ backgroundColor: CATEGORY_CONFIG[key].color }}
             />
-            <span>{CATEGORY_LABELS[key]}</span>
+            <span>{CATEGORY_CONFIG[key].label}</span>
           </div>
         ))}
       </div>
 
-      {/* Weekly Grid */}
+      {/* Weekly Timeline Grid */}
       {loading ? (
         <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-          {isHeadCurator ? 'Загрузка...' : 'Loading...'}
+          Загрузка задач...
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
+          <p className="text-sm">Нет задач на эту неделю</p>
+          <p className="text-xs text-gray-300">Нажмите кнопку чтобы сгенерировать задачи</p>
+          <Button
+            onClick={handleGenerateTasks}
+            disabled={generating}
+            size="sm"
+            className="mt-2"
+          >
+            {generating ? 'Генерация...' : 'Сгенерировать задачи'}
+          </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-7 gap-3">
+        <div className="grid grid-cols-7 gap-2 lg:gap-3">
           {DAY_LABELS.map((label, dayIdx) => {
             const dayTasks = tasksByDay[dayIdx];
-            const isToday = (() => {
-              const dates = getWeekDates(currentWeek);
-              const today = new Date();
-              return dates[dayIdx].toDateString() === today.toDateString();
-            })();
+            const dates = getWeekDates(currentWeek);
+            const isToday = dates[dayIdx].toDateString() === new Date().toDateString();
+            const isPast = dates[dayIdx] < new Date() && !isToday;
+            const dayDate = dates[dayIdx].getDate();
 
             return (
-              <div key={dayIdx} className="flex flex-col items-center gap-3">
-                {/* Day label */}
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+              <div key={dayIdx} className="flex flex-col items-center gap-2 min-w-0">
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className={cn(
+                    'text-[10px] font-bold uppercase tracking-wider',
+                    isToday ? 'text-blue-600' : 'text-gray-400'
+                  )}>
+                    {label}
+                  </span>
+                  <div className={cn(
+                    'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all',
                     isToday
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {label}
+                      ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
+                      : isPast
+                        ? 'bg-gray-50 text-gray-400'
+                        : 'bg-gray-100 text-gray-600'
+                  )}>
+                    {dayDate}
+                  </div>
                 </div>
 
-                {/* Task cards */}
-                <div className="w-full flex flex-col gap-2">
+                <div className="w-full flex flex-col gap-1.5">
                   {dayTasks.length === 0 && (
-                    <div className="h-12" /> // Empty placeholder
+                    <div className="h-16 rounded-lg border border-dashed border-gray-100" />
                   )}
                   {dayTasks.map(task => {
                     const cat = classifyTask(task);
-                    const colors = CATEGORY_COLORS[cat];
+                    const config = CATEGORY_CONFIG[cat];
                     const deadline = formatDeadlineTime(task.due_date);
                     const isCompleted = task.status === 'completed';
                     const isOverdue = task.status === 'overdue';
@@ -421,38 +480,55 @@ export default function CuratorTasksPage() {
                       <button
                         key={task.id}
                         onClick={() => openTaskDialog(task)}
-                        className={`
-                          relative text-left w-full rounded-lg p-2.5 border border-gray-100
-                          transition-all duration-150 hover:shadow-md hover:-translate-y-0.5
-                          cursor-pointer group
-                          ${isCompleted ? 'opacity-60' : ''}
-                          ${isOverdue ? 'ring-1 ring-red-200' : ''}
-                        `}
+                        className={cn(
+                          'relative text-left w-full rounded-lg px-2.5 py-2 border transition-all duration-150',
+                          'hover:shadow-md hover:-translate-y-0.5 cursor-pointer group',
+                          isCompleted && 'opacity-50 border-gray-100',
+                          isOverdue && 'border-red-200 bg-red-50/50',
+                          !isCompleted && !isOverdue && 'border-gray-100 hover:border-gray-200',
+                        )}
                         style={{
-                          borderLeft: `3px solid ${colors.border}`,
-                          backgroundColor: isCompleted ? '#f9fafb' : colors.bg,
+                          borderLeftWidth: '3px',
+                          borderLeftColor: config.color,
+                          backgroundColor: isCompleted ? '#fafafa' : isOverdue ? undefined : config.bg,
                         }}
                       >
-                        <div className="text-xs font-semibold text-gray-800 leading-tight mb-0.5 line-clamp-2">
-                          {task.template_title || 'Task'}
-                        </div>
-                        <div className="text-[10px] text-gray-500 leading-tight line-clamp-1">
-                          {task.student_name || task.group_name || (task.template_description ? task.template_description.slice(0, 40) + '...' : '')}
-                        </div>
-                        {deadline && (
-                          <div className={`text-[10px] mt-1 ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                            {isHeadCurator ? 'ДД' : 'DL'} {deadline}
+                        {/* Quick complete — text checkmark, no icon */}
+                        {!isCompleted && (
+                          <div
+                            onClick={(e) => handleQuickComplete(task, e)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-emerald-100 text-emerald-500 text-[10px] font-bold"
+                            title="Отметить выполненной"
+                          >
+                            ✓
                           </div>
                         )}
-                        {/* Status indicator dot */}
                         {isCompleted && (
-                          <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400" />
+                          <div className="absolute top-1 right-1 text-emerald-400 text-[10px] font-bold">✓</div>
                         )}
-                        {isOverdue && (
-                          <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-400" />
+
+                        <div className={cn(
+                          'text-[11px] font-semibold leading-tight mb-0.5 pr-5 line-clamp-2',
+                          isCompleted ? 'text-gray-400 line-through' : 'text-gray-800'
+                        )}>
+                          {task.template_title || 'Задача'}
+                        </div>
+
+                        <div className="text-[10px] text-gray-400 leading-tight line-clamp-1">
+                          {task.student_name || task.group_name || ''}
+                        </div>
+
+                        {deadline && (
+                          <div className={cn(
+                            'text-[9px] mt-1 font-medium',
+                            isOverdue ? 'text-red-500' : 'text-gray-300'
+                          )}>
+                            до {deadline}
+                          </div>
                         )}
+
                         {task.status === 'in_progress' && (
-                          <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-400" />
+                          <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-blue-400" />
                         )}
                       </button>
                     );
@@ -464,140 +540,157 @@ export default function CuratorTasksPage() {
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && tasks.length === 0 && (
-        <div className="text-center py-16 text-gray-400 text-sm">
-          {isHeadCurator ? 'Нет задач на эту неделю' : 'No tasks for this week'}
+      {/* Footer */}
+      {!loading && tasks.length > 0 && (
+        <div className="flex items-center justify-between text-[10px] text-gray-400 pt-2 border-t border-gray-100">
+          <div className="flex items-center gap-4">
+            <span>▲ основные задачи</span>
+            <span>▼ параллельные задачи</span>
+          </div>
+          <span>Неделя {weekNumber}</span>
         </div>
       )}
 
       {/* Task Detail Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">
-              {selectedTask?.template_title || 'Task'}
+            <DialogTitle className="text-lg font-bold text-gray-900 pr-8">
+              {selectedTask?.template_title || 'Задача'}
             </DialogTitle>
+            <DialogDescription className="sr-only">Детали задачи куратора</DialogDescription>
           </DialogHeader>
 
-          {selectedTask && (
-            <div className="space-y-4 py-2">
-              {/* Description */}
-              {selectedTask.template_description && (
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  {selectedTask.template_description}
-                </p>
-              )}
+          {selectedTask && (() => {
+            const cat = classifyTask(selectedTask);
+            const config = CATEGORY_CONFIG[cat];
+            return (
+              <div className="space-y-4 py-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    className="border-0 text-white text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: config.color }}
+                  >
+                    {config.label}
+                  </Badge>
+                  <Badge className={cn(
+                    'border-0 text-[10px] font-semibold px-2.5 py-0.5 rounded-full',
+                    selectedTask.status === 'completed' && 'bg-emerald-100 text-emerald-700',
+                    selectedTask.status === 'in_progress' && 'bg-blue-100 text-blue-700',
+                    selectedTask.status === 'overdue' && 'bg-red-100 text-red-700',
+                    selectedTask.status === 'pending' && 'bg-gray-100 text-gray-600',
+                  )}>
+                    {statusLabel(selectedTask.status)}
+                  </Badge>
+                  {selectedTask.student_name && (
+                    <Badge variant="outline" className="text-[10px] font-normal text-gray-600">
+                      {selectedTask.student_name}
+                    </Badge>
+                  )}
+                  {selectedTask.group_name && (
+                    <Badge variant="outline" className="text-[10px] font-normal text-gray-600">
+                      {selectedTask.group_name}
+                    </Badge>
+                  )}
+                </div>
 
-              {/* Info row */}
-              <div className="flex flex-wrap gap-2 text-xs">
-                {getStatusBadge(selectedTask.status)}
-                {selectedTask.student_name && (
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {selectedTask.student_name}
-                  </Badge>
+                {selectedTask.template_description && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {selectedTask.template_description}
+                    </p>
+                  </div>
                 )}
-                {selectedTask.group_name && (
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {selectedTask.group_name}
-                  </Badge>
-                )}
+
                 {selectedTask.due_date && (
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {new Date(selectedTask.due_date).toLocaleDateString('ru-RU', {
+                  <p className="text-xs text-gray-500">
+                    Дедлайн: {new Date(selectedTask.due_date).toLocaleDateString('ru-RU', {
+                      weekday: 'short',
                       day: 'numeric',
                       month: 'short',
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
-                  </Badge>
+                  </p>
                 )}
-              </div>
 
-              {/* Status change */}
-              {getAllowedTransitions(selectedTask.status).length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    {isHeadCurator ? 'Изменить статус' : 'Change Status'}
-                  </label>
-                  <Select value={editStatus} onValueChange={setEditStatus}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={selectedTask.status}>
-                        {selectedTask.status === 'pending' ? (isHeadCurator ? 'Ожидает' : 'Pending') :
-                         selectedTask.status === 'in_progress' ? (isHeadCurator ? 'В процессе' : 'In Progress') :
-                         selectedTask.status === 'overdue' ? (isHeadCurator ? 'Просрочено' : 'Overdue') :
-                         (isHeadCurator ? 'Выполнено' : 'Completed')}
-                      </SelectItem>
-                      {getAllowedTransitions(selectedTask.status).map(s => (
-                        <SelectItem key={s} value={s}>
-                          {s === 'in_progress' ? (isHeadCurator ? 'В процессе' : 'In Progress') :
-                           s === 'completed' ? (isHeadCurator ? 'Выполнено' : 'Completed') :
-                           s}
+                {getAllowedTransitions(selectedTask.status).length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Статус</label>
+                    <Select value={editStatus} onValueChange={setEditStatus}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectedTask.status}>
+                          {statusLabel(selectedTask.status)}
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                        {getAllowedTransitions(selectedTask.status).map(s => (
+                          <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
-              {/* Result text */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  {isHeadCurator ? 'Результат / комментарий' : 'Result / Comment'}
-                </label>
-                <Textarea
-                  value={editResultText}
-                  onChange={e => setEditResultText(e.target.value)}
-                  placeholder={isHeadCurator ? 'Опишите результат...' : 'Describe result...'}
-                  className="text-sm min-h-[80px]"
-                />
-              </div>
-
-              {/* Screenshot URL */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  {isHeadCurator ? 'Ссылка на скриншот' : 'Screenshot URL'}
-                </label>
-                <Input
-                  value={editScreenshotUrl}
-                  onChange={e => setEditScreenshotUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="text-sm h-9"
-                />
-              </div>
-
-              {/* Existing screenshot preview */}
-              {selectedTask.screenshot_url && (
                 <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Результат / комментарий</label>
+                  <Textarea
+                    value={editResultText}
+                    onChange={e => setEditResultText(e.target.value)}
+                    placeholder="Опишите результат выполнения задачи..."
+                    className="text-sm min-h-[80px] resize-none"
+                    disabled={selectedTask.status === 'completed'}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Ссылка на скриншот</label>
+                  <Input
+                    value={editScreenshotUrl}
+                    onChange={e => setEditScreenshotUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="text-sm h-9"
+                    disabled={selectedTask.status === 'completed'}
+                  />
+                </div>
+
+                {selectedTask.screenshot_url && (
                   <a
                     href={selectedTask.screenshot_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:underline"
                   >
-                    {isHeadCurator ? 'Открыть скриншот' : 'View screenshot'}
+                    Открыть скриншот →
                   </a>
-                </div>
-              )}
-            </div>
-          )}
+                )}
 
-          <DialogFooter className="gap-2">
+                {selectedTask.completed_at && (
+                  <p className="text-[10px] text-gray-400">
+                    Выполнено: {new Date(selectedTask.completed_at).toLocaleDateString('ru-RU', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
-              {isHeadCurator ? 'Отмена' : 'Cancel'}
+              Закрыть
             </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={saving || (selectedTask?.status === 'completed' && editStatus === 'completed')}
-            >
-              {saving
-                ? (isHeadCurator ? 'Сохранение...' : 'Saving...')
-                : (isHeadCurator ? 'Сохранить' : 'Save')}
-            </Button>
+            {selectedTask && getAllowedTransitions(selectedTask.status).length > 0 && (
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-gray-900 hover:bg-gray-800"
+              >
+                {saving ? 'Сохранение...' : 'Сохранить'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

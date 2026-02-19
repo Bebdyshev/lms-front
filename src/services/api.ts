@@ -3702,6 +3702,17 @@ class LMSApiClient {
     }
   }
 
+  async generateWeeklyTasks(week?: string): Promise<{ detail: string; created: number }> {
+    try {
+      const params = week ? { week } : {};
+      const response = await this.api.post('/curator-tasks/generate-weekly', null, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to generate weekly tasks:', error);
+      throw error;
+    }
+  }
+
   // --- Head Curator: all tasks & summary ---
 
   async getAllCuratorTasks(params?: {
