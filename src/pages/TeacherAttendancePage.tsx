@@ -555,9 +555,15 @@ export default function TeacherAttendancePage() {
                 </Button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 text-center">
-              Click a number to set the activity score (0-10)
-            </p>
+            <div className="mt-3 rounded-lg bg-gray-50 border border-gray-200 p-3 text-xs text-gray-500 space-y-1">
+              <p className="font-semibold text-gray-700 mb-1">Scale guide:</p>
+              <div className="flex items-center gap-2"><span className="font-medium text-gray-600 w-10">0</span> Did not participate at all</div>
+              <div className="flex items-center gap-2"><span className="font-medium text-gray-600 w-10">1-3</span> Minimal participation, mostly passive</div>
+              <div className="flex items-center gap-2"><span className="font-medium text-gray-600 w-10">4-5</span> Average participation, answered when asked</div>
+              <div className="flex items-center gap-2"><span className="font-medium text-gray-600 w-10">6-7</span> Active, volunteered answers, engaged</div>
+              <div className="flex items-center gap-2"><span className="font-medium text-gray-600 w-10">8-9</span> Very active, helped peers, asked questions</div>
+              <div className="flex items-center gap-2"><span className="font-medium text-gray-600 w-10">10</span> Outstanding, led discussions, exceptional effort</div>
+            </div>
           </div>
           <DialogFooter>
             <Button
