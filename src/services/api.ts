@@ -3734,6 +3734,61 @@ class LMSApiClient {
     }
   }
 
+  // --- Student Journal ---
+
+  async getStudentsJournal(params?: {
+    group_id?: number;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    total: number;
+    students: Array<{
+      id: number;
+      name: string;
+      email: string;
+      avatar_url: string | null;
+      group_id: number;
+      group_name: string;
+      attendance_attended: number;
+      attendance_total: number;
+      attendance_rate: number | null;
+      lms_progress: number | null;
+      hw_submitted: number;
+      hw_avg_score: number | null;
+      az_status: 'not_started' | 'draft' | 'submitted';
+      last_activity: string | null;
+    }>;
+  }> {
+    try {
+      const response = await this.api.get('/student-journal/list', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get students journal:', error);
+      throw error;
+    }
+  }
+
+  async getStudentJournalGroups(): Promise<Array<{ id: number; name: string }>> {
+    try {
+      const response = await this.api.get('/student-journal/groups');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get journal groups:', error);
+      throw error;
+    }
+  }
+
+  async getStudentProfile(studentId: number): Promise<any> {
+    try {
+      const response = await this.api.get(`/student-journal/${studentId}/profile`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get student profile:', error);
+      throw error;
+    }
+  }
+
   // --- Head Curator: all tasks & summary ---
 
   async getAllCuratorTasks(params?: {
@@ -3995,6 +4050,11 @@ export const declineLessonRequest = apiClient.declineLessonRequest.bind(apiClien
 export const getIncomingRequests = apiClient.getIncomingRequests.bind(apiClient);
 export const getAvailableTeachers = apiClient.getAvailableTeachers.bind(apiClient);
 export const updateSubstitutionPreference = apiClient.updateSubstitutionPreference.bind(apiClient);
+
+// Student Journal
+export const getStudentsJournal = apiClient.getStudentsJournal.bind(apiClient);
+export const getStudentJournalGroups = apiClient.getStudentJournalGroups.bind(apiClient);
+export const getStudentProfile = apiClient.getStudentProfile.bind(apiClient);
 
 // Curator Tasks
 export const getCuratorTasks = apiClient.getCuratorTasks.bind(apiClient);
