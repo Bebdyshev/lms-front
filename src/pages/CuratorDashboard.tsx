@@ -75,16 +75,16 @@ export default function CuratorDashboard() {
     );
   }
 
-  const firstName = user?.full_name?.split(' ')[0] || user?.name?.split(' ')[0] || 'Curator';
+  const firstName = user?.full_name?.split(' ')[0] || user?.name?.split(' ')[0] || 'Куратор';
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}!</h1>
+          <h1 className="text-2xl font-bold text-gray-900">С возвращением, {firstName}!</h1>
           <p className="text-gray-600 mt-1">
-            Here's an overview of your groups and students
+            Обзор успеваемости ваших групп и студентов
           </p>
         </div>
       </div>
@@ -94,7 +94,7 @@ export default function CuratorDashboard() {
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-medium text-yellow-900">
-              Attendance Required ({stats.missing_attendance_reminders.length})
+              Посещаемость не заполнена ({stats.missing_attendance_reminders.length})
             </h3>
             <Button
               onClick={() => navigate('/attendance')}
@@ -102,7 +102,7 @@ export default function CuratorDashboard() {
               variant="outline"
               className="text-xs h-6 px-2 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
             >
-              Go to Attendance
+              Перейти к посещаемости
             </Button>
           </div>
           <div className="space-y-1.5">
@@ -130,7 +130,7 @@ export default function CuratorDashboard() {
                     variant="ghost"
                     className="text-[11px] h-6 px-2 text-yellow-700 hover:bg-yellow-100"
                   >
-                    Mark
+                    Заполнить
                   </Button>
                 </div>
               </div>
@@ -149,17 +149,17 @@ export default function CuratorDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3">
-                    <CardTitle className="text-lg font-bold text-gray-900">Student Progress</CardTitle>
+                    <CardTitle className="text-lg font-bold text-gray-900">Прогресс студентов</CardTitle>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50">
-                        {stats?.total_students || studentsProgress.length || 0} Students
+                        {stats?.total_students || studentsProgress.length || 0} студентов
                       </Badge>
                       <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-100 hover:bg-green-50">
-                        {stats?.total_groups || 0} Groups
+                        {stats?.total_groups || 0} групп
                       </Badge>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">Overview of student performance across active courses</p>
+                  <p className="text-sm text-gray-500 mt-1">Обзор успеваемости студентов по активным курсам</p>
                 </div>
               </div>
             </CardHeader>
@@ -168,18 +168,18 @@ export default function CuratorDashboard() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50/80 text-gray-600 border-b border-gray-100">
                     <tr>
-                      <th className="text-left px-6 py-3 font-medium">Student</th>
-                      <th className="text-left px-6 py-3 font-medium">Group & Course</th>
-                      <th className="text-left px-6 py-3 font-medium">Current Lesson</th>
-                      <th className="text-left px-6 py-3 font-medium">Progress</th>
-                      <th className="text-left px-6 py-3 font-medium">Last Activity</th>
+                      <th className="text-left px-6 py-3 font-medium">Студент</th>
+                      <th className="text-left px-6 py-3 font-medium">Группа и курс</th>
+                      <th className="text-left px-6 py-3 font-medium">Текущий урок</th>
+                      <th className="text-left px-6 py-3 font-medium">Прогресс</th>
+                      <th className="text-left px-6 py-3 font-medium">Последняя активность</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {paginatedStudents.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                          No students found in your groups.
+                          Студенты в ваших группах не найдены.
                         </td>
                       </tr>
                     ) : (
@@ -214,7 +214,7 @@ export default function CuratorDashboard() {
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1">
                               <span className="text-gray-700 truncate max-w-[180px]" title={student.current_lesson_title}>
-                                {student.current_lesson_title || "Not started"}
+                                {student.current_lesson_title || "Не начат"}
                               </span>
                               {student.current_lesson_id && (
                                 <div className="flex items-center gap-2">
@@ -270,7 +270,7 @@ export default function CuratorDashboard() {
                                 })}
                               </div>
                             ) : (
-                              <span className="text-xs text-gray-400 italic">No activity</span>
+                              <span className="text-xs text-gray-400 italic">Нет активности</span>
                             )}
                           </td>
                         </tr>
@@ -284,9 +284,9 @@ export default function CuratorDashboard() {
               {totalStudentPages > 1 && (
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
                   <div className="text-sm text-gray-500">
-                    Showing <span className="font-medium">{((studentPage - 1) * studentsPerPage) + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(studentPage * studentsPerPage, studentsProgress.length)}</span> of{' '}
-                    <span className="font-medium">{studentsProgress.length}</span> students
+                    Показано <span className="font-medium">{((studentPage - 1) * studentsPerPage) + 1}</span> –{' '}
+                    <span className="font-medium">{Math.min(studentPage * studentsPerPage, studentsProgress.length)}</span> из{' '}
+                    <span className="font-medium">{studentsProgress.length}</span> студентов
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -299,7 +299,7 @@ export default function CuratorDashboard() {
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
                     <div className="text-sm font-medium text-gray-700 px-2">
-                      Page {studentPage} of {totalStudentPages}
+                      Стр. {studentPage} из {totalStudentPages}
                     </div>
                     <Button
                       variant="outline"
@@ -323,7 +323,7 @@ export default function CuratorDashboard() {
           {/* Quick Actions */}
           <Card data-tour="groups-section">
             <CardHeader>
-              <CardTitle className="text-lg font-bold">Quick Actions</CardTitle>
+              <CardTitle className="text-lg font-bold">Быстрые действия</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button 
@@ -332,7 +332,7 @@ export default function CuratorDashboard() {
                 onClick={() => navigate('/curator/homeworks')}
               >
                 <FileText className="w-4 h-4 mr-2 text-purple-600" />
-                Homework
+                Домашние задания
               </Button>
               <Button 
                 className="w-full justify-start" 
@@ -340,7 +340,7 @@ export default function CuratorDashboard() {
                 onClick={() => navigate('/analytics')}
               >
                 <BarChart3 className="w-4 h-4 mr-2 text-blue-600" />
-                View Detailed Analytics
+                Подробная аналитика
               </Button>
               <Button 
                 className="w-full justify-start" 
@@ -348,7 +348,7 @@ export default function CuratorDashboard() {
                 onClick={() => navigate('/chat')}
               >
                 <Users className="w-4 h-4 mr-2 text-green-600" />
-                Message Students
+                Написать студентам
               </Button>
             </CardContent>
           </Card>

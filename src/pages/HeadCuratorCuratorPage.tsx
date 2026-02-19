@@ -81,7 +81,7 @@ export default function HeadCuratorCuratorPage() {
     if (loading) {
         return (
             <div className="p-8 flex justify-center items-center">
-                <div className="animate-pulse text-slate-500">Loading curator details...</div>
+                <div className="animate-pulse text-slate-500">Загрузка данных куратора...</div>
             </div>
         );
     }
@@ -89,7 +89,7 @@ export default function HeadCuratorCuratorPage() {
     if (!curator) {
         return (
             <div className="p-8 text-center text-slate-500">
-                Curator not found
+                Куратор не найден
             </div>
         );
     }
@@ -103,7 +103,7 @@ export default function HeadCuratorCuratorPage() {
                     onClick={() => navigate('/dashboard')} 
                     className="w-fit pl-0 mb-2 hover:bg-slate-100 -ml-2 text-slate-600"
                 >
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+                    <ChevronLeft className="mr-2 h-4 w-4" /> Назад к дашборду
                 </Button>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -128,7 +128,7 @@ export default function HeadCuratorCuratorPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{curator.total_students}</div>
-                        <p className="text-xs text-slate-400 mt-1">Across {curator.groups.length} groups</p>
+                        <p className="text-xs text-slate-400 mt-1">В {curator.groups.length} группах</p>
                     </CardContent>
                 </Card>
 
@@ -138,7 +138,7 @@ export default function HeadCuratorCuratorPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-amber-600">{curator.total_overdue}</div>
-                        <p className="text-xs text-slate-400 mt-1">Overdue assignments</p>
+                        <p className="text-xs text-slate-400 mt-1">Просроченные задания</p>
                     </CardContent>
                 </Card>
 
@@ -153,7 +153,7 @@ export default function HeadCuratorCuratorPage() {
                         }`}>
                             {curator.avg_progress}%
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">Average progress</p>
+                        <p className="text-xs text-slate-400 mt-1">Средний прогресс</p>
                     </CardContent>
                 </Card>
             </div>
@@ -161,8 +161,8 @@ export default function HeadCuratorCuratorPage() {
             {/* Overdue History Chart */}
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader>
-                    <CardTitle className="text-lg">Overdue Trends</CardTitle>
-                    <CardDescription>New overdue assignments over the last 30 days</CardDescription>
+                    <CardTitle className="text-lg">Тренды просрочек</CardTitle>
+                    <CardDescription>Новые просроченные задания за последние 30 дней</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-[300px] w-full">
@@ -205,7 +205,7 @@ export default function HeadCuratorCuratorPage() {
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
                     <CardTitle className="text-lg">Группы и студенты</CardTitle>
-                    <CardDescription>Detailed student information for each group</CardDescription>
+                    <CardDescription>Подробная информация о студентах каждой группы</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                     {curator.groups.length === 0 && (
@@ -240,7 +240,7 @@ export default function HeadCuratorCuratorPage() {
                                                     navigate(`/curator/leaderboard?groupId=${group.id}`);
                                                 }}
                                             >
-                                                Leaderboard
+                                                Лидерборд
                                             </Button>
                                         </div>
                                     </div>

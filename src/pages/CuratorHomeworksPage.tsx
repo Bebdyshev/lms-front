@@ -47,7 +47,7 @@ const CuratorHomeworksPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching homeworks:', error);
-      toast('Failed to load homework assignments', 'error');
+      toast('Не удалось загрузить домашние задания', 'error');
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ const CuratorHomeworksPage: React.FC = () => {
       setSubmissionDetails(details);
     } catch (error) {
       console.error('Error fetching submission details:', error);
-      toast('Failed to load submission details', 'error');
+      toast('Не удалось загрузить детали работы', 'error');
       setSubmissionDetails(null);
     } finally {
       setLoadingSubmission(false);

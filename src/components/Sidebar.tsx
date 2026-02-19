@@ -35,17 +35,17 @@ import type { Course } from '../types';
 type NavItemTuple = [to: string, label: string, Icon: LucideIcon, badge: number, roles: string[] | null, dataTour?: string];
 function getNavigationItems(_userRole: string | undefined, unreadCount: number, unseenGradedCount: number = 0): NavItemTuple[] {
   const allItems: NavItemTuple[] = [
-    ['/dashboard', _userRole === 'head_curator' ? 'Дашборд' : 'Dashboard', Home, 0, null, 'dashboard-nav'],
-    ['/calendar', _userRole === 'head_curator' ? 'Календарь' : 'Calendar', Calendar, 0, null, 'calendar-nav'],
+    ['/dashboard', ['head_curator', 'curator'].includes(_userRole || '') ? 'Дашборд' : 'Dashboard', Home, 0, null, 'dashboard-nav'],
+    ['/calendar', ['head_curator', 'curator'].includes(_userRole || '') ? 'Календарь' : 'Calendar', Calendar, 0, null, 'calendar-nav'],
     ['/courses', 'My Courses', BookOpen, 0, ['student'], 'courses-nav'],
     ['/homework', _userRole === 'student' ? 'My Homework' : 'Homework', ClipboardList, _userRole === 'student' ? unseenGradedCount : 0, ['student', 'teacher'], 'assignments-nav'],
     ['/favorites', 'My Favorites', Heart, 0, ['student'], 'favorites-nav'],
     ['/teacher/courses', 'My Courses', BookMarked, 0, ['teacher'], 'courses-nav'],
     ['/teacher/class', 'My Class', GraduationCap, 0, ['teacher'], 'students-nav'],
     ['/attendance', 'Attendance', UserCheck, 0, ['teacher'], 'attendance-nav'],
-    ['/analytics', _userRole === 'head_curator' ? 'Аналитика' : 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin', 'head_curator'], 'analytics-nav'],
-    ['/curator/homeworks', _userRole === 'head_curator' ? 'Домашние задания' : 'Homework', FileText, 0, ['curator', 'head_curator'], 'homework-analytics-nav'],
-    ['/curator/leaderboard', _userRole === 'head_curator' ? 'Лидерборд' : 'Leaderboard', Trophy, 0, ['curator', 'head_curator'], 'leaderboard-nav'],
+    ['/analytics', ['head_curator', 'curator'].includes(_userRole || '') ? 'Аналитика' : 'Analytics', BarChart3, 0, ['teacher', 'curator', 'admin', 'head_curator'], 'analytics-nav'],
+    ['/curator/homeworks', ['head_curator', 'curator'].includes(_userRole || '') ? 'Домашние задания' : 'Homework', FileText, 0, ['curator', 'head_curator'], 'homework-analytics-nav'],
+    ['/curator/leaderboard', ['head_curator', 'curator'].includes(_userRole || '') ? 'Лидерборд' : 'Leaderboard', Trophy, 0, ['curator', 'head_curator'], 'leaderboard-nav'],
     ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin'], 'courses-management'],
     ['/admin/users', 'Manage Users', Users, 0, ['admin'], 'users-management'],
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management'],
@@ -54,7 +54,7 @@ function getNavigationItems(_userRole: string | undefined, unreadCount: number, 
     ['/admin/lesson-requests', 'Lesson Requests', ArrowLeftRight, 0, ['admin'], 'lesson-requests-nav'],
     ['/my-requests', 'My Requests', ArrowLeftRight, 0, ['teacher'], 'my-requests-nav'],
     ['/manual-unlocks', 'Manual Unlocks', Unlock, 0, ['teacher'], 'manual-unlocks-nav'],
-    ['/chat', _userRole === 'head_curator' ? 'Чат' : 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
+    ['/chat', ['head_curator', 'curator'].includes(_userRole || '') ? 'Чат' : 'Chat', MessageCircle, unreadCount, null, 'messages-nav'],
   ];
 
   return allItems;
@@ -237,9 +237,9 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 {isCoursesExpanded && !isCollapsed && (
                   <div className="ml-6 mt-1 space-y-1">
                     {isLoadingCourses ? (
-                      <div className="px-4 py-2 text-sm text-gray-500">Loading courses...</div>
+                      <div className="px-4 py-2 text-sm text-gray-500">{['head_curator', 'curator'].includes(user?.role || '') ? 'Загрузка курсов...' : 'Loading courses...'}</div>
                     ) : courses.length === 0 ? (
-                      <div className="px-4 py-2 text-sm text-gray-500">No courses found</div>
+                      <div className="px-4 py-2 text-sm text-gray-500">{['head_curator', 'curator'].includes(user?.role || '') ? 'Курсы не найдены' : 'No courses found'}</div>
                     ) : (
                       courses.slice(0, 5).map((course) => (
                         <NavLink
@@ -259,7 +259,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                         to={user?.role === 'teacher' ? '/teacher/courses' : '/courses'}
                         className="flex items-center rounded-lg text-blue-600 hover:bg-blue-50 transition-colors px-3 py-2 text-sm font-medium"
                       >
-                        <span>View all courses ({courses.length})</span>
+                        <span>{['head_curator', 'curator'].includes(user?.role || '') ? `Все курсы (${courses.length})` : `View all courses (${courses.length})`}</span>
                       </NavLink>
                     )}
                   </div>
@@ -306,7 +306,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
               {!isCollapsed && (
                 <div className="ml-3 text-left">
                   <div className="text-sm font-medium text-gray-900 line-clamp-1">{user?.name || 'User'}</div>
-                  <div className="text-xs text-gray-500">{user?.role === 'head_curator' ? 'Руководитель кураторов' : (user?.role || 'Unknown')}</div>
+                  <div className="text-xs text-gray-500">{user?.role === 'head_curator' ? 'Руководитель кураторов' : user?.role === 'curator' ? 'Куратор' : (user?.role || 'Unknown')}</div>
                 </div>
               )}
             </div>
@@ -323,7 +323,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <UserCheck className="w-4 h-4 mr-3" />
-                {user?.role === 'head_curator' ? 'Профиль' : 'Profile'}
+                {['head_curator', 'curator'].includes(user?.role || '') ? 'Профиль' : 'Profile'}
               </NavLink>
               <NavLink
                 to="/settings"
@@ -331,7 +331,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <Settings className="w-4 h-4 mr-3" />
-                {user?.role === 'head_curator' ? 'Настройки' : 'Settings'}
+                {['head_curator', 'curator'].includes(user?.role || '') ? 'Настройки' : 'Settings'}
               </NavLink>
               <div className="border-t my-1"></div>
               <button
@@ -339,7 +339,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
               >
                 <LogOut className="w-4 h-4 mr-3" />
-                {user?.role === 'head_curator' ? 'Выйти' : 'Logout'}
+                {['head_curator', 'curator'].includes(user?.role || '') ? 'Выйти' : 'Logout'}
               </button>
             </div>
           )}

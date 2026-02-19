@@ -146,7 +146,7 @@ const AttendanceToggle = ({
             config.color,
             disabled ? "cursor-default brightness-[0.9] grayscale-[0.2]" : "cursor-pointer active:brightness-95 hover:brightness-105"
         )}
-        title={disabled ? `Status: ${config.title} (Read-only)` : `Status: ${config.title}. Click to cycle.`}
+        title={disabled ? `Статус: ${config.title} (Только просмотр)` : `Статус: ${config.title}. Нажмите для переключения.`}
     >
         <span className="flex items-center gap-1">
             <span className="text-[10px] uppercase">{config.label}</span>
@@ -290,7 +290,7 @@ export default function CuratorLeaderboardPage() {
         }
     } catch (e) {
         console.error("Failed to load leaderboard", e);
-        toast("Failed to load leaderboard", "error");
+        toast("Не удалось загрузить лидерборд", "error");
     } finally {
         setLoading(false);
     }
@@ -504,7 +504,7 @@ export default function CuratorLeaderboardPage() {
         }
         
         if (successCount === entriesToSave.length) {
-            toast("All changes saved successfully", "success");
+            toast("Все изменения сохранены", "success");
             setChangedEntries(new Set());
             setConfigChanged(false);
             
@@ -526,11 +526,11 @@ export default function CuratorLeaderboardPage() {
                 console.error('Failed to reload config:', reloadErr);
             }
         } else {
-            toast(`Saved ${successCount}/${entriesToSave.length} entries. Please try again.`, "error");
+            toast(`Сохранено ${successCount}/${entriesToSave.length} записей. Попробуйте ещё раз.`, "error");
         }
     } catch (e) {
         console.error("Failed to save configuration:", e);
-        toast("Failed to save column configuration", "error");
+        toast("Не удалось сохранить конфигурацию", "error");
     } finally {
         setIsSaving(false);
     }
@@ -560,7 +560,7 @@ export default function CuratorLeaderboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4 ">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2 text-gray-800">
-            Class Leaderboard {data && <span className="text-sm font-normal text-gray-500">(Week Starting {new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')})</span>}
+            Лидерборд {data && <span className="text-sm font-normal text-gray-500">(Неделя с {new Date(data.week_start).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')})</span>}
           </h1>
         </div>
         
@@ -589,14 +589,14 @@ export default function CuratorLeaderboardPage() {
                                     return end.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '');
                                 })()}`
                             ) : (
-                                `Week ${currentWeek}`
+                                `Неделя ${currentWeek}`
                             )}
                         </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                         {Array.from({ length: groups.find(g => g.id === selectedGroupId)?.max_week || 52 }, (_, i) => i + 1).map(w => (
                             <SelectItem key={w} value={w.toString()} className="text-xs">
-                                Week {w}
+                                Неделя {w}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -629,7 +629,7 @@ export default function CuratorLeaderboardPage() {
                     }}
                 >
                     <SelectTrigger className="h-8 rounded-md border-gray-300">
-                        <SelectValue placeholder="Select group" />
+                        <SelectValue placeholder="Выберите группу" />
                     </SelectTrigger>
                     <SelectContent>
                         {groups.map(g => (
@@ -651,9 +651,9 @@ export default function CuratorLeaderboardPage() {
                 )}
             >
                 {isSaving ? (
-                    <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> Saving</>
+                    <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> Сохранение</>
                 ) : (
-                    <><Save className="w-3 h-3 mr-2" /> Save ({changedEntries.size})</>
+                    <><Save className="w-3 h-3 mr-2" /> Сохранить ({changedEntries.size})</>
                 )}
             </Button>
         </div>
@@ -793,7 +793,7 @@ export default function CuratorLeaderboardPage() {
                         </div>
                     </TableHead>
                     
-                    <TableHead className="text-center font-bold p-2 w-16 text-gray-800 bg-gray-100 border-r border-gray-300 align-middle">Total</TableHead>
+                    <TableHead className="text-center font-bold p-2 w-16 text-gray-800 bg-gray-100 border-r border-gray-300 align-middle">Итого</TableHead>
                     <TableHead className="text-center font-bold p-2 w-16 sticky right-0 z-40 bg-gray-100 align-middle shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">%</TableHead>
                 </TableRow>
               </TableHeader>
