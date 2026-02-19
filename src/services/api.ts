@@ -829,6 +829,34 @@ class LMSApiClient {
     }
   }
 
+  // Course Teacher Access
+  async getCourseTeacherAccess(courseId: string): Promise<any[]> {
+    try {
+      const response = await this.api.get(`/courses/${courseId}/teacher-access`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to get course teacher access');
+    }
+  }
+
+  async grantCourseTeacherAccess(courseId: string, teacherId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/courses/${courseId}/grant-teacher-access/${teacherId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to grant teacher access');
+    }
+  }
+
+  async revokeCourseTeacherAccess(courseId: string, teacherId: string): Promise<any> {
+    try {
+      const response = await this.api.delete(`/courses/${courseId}/revoke-teacher-access/${teacherId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to revoke teacher access');
+    }
+  }
+
   // Groups
   async getAllGroups(): Promise<any> {
     try {
@@ -836,6 +864,15 @@ class LMSApiClient {
       return response.data;
     } catch (error) {
       throw new Error('Failed to get groups');
+    }
+  }
+
+  async getAllTeachers(): Promise<User[]> {
+    try {
+      const response = await this.api.get('/admin/users', { params: { role: 'teacher', limit: 1000 } });
+      return response.data.users;
+    } catch (error) {
+      throw new Error('Failed to load teachers');
     }
   }
 
@@ -3859,6 +3896,11 @@ export const declineLessonRequest = apiClient.declineLessonRequest.bind(apiClien
 export const getIncomingRequests = apiClient.getIncomingRequests.bind(apiClient);
 export const getAvailableTeachers = apiClient.getAvailableTeachers.bind(apiClient);
 export const updateSubstitutionPreference = apiClient.updateSubstitutionPreference.bind(apiClient);
+
+export const getCourseTeacherAccess = apiClient.getCourseTeacherAccess.bind(apiClient);
+export const grantCourseTeacherAccess = apiClient.grantCourseTeacherAccess.bind(apiClient);
+export const revokeCourseTeacherAccess = apiClient.revokeCourseTeacherAccess.bind(apiClient);
+export const getAllTeachers = apiClient.getAllTeachers.bind(apiClient);
 
 export default apiClient;
 

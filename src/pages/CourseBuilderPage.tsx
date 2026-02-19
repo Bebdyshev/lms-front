@@ -347,6 +347,10 @@ export default function CourseBuilderPage() {
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [showGroupManagementModal, setShowGroupManagementModal] = useState(false);
   const [groupsWithAccess, setGroupsWithAccess] = useState<number[]>([]);
+  const [showTeacherAccessModal, setShowTeacherAccessModal] = useState(false);
+  const [teacherAccessList, setTeacherAccessList] = useState<any[]>([]);
+  const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -464,6 +468,12 @@ export default function CourseBuilderPage() {
       loadGroups();
     }
   }, [showGroupManagementModal]);
+
+  useEffect(() => {
+    if (showTeacherAccessModal) {
+      loadTeacherAccess();
+    }
+  }, [showTeacherAccessModal]);
 
   const loadCourseData = async () => {
     if (!courseId || courseId === 'new') return;
@@ -1711,6 +1721,59 @@ export default function CourseBuilderPage() {
     loadGroups(); // Reload to update status
   };
 
+  const loadTeacherAccess = async () => {
+    if (!course?.id) return;
+    
+    setIsLoadingTeachers(true);
+    try {
+      const [teachers, accessList] = await Promise.all([
+        apiClient.getAllTeachers(),
+        apiClient.getCourseTeacherAccess(course.id.toString())
+      ]);
+      
+      setAvailableTeachers(teachers);
+      setTeacherAccessList(accessList);
+    } catch (error) {
+      console.error('Failed to load teacher access:', error);
+    } finally {
+      setIsLoadingTeachers(false);
+    }
+  };
+
+  const grantAccessToTeacher = async (teacherId: string) => {
+    if (!course?.id) return;
+    
+    try {
+      const result = await apiClient.grantCourseTeacherAccess(course.id.toString(), teacherId);
+      
+      if (result.status === 'granted') {
+        alert('Access granted to teacher.');
+      } else if (result.status === 'already_granted') {
+        alert('This teacher already has access.');
+      } else if (result.status === 'creator') {
+        alert('This teacher is the course creator.');
+      }
+      
+      loadTeacherAccess();
+    } catch (error) {
+      console.error('Failed to grant access:', error);
+      alert('Failed to grant access.');
+    }
+  };
+
+  const revokeAccessFromTeacher = async (teacherId: string) => {
+    if (!course?.id) return;
+    
+    try {
+      await apiClient.revokeCourseTeacherAccess(course.id.toString(), teacherId);
+      alert('Access revoked from teacher.');
+      loadTeacherAccess();
+    } catch (error) {
+      console.error('Failed to revoke access:', error);
+      alert('Failed to revoke access.');
+    }
+  };
+
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1799,13 +1862,23 @@ export default function CourseBuilderPage() {
                 <Eye className="w-4 h-4" />
                 <span>Preview Course</span>
               </Button>
+              {user?.role === 'admin' && (
+                <Button
+                  onClick={() => setShowTeacherAccessModal(true)}
+                  variant="outline"
+                  className="flex items-center space-x-2"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Manage Teachers</span>
+                </Button>
+              )}
               <Button
                 onClick={handleAutoEnrollStudents}
                 variant="default"
                 className="flex items-center space-x-2"
               >
                 <Users className="w-4 h-4" />
-                <span>Grant access</span>
+                <span>Manage Groups</span>
               </Button>
             </div>
           </div>
@@ -2076,6 +2149,80 @@ export default function CourseBuilderPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowGroupManagementModal(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Teacher Access Modal */}
+      <Dialog open={showTeacherAccessModal} onOpenChange={setShowTeacherAccessModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Teacher Access</DialogTitle>
+            <DialogDescription>
+              Grant direct access to this course for specific teachers. They will be able to view the course content without being in a group.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+          
+          {isLoadingTeachers ? (
+            <div className="flex justify-center py-8">
+              <Loader />
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-medium">Available Teachers</h3>
+              </div>
+              
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {availableTeachers.filter(t => t.id !== course?.teacher_id).map((teacher) => {
+                  const accessRecord = teacherAccessList.find(a => a.teacher_id === teacher.id);
+                  const hasAccess = !!accessRecord;
+                  
+                  return (
+                    <div 
+                      key={teacher.id} 
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <h4 className="font-medium">{teacher.name}</h4>
+                        <p className="text-sm text-gray-500">{teacher.email}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {hasAccess ? (
+                          <Button
+                            onClick={() => revokeAccessFromTeacher(teacher.id.toString())}
+                            size="sm"
+                            variant="outline"
+                            className="flex items-center space-x-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>Revoke</span>
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => grantAccessToTeacher(teacher.id.toString())}
+                            size="sm"
+                            variant="outline"
+                            className="flex items-center space-x-1"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Grant</span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {availableTeachers.length === 0 && (
+                  <p className="text-center text-gray-500 py-4">No teachers found.</p>
+                )}
+              </div>
+            </>
+          )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTeacherAccessModal(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
