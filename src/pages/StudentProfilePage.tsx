@@ -38,9 +38,12 @@ interface LmsLesson {
 interface LmsCourse {
   course_id: number;
   course_name: string | null;
+  status: string;
+  completion_percentage: number;
   total_lessons: number;
   completed_lessons: number;
   avg_completion: number;
+  last_accessed: string | null;
   lessons: LmsLesson[];
 }
 
@@ -448,21 +451,27 @@ export default function StudentProfilePage() {
               <div key={course.course_id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <button
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-                  onClick={() => setExpandedCourse(expandedCourse === course.course_id ? null : course.course_id)}
+                  onClick={() => course.lessons.length > 0 && setExpandedCourse(expandedCourse === course.course_id ? null : course.course_id)}
                 >
                   <div className="flex items-center gap-3">
                     <div>
                       <p className="text-sm font-medium text-gray-900 text-left">{course.course_name ?? `Курс ${course.course_id}`}</p>
-                      <p className="text-xs text-gray-400 text-left">{course.completed_lessons}/{course.total_lessons} уроков завершено</p>
+                      <p className="text-xs text-gray-400 text-left">
+                        {course.total_lessons > 0
+                          ? `${course.completed_lessons}/${course.total_lessons} уроков завершено`
+                          : `Статус: ${course.status === 'completed' ? 'Завершён' : course.status === 'in_progress' ? 'В процессе' : 'Не начат'}`}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <ScoreBar value={course.avg_completion} pct={course.avg_completion} />
-                    <span className="text-gray-400 text-xs">{expandedCourse === course.course_id ? '▲' : '▼'}</span>
+                    {course.lessons.length > 0 && (
+                      <span className="text-gray-400 text-xs">{expandedCourse === course.course_id ? '▲' : '▼'}</span>
+                    )}
                   </div>
                 </button>
 
-                {expandedCourse === course.course_id && (
+                {expandedCourse === course.course_id && course.lessons.length > 0 && (
                   <div className="border-t border-gray-100">
                     <table className="w-full text-sm">
                       <thead>
