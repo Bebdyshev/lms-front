@@ -14,6 +14,13 @@ import {
 } from '../components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import {
   LineChart,
   Line,
   BarChart,
@@ -32,8 +39,10 @@ import {
   FileText,
   Calendar,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  ClipboardCheck
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 interface MissedAttendanceItem {
   event_id: number;
@@ -43,6 +52,11 @@ interface MissedAttendanceItem {
   event_date: string;
   expected_count: number;
   recorded_count: number;
+}
+
+interface GroupItem {
+  id: number;
+  name: string;
 }
 
 interface TeacherDetails {
@@ -58,6 +72,7 @@ interface TeacherDetails {
   avg_score_given: number | null;
   missed_attendance_count?: number;
   missed_attendance_details?: MissedAttendanceItem[];
+  groups?: GroupItem[];
 }
 
 interface FeedbackItem {
@@ -80,6 +95,24 @@ interface AssignmentItem {
   created_at: string;
 }
 
+interface AttendanceLessonMeta {
+  lesson_number: number;
+  event_id: number;
+  title: string;
+  start_datetime: string;
+}
+
+interface AttendanceStudentRow {
+  student_id: number;
+  student_name: string;
+  lessons: { [key: string]: { event_id: number; attendance_status: string; activity_score?: number } };
+}
+
+interface AttendanceData {
+  lessons: AttendanceLessonMeta[];
+  students: AttendanceStudentRow[];
+}
+
 export default function HeadTeacherTeacherDetailsPage() {
   const { courseId, teacherId } = useParams<{ courseId: string; teacherId: string }>();
   const navigate = useNavigate();
@@ -91,6 +124,9 @@ export default function HeadTeacherTeacherDetailsPage() {
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedAttendanceGroupId, setSelectedAttendanceGroupId] = useState<number | null>(null);
+  const [attendanceData, setAttendanceData] = useState<AttendanceData | null>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
 
   useEffect(() => {
     if (courseId && teacherId) {
@@ -106,6 +142,30 @@ export default function HeadTeacherTeacherDetailsPage() {
       loadAssignments();
     }
   }, [activeTab, courseId, teacherId]);
+
+  useEffect(() => {
+    if (!selectedAttendanceGroupId) {
+      setAttendanceData(null);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setLoadingAttendance(true);
+        const data = await apiClient.getGroupFullAttendanceMatrix(selectedAttendanceGroupId);
+        if (!cancelled) setAttendanceData(data);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load attendance:', error);
+          setAttendanceData(null);
+        }
+      } finally {
+        if (!cancelled) setLoadingAttendance(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [selectedAttendanceGroupId]);
 
   const loadTeacherDetails = async () => {
     try {
@@ -149,6 +209,40 @@ export default function HeadTeacherTeacherDetailsPage() {
       console.error('Failed to load assignments:', error);
     } finally {
       setLoadingAssignments(false);
+    }
+  };
+
+  const formatAttendanceDate = (dateStr: string) => {
+    const dt = new Date(dateStr);
+    return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Almaty' });
+  };
+
+  const formatAttendanceDay = (dateStr: string) => {
+    const dt = new Date(dateStr);
+    return dt.toLocaleDateString('ru-RU', { weekday: 'short', timeZone: 'Asia/Almaty' });
+  };
+
+  const isFutureLesson = (dateStr: string) => new Date(dateStr) > new Date();
+
+  const getAttendanceStatusColor = (status: string) => {
+    switch (status) {
+      case 'attended': return 'bg-green-200 text-green-700';
+      case 'late': return 'bg-yellow-200 text-yellow-700';
+      case 'missed':
+      case 'absent': return 'bg-rose-500 text-white';
+      case 'pending': return 'bg-gray-100/50 text-gray-400';
+      default: return 'bg-gray-50 text-gray-400 border-gray-100';
+    }
+  };
+
+  const getAttendanceStatusLabel = (status: string) => {
+    switch (status) {
+      case 'attended': return 'Present';
+      case 'late': return 'Late';
+      case 'missed':
+      case 'absent': return 'Absent';
+      case 'pending': return '-';
+      default: return 'None';
     }
   };
 
@@ -278,7 +372,7 @@ export default function HeadTeacherTeacherDetailsPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8 max-w-xl">
+        <TabsList className="grid w-full grid-cols-4 mb-8 max-w-2xl">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" /> Overview
           </TabsTrigger>
@@ -287,6 +381,9 @@ export default function HeadTeacherTeacherDetailsPage() {
           </TabsTrigger>
           <TabsTrigger value="assignments" className="flex items-center gap-2">
             <FileText className="h-4 w-4" /> Assignments
+          </TabsTrigger>
+          <TabsTrigger value="attendance" className="flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4" /> Attendance
           </TabsTrigger>
         </TabsList>
 
@@ -522,6 +619,127 @@ export default function HeadTeacherTeacherDetailsPage() {
              </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Attendance Tab */}
+        <TabsContent value="attendance">
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div>
+                  <CardTitle className="text-lg">Attendance Records</CardTitle>
+                  <CardDescription>View how this teacher marks attendance by group</CardDescription>
+                </div>
+                <Select
+                  value={selectedAttendanceGroupId?.toString() ?? ''}
+                  onValueChange={(v) => setSelectedAttendanceGroupId(v ? Number(v) : null)}
+                >
+                  <SelectTrigger className="w-full sm:w-[240px]">
+                    <SelectValue placeholder="Select group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(teacherDetails.groups ?? []).map((g) => (
+                      <SelectItem key={g.id} value={g.id.toString()}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {!teacherDetails.groups?.length ? (
+                <div className="p-12 text-center text-slate-400 bg-slate-50/50 border-t border-slate-100">
+                  <ClipboardCheck className="h-12 w-12 mx-auto mb-3 text-slate-300" />
+                  No groups found for this teacher.
+                </div>
+              ) : !selectedAttendanceGroupId ? (
+                <div className="p-12 text-center text-slate-400 bg-slate-50/50 border-t border-slate-100">
+                  Select a group to view attendance
+                </div>
+              ) : loadingAttendance ? (
+                <div className="p-12 flex justify-center">
+                  <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+                </div>
+              ) : !attendanceData || attendanceData.lessons.length === 0 ? (
+                <div className="py-24 text-center text-slate-500 font-medium">
+                  No lessons available for this group.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table className="border-collapse text-left">
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                        <TableHead className="sticky left-0 z-40 bg-slate-50 border-r border-slate-200 px-3 py-3 min-w-[140px]">
+                          <span className="text-sm font-semibold text-slate-500">Student</span>
+                        </TableHead>
+                        {attendanceData.lessons.map((lesson) => (
+                          <TableHead
+                            key={lesson.event_id}
+                            className={cn(
+                              'text-center min-w-[100px] px-2 py-3 border-r border-slate-200',
+                              isFutureLesson(lesson.start_datetime) && 'bg-slate-50/50 font-normal text-slate-400'
+                            )}
+                          >
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] font-medium text-slate-500">
+                                {formatAttendanceDay(lesson.start_datetime)}
+                              </span>
+                              <span className="text-sm font-semibold text-slate-900">
+                                {formatAttendanceDate(lesson.start_datetime)}
+                              </span>
+                            </div>
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-slate-100">
+                      {attendanceData.students.map((student) => (
+                        <TableRow key={student.student_id} className="hover:bg-slate-50/50">
+                          <TableCell className="sticky left-0 z-30 bg-white border-r border-slate-200 px-3 py-3">
+                            <span className="text-sm font-medium text-slate-900 truncate block max-w-[140px]">
+                              {student.student_name}
+                            </span>
+                          </TableCell>
+                          {attendanceData.lessons.map((lesson) => {
+                            const lessonKey = lesson.lesson_number.toString();
+                            const lessonData = student.lessons[lessonKey];
+                            const status = lessonData?.attendance_status || 'pending';
+                            const activityScore = lessonData?.activity_score;
+                            const isFuture = isFutureLesson(lesson.start_datetime);
+                            return (
+                              <TableCell
+                                key={`${student.student_id}-${lesson.event_id}`}
+                                className={cn(
+                                  'p-2 text-center border-r border-slate-100 min-w-[100px]',
+                                  isFuture ? 'bg-slate-50/30' : getAttendanceStatusColor(status)
+                                )}
+                              >
+                                {isFuture ? (
+                                  <div className="w-1.5 h-1.5 bg-slate-200 rounded-full mx-auto" />
+                                ) : (
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="font-bold text-[11px]">
+                                      {getAttendanceStatusLabel(status)}
+                                    </span>
+                                    {(status === 'attended' || status === 'late') && activityScore !== undefined && activityScore > 0 && (
+                                      <span className="text-[9px] font-medium text-slate-600">
+                                        {activityScore}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         
       </Tabs>
