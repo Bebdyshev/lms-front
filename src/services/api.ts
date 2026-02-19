@@ -3666,6 +3666,197 @@ class LMSApiClient {
     }
   }
 
+  // =============================================================================
+  // CURATOR TASKS
+  // =============================================================================
+
+  async getCuratorTasks(params?: {
+    status?: string;
+    task_type?: string;
+    student_id?: number;
+    group_id?: number;
+    week?: string;
+    program_week?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ total: number; tasks: any[] }> {
+    try {
+      const response = await this.api.get('/curator-tasks/my-tasks', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator tasks:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorTaskGroups(): Promise<Array<{
+    id: number;
+    name: string;
+    start_date: string | null;
+    lessons_count: number | null;
+    program_week: number | null;
+    total_weeks: number | null;
+    has_schedule: boolean;
+  }>> {
+    try {
+      const response = await this.api.get('/curator-tasks/my-groups');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator task groups:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorTasksSummary(): Promise<{
+    pending: number;
+    in_progress: number;
+    completed: number;
+    overdue: number;
+    total: number;
+  }> {
+    try {
+      const response = await this.api.get('/curator-tasks/my-tasks/summary');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator tasks summary:', error);
+      throw error;
+    }
+  }
+
+  async updateCuratorTask(taskId: number, data: {
+    status?: string;
+    result_text?: string;
+    screenshot_url?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.api.patch(`/curator-tasks/my-tasks/${taskId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update curator task:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorTaskTemplates(taskType?: string): Promise<any[]> {
+    try {
+      const params = taskType ? { task_type: taskType } : {};
+      const response = await this.api.get('/curator-tasks/templates', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curator task templates:', error);
+      throw error;
+    }
+  }
+
+  async seedCuratorTaskTemplates(): Promise<{ detail: string }> {
+    try {
+      const response = await this.api.post('/curator-tasks/seed-templates');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to seed curator task templates:', error);
+      throw error;
+    }
+  }
+
+  async generateWeeklyTasks(week?: string, group_id?: number): Promise<{ detail: string; created: number; week: string }> {
+    try {
+      const params: any = {};
+      if (week) params.week = week;
+      if (group_id) params.group_id = group_id;
+      const response = await this.api.post('/curator-tasks/generate-weekly', null, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to generate weekly tasks:', error);
+      throw error;
+    }
+  }
+
+  // --- Student Journal ---
+
+  async getStudentsJournal(params?: {
+    group_id?: number;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    total: number;
+    students: Array<{
+      id: number;
+      name: string;
+      email: string;
+      avatar_url: string | null;
+      group_id: number;
+      group_name: string;
+      attendance_attended: number;
+      attendance_total: number;
+      attendance_rate: number | null;
+      lms_progress: number | null;
+      hw_submitted: number;
+      hw_avg_score: number | null;
+      az_status: 'not_started' | 'draft' | 'submitted';
+      last_activity: string | null;
+    }>;
+  }> {
+    try {
+      const response = await this.api.get('/student-journal/list', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get students journal:', error);
+      throw error;
+    }
+  }
+
+  async getStudentJournalGroups(): Promise<Array<{ id: number; name: string }>> {
+    try {
+      const response = await this.api.get('/student-journal/groups');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get journal groups:', error);
+      throw error;
+    }
+  }
+
+  async getStudentProfile(studentId: number): Promise<any> {
+    try {
+      const response = await this.api.get(`/student-journal/${studentId}/profile`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get student profile:', error);
+      throw error;
+    }
+  }
+
+  // --- Head Curator: all tasks & summary ---
+
+  async getAllCuratorTasks(params?: {
+    curator_id?: number;
+    status?: string;
+    task_type?: string;
+    group_id?: number;
+    week?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ total: number; tasks: any[] }> {
+    try {
+      const response = await this.api.get('/curator-tasks/all-tasks', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get all curator tasks:', error);
+      throw error;
+    }
+  }
+
+  async getCuratorsSummary(week?: string): Promise<any[]> {
+    try {
+      const params = week ? { week } : {};
+      const response = await this.api.get('/curator-tasks/curators-summary', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get curators summary:', error);
+      throw error;
+    }
+  }
+
 }
 
 // =============================================================================
@@ -3901,6 +4092,20 @@ export const getCourseTeacherAccess = apiClient.getCourseTeacherAccess.bind(apiC
 export const grantCourseTeacherAccess = apiClient.grantCourseTeacherAccess.bind(apiClient);
 export const revokeCourseTeacherAccess = apiClient.revokeCourseTeacherAccess.bind(apiClient);
 export const getAllTeachers = apiClient.getAllTeachers.bind(apiClient);
+
+// Student Journal
+export const getStudentsJournal = apiClient.getStudentsJournal.bind(apiClient);
+export const getStudentJournalGroups = apiClient.getStudentJournalGroups.bind(apiClient);
+export const getStudentProfile = apiClient.getStudentProfile.bind(apiClient);
+
+// Curator Tasks
+export const getCuratorTasks = apiClient.getCuratorTasks.bind(apiClient);
+export const getCuratorTasksSummary = apiClient.getCuratorTasksSummary.bind(apiClient);
+export const updateCuratorTask = apiClient.updateCuratorTask.bind(apiClient);
+export const getCuratorTaskTemplates = apiClient.getCuratorTaskTemplates.bind(apiClient);
+export const seedCuratorTaskTemplates = apiClient.seedCuratorTaskTemplates.bind(apiClient);
+export const getAllCuratorTasks = apiClient.getAllCuratorTasks.bind(apiClient);
+export const getCuratorsSummary = apiClient.getCuratorsSummary.bind(apiClient);
 
 export default apiClient;
 
