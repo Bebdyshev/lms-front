@@ -486,7 +486,13 @@ export default function AssignmentPage() {
                     multiple
                     onChange={handleFileChange}
                     className="hidden"
-                    accept={assignment.allowed_file_types?.map((t: string) => `.${t}`).join(',')}
+                    accept={(() => {
+                      const types = assignment.allowed_file_types || [];
+                      const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
+                      const hasImages = types.some((t: string) => imageExts.includes(t.toLowerCase()));
+                      const extensions = types.map((t: string) => `.${t}`).join(',');
+                      return hasImages ? `image/*,${extensions}` : extensions;
+                    })()}
                   />
                   <label
                     htmlFor="file-upload"

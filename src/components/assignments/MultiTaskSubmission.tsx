@@ -451,7 +451,13 @@ export default function MultiTaskSubmission({ assignment, onSubmit, initialAnswe
                     multiple
                     onChange={(e) => e.target.files && e.target.files.length > 0 && handleFilesUpload(task.id, e.target.files)}
                     className="hidden"
-                    accept={task.content.allowed_file_types?.map((t: string) => `.${t}`).join(',')}
+                    accept={(() => {
+                      const types = task.content.allowed_file_types || [];
+                      const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
+                      const hasImages = types.some((t: string) => imageExts.includes(t.toLowerCase()));
+                      const extensions = types.map((t: string) => `.${t}`).join(',');
+                      return hasImages ? `image/*,${extensions}` : extensions;
+                    })()}
                   />
                   <label htmlFor={`file-${task.id}`} className="cursor-pointer">
                     <div className="flex flex-col items-center space-y-2">
