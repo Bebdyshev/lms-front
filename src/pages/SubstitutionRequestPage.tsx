@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAvailableTeachers, createLessonRequest } from '../services/api';
+import { toast } from '../components/Toast';
 import type { AvailableTeacher } from '../types';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -67,19 +68,24 @@ export default function SubstitutionRequestPage() {
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
+      // Convert datetime-local (local time) to ISO UTC for backend
+      const newDatetimeIso = requestType === 'reschedule' && newDatetime
+        ? new Date(newDatetime).toISOString()
+        : undefined;
       await createLessonRequest({
         request_type: requestType,
         event_id: eventId,
         group_id: groupId,
         original_datetime: eventDatetime,
         substitute_teacher_ids: requestType === 'substitution' ? selectedTeacherIds : undefined,
-        new_datetime: requestType === 'reschedule' ? newDatetime : undefined,
+        new_datetime: newDatetimeIso,
         reason: reason || undefined,
       });
       setSubmitted(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to submit request:', error);
-      alert('Failed to submit request. Please try again.');
+      const msg = error?.response?.data?.detail || 'Failed to submit request. Please try again.';
+      toast(typeof msg === 'string' ? msg : JSON.stringify(msg), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -88,6 +94,28 @@ export default function SubstitutionRequestPage() {
   const canSubmit = requestType === 'substitution'
     ? selectedTeacherIds.length > 0
     : !!newDatetime;
+
+  const hasValidParams = eventDatetime && groupId > 0;
+
+  if (!hasValidParams) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <CardTitle>Invalid Request</CardTitle>
+            <CardDescription>
+              Missing lesson information. Please start from the Calendar and click on an event to create a substitution or reschedule request.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button onClick={() => navigate('/calendar')}>
+              Back to Calendar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -99,9 +127,12 @@ export default function SubstitutionRequestPage() {
               Your {requestType} request has been sent successfully.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex justify-center">
-            <Button onClick={() => navigate('/calendar')}>
+          <CardContent className="flex justify-center gap-2">
+            <Button variant="outline" onClick={() => navigate('/calendar')}>
               Back to Calendar
+            </Button>
+            <Button onClick={() => navigate('/my-requests')}>
+              View My Requests
             </Button>
           </CardContent>
         </Card>
@@ -193,6 +224,9 @@ export default function SubstitutionRequestPage() {
                     value={newDatetime}
                     onChange={e => setNewDatetime(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Time is in your local timezone and will be converted automatically.
+                  </p>
                 </div>
               </TabsContent>
             </Tabs>

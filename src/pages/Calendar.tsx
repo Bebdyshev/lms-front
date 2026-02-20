@@ -668,6 +668,7 @@ export default function Calendar() {
                              event.event_type === 'class' && 
                              !isSubstituted &&
                              !event.is_substitution &&
+                             event.group_ids?.length > 0 &&
                              new Date(event.start_datetime) > new Date() && (
                               <div className="flex gap-2 mt-3 pt-3 border-t border-current/10 flex-wrap">
                                 {myRequests.has(event.id) ? (

@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 export default function LessonRequestManagement() {
   const [requests, setRequests] = useState<LessonRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('pending');
+  const [statusFilter, setStatusFilter] = useState<string>('pending,pending_teacher');
   const [adminComment, setAdminComment] = useState<Record<number, string>>({});
   const [processing, setProcessing] = useState<number | null>(null);
 
@@ -89,12 +89,17 @@ export default function LessonRequestManagement() {
           <p className="text-muted-foreground mt-1">Manage substitution and reschedule requests</p>
         </div>
         <div className="flex rounded-md shadow-sm">
-          {['pending', 'approved', 'rejected', ''].map((s, idx) => {
-            const isActive = statusFilter === s;
+          {[
+            ['pending,pending_teacher', 'Pending'],
+            ['approved', 'Approved'],
+            ['rejected', 'Rejected'],
+            ['', 'All'],
+          ].map(([value, label], idx) => {
+            const isActive = statusFilter === value;
             return (
               <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
+                key={value || 'all'}
+                onClick={() => setStatusFilter(value)}
                 className={`px-4 py-2 text-sm font-medium border transition-colors
                   ${idx === 0 ? 'rounded-l-md' : ''} 
                   ${idx === 3 ? 'rounded-r-md' : ''}
@@ -104,7 +109,7 @@ export default function LessonRequestManagement() {
                     : 'bg-background text-foreground border-input hover:bg-accent hover:text-accent-foreground'
                   }`}
               >
-                {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+                {label}
               </button>
             );
           })}
@@ -192,6 +197,11 @@ export default function LessonRequestManagement() {
                       {statusBadge(req.status)}
                     </TableCell>
                     <TableCell className="text-right align-top">
+                      {req.status === 'pending_teacher' && (
+                        <span className="text-xs text-muted-foreground italic">
+                          Waiting for teacher confirmation
+                        </span>
+                      )}
                       {req.status === 'pending' && (
                         <div className="flex flex-col gap-2 items-end">
                            <Input 
