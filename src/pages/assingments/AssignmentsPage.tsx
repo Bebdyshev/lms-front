@@ -123,16 +123,17 @@ export default function AssignmentsPage() {
         console.warn('Could not load user submissions:', err);
       }
       
-      // Get user's extensions if student
+      // Get user's extensions if student (parallel)
       const extensionsMap = new Map();
       if (user?.role === 'student') {
         try {
-          // Load extensions for all assignments
-          for (const assignment of assignmentData) {
-            const extension = await apiClient.getMyExtension(String(assignment.id));
-            if (extension) {
-              extensionsMap.set(assignment.id, extension);
-            }
+          const results = await Promise.all(
+            assignmentData.map((a: any) =>
+              apiClient.getMyExtension(String(a.id)).then(ext => ({ id: a.id, ext })).catch(() => ({ id: a.id, ext: null }))
+            )
+          );
+          for (const { id, ext } of results) {
+            if (ext) extensionsMap.set(id, ext);
           }
         } catch (err) {
           console.warn('Could not load extensions:', err);
@@ -228,8 +229,7 @@ export default function AssignmentsPage() {
 
   // Group assignments by group_name
   const groupedAssignments = filteredAssignments.reduce((acc, curr) => {
-    const group = groups.find(g => g.id === curr.group_id);
-    const groupName = group?.name || curr.group_name || `Group #${curr.group_id || 'Unknown'}`;
+    const groupName = curr.group_name || groups.find(g => g.id === curr.group_id)?.name || `Group #${curr.group_id || 'Unknown'}`;
     if (!acc[groupName]) {
       acc[groupName] = [];
     }
