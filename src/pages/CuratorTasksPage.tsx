@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -60,6 +62,7 @@ interface TaskGroup {
   tasks: CuratorTask[];
   dueDate: string | null;
   isGrouped: boolean;
+  isMain: boolean;
 }
 
 // ─── Category config ─────────────────────────────────────────────────────────
@@ -165,13 +168,18 @@ function getWeekDateRange(weekStr: string): string {
 function groupTasksForDay(dayTasks: CuratorTask[]): TaskGroup[] {
   const map = new Map<string, CuratorTask[]>();
   for (const t of dayTasks) {
-    const key = `${t.template_id}`;
+    // Per-student tasks: group by template_id (show as GroupedCard when multiple students)
+    // Group-scoped tasks: split by group_id so each group gets its own card when viewing "Все группы"
+    const key = t.student_id != null
+      ? `${t.template_id}`
+      : `${t.template_id}-${t.group_id ?? 0}`;
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(t);
   }
   const groups: TaskGroup[] = [];
   for (const [key, tasks] of map) {
     const first = tasks[0];
+    const isMain = first.scope === 'student';
     groups.push({
       key,
       templateTitle: first.template_title || 'Задача',
@@ -180,8 +188,10 @@ function groupTasksForDay(dayTasks: CuratorTask[]): TaskGroup[] {
       tasks,
       dueDate: first.due_date,
       isGrouped: tasks.length > 1 && tasks.every(t => t.student_id !== null),
+      isMain,
     });
   }
+  groups.sort((a, b) => (a.isMain === b.isMain ? 0 : a.isMain ? -1 : 1));
   return groups;
 }
 
@@ -198,9 +208,26 @@ const sLabel = (s: string) => STATUS_CONFIG[s]?.label || s;
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+function isLeaderboardTask(task: CuratorTask): boolean {
+  return (task.template_title || '').toLowerCase().includes('лидерборд');
+}
+
+function getLeaderboardUrl(task: CuratorTask): string {
+  const params = new URLSearchParams();
+  if (task.group_id) params.set('groupId', String(task.group_id));
+  if (task.program_week) params.set('week', String(task.program_week));
+  return `/curator/leaderboard?${params.toString()}`;
+}
+
 export default function CuratorTasksPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isHeadCurator = user?.role === 'head_curator';
+
   const [groups, setGroups] = useState<CuratorGroup[]>([]);
+  const [curators, setCurators] = useState<Array<{ curator_id: number; curator_name: string }>>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedCuratorId, setSelectedCuratorId] = useState<number | null>(null);
   const [viewProgramWeek, setViewProgramWeek] = useState<number | null>(null); // null = current week
 
   const [tasks, setTasks] = useState<CuratorTask[]>([]);
@@ -247,36 +274,57 @@ export default function CuratorTasksPage() {
   useEffect(() => {
     apiClient.getCuratorTaskGroups().then(data => {
       setGroups(data);
-      if (data.length > 0 && selectedGroupId === null) {
-        // Auto-select the group with the highest program_week (most "current")
-        const sorted = [...data].sort((a, b) => (b.program_week ?? 0) - (a.program_week ?? 0));
-        setSelectedGroupId(sorted[0].id);
+      if (data.length > 0 && selectedGroupId === null && !isHeadCurator && data.length === 1) {
+        setSelectedGroupId(data[0].id);
       }
     }).catch(console.error);
-  }, []);
+  }, [isHeadCurator]);
+
+  // ─── Load curators (head curator only) ───────────────────────────────────────
+
+  useEffect(() => {
+    if (isHeadCurator) {
+      apiClient.getCuratorsSummary().then(data => {
+        setCurators(data.map((c: any) => ({ curator_id: c.curator_id, curator_name: c.curator_name || 'Unknown' })));
+      }).catch(console.error);
+    }
+  }, [isHeadCurator]);
 
   // ─── Load tasks ────────────────────────────────────────────────────────────
 
   const loadTasks = useCallback(async () => {
-    if (!selectedGroupId) { setLoading(false); return; }
     try {
       setLoading(true);
-      const params: any = { group_id: selectedGroupId, limit: 200 };
-      if (filterStatus !== 'all') params.status = filterStatus;
-      // Filter by program_week if group has a schedule, else fall back to ISO week
-      if (activeProgramWeek !== null) {
-        params.program_week = activeProgramWeek;
+      if (isHeadCurator) {
+        const params: any = { limit: 200 };
+        if (selectedCuratorId) params.curator_id = selectedCuratorId;
+        if (selectedGroupId) params.group_id = selectedGroupId;
+        if (filterStatus !== 'all') params.status = filterStatus;
+        if (selectedGroup_data && activeProgramWeek !== null) {
+          params.program_week = activeProgramWeek;
+        } else {
+          params.week = activeIsoWeek;
+        }
+        const result = await apiClient.getAllCuratorTasks(params);
+        setTasks(result.tasks || []);
       } else {
-        params.week = activeIsoWeek;
+        const params: any = { limit: 200 };
+        if (selectedGroupId) params.group_id = selectedGroupId;
+        if (filterStatus !== 'all') params.status = filterStatus;
+        if (selectedGroup_data && activeProgramWeek !== null) {
+          params.program_week = activeProgramWeek;
+        } else {
+          params.week = activeIsoWeek;
+        }
+        const result = await apiClient.getCuratorTasks(params);
+        setTasks(result.tasks || []);
       }
-      const result = await apiClient.getCuratorTasks(params);
-      setTasks(result.tasks || []);
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {
       setLoading(false);
     }
-  }, [selectedGroupId, activeProgramWeek, activeIsoWeek, filterStatus]);
+  }, [isHeadCurator, selectedGroupId, selectedCuratorId, selectedGroup_data, activeProgramWeek, activeIsoWeek, filterStatus]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
 
@@ -366,10 +414,12 @@ export default function CuratorTasksPage() {
   const handleCompleteAll = async (group: TaskGroup) => {
     const pending = group.tasks.filter(t => t.status !== 'completed');
     if (pending.length === 0) return;
+    const editable = isHeadCurator ? pending.filter(t => t.curator_id === Number(user?.id)) : pending;
+    if (editable.length === 0) return;
     setStudentSaving(-1);
     try {
-      await Promise.all(pending.map(t => apiClient.updateCuratorTask(t.id, { status: 'completed' })));
-      toast(`${pending.length} задач выполнено`, 'success'); await loadTasks();
+      await Promise.all(editable.map(t => apiClient.updateCuratorTask(t.id, { status: 'completed' })));
+      toast(`${editable.length} задач выполнено`, 'success'); await loadTasks();
     } catch (e: any) { toast(e?.response?.data?.detail || 'Ошибка', 'error'); }
     finally { setStudentSaving(null); }
   };
@@ -390,8 +440,9 @@ export default function CuratorTasksPage() {
     : totalWeeks && activeProgramWeek && activeProgramWeek >= totalWeeks - 1 ? 'Продление'
     : null;
 
-  const canGoPrev = activeProgramWeek ? activeProgramWeek > 1 : true;
-  const canGoNext = totalWeeks && activeProgramWeek ? activeProgramWeek < totalWeeks : true;
+  const hasGroupContext = selectedGroup_data != null;
+  const canGoPrev = hasGroupContext && (activeProgramWeek ? activeProgramWeek > 1 : true);
+  const canGoNext = hasGroupContext && (totalWeeks && activeProgramWeek ? activeProgramWeek < totalWeeks : true);
 
   const handlePrevWeek = () => {
     if (activeProgramWeek && canGoPrev) setViewProgramWeek(activeProgramWeek - 1);
@@ -420,11 +471,24 @@ export default function CuratorTasksPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Group selector */}
-          {groups.length > 1 && (
-            <Select value={selectedGroupId ? String(selectedGroupId) : ''} onValueChange={v => { setSelectedGroupId(Number(v)); setViewProgramWeek(null); }}>
-              <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue placeholder="Группа" /></SelectTrigger>
+          {/* Curator filter (head curator only) */}
+          {isHeadCurator && curators.length > 0 && (
+            <Select value={selectedCuratorId ? String(selectedCuratorId) : 'all'} onValueChange={v => setSelectedCuratorId(v === 'all' ? null : Number(v))}>
+              <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue placeholder="Куратор" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">Все кураторы</SelectItem>
+                {curators.map(c => (
+                  <SelectItem key={c.curator_id} value={String(c.curator_id)}>{c.curator_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {/* Group selector */}
+          {groups.length > 0 && (
+            <Select value={selectedGroupId ? String(selectedGroupId) : 'all'} onValueChange={v => { setSelectedGroupId(v === 'all' ? null : Number(v)); setViewProgramWeek(null); }}>
+              <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue placeholder="Все группы" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все группы</SelectItem>
                 {groups.map(g => (
                   <SelectItem key={g.id} value={String(g.id)}>
                     {g.name}{g.program_week ? ` · нед. ${g.program_week}` : ''}
@@ -465,16 +529,16 @@ export default function CuratorTasksPage() {
       {/* Board */}
       {loading ? (
         <div className="flex items-center justify-center h-64 text-sm text-gray-400">Загрузка...</div>
-      ) : !selectedGroupId ? (
-        <div className="flex items-center justify-center h-64 text-sm text-gray-400">Выберите группу</div>
       ) : tasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
           <p className="text-sm text-gray-400">
             Нет задач {activeProgramWeek ? `на неделю ${activeProgramWeek}` : 'на эту неделю'}
           </p>
-          <Button onClick={handleGenerate} disabled={generating} size="sm" variant="outline">
-            {generating ? 'Генерация...' : 'Сгенерировать задачи'}
-          </Button>
+          {!isHeadCurator && (
+            <Button onClick={handleGenerate} disabled={generating} size="sm" variant="outline">
+              {generating ? 'Генерация...' : 'Сгенерировать задачи'}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-7 gap-3">
@@ -491,10 +555,22 @@ export default function CuratorTasksPage() {
                   <span className={cn('text-xs font-medium', isToday ? 'text-gray-300' : 'text-gray-400')}>{dayDate}</span>
                 </div>
                 <div className="flex-1 space-y-2.5">
-                  {dayGroups.map(group => group.isGrouped
-                    ? <GroupedCard key={group.key} group={group} onClick={() => openGroupDialog(group)} />
-                    : <SingleCard key={group.tasks[0].id} task={group.tasks[0]} onClick={() => openSingleDialog(group.tasks[0])} />
-                  )}
+                  {(() => {
+                    const mainGroups = dayGroups.filter(g => g.isMain);
+                    const parallelGroups = dayGroups.filter(g => !g.isMain);
+                    const renderGroup = (group: TaskGroup) => group.isGrouped
+                      ? <GroupedCard key={group.key} group={group} onClick={() => openGroupDialog(group)} showCuratorName={isHeadCurator} isMain={group.isMain} />
+                      : <SingleCard key={group.tasks[0].id} task={group.tasks[0]} onClick={() => openSingleDialog(group.tasks[0])} showCuratorName={isHeadCurator} onNavigate={navigate} isMain={group.isMain} />;
+                    return (
+                      <>
+                        {mainGroups.map(renderGroup)}
+                        {mainGroups.length > 0 && parallelGroups.length > 0 && (
+                          <div className="border-t border-dashed border-gray-200 my-1" />
+                        )}
+                        {parallelGroups.map(renderGroup)}
+                      </>
+                    );
+                  })()}
                   {dayGroups.length === 0 && <div className="flex items-center justify-center min-h-[60px]"><span className="text-[10px] text-gray-300">—</span></div>}
                 </div>
               </div>
@@ -513,6 +589,7 @@ export default function CuratorTasksPage() {
           {selectedTask && (() => {
             const cat = classifyTask(selectedTask);
             const statusCfg = STATUS_CONFIG[selectedTask.status] || STATUS_CONFIG.pending;
+            const canEditTask = !isHeadCurator || selectedTask.curator_id === Number(user?.id);
             return (
               <div className="space-y-4 py-1">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -522,32 +599,45 @@ export default function CuratorTasksPage() {
                   <Badge className={cn('border-0 text-[10px] px-2 py-0.5 rounded', statusCfg.bg, statusCfg.text)}>{statusCfg.label}</Badge>
                   {selectedTask.student_name && <Badge variant="outline" className="text-[10px] font-normal">{selectedTask.student_name}</Badge>}
                   {selectedTask.group_name && <Badge variant="outline" className="text-[10px] font-normal">{selectedTask.group_name}</Badge>}
+                  {isHeadCurator && selectedTask.curator_name && <Badge variant="outline" className="text-[10px] font-normal">{selectedTask.curator_name}</Badge>}
                   {selectedTask.program_week && <Badge variant="outline" className="text-[10px] font-normal">Нед. {selectedTask.program_week}</Badge>}
                 </div>
                 {selectedTask.template_description && <p className="text-sm text-gray-500 leading-relaxed bg-gray-50 rounded-lg p-3">{selectedTask.template_description}</p>}
                 {selectedTask.due_date && <p className="text-xs text-gray-400">Дедлайн: {new Date(selectedTask.due_date).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>}
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Статус</label>
-                  <Select value={editStatus} onValueChange={setEditStatus}>
+                  <Select value={editStatus} onValueChange={setEditStatus} disabled={!canEditTask}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>{ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{sLabel(s)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Результат</label>
-                  <Textarea value={editResultText} onChange={e => setEditResultText(e.target.value)} placeholder="Опишите результат..." className="text-sm min-h-[70px] resize-none" />
+                  <Textarea value={editResultText} onChange={e => setEditResultText(e.target.value)} placeholder="Опишите результат..." className="text-sm min-h-[70px] resize-none" disabled={!canEditTask} readOnly={!canEditTask} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Скриншот (ссылка)</label>
-                  <Input value={editScreenshotUrl} onChange={e => setEditScreenshotUrl(e.target.value)} placeholder="https://..." className="text-sm h-9" />
+                  <Input value={editScreenshotUrl} onChange={e => setEditScreenshotUrl(e.target.value)} placeholder="https://..." className="text-sm h-9" disabled={!canEditTask} readOnly={!canEditTask} />
                 </div>
                 {selectedTask.screenshot_url && <a href={selectedTask.screenshot_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-block">Открыть скриншот →</a>}
+                {isLeaderboardTask(selectedTask) && selectedTask.group_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs mt-1"
+                    onClick={() => { setSingleDialogOpen(false); navigate(getLeaderboardUrl(selectedTask)); }}
+                  >
+                    Перейти к лидерборду →
+                  </Button>
+                )}
               </div>
             );
           })()}
           <DialogFooter className="gap-2">
             <Button variant="ghost" size="sm" onClick={() => setSingleDialogOpen(false)}>Закрыть</Button>
-            <Button size="sm" onClick={handleSaveSingle} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</Button>
+            {(!selectedTask || !isHeadCurator || selectedTask.curator_id === Number(user?.id)) && (
+              <Button size="sm" onClick={handleSaveSingle} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -576,7 +666,7 @@ export default function CuratorTasksPage() {
                 </div>
                 <Progress value={groupPct} className="h-1.5" />
                 {liveGroup.templateDescription && <p className="text-sm text-gray-500 leading-relaxed bg-gray-50 rounded-lg p-3">{liveGroup.templateDescription}</p>}
-                {doneCnt < totalCnt && (
+                {doneCnt < totalCnt && (!isHeadCurator || liveGroup.tasks.some((t: CuratorTask) => t.curator_id === Number(user?.id))) && (
                   <Button size="sm" variant="outline" className="self-start text-xs" onClick={() => handleCompleteAll(liveGroup)} disabled={studentSaving === -1}>
                     {studentSaving === -1 ? 'Выполняем...' : `Отметить все как готово (${totalCnt - doneCnt})`}
                   </Button>
@@ -589,12 +679,13 @@ export default function CuratorTasksPage() {
                     const isExpanded = expandedStudentId === task.id;
                     const tStatusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
                     const isSavingThis = studentSaving === task.id;
+                    const canEditThis = !isHeadCurator || task.curator_id === Number(user?.id);
                     return (
                       <div key={task.id} className="border border-gray-100 rounded-lg overflow-hidden">
                         <div className={cn('flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors', isExpanded && 'bg-gray-50')} onClick={() => expandStudent(task)}>
                           <button
-                            onClick={e => { e.stopPropagation(); handleToggleComplete(task); }}
-                            disabled={isSavingThis}
+                            onClick={e => { e.stopPropagation(); canEditThis && handleToggleComplete(task); }}
+                            disabled={isSavingThis || !canEditThis}
                             className={cn('w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors text-[10px]',
                               task.status === 'completed' ? 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-400' : 'border-gray-300 hover:border-emerald-400 text-transparent hover:text-emerald-400'
                             )}>✓</button>
@@ -608,23 +699,25 @@ export default function CuratorTasksPage() {
                           <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-100 bg-gray-50/50">
                             <div>
                               <label className="block text-[10px] text-gray-400 mb-0.5">Статус</label>
-                              <Select value={studentEditStatus} onValueChange={setStudentEditStatus}>
+                              <Select value={studentEditStatus} onValueChange={setStudentEditStatus} disabled={!canEditThis}>
                                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                 <SelectContent>{ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{sLabel(s)}</SelectItem>)}</SelectContent>
                               </Select>
                             </div>
                             <div>
                               <label className="block text-[10px] text-gray-400 mb-0.5">Результат</label>
-                              <Textarea value={studentEditResult} onChange={e => setStudentEditResult(e.target.value)} placeholder="Опишите результат..." className="text-xs min-h-[50px] resize-none" />
+                              <Textarea value={studentEditResult} onChange={e => setStudentEditResult(e.target.value)} placeholder="Опишите результат..." className="text-xs min-h-[50px] resize-none" disabled={!canEditThis} readOnly={!canEditThis} />
                             </div>
                             <div>
                               <label className="block text-[10px] text-gray-400 mb-0.5">Скриншот</label>
-                              <Input value={studentEditScreenshot} onChange={e => setStudentEditScreenshot(e.target.value)} placeholder="https://..." className="text-xs h-8" />
+                              <Input value={studentEditScreenshot} onChange={e => setStudentEditScreenshot(e.target.value)} placeholder="https://..." className="text-xs h-8" disabled={!canEditThis} readOnly={!canEditThis} />
                             </div>
-                            <div className="flex justify-end gap-1.5 pt-1">
-                              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setExpandedStudentId(null)}>Отмена</Button>
-                              <Button size="sm" className="text-xs h-7" onClick={() => handleSaveStudent(task)} disabled={isSavingThis}>{isSavingThis ? '...' : 'Сохранить'}</Button>
-                            </div>
+                            {canEditThis && (
+                              <div className="flex justify-end gap-1.5 pt-1">
+                                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setExpandedStudentId(null)}>Отмена</Button>
+                                <Button size="sm" className="text-xs h-7" onClick={() => handleSaveStudent(task)} disabled={isSavingThis}>{isSavingThis ? '...' : 'Сохранить'}</Button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -643,15 +736,29 @@ export default function CuratorTasksPage() {
 
 // ─── Card components ──────────────────────────────────────────────────────────
 
-function SingleCard({ task, onClick }: { task: CuratorTask; onClick: () => void }) {
+function SingleCard({ task, onClick, showCuratorName, onNavigate, isMain }: { task: CuratorTask; onClick: () => void; showCuratorName?: boolean; onNavigate?: (url: string) => void; isMain?: boolean }) {
   const cat = classifyTask(task);
   const deadline = formatDeadlineTime(task.due_date);
   const isCompleted = task.status === 'completed';
   const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
+  const showLeaderboardLink = isLeaderboardTask(task) && task.group_id && onNavigate;
   return (
-    <button onClick={onClick} className={cn('w-full text-left bg-white rounded-lg border border-gray-200 p-3 transition-all hover:shadow-md hover:border-gray-300 hover:-translate-y-px active:shadow-sm active:translate-y-0', isCompleted && 'opacity-50')}>
+    <button onClick={onClick} className={cn('w-full text-left bg-white rounded-lg p-3 transition-all hover:shadow-md hover:-translate-y-px active:shadow-sm active:translate-y-0 border', isCompleted && 'opacity-50')} style={{ borderColor: isMain ? `${CATEGORY_DOT[cat]}66` : undefined }}>
       <p className={cn('text-[13px] font-medium leading-snug line-clamp-2', isCompleted ? 'text-gray-400 line-through' : 'text-gray-800')}>{task.template_title}</p>
-      {(task.student_name || task.group_name) && <p className="text-[11px] text-gray-400 mt-1.5 line-clamp-1">{task.student_name || task.group_name}</p>}
+      {(task.student_name || task.group_name || (showCuratorName && task.curator_name)) && (
+        <p className="text-[11px] text-gray-400 mt-1.5 line-clamp-1">
+          {[task.student_name, task.group_name, showCuratorName && task.curator_name ? task.curator_name : null].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {showLeaderboardLink && (
+        <span
+          role="link"
+          className="inline-block text-[10px] text-blue-500 hover:text-blue-700 hover:underline mt-1.5 cursor-pointer"
+          onClick={e => { e.stopPropagation(); onNavigate!(getLeaderboardUrl(task)); }}
+        >
+          Открыть лидерборд →
+        </span>
+      )}
       <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-gray-100">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: CATEGORY_DOT[cat] }} />
@@ -663,7 +770,7 @@ function SingleCard({ task, onClick }: { task: CuratorTask; onClick: () => void 
   );
 }
 
-function GroupedCard({ group, onClick }: { group: TaskGroup; onClick: () => void }) {
+function GroupedCard({ group, onClick, showCuratorName, isMain }: { group: TaskGroup; onClick: () => void; showCuratorName?: boolean; isMain?: boolean }) {
   const deadline = formatDeadlineTime(group.dueDate);
   const doneCnt = group.tasks.filter(t => t.status === 'completed').length;
   const totalCnt = group.tasks.length;
@@ -671,9 +778,13 @@ function GroupedCard({ group, onClick }: { group: TaskGroup; onClick: () => void
   const allDone = doneCnt === totalCnt;
   const groupSt = getGroupStatus(group.tasks);
   const statusCfg = STATUS_CONFIG[groupSt] || STATUS_CONFIG.pending;
+  const curatorNames = showCuratorName ? [...new Set(group.tasks.map(t => t.curator_name).filter(Boolean))] : [];
   return (
-    <button onClick={onClick} className={cn('w-full text-left bg-white rounded-lg border border-gray-200 p-3 transition-all hover:shadow-md hover:border-gray-300 hover:-translate-y-px active:shadow-sm active:translate-y-0', allDone && 'opacity-50')}>
+    <button onClick={onClick} className={cn('w-full text-left bg-white rounded-lg p-3 transition-all hover:shadow-md hover:-translate-y-px active:shadow-sm active:translate-y-0 border', allDone && 'opacity-50')} style={{ borderColor: isMain ? `${CATEGORY_DOT[group.category]}66` : undefined }}>
       <p className={cn('text-[13px] font-medium leading-snug line-clamp-2', allDone ? 'text-gray-400 line-through' : 'text-gray-800')}>{group.templateTitle}</p>
+      {showCuratorName && curatorNames.length > 0 && (
+        <p className="text-[11px] text-gray-400 mt-1 line-clamp-1">{curatorNames.join(', ')}</p>
+      )}
       <div className="mt-2 flex items-center gap-2">
         <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div className={cn('h-full rounded-full transition-all', allDone ? 'bg-emerald-400' : 'bg-blue-400')} style={{ width: `${groupPct}%` }} />

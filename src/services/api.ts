@@ -3834,6 +3834,7 @@ class LMSApiClient {
     task_type?: string;
     group_id?: number;
     week?: string;
+    program_week?: number;
     limit?: number;
     offset?: number;
   }): Promise<{ total: number; tasks: any[] }> {
