@@ -3737,6 +3737,16 @@ class LMSApiClient {
     }
   }
 
+  async bulkUpdateCuratorTasks(taskIds: number[], status: string): Promise<{ updated: number }> {
+    try {
+      const response = await this.api.patch('/curator-tasks/my-tasks/bulk', { task_ids: taskIds, status });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to bulk update curator tasks:', error);
+      throw error;
+    }
+  }
+
   async getCuratorTaskTemplates(taskType?: string): Promise<any[]> {
     try {
       const params = taskType ? { task_type: taskType } : {};

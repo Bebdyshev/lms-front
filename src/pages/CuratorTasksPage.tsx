@@ -418,8 +418,9 @@ export default function CuratorTasksPage() {
     if (editable.length === 0) return;
     setStudentSaving(-1);
     try {
-      await Promise.all(editable.map(t => apiClient.updateCuratorTask(t.id, { status: 'completed' })));
-      toast(`${editable.length} задач выполнено`, 'success'); await loadTasks();
+      await apiClient.bulkUpdateCuratorTasks(editable.map(t => t.id), 'completed');
+      toast(`${editable.length} задач выполнено`, 'success');
+      await loadTasks();
     } catch (e: any) { toast(e?.response?.data?.detail || 'Ошибка', 'error'); }
     finally { setStudentSaving(null); }
   };
