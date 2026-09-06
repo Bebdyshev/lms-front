@@ -78,6 +78,10 @@ interface StudentLessonStatus {
     // homework denominators — exactly as a pre-join lesson does. Weeks before the freeze are
     // untouched. Undefined on older payloads → treat as not frozen.
     frozen?: boolean;
+    // True = the lesson falls inside a CRM access block: the student had not renewed and
+    // their login was off. Not a freeze (labelled «Нет доступа»), but it leaves the
+    // attendance and homework denominators the same way. Undefined → not blocked.
+    blocked?: boolean;
 }
 
 interface IeltsSpeakingFeedback {
@@ -783,7 +787,7 @@ export default function CuratorLeaderboardPage({ embedded = false, titleSlot }: 
       // (homework submission is independent of attendance, so it stays).
       Object.entries(student.lessons).forEach(([lessonKey, l]) => {
           const meta = data.lessons.find(m => m.lesson_number.toString() === lessonKey);
-          if (l.enrolled === false || l.frozen) {
+          if (l.enrolled === false || l.frozen || l.blocked) {
               // A frozen lesson is not theirs either: counting it would make a freeze look
               // like a collapse in attendance, and the weeks they actually studied would be
               // dragged down by the weeks they were away.
@@ -824,9 +828,10 @@ export default function CuratorLeaderboardPage({ embedded = false, titleSlot }: 
   const handleAttendanceChange = (studentId: number, lessonNumber: string, status: string) => {
       // Security check — curators view attendance here but don't edit it.
       if (!canMarkAttendance) return;
-      // A frozen lesson is not editable: the student was not expected, so marking them
-      // present or absent would be recording something that did not happen.
-      if (data?.students.find(s => s.student_id === studentId)?.lessons[lessonNumber]?.frozen) return;
+      const guarded = data?.students.find(s => s.student_id === studentId)?.lessons[lessonNumber];
+      // A frozen or blocked lesson is not editable: the student was not expected, so
+      // marking them present or absent would be recording something that did not happen.
+      if (guarded?.frozen || guarded?.blocked) return;
       
       // Status: "attended" or "absent" (from toggles)
       // Map to 10 or 0
@@ -1666,11 +1671,12 @@ export default function CuratorLeaderboardPage({ embedded = false, titleSlot }: 
                             // show a neutral blank cell (both halves) and skip editing.
                             const preEnroll = lessonStatus?.enrolled === false;
                             const frozenLesson = Boolean(lessonStatus?.frozen);
+                            const blockedLesson = Boolean(lessonStatus?.blocked);
                             // Past lesson with no attendance record yet: show a distinct
                             // "Не отмечено" cell instead of a red ABSENT default. Future
                             // lessons are handled by the toggle's isFuture branch.
                             const unmarked =
-                                !preEnroll && !frozenLesson && !cellIsFuture && lessonStatus?.marked === false;
+                                !preEnroll && !frozenLesson && !blockedLesson && !cellIsFuture && lessonStatus?.marked === false;
 
                             return (
                                 <TableCell key={`cell-${lessonKey}`} className="p-0 border-r border-gray-300 dark:border-border">
@@ -1685,6 +1691,11 @@ export default function CuratorLeaderboardPage({ embedded = false, titleSlot }: 
                                             className="w-1/2 border-r border-gray-300 dark:border-border flex items-center justify-center bg-sky-50 dark:bg-sky-950/30 text-[10px] text-sky-700 dark:text-sky-300 select-none"
                                             title={t('Ученик был на заморозке — урок не учитывается', 'Student was frozen — the lesson does not count')}
                                         >{t('Заморозка', 'Frozen')}</div>
+                                        ) : blockedLesson ? (
+                                        <div
+                                            className="w-1/2 border-r border-gray-300 dark:border-border flex items-center justify-center bg-amber-50 dark:bg-amber-950/30 text-[10px] text-amber-800 dark:text-amber-300 select-none"
+                                            title={t('Доступ к платформе был закрыт (не продлил) — урок не учитывается', 'Platform access was off (not renewed) — the lesson does not count')}
+                                        >{t('Нет доступа', 'No access')}</div>
                                         ) : unmarked ? (
                                         <div
                                             className={cn(
