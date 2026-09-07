@@ -10,7 +10,8 @@ import { useSettings } from '../contexts/SettingsContext';
 import apiClient from '../services/api';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
 import { getMyCheckpoints, coversLabel, deadlineCountdown, formatDeadline, type StudentCheckpointItem } from '../services/api/checkpoints';
-import { buildCheckpointHints, blockingCheckpointForUnit, isOpen as isCheckpointOpen, type CheckpointHints } from '../lib/checkpointHints';
+import { buildCheckpointHints, blockingCheckpointForUnit, isOpen as isCheckpointOpen, lockKindFor, type CheckpointHints } from '../lib/checkpointHints';
+import CheckpointLockGuide from '../components/checkpoints/CheckpointLockGuide';
 import { unitStepProgress } from '../lib/unitProgress';
 import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
@@ -405,6 +406,14 @@ export default function LessonPage() {
   const [isCourseLoading, setIsCourseLoading] = useState(true);
   const [isLessonLoading, setIsLessonLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // A 403 is a refusal, not a failure: the lesson exists, the student just may not open it yet.
+  // Rendered as CheckpointLockGuide rather than as an error, with `detail` (the server's own
+  // reason, when it survives the envelope) kept only as a fallback for locks that checkpoint
+  // data can't explain.
+  const [accessDenied, setAccessDenied] = useState<{ detail: string | null } | null>(null);
+  // Whether /checkpoints/me has settled (resolved OR failed). The guide waits for this so a
+  // refusal can't flash the wrong explanation before the checkpoint rows arrive.
+  const [checkpointsSettled, setCheckpointsSettled] = useState(false);
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -513,8 +522,19 @@ export default function LessonPage() {
       // Student may be in a non-checkpoints-enabled group, or the request failed —
       // fail silently and keep whatever we last knew.
       return checkpointItemsRef.current;
+    } finally {
+      // Resolved or failed, this is as much as we will ever know: the guide may render.
+      setCheckpointsSettled(true);
     }
   }, []);
+
+  // Ceiling on the wait above: after 3s, explain the refusal with whatever we have (which may be
+  // nothing, i.e. the server's own reason) rather than holding the skeleton indefinitely.
+  useEffect(() => {
+    if (!accessDenied || checkpointsSettled) return;
+    const timer = setTimeout(() => setCheckpointsSettled(true), 3000);
+    return () => clearTimeout(timer);
+  }, [accessDenied, checkpointsSettled]);
 
   // Compares freshly-fetched checkpoint items against the last known snapshot; if a
   // checkpoint covering `completedLessonId` just moved from locked to open, opens the
@@ -707,6 +727,9 @@ export default function LessonPage() {
   const loadLessonData = async () => {
     try {
       setIsLessonLoading(true);
+      // A refusal belongs to one lesson; navigating to another must not inherit it.
+      setAccessDenied(null);
+      setError(null);
 
       // Optimization: Check access using locally available modules data first
       // This saves a network request if we already know the status
@@ -737,12 +760,10 @@ export default function LessonPage() {
       const progressData = results[2];
       const accessCheck = isLocallyVerified ? { accessible: true } : results[3];
 
-      // Handle access check result
+      // Handle access check result. A refusal is explained in place rather than bounced back to
+      // the course with a toast — the student clicked this unit and deserves to know why.
       if (!accessCheck.accessible) {
-        const reason = accessCheck.reason || 'Please complete previous lessons first.';
-        setError(reason);
-        toast(reason, 'error');
-        navigate(`/course/${courseId}`);
+        setAccessDenied({ detail: accessCheck.reason || null });
         return;
       }
 
@@ -807,9 +828,15 @@ export default function LessonPage() {
       console.error('Failed to load lesson data:', error);
       const status = (error as { response?: { status?: number } })?.response?.status;
       const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      // A refusal that carries a reason (a checkpoint holding this unit back, a checkpoint that is
-      // not open for this student) is shown as that reason, not as a generic failure.
-      setError(status === 403 && typeof detail === 'string' ? detail : 'Failed to load lesson data');
+      if (status === 403) {
+        // The server refused this lesson. GET /lessons, /steps and /progress all gate on the
+        // checkpoint rule, and they run in one Promise.all — so any of them can land here before
+        // the checkLessonAccess branch above is ever reached. /checkpoints/me explains the lock
+        // far better than the refusal string can; the string is only the fallback.
+        setAccessDenied({ detail: typeof detail === 'string' ? detail : null });
+      } else {
+        setError('Failed to load lesson data');
+      }
     } finally {
       setIsLessonLoading(false);
     }
@@ -2157,7 +2184,8 @@ export default function LessonPage() {
     }
   };
 
-  if (isCourseLoading) {
+  // A refusal waits for /checkpoints/me so the guide never flashes the wrong reason first.
+  if (isCourseLoading || (accessDenied && !checkpointsSettled)) {
     return (
       <div className="flex h-screen overflow-hidden bg-background">
         <div className="hidden md:block w-80 border-r border-border/70 p-4 space-y-3" aria-busy="true">
@@ -2175,27 +2203,60 @@ export default function LessonPage() {
     );
   }
 
+  if (accessDenied) {
+    const lock = lockKindFor(checkpointHints, Number(lessonId));
+    // The lesson itself never loaded, so its title comes from the checkpoint row that names it,
+    // falling back to the course listing.
+    const unitTitle =
+      (lock?.kind === 'unit-blocked' ? lock.unit?.title : null)
+      || modules.flatMap((m) => m.lessons || []).find((l) => String(l.id) === lessonId)?.title
+      || null;
+    const guide = (
+      <CheckpointLockGuide
+        lock={lock}
+        unitTitle={unitTitle}
+        courseId={courseId!}
+        detail={accessDenied.detail}
+        onNavigate={navigate}
+      />
+    );
+
+    // The course failed to load too (rare): show the guide on its own rather than nothing.
+    if (!course) {
+      return <div className="h-screen overflow-y-auto bg-background p-6 md:p-10">{guide}</div>;
+    }
+
+    // Keep the course nav on desktop; the guide's own buttons carry the mobile case, where
+    // LessonSidebar is hidden.
+    return (
+      <div className="flex h-screen overflow-hidden bg-background">
+        <div className="hidden md:block">
+          <LessonSidebar
+            course={course}
+            modules={modules}
+            selectedLessonId={lessonId!}
+            onLessonSelect={handleLessonSelect}
+            isCollapsed={isSidebarCollapsed}
+            onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            checkpointHints={checkpointHints}
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 md:p-10">{guide}</div>
+      </div>
+    );
+  }
+
+  // A genuine failure — network, 500, 404. Retry is the right affordance here.
   if (error) {
-    // A checkpoint is holding this unit back (or this checkpoint is not open): say so and lead
-    // the student to the checkpoint instead of offering a pointless Retry.
-    const lockedByCheckpoint = /checkpoint/i.test(error);
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center max-w-md px-6">
-          <h2 className={`text-2xl font-bold mb-2 ${lockedByCheckpoint ? 'text-foreground' : 'text-red-600 dark:text-red-400'}`}>
-            {lockedByCheckpoint ? 'This unit is locked' : 'Error'}
-          </h2>
+          <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Error</h2>
           <p className="text-muted-foreground">{error}</p>
-          {lockedByCheckpoint ? (
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <Button onClick={() => navigate('/checkpoints')}>Go to my checkpoints</Button>
-              <Button variant="outline" onClick={() => navigate(`/course/${courseId}`)}>Back to course</Button>
-            </div>
-          ) : (
-            <Button onClick={() => window.location.reload()} className="mt-4">
-              Retry
-            </Button>
-          )}
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+            <Button variant="outline" onClick={() => navigate(`/course/${courseId}`)}>Back to course</Button>
+          </div>
         </div>
       </div>
     );
