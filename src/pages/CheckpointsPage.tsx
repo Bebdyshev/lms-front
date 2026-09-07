@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import Loader from '../components/Loader';
 import {
-  coversLabel, deadlineCountdown, formatDeadline, getMyCheckpoints, lateLabel, STATUS_CLASS, STATUS_LABEL, type StudentCheckpointItem,
+  CHECKPOINT_WINDOW_LABEL, coversLabel, deadlineCountdown, formatDeadline, getMyCheckpoints, lateLabel, STATUS_CLASS, STATUS_LABEL, type StudentCheckpointItem,
 } from '../services/api/checkpoints';
 
 export default function CheckpointsPage() {
@@ -32,7 +32,7 @@ export default function CheckpointsPage() {
     <div className="p-4 md:p-6 space-y-4 max-w-3xl">
       <h1 className="text-2xl font-semibold">SAT Checkpoints</h1>
       <p className="text-sm text-muted-foreground">
-        A checkpoint opens the moment you finish its Verbal and Math units, and you have 24 hours from then. After the deadline you can still submit, but the result is marked late.
+        A checkpoint opens the moment you finish its Verbal and Math units, and you have {CHECKPOINT_WINDOW_LABEL} from then. After the deadline you can still submit, but the result is marked late.
       </p>
       {items.map((item) => {
         const open = item.status === 'available' || item.status === 'reopened' || item.status === 'overdue';
