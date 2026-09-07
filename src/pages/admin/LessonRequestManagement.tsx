@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import apiClient from '../../services/api';
-import type { LessonRequest } from '../../types';
+import type { LessonRequest, CancelResolution } from '../../types';
 import { formatInKZ } from '../../lib/datetime';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -42,6 +42,25 @@ const STATUS_LABELS: Record<string, string> = {
   pending_teacher: 'Ждёт педагога',
   pending: 'Ждёт решения',
 };
+
+/** The two ways an approved cancel can go. The approver has to pick one — there is no
+ *  default on this page, because «the lesson just disappears» and «one more lesson at the
+ *  end of the course» are decisions about the group's plan, not about this request. */
+const CANCEL_RESOLUTION_OPTIONS: { value: CancelResolution; label: string; hint: string }[] = [
+  {
+    value: 'cancel_only',
+    label: 'Только отменить урок',
+    hint: 'урок исчезнет из расписания и CRM, как будто его не было',
+  },
+  {
+    value: 'add_replacement',
+    label: 'Отменить и добавить урок в конец курса',
+    hint: 'в расписание группы добавится один урок после последнего запланированного',
+  },
+];
+
+const cancelResolutionLabel = (value?: string | null) =>
+  value ? CANCEL_RESOLUTION_OPTIONS.find(o => o.value === value)?.label ?? value : null;
 
 const roleLabel = (role?: string | null) =>
   role ? APPROVER_ROLE_LABELS[role] ?? role : null;
@@ -149,6 +168,8 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminComment, setAdminComment] = useState<Record<number, string>>({});
+  // The approver's choice per pending cancel request; seeded from the teacher's proposal.
+  const [cancelChoice, setCancelChoice] = useState<Record<number, CancelResolution>>({});
   const [processing, setProcessing] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
 
@@ -179,6 +200,21 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
         data = await apiClient.getLessonRequests(statusFilter || undefined);
       }
       setRequests(data);
+      // Pre-select what the teacher proposed, without overriding a choice already made here.
+      setCancelChoice(prev => {
+        const next = { ...prev };
+        for (const req of data) {
+          if (
+            req.request_type === 'cancel' &&
+            req.status === 'pending' &&
+            req.cancel_resolution &&
+            !next[req.id]
+          ) {
+            next[req.id] = req.cancel_resolution;
+          }
+        }
+        return next;
+      });
     } catch (err) {
       console.error('Failed to fetch lesson requests:', err);
       setError('Не удалось загрузить заявки. Обновите страницу или попробуйте позже.');
@@ -191,10 +227,21 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
     fetchRequests();
   }, [statusFilter, variant]);
 
-  const handleApprove = async (id: number) => {
+  /** A pending cancel needs a choice before it can be approved — the button stays disabled
+   *  until one is made, and this guards the same line in case it is reached another way. */
+  const needsCancelChoice = (req: LessonRequest) =>
+    req.request_type === 'cancel' && !cancelChoice[req.id];
+
+  const handleApprove = async (req: LessonRequest) => {
+    if (needsCancelChoice(req)) return;
+    const id = req.id;
     try {
       setProcessing(id);
-      await apiClient.approveLessonRequest(id, adminComment[id]);
+      await apiClient.approveLessonRequest(
+        id,
+        adminComment[id],
+        req.request_type === 'cancel' ? cancelChoice[id] : undefined,
+      );
       await fetchRequests();
     } catch (err) {
       console.error('Failed to approve:', err);
@@ -416,7 +463,17 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
                       onClick={() => setExpanded(isOpen ? null : req.id)}
                     >
                       <TableCell className="text-muted-foreground tabular-nums">{req.id}</TableCell>
-                      <TableCell className="font-medium">{typeLabel(req.request_type)}</TableCell>
+                      <TableCell className="font-medium">
+                        {typeLabel(req.request_type)}
+                        {req.status === 'approved' && req.cancel_resolution === 'add_replacement' && (
+                          <Badge
+                            variant="secondary"
+                            className="mt-1 block w-fit bg-sky-100 text-sky-800 hover:bg-sky-100 border-sky-200 px-1.5 py-0 text-[10px] font-medium"
+                          >
+                            + урок в конце
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {/* The group is not linked because this app has no group-detail
                             page to link to; a link to a 404 is worse than none. The lesson
@@ -441,6 +498,11 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
                         {req.request_type === 'reschedule' && req.new_datetime && (
                           <span className="block text-xs text-muted-foreground">
                             → {formatExact(req.new_datetime)}
+                          </span>
+                        )}
+                        {req.replacement_datetime && (
+                          <span className="block text-xs text-muted-foreground">
+                            + {formatExact(req.replacement_datetime)}
                           </span>
                         )}
                       </TableCell>
@@ -474,6 +536,37 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
                         )}
                         {req.status === 'pending' && (
                           <div className="flex flex-col gap-2 items-end">
+                            {req.request_type === 'cancel' && (
+                              <fieldset className="w-[260px] space-y-1.5 text-left">
+                                <legend className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                  Решение по уроку
+                                </legend>
+                                {CANCEL_RESOLUTION_OPTIONS.map(opt => (
+                                  <label
+                                    key={opt.value}
+                                    className="flex cursor-pointer items-start gap-2 text-xs"
+                                  >
+                                    <input
+                                      type="radio"
+                                      className="mt-0.5 shrink-0"
+                                      name={`cancel-resolution-${req.id}`}
+                                      value={opt.value}
+                                      checked={cancelChoice[req.id] === opt.value}
+                                      onChange={() =>
+                                        setCancelChoice(prev => ({ ...prev, [req.id]: opt.value }))
+                                      }
+                                      disabled={processing === req.id}
+                                    />
+                                    <span>
+                                      <span className="font-medium">{opt.label}</span>
+                                      <span className="block text-muted-foreground">
+                                        — {opt.hint}
+                                      </span>
+                                    </span>
+                                  </label>
+                                ))}
+                              </fieldset>
+                            )}
                             <Input
                               placeholder="Комментарий…"
                               className="h-8 w-[150px] text-xs"
@@ -487,8 +580,9 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
                                 size="sm"
                                 variant="outline"
                                 className="h-7 text-xs hover:bg-green-50 hover:text-green-700 hover:border-green-200"
-                                onClick={() => handleApprove(req.id)}
-                                disabled={processing === req.id}
+                                onClick={() => handleApprove(req)}
+                                disabled={processing === req.id || needsCancelChoice(req)}
+                                title={needsCancelChoice(req) ? 'Сначала выберите решение по уроку' : undefined}
                               >
                                 Одобрить
                               </Button>
@@ -538,6 +632,23 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
                               </Fact>
                               {req.request_type === 'reschedule' && (
                                 <Fact label="Новое время">{formatExact(req.new_datetime)}</Fact>
+                              )}
+                              {req.request_type === 'cancel' && (
+                                <Fact label="Решение по уроку">
+                                  {cancelResolutionLabel(req.cancel_resolution)
+                                    ? `${cancelResolutionLabel(req.cancel_resolution)}${
+                                        req.status === 'pending' ? ' (предложение педагога)' : ''
+                                      }`
+                                    : '—'}
+                                </Fact>
+                              )}
+                              {req.replacement_event_id && (
+                                <Fact label="Добавленный урок">
+                                  {req.replacement_lesson_title || `Урок ${req.replacement_event_id}`}
+                                  <span className="block text-xs text-muted-foreground">
+                                    {formatExact(req.replacement_datetime)}
+                                  </span>
+                                </Fact>
                               )}
                               <Fact label="Предложенные кандидаты">
                                 {req.substitute_teacher_names?.length

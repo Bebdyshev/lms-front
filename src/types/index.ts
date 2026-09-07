@@ -1316,6 +1316,11 @@ export interface DailyQuestionsStatus {
 // LESSON REQUEST TYPES (Substitution / Reschedule)
 // =============================================================================
 
+/** How an approved cancel is resolved: the lesson simply disappears («только отменить»),
+ *  or one lesson is appended after the group's last scheduled one («добавить урок в конец
+ *  курса»). */
+export type CancelResolution = 'cancel_only' | 'add_replacement';
+
 export interface LessonRequest {
   id: number;
   request_type: 'substitution' | 'reschedule' | 'cancel';
@@ -1364,6 +1369,14 @@ export interface LessonRequest {
   /** Plain-Russian explanation of a false `is_applied`, for non-staff readers. */
   consistency_note?: string | null;
   lesson_is_active?: boolean | null;
+
+  // ── cancel requests: how the cancellation was resolved ─────────────────────────────
+  /** Pending: the teacher's proposal (may be empty). Approved: the approver's decision. */
+  cancel_resolution?: CancelResolution | null;
+  /** The lesson appended to the end of the course under `add_replacement`. */
+  replacement_event_id?: number | null;
+  replacement_lesson_title?: string | null;
+  replacement_datetime?: string | null;
 }
 
 export interface CreateLessonRequest {
@@ -1376,6 +1389,8 @@ export interface CreateLessonRequest {
   substitute_teacher_id?: number;
   new_datetime?: string;
   reason?: string;
+  /** Cancel only — the teacher's proposal; the approver makes the final choice. */
+  cancel_resolution?: CancelResolution;
 }
 
 export interface AvailableTeacher {

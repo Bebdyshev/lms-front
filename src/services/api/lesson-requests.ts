@@ -1,4 +1,4 @@
-import type { LessonRequest, CreateLessonRequest, AvailableTeacher } from '../../types';
+import type { LessonRequest, CreateLessonRequest, AvailableTeacher, CancelResolution } from '../../types';
 import { api } from './client';
 
 export async function getPendingLessonRequests(): Promise<LessonRequest[]> {
@@ -53,10 +53,17 @@ export async function createLessonRequest(data: CreateLessonRequest): Promise<Le
   }
 }
 
-export async function approveLessonRequest(requestId: number, adminComment?: string): Promise<LessonRequest> {
+export async function approveLessonRequest(
+  requestId: number,
+  adminComment?: string,
+  cancelResolution?: CancelResolution,
+): Promise<LessonRequest> {
   try {
     const response = await api.post(`/lesson-requests/${requestId}/approve`, {
-      admin_comment: adminComment || null
+      admin_comment: adminComment || null,
+      // Cancel requests only. Left out (not null) when there is no choice: the server then
+      // applies the teacher's proposal, else «только отменить».
+      ...(cancelResolution ? { cancel_resolution: cancelResolution } : {}),
     });
     return response.data;
   } catch (error) {
