@@ -59,6 +59,50 @@ const triageTone: Record<string, string> = {
   unscheduled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
 };
 
+// Fallback for the filter label only; the rule itself lives on the backend and every
+// row reports the threshold it was judged against (`marketing_threshold`).
+const DEFAULT_MARKETING_THRESHOLD = 1400;
+
+const chipBase = 'inline-block rounded px-1.5 py-0.5 text-[10px] leading-4 whitespace-nowrap';
+const chipOk = `${chipBase} font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300`;
+const chipMuted = `${chipBase} bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300`;
+
+/**
+ * Why a row may be used in marketing. The two grounds are shown separately because they
+ * permit different things: a score is a fact with no consent attached, while a
+ * testimonial IS the consent record - only it allows using the student's name or photo.
+ * Renders nothing when the row is not eligible.
+ */
+function MarketingChips({ row, t }: { row: ExamResultRow; t: (ru: string, en: string) => string }) {
+  if (!row.marketing_eligible) return null;
+  const byScore = row.marketing_basis.includes('score');
+  const byTestimonial = row.marketing_basis.includes('testimonial');
+  return (
+    <span className="inline-flex items-center gap-1">
+      {byScore && (
+        <span className={chipOk}
+              title={t(`Текущая попытка выше ${row.marketing_threshold} баллов`,
+                       `Current attempt above ${row.marketing_threshold}`)}>
+          {t('балл', 'score')}
+        </span>
+      )}
+      {byTestimonial && (
+        <span className={chipOk}
+              title={t('Одобренный отзыв с записанным согласием', 'Approved testimonial with recorded consent')}>
+          {t('отзыв', 'testimonial')}
+        </span>
+      )}
+      {byScore && !byTestimonial && (
+        <span className={chipMuted}
+              title={t('Согласие не записано: балл можно упоминать, но имя и фото ученика — только после оформления отзыва с согласием.',
+                       'No consent recorded: the score may be cited, but the student\'s name or photo may only be used once a testimonial with consent is on file.')}>
+          {t('без согласия', 'no consent')}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function ExamResultsWorkbenchPage() {
   const { user } = useAuth();
   const isRu = ['curator', 'head_curator'].includes(user?.role || '');
@@ -119,8 +163,11 @@ export default function ExamResultsWorkbenchPage() {
     ...(dateFrom ? { dateFrom } : {}),
     ...(dateTo ? { dateTo } : {}),
     ...(search.trim() ? { search: search.trim() } : {}),
+    // Server-side as well as client-side (see `visible`): the export takes these same
+    // filters, so an XLSX of marketing-ready rows matches the screen exactly.
+    ...(marketingOnly ? { marketingOnly: true } : {}),
     limit: 500,
-  }), [examType, dateField, groupId, exactDate, dateFrom, dateTo, search]);
+  }), [examType, dateField, groupId, exactDate, dateFrom, dateTo, search, marketingOnly]);
 
   const load = useCallback(async (f: ExamResultFilters) => {
     setLoading(true);
@@ -156,14 +203,20 @@ export default function ExamResultsWorkbenchPage() {
   // Triage presets filter client-side: the status is derived per row, and re-querying
   // for a view of data already on screen would just add latency.
   const visible = useMemo(() => rows.filter((r) => {
-    // "Marketing-ready" is what the sales team may actually use: approved, consented
-    // and not withdrawn. Everything else is invisible to them by construction.
-    if (marketingOnly && !testimonials[r.student.student_id]?.is_marketing_ready) return false;
+    // "Marketing-ready" is decided server-side per row: the current attempt is above
+    // the exam's threshold (SAT > 1400) OR an approved, consented testimonial exists.
+    // The row carries the verdict, so no testimonial lookup is needed here.
+    if (marketingOnly && !r.marketing_eligible) return false;
     if (preset === 'all') return true;
     if (preset === 'done') return r.triage_status === 'completed';
     if (preset === 'overdue') return r.triage_status === 'overdue';
     return r.triage_status === 'overdue' || r.triage_status === 'due';
-  }), [rows, preset, marketingOnly, testimonials]);
+  }), [rows, preset, marketingOnly]);
+
+  // The threshold the rows were judged against; the label falls back to the default
+  // before the first page arrives or on exam types without a score rule.
+  const marketingThreshold =
+    rows.find((r) => r.marketing_threshold != null)?.marketing_threshold ?? DEFAULT_MARKETING_THRESHOLD;
 
   const counts = useMemo(() => ({
     all: rows.length,
@@ -267,13 +320,15 @@ export default function ExamResultsWorkbenchPage() {
                 </Button>
               ))}
             </div>
-            {canWrite && (
-              <label className="ml-2 inline-flex items-center gap-1.5 text-xs">
-                <input type="checkbox" checked={marketingOnly}
-                       onChange={(e) => setMarketingOnly(e.target.checked)} />
-                {t('Готово для маркетинга', 'Marketing-ready only')}
-              </label>
-            )}
+            {/* Every reader, not only writers: the score is already on screen, and the
+                testimonial basis only says a consented testimonial exists - the material
+                itself stays behind the write-gated «Отзыв» column. */}
+            <label className="ml-2 inline-flex items-center gap-1.5 text-xs">
+              <input type="checkbox" checked={marketingOnly}
+                     onChange={(e) => setMarketingOnly(e.target.checked)} />
+              {t(`Готово для маркетинга (SAT > ${marketingThreshold} или отзыв)`,
+                 `Marketing-ready (SAT > ${marketingThreshold} or testimonial)`)}
+            </label>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -389,6 +444,7 @@ export default function ExamResultsWorkbenchPage() {
                     <TableHead>{t('Сдан', 'Test date')}</TableHead>
                     {isSat && <><TableHead className="text-center">Verbal</TableHead><TableHead className="text-center">Math</TableHead></>}
                     <TableHead className="text-center">{isIelts ? 'Overall' : t('Итог', 'Total')}</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">{t('Маркетинг', 'Marketing')}</TableHead>
                     <TableHead>{t('Статус', 'Status')}</TableHead>
                     <TableHead className="text-center">{t('Подтв.', 'Proof')}</TableHead>
                     {canWrite && <TableHead className="text-center">{t('Отзыв', 'Testimonial')}</TableHead>}
@@ -436,6 +492,9 @@ export default function ExamResultsWorkbenchPage() {
                           </>}
                           <TableCell className="text-center font-semibold">
                             {r ? Number(r.total_score) : '—'}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <MarketingChips row={row} t={t} />
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary" className={triageTone[row.triage_status ?? ''] ?? ''}>
@@ -513,6 +572,7 @@ export default function ExamResultsWorkbenchPage() {
                               <TableCell className="text-center">{a.math_score ?? '—'}</TableCell>
                             </>}
                             <TableCell className="text-center font-medium">{Number(a.total_score)}</TableCell>
+                            <TableCell />
                             <TableCell><span className="text-muted-foreground">{a.status}</span></TableCell>
                             <TableCell className="text-center">
                               {a.has_proof ? (
@@ -543,7 +603,10 @@ export default function ExamResultsWorkbenchPage() {
           examResultId={testimonialFor.result?.id ?? null}
           canApprove={canApprove}
           onClose={() => setTestimonialFor(null)}
-          onSaved={loadTestimonials}
+          // Eligibility is computed server-side and rides on the rows, so approving or
+          // revoking a testimonial has to refetch them too - refreshing only the
+          // testimonials map left the «Маркетинг» chips showing the previous verdict.
+          onSaved={() => { loadTestimonials(); load(filters); }}
         />
       )}
 

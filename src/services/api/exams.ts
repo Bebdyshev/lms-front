@@ -75,6 +75,16 @@ export interface ExamResultRow {
   planned_test_date: string | null;
   ask_result_on: string | null;
   triage_status: 'pending' | 'due' | 'overdue' | 'completed' | 'unscheduled' | null;
+  /** Whether the sales team may use this row; `marketing_basis` says on what grounds. */
+  marketing_eligible: boolean;
+  /**
+   * 'score': the current attempt is above the exam's threshold - a fact with no consent
+   * attached. 'testimonial': an approved, consented testimonial exists - the only basis
+   * that permits using the student's name or photo.
+   */
+  marketing_basis: Array<'score' | 'testimonial'>;
+  /** Total a current attempt must exceed for this exam type; null when scores never qualify (IELTS, NUET). */
+  marketing_threshold: number | null;
   attempts: ExamResultDetail[];
   result: {
     id: number;
@@ -103,6 +113,8 @@ export interface ExamResultFilters {
   exactDate?: string;
   status?: 'reported' | 'verified' | 'rejected';
   search?: string;
+  /** Only marketing-eligible rows: score above the threshold OR a consented testimonial. Applied server-side within the page. */
+  marketingOnly?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -116,6 +128,7 @@ const toQuery = (f: ExamResultFilters) => ({
   ...(f.exactDate ? { exact_date: f.exactDate } : {}),
   ...(f.status ? { status: f.status } : {}),
   ...(f.search ? { search: f.search } : {}),
+  ...(f.marketingOnly ? { marketing_only: true } : {}),
   ...(f.limit != null ? { limit: f.limit } : {}),
   ...(f.offset != null ? { offset: f.offset } : {}),
 });
