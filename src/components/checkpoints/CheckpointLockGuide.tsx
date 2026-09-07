@@ -75,7 +75,7 @@ export default function CheckpointLockGuide({
   const unitName = unitTitle || 'This unit';
 
   let heading = 'You can’t open this unit yet';
-  let lede: ReactNode = detail || 'Finish the earlier material first, then come back.';
+  let lede: ReactNode = detail || 'You don’t have access to this unit right now.';
   let steps: ReactNode = null;
   let primary: ReactNode = null;
 
