@@ -96,8 +96,26 @@ Cases, each presented as a numbered chain:
 | **A** | blocking checkpoint `available` / `reopened` | "Unit 7 is locked." **1.** Take Checkpoint 3 — open now; `coversLabel` + the per-unit ✓ checklist; `total_questions` questions; `formatDeadline` + `deadlineCountdown`. **2.** Unit 7 unlocks the moment you submit. Primary action **Start Checkpoint 3** → `/course/{quiz.course_id}/lesson/{quiz.lesson_id}` |
 | **B** | blocking checkpoint `overdue` | Same chain in red: the deadline has passed and a submission now is marked late (the deadline is soft). Primary action **Submit late**. If `quiz` is null — the checkpoint is closed to the student — replace it with "ask your curator to reopen it". |
 | **C** | blocking checkpoint `locked` (never opened) | Defensive only — unreachable under the current server rule, see *Risk* below. **1.** Finish these units to open Checkpoint 3 — the `covers` checklist with ✓ / ○, each unfinished unit a link to `/course/{courseId}/lesson/{lesson_id}`. **2.** Take Checkpoint 3 (`total_questions` questions, `CHECKPOINT_WINDOW_LABEL`). **3.** Then Unit 7 unlocks. A `locked` row has no `deadline` and no `quiz` link yet (the server withholds both until it opens), so this case states the window rather than a date and offers no Start button. |
-| **D** | this lesson *is* a checkpoint quiz, not open | "Checkpoint 3 isn't open yet" + the same required-units checklist + `locked_reason`. If `status === 'completed'`, show the result (`correct_answers`/`total_questions`, `percentage`, `lateLabel`) instead of a call to action. |
+| **D** | this lesson *is* a checkpoint quiz, not open | Defensive only — unreachable against the current server, see the note below the table. "Checkpoint 3 isn't open yet" + the same required-units checklist + `locked_reason`. If `status === 'completed'`, show the result (`correct_answers`/`total_questions`, `percentage`, `lateLabel`) instead of a call to action. |
 | **E** | 403 but `lockKindFor` returned `null` | Fallback. Show the server's `detail` when we have one, otherwise "You can't open this unit yet." Always both navigation buttons. Covers plain sequential-access locks, a group with checkpoints disabled, and a failed `/checkpoints/me`. |
+
+**Why D is defensive.** The quiz gate refuses exactly the `locked` rows
+(`open_checkpoint_lesson_ids_for_student` filters `status != locked`, `lms-backend
+src/checkpoints/service.py:603`), and `_serialize_item` nulls `quiz` for exactly those same rows
+(`:803`). `buildCheckpointHints` keys `byQuizLesson` off `item.quiz`, so a refused quiz lesson is
+never in the map and a lesson in the map is never refused. A student who opens a locked
+checkpoint's quiz URL therefore lands on **E**, carrying the server's own reason. D is
+implemented anyway because it costs a few lines and is the right rendering if the server ever
+exposes the quiz link before a checkpoint opens — but nothing should be written that depends on
+it appearing.
+
+**Known gap in E, for a checkpoint-quiz URL.** In that case the URL's `courseId` is the hidden
+checkpoints course, which `student_has_checkpoint_access_to_course` also refuses — so the guide's
+**Back to course** button leads to a second refusal. **My checkpoints** remains a working exit, so
+the student is never stranded, but the course button is misleading there. A clean fix needs
+`/checkpoints/me` to expose the quiz course id even for a `locked` row; that is a backend change
+and out of scope for this web-only spec.
+
 
 **The open window is stated once, in one place.** `CheckpointsPage.tsx:35` currently hardcodes
 "you have 24 hours from then"; the guide needs the same phrase for case C, and the two must not

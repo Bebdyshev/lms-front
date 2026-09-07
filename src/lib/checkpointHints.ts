@@ -78,6 +78,15 @@ export function lockKindFor(hints: CheckpointHints, lessonId: number): Checkpoin
   if (quizItem) {
     // The quiz of a checkpoint the student may act on shouldn't have been refused; if it was,
     // checkpoint state doesn't explain it, so let the caller fall back to the server's reason.
+    //
+    // `checkpoint-shut` is DEFENSIVE and unreachable against the current server: the quiz gate
+    // refuses exactly the `locked` rows (open_checkpoint_lesson_ids_for_student filters
+    // `status != locked`), and the serializer nulls `quiz` for exactly those same rows — so a
+    // refused quiz lesson is never in `byQuizLesson`, and one that is in the map is never
+    // refused. A student who opens a locked checkpoint's quiz URL therefore lands on the
+    // `null` fallback with the server's own reason, not on this branch. It is kept because it
+    // costs a few lines and is the correct rendering should the server ever expose the quiz
+    // link before a checkpoint opens.
     return isOpen(quizItem) ? null : { kind: 'checkpoint-shut', item: quizItem };
   }
 

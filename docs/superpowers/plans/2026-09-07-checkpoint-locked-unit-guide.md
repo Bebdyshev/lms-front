@@ -726,13 +726,13 @@ For each, record pass/fail and a screenshot. Check **both** a desktop width and 
 |---|---|---|---|
 | 1 | **A** — open checkpoint blocks a unit | As a student with an `available` checkpoint, open a later block's unit by URL | "…is locked", numbered chain, covers checklist all ✓, deadline + countdown, **Start Checkpoint N** navigates to the quiz |
 | 2 | **B** — overdue checkpoint blocks a unit | Same, with an `overdue` row (admin can set a past deadline via the checkpoints admin page) | Red deadline line, "still submit, but marked late", **Submit Checkpoint N late** |
-| 3 | **D** — checkpoint quiz not open | Open a `locked` checkpoint's quiz lesson by URL | "Checkpoint N isn't open yet", units checklist with ○ for the unfinished, unfinished titles link to their lesson |
+| 3 | **E** via a checkpoint quiz URL | Open a `locked` checkpoint's quiz lesson by URL | Case **E**, not case D: the server's reason plus both nav buttons. Case D cannot render — the server nulls `quiz` for exactly the rows it refuses, so the client has no row to describe. **Known gap:** `courseId` here is the hidden checkpoints course, so **Back to course** leads to a second refusal; **My checkpoints** is the working exit. |
 | 4 | **E** — non-checkpoint refusal | Open a sequentially locked lesson in a course without checkpoints | Server's reason (or the generic line), both nav buttons, no Retry |
 | 5 | Genuine failure still errors | Stop the backend, reload a lesson | Red "Error", **Retry** *and* **Back to course** |
 | 6 | No flash | Throttle the network (DevTools "Slow 3G") and load a blocked unit | Skeleton → guide. The red Error box must never appear in between |
 | 7 | Mobile has an exit | Case 1 at ≤640px | Both **Back to course** and **My checkpoints** visible and working with no sidebar |
 
-Case **C** (a never-opened checkpoint blocking a unit) is unreachable against the current server rule and is not expected to be exercised — see the Risk section of the design doc.
+Cases **C** (a never-opened checkpoint blocking a unit) and **D** (the "checkpoint isn't open yet" screen) are both unreachable against the current server and are not expected to be exercised — see the Risk section and the "Why D is defensive" note in the design doc.
 
 - [ ] **Step 3: Confirm the fix against the reported bug**
 
