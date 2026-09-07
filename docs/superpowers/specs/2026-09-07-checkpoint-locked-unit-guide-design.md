@@ -95,16 +95,16 @@ Cases, each presented as a numbered chain:
 | --- | --- | --- |
 | **A** | blocking checkpoint `available` / `reopened` | "Unit 7 is locked." **1.** Take Checkpoint 3 — open now; `coversLabel` + the per-unit ✓ checklist; `total_questions` questions; `formatDeadline` + `deadlineCountdown`. **2.** Unit 7 unlocks the moment you submit. Primary action **Start Checkpoint 3** → `/course/{quiz.course_id}/lesson/{quiz.lesson_id}` |
 | **B** | blocking checkpoint `overdue` | Same chain in red: the deadline has passed and a submission now is marked late (the deadline is soft). Primary action **Submit late**. If `quiz` is null — the checkpoint is closed to the student — replace it with "ask your curator to reopen it". |
-| **C** | blocking checkpoint `locked` (never opened) | **1.** Finish these units to open Checkpoint 3 — the `covers` checklist with ✓ / ○, each unfinished unit a link to `/course/{courseId}/lesson/{lesson_id}`. **2.** Take Checkpoint 3 (`total_questions` questions, `CHECKPOINT_WINDOW_LABEL`). **3.** Then Unit 7 unlocks. A `locked` row has no `deadline` and no `quiz` link yet (the server withholds both until it opens), so this case states the window rather than a date and offers no Start button. |
+| **C** | blocking checkpoint `locked` (never opened) | Defensive only — unreachable under the current server rule, see *Risk* below. **1.** Finish these units to open Checkpoint 3 — the `covers` checklist with ✓ / ○, each unfinished unit a link to `/course/{courseId}/lesson/{lesson_id}`. **2.** Take Checkpoint 3 (`total_questions` questions, `CHECKPOINT_WINDOW_LABEL`). **3.** Then Unit 7 unlocks. A `locked` row has no `deadline` and no `quiz` link yet (the server withholds both until it opens), so this case states the window rather than a date and offers no Start button. |
 | **D** | this lesson *is* a checkpoint quiz, not open | "Checkpoint 3 isn't open yet" + the same required-units checklist + `locked_reason`. If `status === 'completed'`, show the result (`correct_answers`/`total_questions`, `percentage`, `lateLabel`) instead of a call to action. |
 | **E** | 403 but `lockKindFor` returned `null` | Fallback. Show the server's `detail` when we have one, otherwise "You can't open this unit yet." Always both navigation buttons. Covers plain sequential-access locks, a group with checkpoints disabled, and a failed `/checkpoints/me`. |
 
 **The open window is stated once, in one place.** `CheckpointsPage.tsx:35` currently hardcodes
 "you have 24 hours from then"; the guide needs the same phrase for case C, and the two must not
 drift. Extract it as `CHECKPOINT_WINDOW_LABEL` in `src/services/api/checkpoints.ts` beside the
-other shared copy helpers and have both screens read it. (Note that the unmerged
-`feat/sat-checkpoints` branch moves this window to 3 days — one constant means that becomes a
-one-line change rather than a hunt.)
+other shared copy helpers and have both screens read it. The value is **24 hours**, matching the server's
+`DEADLINE_HOURS = 24` (`lms-backend src/checkpoints/service.py:29`) — confirmed as the intended
+window. The unmerged branch's `72` is an outlier and is not adopted here.
 
 Copy stays English, matching the rest of the checkpoint UI (`STATUS_LABEL`, `CheckpointsPage`,
 `formatDeadline`'s deliberate `en-US` formatting). Existing helpers are reused rather than
@@ -147,20 +147,33 @@ runner; adding one is deliberately not part of this change.
 
 ## Risk noted during investigation
 
-Prod and the unmerged `feat/sat-checkpoints` branches disagree about *which* checkpoint blocks a
-unit, in opposite directions on two statuses:
+The unmerged `feat/sat-checkpoints` branches (frontend and backend) diverge from the deployed
+line on two points, and in both cases **prod is right**:
 
-| | never-opened (`locked`) checkpoint | `overdue` checkpoint |
-| --- | --- | --- |
-| prod (`lms-backend` main `:719`, `lms-front` master `isPending`) | does **not** block | **blocks** |
-| `feat/sat-checkpoints` (`CLEARING_STATUSES`) | **blocks** | does **not** block |
+**1. Which checkpoint blocks a unit.** Prod's rule is that only a checkpoint that has *opened*
+for the student — `available` / `reopened` / `overdue`, i.e. every required unit of its block is
+done — locks the units of later blocks. A checkpoint that never opened locks nothing. That is not
+an oversight; the comment above `PENDING_STATUSES` (`lms-backend src/checkpoints/service.py:661`)
+records it as a deliberate revert:
 
-Prod's backend and frontend agree with each other, so prod is self-consistent today; case **C**
-above is therefore dormant on prod and only fires once the branch rule ships. It is included so
-the guide is correct after that merge. The inversion looks deliberate on the branch side
-("убери блокировку у чекпоинтов если поздно сдаешь"), but it should be confirmed before those
-branches ship — under the branch rule, waiting out a 72h deadline becomes a way past the gate.
+> walling those students off behind a checkpoint they could not even take was the 2026-09-05
+> pilot's first incident (18 refused lesson loads in six hours)
 
-Separately: the local `feat/sat-checkpoints` branches (frontend and backend) have no open PRs and
-have diverged from `master`, which independently gained a refined version of parts of that work.
-This spec deliberately targets `origin/master`, the deployed line the bug was reported against.
+The stated reasons — students take units in any order, tracked completion lags the real work, and
+homework is set on units ahead of the tracker — still hold. `lms-front` master's `isPending`
+mirrors this exactly, so client and server agree.
+
+The branch's `CLEARING_STATUSES` rule inverts both statuses: a never-opened checkpoint blocks
+(reintroducing the incident) and an `overdue` one clears (making a 24h wait a way past the gate).
+**It should not ship as-is.** That is out of scope here, but it is the reason case **C** above is
+marked defensive: under the current rule the blocking checkpoint is always in a submittable
+state, so C is unreachable. It is implemented anyway because it costs a few lines and is the
+correct rendering if the rule is ever revisited — but it must not be read as a plan to adopt the
+branch rule.
+
+**2. The deadline window.** Prod is `DEADLINE_HOURS = 24`; the branch sets `72`. 24 hours is
+confirmed as intended, and `CHECKPOINT_WINDOW_LABEL` is written to match it.
+
+Separately: those branches have no open PRs and `master` independently gained a refined version
+of parts of the same work. This spec deliberately targets `origin/master`, the deployed line the
+bug was reported against.
