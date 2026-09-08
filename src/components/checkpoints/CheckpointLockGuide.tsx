@@ -74,9 +74,22 @@ export default function CheckpointLockGuide({
 }: CheckpointLockGuideProps) {
   const unitName = unitTitle || 'This unit';
 
-  let heading = 'You can’t open this unit yet';
-  let lede: ReactNode = detail || 'You don’t have access to this unit right now.';
-  let steps: ReactNode = null;
+  // Fallback (no checkpoint explains the refusal): still name the unit when we know it, and
+  // still tell the student what to do. The reason itself comes from the server — we only add
+  // advice that holds whatever the cause was, rather than guessing at a specific gate.
+  let heading = unitTitle ? `${unitTitle} is locked` : 'You can’t open this unit yet';
+  let lede: ReactNode = 'This unit isn’t open for you yet.';
+  let steps: ReactNode = (
+    <>
+      <GuideStep n={1} title="Why it’s locked">
+        <p>{detail || 'The server didn’t give a reason for this one.'}</p>
+      </GuideStep>
+      <GuideStep n={2} title="What to do">
+        <p>Go back to the course and finish the units that come before this one.</p>
+        <p>If it still won’t open, ask your curator to check your access.</p>
+      </GuideStep>
+    </>
+  );
   let primary: ReactNode = null;
 
   if (lock?.kind === 'unit-blocked') {
@@ -173,18 +186,22 @@ export default function CheckpointLockGuide({
   }
 
   return (
-    <div className="mx-auto w-full max-w-xl">
-      <div className="flex items-start gap-3">
-        <Lock className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+    // The header and the actions are centred so the block reads as centred in its pane at any
+    // width (the sidebar collapses to w-0, which would otherwise leave short left-aligned lines
+    // drifting well left of the middle). The steps stay left-aligned — a numbered list is much
+    // harder to read centred — but sit inside the same centred, width-capped column.
+    <div className="mx-auto w-full max-w-xl text-center">
+      <div className="flex flex-col items-center gap-3">
+        <Lock className="h-6 w-6 shrink-0 text-muted-foreground" aria-hidden="true" />
         <div className="min-w-0">
           <h1 className="text-xl font-semibold">{heading}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{lede}</p>
         </div>
       </div>
 
-      {steps ? <ol className="mt-6 space-y-5">{steps}</ol> : null}
+      {steps ? <ol className="mt-8 space-y-5 text-left">{steps}</ol> : null}
 
-      <div className="mt-8 flex flex-wrap gap-2">
+      <div className="mt-8 flex flex-wrap justify-center gap-2">
         {primary}
         <Button variant="outline" onClick={() => onNavigate(`/course/${courseId}`)}>Back to course</Button>
         <Button variant="ghost" onClick={() => onNavigate('/checkpoints')}>My checkpoints</Button>
