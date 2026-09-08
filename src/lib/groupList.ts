@@ -1,3 +1,5 @@
+import { APP_TIMEZONE, parseAsUTC } from './datetime'
+
 type GroupScheduleItem = {
   day_of_week?: number
   time_of_day?: string
@@ -7,9 +9,40 @@ export type GroupListItem = {
   id: number | string
   name?: string
   is_over?: boolean
+  /** Дата закрытия группы после последнего урока (UTC), пришедшая с бэкенда. */
+  closes_at?: string | null
   schedule_config?: {
     schedule_items?: GroupScheduleItem[]
   } | null
+}
+
+/**
+ * «10.09» — день, когда закроется группа внутри отсрочки. Иначе null.
+ *
+ * Группа не закрывается в момент начала последнего урока: она остаётся открытой всем —
+ * кураторам, преподавателям, админам — до первой среды 23:59 по Алматы после его окончания.
+ * Эту дату считает бэкенд и присылает в `closes_at`; здесь она только форматируется — правило
+ * среды в браузере не воспроизводится.
+ */
+export const formatGroupCloseDate = (
+  group: Pick<GroupListItem, 'is_over' | 'closes_at'>,
+): string | null => {
+  if (group.is_over || !group.closes_at) return null
+  const parsed = parseAsUTC(group.closes_at)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toLocaleDateString('ru-RU', {
+    timeZone: APP_TIMEZONE,
+    day: '2-digit',
+    month: '2-digit',
+  })
+}
+
+/** «Закроется 10.09» — то же в виде готовой подписи для бейджа. */
+export const formatGroupCloseLabel = (
+  group: Pick<GroupListItem, 'is_over' | 'closes_at'>,
+): string | null => {
+  const day = formatGroupCloseDate(group)
+  return day && `Закроется ${day}`
 }
 
 export const parseTimeOfDayToMinutes = (time?: string | null): number | null => {

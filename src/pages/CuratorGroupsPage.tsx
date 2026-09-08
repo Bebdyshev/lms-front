@@ -6,6 +6,7 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Dialog, DialogContent } from '../components/ui/dialog';
+import { formatGroupCloseLabel } from '../lib/groupList';
 import type { Group, User } from '../types';
 
 const sid = (u: User) => Number(u.id);
@@ -257,6 +258,11 @@ export default function CuratorGroupsPage() {
                     {g.is_over && (
                       <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border text-muted-foreground shrink-0">
                         Завершена
+                      </span>
+                    )}
+                    {formatGroupCloseLabel(g) && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed text-muted-foreground shrink-0">
+                        {formatGroupCloseLabel(g)}
                       </span>
                     )}
                   </div>

@@ -242,6 +242,14 @@ export interface Group {
   is_active: boolean;
   is_special?: boolean;
   is_over?: boolean;
+  /**
+   * Когда истекает отсрочка после последнего урока — первая среда 23:59 по Алматы строго
+   * после его окончания, в UTC. null, пока у группы ещё есть уроки. Непустое значение при
+   * `is_over: false` — группа внутри отсрочки: открыта всем и закроется в эту дату.
+   * Считается на бэкенде (src/services/group_completion_service.py), в браузере правило
+   * среды не воспроизводится — только форматируется.
+   */
+  closes_at?: string | null;
   group_type?: GroupType;
   /** SAT / IELTS / General English — дублирует смысл course_type курса, удобно для поиска групп */
   program_type?: CourseType;
