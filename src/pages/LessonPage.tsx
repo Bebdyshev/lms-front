@@ -2233,7 +2233,11 @@ export default function LessonPage() {
 
     // The course failed to load too (rare): show the guide on its own rather than nothing.
     if (!course) {
-      return <div className="h-screen overflow-y-auto bg-background p-6 md:p-10">{guide}</div>;
+      return (
+        <div className="h-screen overflow-y-auto bg-background">
+          <div className="flex min-h-full items-center justify-center p-6 md:p-10">{guide}</div>
+        </div>
+      );
     }
 
     // Keep the course nav on desktop; the guide's own buttons carry the mobile case, where
@@ -2251,7 +2255,9 @@ export default function LessonPage() {
             checkpointHints={checkpointHints}
           />
         </div>
-        <div className="flex-1 overflow-y-auto p-6 md:p-10">{guide}</div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-6 md:p-10">{guide}</div>
+        </div>
       </div>
     );
   }
