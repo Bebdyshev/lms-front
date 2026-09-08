@@ -8,9 +8,12 @@ import { Skeleton } from '../components/ui/skeleton';
 import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward, Languages, Star, Layers, Check, Cloud, CloudOff, Loader2, Pencil, Printer, ClipboardCheck } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import apiClient from '../services/api';
+import { api } from '../services/api/client';
+import type { LessonLock } from '../services/api/lessons';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
 import { getMyCheckpoints, coversLabel, deadlineCountdown, formatDeadline, type StudentCheckpointItem } from '../services/api/checkpoints';
-import { buildCheckpointHints, blockingCheckpointForUnit, isOpen as isCheckpointOpen, type CheckpointHints } from '../lib/checkpointHints';
+import { buildCheckpointHints, blockingCheckpointForUnit, isOpen as isCheckpointOpen, lockKindFor, type CheckpointHints } from '../lib/checkpointHints';
+import CheckpointLockGuide from '../components/checkpoints/CheckpointLockGuide';
 import { unitStepProgress } from '../lib/unitProgress';
 import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
@@ -405,6 +408,14 @@ export default function LessonPage() {
   const [isCourseLoading, setIsCourseLoading] = useState(true);
   const [isLessonLoading, setIsLessonLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // A 403 is a refusal, not a failure: the lesson exists, the student just may not open it yet.
+  // Rendered as CheckpointLockGuide rather than as an error, with `detail` (the server's own
+  // reason, when it survives the envelope) kept only as a fallback for locks that checkpoint
+  // data can't explain.
+  const [accessDenied, setAccessDenied] = useState<{ detail: string | null; lock: LessonLock | null } | null>(null);
+  // Whether /checkpoints/me has settled (resolved OR failed). The guide waits for this so a
+  // refusal can't flash the wrong explanation before the checkpoint rows arrive.
+  const [checkpointsSettled, setCheckpointsSettled] = useState(false);
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -513,8 +524,19 @@ export default function LessonPage() {
       // Student may be in a non-checkpoints-enabled group, or the request failed —
       // fail silently and keep whatever we last knew.
       return checkpointItemsRef.current;
+    } finally {
+      // Resolved or failed, this is as much as we will ever know: the guide may render.
+      setCheckpointsSettled(true);
     }
   }, []);
+
+  // Ceiling on the wait above: after 3s, explain the refusal with whatever we have (which may be
+  // nothing, i.e. the server's own reason) rather than holding the skeleton indefinitely.
+  useEffect(() => {
+    if (!accessDenied || checkpointsSettled) return;
+    const timer = setTimeout(() => setCheckpointsSettled(true), 3000);
+    return () => clearTimeout(timer);
+  }, [accessDenied, checkpointsSettled]);
 
   // Compares freshly-fetched checkpoint items against the last known snapshot; if a
   // checkpoint covering `completedLessonId` just moved from locked to open, opens the
@@ -707,6 +729,9 @@ export default function LessonPage() {
   const loadLessonData = async () => {
     try {
       setIsLessonLoading(true);
+      // A refusal belongs to one lesson; navigating to another must not inherit it.
+      setAccessDenied(null);
+      setError(null);
 
       // Optimization: Check access using locally available modules data first
       // This saves a network request if we already know the status
@@ -718,11 +743,18 @@ export default function LessonPage() {
         }
       }
 
-      // Prepare promises for parallel execution
+      // Prepare promises for parallel execution. Calling the raw endpoints via `api` here
+      // (instead of apiClient.getLesson/getLessonSteps/getLessonStepsProgress) is deliberate:
+      // those three wrappers each catch the real axios error and rethrow a generic
+      // `new Error('Failed to load lesson')` with no `.response` — so a 403's status and
+      // detail never survive to the catch below, and the checkpoint guide could never render.
+      // Confirmed against a live backend: three checkpoint-blocked 403s all landed on the
+      // generic Error screen instead of the guide. This keeps the same URLs/params/behaviour,
+      // just without that lossy rethrow.
       const promises: Promise<any>[] = [
-        apiClient.getLesson(lessonId!),
-        apiClient.getLessonSteps(lessonId!, false), // Fetch lightweight steps initially
-        apiClient.getLessonStepsProgress(lessonId!)
+        api.get(`/courses/lessons/${lessonId}`).then((r) => r.data),
+        api.get(`/courses/lessons/${lessonId}/steps`, { params: { include_content: false } }).then((r) => r.data), // Fetch lightweight steps initially
+        api.get(`/progress/lesson/${lessonId}/steps`).then((r) => r.data),
       ];
 
       // Only add access check if not locally verified
@@ -737,12 +769,10 @@ export default function LessonPage() {
       const progressData = results[2];
       const accessCheck = isLocallyVerified ? { accessible: true } : results[3];
 
-      // Handle access check result
+      // Handle access check result. A refusal is explained in place rather than bounced back to
+      // the course with a toast — the student clicked this unit and deserves to know why.
       if (!accessCheck.accessible) {
-        const reason = accessCheck.reason || 'Please complete previous lessons first.';
-        setError(reason);
-        toast(reason, 'error');
-        navigate(`/course/${courseId}`);
+        setAccessDenied({ detail: accessCheck.reason || null, lock: accessCheck.lock || null });
         return;
       }
 
@@ -807,9 +837,27 @@ export default function LessonPage() {
       console.error('Failed to load lesson data:', error);
       const status = (error as { response?: { status?: number } })?.response?.status;
       const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      // A refusal that carries a reason (a checkpoint holding this unit back, a checkpoint that is
-      // not open for this student) is shown as that reason, not as a generic failure.
-      setError(status === 403 && typeof detail === 'string' ? detail : 'Failed to load lesson data');
+      if (status === 403) {
+        // The server refused this lesson. GET /lessons, /steps and /progress all gate on it and
+        // run in one Promise.all, so any of them can land here before the checkLessonAccess
+        // branch above is ever reached. Show the refusal string immediately, then ask
+        // check-access (which answers 200 even for a refusal) for the structured explanation:
+        // which gate fired, what to do, and the unit's title — which the server can name even
+        // for a course this student can't list, so the client could never derive it alone.
+        const refusal = typeof detail === 'string' ? detail : null;
+        setAccessDenied({ detail: refusal, lock: null });
+        const refusedLessonId = lessonId;
+        try {
+          const access = await apiClient.checkLessonAccess(refusedLessonId!);
+          if (refusedLessonId === lessonId && access?.lock) {
+            setAccessDenied({ detail: access.reason || refusal, lock: access.lock });
+          }
+        } catch {
+          // Keep the 403's own reason; the guide still renders with navigation either way.
+        }
+      } else {
+        setError('Failed to load lesson data');
+      }
     } finally {
       setIsLessonLoading(false);
     }
@@ -2157,52 +2205,95 @@ export default function LessonPage() {
     }
   };
 
-  if (isCourseLoading) {
+  const loadingSkeleton = (
+    <div className="flex h-screen overflow-hidden bg-background">
+      <div className="hidden md:block w-80 border-r border-border/70 p-4 space-y-3" aria-busy="true">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-8 w-3/4" />
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-8 w-3/4" />
+      </div>
+      <div className="flex-1 p-8 space-y-4" aria-busy="true">
+        <Skeleton className="h-10 w-1/3" />
+        <Skeleton className="h-6 w-2/3" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    </div>
+  );
+
+  // A refusal waits for /checkpoints/me so the guide never flashes the wrong reason first.
+  if (isCourseLoading || (accessDenied && !checkpointsSettled)) {
+    return loadingSkeleton;
+  }
+
+  if (accessDenied) {
+    const lock = lockKindFor(checkpointHints, Number(lessonId));
+    // The lesson itself never loaded, so its title comes from the checkpoint row that names it,
+    // falling back to the course listing.
+    const unitTitle =
+      (lock?.kind === 'unit-blocked' ? lock.unit?.title : null)
+      || modules.flatMap((m) => m.lessons || []).find((l) => String(l.id) === lessonId)?.title
+      || null;
+    const guide = (
+      <CheckpointLockGuide
+        lock={lock}
+        unitTitle={unitTitle}
+        courseId={courseId!}
+        detail={accessDenied.detail}
+        serverLock={accessDenied.lock}
+        onNavigate={navigate}
+      />
+    );
+
+    // The course failed to load too (rare): show the guide on its own rather than nothing.
+    if (!course) {
+      return (
+        <div className="h-screen overflow-y-auto bg-background">
+          <div className="flex min-h-full items-center justify-center p-6 md:p-10">{guide}</div>
+        </div>
+      );
+    }
+
+    // Keep the course nav on desktop; the guide's own buttons carry the mobile case, where
+    // LessonSidebar is hidden.
     return (
       <div className="flex h-screen overflow-hidden bg-background">
-        <div className="hidden md:block w-80 border-r border-border/70 p-4 space-y-3" aria-busy="true">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-8 w-3/4" />
-          <Skeleton className="h-8 w-2/3" />
-          <Skeleton className="h-8 w-3/4" />
+        <div className="hidden md:block">
+          <LessonSidebar
+            course={course}
+            modules={modules}
+            selectedLessonId={lessonId!}
+            onLessonSelect={handleLessonSelect}
+            isCollapsed={isSidebarCollapsed}
+            onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            checkpointHints={checkpointHints}
+          />
         </div>
-        <div className="flex-1 p-8 space-y-4" aria-busy="true">
-          <Skeleton className="h-10 w-1/3" />
-          <Skeleton className="h-6 w-2/3" />
-          <Skeleton className="h-64 w-full" />
+        <div className="flex-1 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-6 md:p-10">{guide}</div>
         </div>
       </div>
     );
   }
 
+  // A genuine failure — network, 500, 404. Retry is the right affordance here.
   if (error) {
-    // A checkpoint is holding this unit back (or this checkpoint is not open): say so and lead
-    // the student to the checkpoint instead of offering a pointless Retry.
-    const lockedByCheckpoint = /checkpoint/i.test(error);
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center max-w-md px-6">
-          <h2 className={`text-2xl font-bold mb-2 ${lockedByCheckpoint ? 'text-foreground' : 'text-red-600 dark:text-red-400'}`}>
-            {lockedByCheckpoint ? 'This unit is locked' : 'Error'}
-          </h2>
+          <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Error</h2>
           <p className="text-muted-foreground">{error}</p>
-          {lockedByCheckpoint ? (
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <Button onClick={() => navigate('/checkpoints')}>Go to my checkpoints</Button>
-              <Button variant="outline" onClick={() => navigate(`/course/${courseId}`)}>Back to course</Button>
-            </div>
-          ) : (
-            <Button onClick={() => window.location.reload()} className="mt-4">
-              Retry
-            </Button>
-          )}
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+            <Button variant="outline" onClick={() => navigate(`/course/${courseId}`)}>Back to course</Button>
+          </div>
         </div>
       </div>
     );
   }
 
   if (!lesson || !course) {
-    return null;
+    return loadingSkeleton;
   }
 
   return (
@@ -2379,21 +2470,20 @@ export default function LessonPage() {
             ) : (
               <>
                 {openCheckpointBanner && (
-                  <div className={`mb-4 flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${
-                    openCheckpointBanner.status === 'overdue'
-                      ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40'
-                      : 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40'
-                  }`}>
-                    <span className="min-w-0">
+                  <div className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-3 text-sm">
+                    <span className="min-w-0 text-muted-foreground">
                       {openCheckpointBanner.status === 'overdue' ? (
                         <>
-                          <span className="font-semibold text-red-700 dark:text-red-300">Course paused: Checkpoint {openCheckpointBanner.number} is overdue.</span>
-                          <span className="text-foreground/80"> The next units stay locked until you submit it · {deadlineCountdown(openCheckpointBanner.deadline)} · a submission now is marked late.</span>
+                          <span className="font-semibold text-red-600 dark:text-red-400">Checkpoint {openCheckpointBanner.number} is overdue.</span>
+                          {' '}The next units stay locked until you submit it.{' '}
+                          {deadlineCountdown(openCheckpointBanner.deadline)}, and a submission now is marked late.
                         </>
                       ) : (
                         <>
-                          <span className="font-semibold text-amber-900 dark:text-amber-200">Course paused: submit Checkpoint {openCheckpointBanner.number} to unlock the next units.</span>
-                          <span className="text-foreground/80"> Due {formatDeadline(openCheckpointBanner.deadline)} · {deadlineCountdown(openCheckpointBanner.deadline)}.</span>
+                          <span className="font-semibold text-foreground">Checkpoint {openCheckpointBanner.number} is open.</span>
+                          {' '}Submit it to unlock the next units. Due{' '}
+                          <span className="text-foreground">{formatDeadline(openCheckpointBanner.deadline)}</span>
+                          {', '}{deadlineCountdown(openCheckpointBanner.deadline)}.
                         </>
                       )}
                     </span>
@@ -2628,7 +2718,10 @@ export default function LessonPage() {
           <DialogHeader>
             <DialogTitle>Ready to submit</DialogTitle>
           </DialogHeader>
-          <div className="text-sm mb-4">"{readyPopup?.title}" is ready to submit — you've completed the required units.</div>
+          <div className="mb-4 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{readyPopup?.title}</span> is ready to submit.
+            You have completed the required units.
+          </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReadyPopup(null)}>Later</Button>
             <Button onClick={() => { const id = readyPopup?.id; setReadyPopup(null); if (id) navigate(`/homework/${id}`); }}>
@@ -2641,16 +2734,23 @@ export default function LessonPage() {
       <Dialog open={!!checkpointDialog} onOpenChange={(o) => !o && setCheckpointDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Checkpoint {checkpointDialog?.item.number} is open — the course is paused</DialogTitle>
+            <DialogTitle>Checkpoint {checkpointDialog?.item.number} is open</DialogTitle>
           </DialogHeader>
           {checkpointDialog && (
-            <div className="text-sm mb-4 space-y-2">
-              <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                You have finished every unit of this block. The next units stay locked until you submit Checkpoint {checkpointDialog.item.number}.
-              </p>
-              <p>Covers {coversLabel(checkpointDialog.item.covers)} · {checkpointDialog.item.total_questions} questions.</p>
+            <div className="mb-4 space-y-2 text-sm text-muted-foreground">
               <p>
-                Due {formatDeadline(checkpointDialog.item.deadline)} ({deadlineCountdown(checkpointDialog.item.deadline)}). After the deadline you can still submit, but it is marked late.
+                You have finished every unit of this block. The next units stay{' '}
+                <span className="font-semibold text-amber-700 dark:text-amber-400">locked</span> until you
+                submit <span className="font-semibold text-foreground">Checkpoint {checkpointDialog.item.number}</span>.
+              </p>
+              <p>
+                Covers <span className="text-foreground">{coversLabel(checkpointDialog.item.covers)}</span>
+                {' · '}<span className="text-foreground">{checkpointDialog.item.total_questions} questions</span>
+              </p>
+              <p>
+                Due <span className="font-semibold text-foreground">{formatDeadline(checkpointDialog.item.deadline)}</span>{' '}
+                ({deadlineCountdown(checkpointDialog.item.deadline)}). After the deadline you can still submit,
+                but it is marked late.
               </p>
             </div>
           )}

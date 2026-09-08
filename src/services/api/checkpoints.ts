@@ -224,3 +224,11 @@ export const STATUS_CLASS: Record<CheckpointStatus, string> = {
   overdue: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
   reopened: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
 };
+
+/**
+ * How long a checkpoint stays open once it unlocks. Mirrors the server's `DEADLINE_HOURS`
+ * (lms-backend `src/checkpoints/service.py:29`). Stated once here so the screens that explain
+ * the window to a student cannot drift from each other, or from the server.
+ */
+export const CHECKPOINT_WINDOW_HOURS = 24;
+export const CHECKPOINT_WINDOW_LABEL = `${CHECKPOINT_WINDOW_HOURS} hours`;
