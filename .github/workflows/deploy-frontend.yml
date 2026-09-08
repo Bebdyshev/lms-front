@@ -7,7 +7,12 @@ on:
 
 concurrency:
   group: deploy-frontend
-  cancel-in-progress: true
+  # Never cancel a running deploy. A merge fires Frontend CI twice — once for the branch and
+  # once for the push to master — so two workflow_run deploys start. The branch one is skipped
+  # by the `if` below, but its concurrency claim cancelled the master one first, and the merge
+  # shipped nothing at all (2026-09-08, commit 89ec294: one run `skipped`, the other
+  # `cancelled`, frontend never updated). Queue instead, the same fix Backend CI took in #79.
+  cancel-in-progress: false
 
 jobs:
   deploy:
