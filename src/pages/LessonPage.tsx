@@ -8,6 +8,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, ChevronUp, Lock, Trophy, PanelLeftOpen, PanelLeftClose, SkipForward, Languages, Star, Layers, Check, Cloud, CloudOff, Loader2, Pencil, Printer, ClipboardCheck } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import apiClient from '../services/api';
+import { api } from '../services/api/client';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
 import { getMyCheckpoints, coversLabel, deadlineCountdown, formatDeadline, type StudentCheckpointItem } from '../services/api/checkpoints';
 import { buildCheckpointHints, blockingCheckpointForUnit, isOpen as isCheckpointOpen, lockKindFor, type CheckpointHints } from '../lib/checkpointHints';
@@ -741,11 +742,18 @@ export default function LessonPage() {
         }
       }
 
-      // Prepare promises for parallel execution
+      // Prepare promises for parallel execution. Calling the raw endpoints via `api` here
+      // (instead of apiClient.getLesson/getLessonSteps/getLessonStepsProgress) is deliberate:
+      // those three wrappers each catch the real axios error and rethrow a generic
+      // `new Error('Failed to load lesson')` with no `.response` — so a 403's status and
+      // detail never survive to the catch below, and the checkpoint guide could never render.
+      // Confirmed against a live backend: three checkpoint-blocked 403s all landed on the
+      // generic Error screen instead of the guide. This keeps the same URLs/params/behaviour,
+      // just without that lossy rethrow.
       const promises: Promise<any>[] = [
-        apiClient.getLesson(lessonId!),
-        apiClient.getLessonSteps(lessonId!, false), // Fetch lightweight steps initially
-        apiClient.getLessonStepsProgress(lessonId!)
+        api.get(`/courses/lessons/${lessonId}`).then((r) => r.data),
+        api.get(`/courses/lessons/${lessonId}/steps`, { params: { include_content: false } }).then((r) => r.data), // Fetch lightweight steps initially
+        api.get(`/progress/lesson/${lessonId}/steps`).then((r) => r.data),
       ];
 
       // Only add access check if not locally verified
