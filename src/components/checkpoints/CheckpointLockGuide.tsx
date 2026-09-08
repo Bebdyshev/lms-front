@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { CheckCircle2, Circle, Lock } from 'lucide-react';
 import { Button } from '../ui/button';
 import { isOpen } from '../../lib/checkpointHints';
 import type { CheckpointLock } from '../../lib/checkpointHints';
@@ -46,16 +45,11 @@ const UnitChecklist = ({
   linkUnfinished: boolean;
   onNavigate: (path: string) => void;
 }) => (
-  <ul className="space-y-1" aria-label="Required units">
+  <ul aria-label="Required units">
     {units.map((unit) => (
-      <li key={unit.lesson_id} className="flex items-start gap-2">
-        {unit.completed ? (
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-        ) : (
-          <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        )}
+      <li key={unit.lesson_id}>
+        <span className="text-muted-foreground">{unit.kind === 'verbal' ? 'Verbal' : 'Math'} · </span>
         <span className={unit.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}>
-          <span className="text-muted-foreground">{unit.kind === 'verbal' ? 'Verbal' : 'Math'} · </span>
           {!unit.completed && linkUnfinished ? (
             <button
               type="button"
@@ -67,6 +61,13 @@ const UnitChecklist = ({
           ) : (
             unit.title
           )}
+        </span>
+        {/* Done/left is said in words, not a tick: colour alone would carry it for sighted
+            readers only, and the surrounding UI deliberately avoids icon chrome. */}
+        <span className={unit.completed
+          ? 'text-emerald-600 dark:text-emerald-400'
+          : 'text-muted-foreground'}>
+          {unit.completed ? ' · done' : ' · not finished'}
         </span>
       </li>
     ))}
@@ -206,8 +207,7 @@ export default function CheckpointLockGuide({
     // well left of the middle). The steps stay left-aligned, since a centred numbered list is
     // much harder to read, inside the same centred column.
     <div className="mx-auto w-full max-w-xl text-center">
-      <Lock className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
-      <h1 className="mt-3 text-xl font-semibold">{heading}</h1>
+      <h1 className="text-xl font-semibold">{heading}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{lede}</p>
 
       {steps ? <ol className="mt-8 space-y-4 text-left text-sm">{steps}</ol> : null}
