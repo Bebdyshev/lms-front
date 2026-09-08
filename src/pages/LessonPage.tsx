@@ -856,7 +856,13 @@ export default function LessonPage() {
           // Keep the 403's own reason; the guide still renders with navigation either way.
         }
       } else {
-        setError('Failed to load lesson data');
+        // Anything that is not a refusal: a deleted lesson, an expired link, a server fault.
+        // The backend names these now (lms-backend #84) — every lesson GET answers with a
+        // Russian sentence in `detail` plus a stable `reason_code` — so show the sentence it
+        // sent rather than a generic string that tells the student nothing they can act on.
+        // The fallback stays for a request that never reached the server, where there is no
+        // response to read and no reason to give.
+        setError(typeof detail === 'string' && detail.trim() ? detail : 'Не удалось загрузить урок. Обновите страницу или напишите куратору.');
       }
     } finally {
       setIsLessonLoading(false);
