@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, Play, FileText, HelpCircle, ChevronDown, Che
 import { useSettings } from '../contexts/SettingsContext';
 import apiClient from '../services/api';
 import { api } from '../services/api/client';
+import type { LessonLock } from '../services/api/lessons';
 import type { Lesson, Step, Course, CourseModule, StepProgress, StepAttachment } from '../types';
 import { getMyCheckpoints, coversLabel, deadlineCountdown, formatDeadline, type StudentCheckpointItem } from '../services/api/checkpoints';
 import { buildCheckpointHints, blockingCheckpointForUnit, isOpen as isCheckpointOpen, lockKindFor, type CheckpointHints } from '../lib/checkpointHints';
@@ -411,7 +412,7 @@ export default function LessonPage() {
   // Rendered as CheckpointLockGuide rather than as an error, with `detail` (the server's own
   // reason, when it survives the envelope) kept only as a fallback for locks that checkpoint
   // data can't explain.
-  const [accessDenied, setAccessDenied] = useState<{ detail: string | null } | null>(null);
+  const [accessDenied, setAccessDenied] = useState<{ detail: string | null; lock: LessonLock | null } | null>(null);
   // Whether /checkpoints/me has settled (resolved OR failed). The guide waits for this so a
   // refusal can't flash the wrong explanation before the checkpoint rows arrive.
   const [checkpointsSettled, setCheckpointsSettled] = useState(false);
@@ -771,7 +772,7 @@ export default function LessonPage() {
       // Handle access check result. A refusal is explained in place rather than bounced back to
       // the course with a toast — the student clicked this unit and deserves to know why.
       if (!accessCheck.accessible) {
-        setAccessDenied({ detail: accessCheck.reason || null });
+        setAccessDenied({ detail: accessCheck.reason || null, lock: accessCheck.lock || null });
         return;
       }
 
@@ -837,11 +838,23 @@ export default function LessonPage() {
       const status = (error as { response?: { status?: number } })?.response?.status;
       const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
       if (status === 403) {
-        // The server refused this lesson. GET /lessons, /steps and /progress all gate on the
-        // checkpoint rule, and they run in one Promise.all — so any of them can land here before
-        // the checkLessonAccess branch above is ever reached. /checkpoints/me explains the lock
-        // far better than the refusal string can; the string is only the fallback.
-        setAccessDenied({ detail: typeof detail === 'string' ? detail : null });
+        // The server refused this lesson. GET /lessons, /steps and /progress all gate on it and
+        // run in one Promise.all, so any of them can land here before the checkLessonAccess
+        // branch above is ever reached. Show the refusal string immediately, then ask
+        // check-access (which answers 200 even for a refusal) for the structured explanation:
+        // which gate fired, what to do, and the unit's title — which the server can name even
+        // for a course this student can't list, so the client could never derive it alone.
+        const refusal = typeof detail === 'string' ? detail : null;
+        setAccessDenied({ detail: refusal, lock: null });
+        const refusedLessonId = lessonId;
+        try {
+          const access = await apiClient.checkLessonAccess(refusedLessonId!);
+          if (refusedLessonId === lessonId && access?.lock) {
+            setAccessDenied({ detail: access.reason || refusal, lock: access.lock });
+          }
+        } catch {
+          // Keep the 403's own reason; the guide still renders with navigation either way.
+        }
       } else {
         setError('Failed to load lesson data');
       }
@@ -2227,6 +2240,7 @@ export default function LessonPage() {
         unitTitle={unitTitle}
         courseId={courseId!}
         detail={accessDenied.detail}
+        serverLock={accessDenied.lock}
         onNavigate={navigate}
       />
     );
@@ -2456,21 +2470,20 @@ export default function LessonPage() {
             ) : (
               <>
                 {openCheckpointBanner && (
-                  <div className={`mb-4 flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${
-                    openCheckpointBanner.status === 'overdue'
-                      ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/40'
-                      : 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40'
-                  }`}>
-                    <span className="min-w-0">
+                  <div className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-3 text-sm">
+                    <span className="min-w-0 text-muted-foreground">
                       {openCheckpointBanner.status === 'overdue' ? (
                         <>
-                          <span className="font-semibold text-red-700 dark:text-red-300">Course paused: Checkpoint {openCheckpointBanner.number} is overdue.</span>
-                          <span className="text-foreground/80"> The next units stay locked until you submit it · {deadlineCountdown(openCheckpointBanner.deadline)} · a submission now is marked late.</span>
+                          <span className="font-semibold text-red-600 dark:text-red-400">Checkpoint {openCheckpointBanner.number} is overdue.</span>
+                          {' '}The next units stay locked until you submit it.{' '}
+                          {deadlineCountdown(openCheckpointBanner.deadline)}, and a submission now is marked late.
                         </>
                       ) : (
                         <>
-                          <span className="font-semibold text-amber-900 dark:text-amber-200">Course paused: submit Checkpoint {openCheckpointBanner.number} to unlock the next units.</span>
-                          <span className="text-foreground/80"> Due {formatDeadline(openCheckpointBanner.deadline)} · {deadlineCountdown(openCheckpointBanner.deadline)}.</span>
+                          <span className="font-semibold text-foreground">Checkpoint {openCheckpointBanner.number} is open.</span>
+                          {' '}Submit it to unlock the next units. Due{' '}
+                          <span className="text-foreground">{formatDeadline(openCheckpointBanner.deadline)}</span>
+                          {', '}{deadlineCountdown(openCheckpointBanner.deadline)}.
                         </>
                       )}
                     </span>
@@ -2705,7 +2718,10 @@ export default function LessonPage() {
           <DialogHeader>
             <DialogTitle>Ready to submit</DialogTitle>
           </DialogHeader>
-          <div className="text-sm mb-4">"{readyPopup?.title}" is ready to submit — you've completed the required units.</div>
+          <div className="mb-4 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{readyPopup?.title}</span> is ready to submit.
+            You have completed the required units.
+          </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setReadyPopup(null)}>Later</Button>
             <Button onClick={() => { const id = readyPopup?.id; setReadyPopup(null); if (id) navigate(`/homework/${id}`); }}>
@@ -2718,16 +2734,23 @@ export default function LessonPage() {
       <Dialog open={!!checkpointDialog} onOpenChange={(o) => !o && setCheckpointDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Checkpoint {checkpointDialog?.item.number} is open — the course is paused</DialogTitle>
+            <DialogTitle>Checkpoint {checkpointDialog?.item.number} is open</DialogTitle>
           </DialogHeader>
           {checkpointDialog && (
-            <div className="text-sm mb-4 space-y-2">
-              <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                You have finished every unit of this block. The next units stay locked until you submit Checkpoint {checkpointDialog.item.number}.
-              </p>
-              <p>Covers {coversLabel(checkpointDialog.item.covers)} · {checkpointDialog.item.total_questions} questions.</p>
+            <div className="mb-4 space-y-2 text-sm text-muted-foreground">
               <p>
-                Due {formatDeadline(checkpointDialog.item.deadline)} ({deadlineCountdown(checkpointDialog.item.deadline)}). After the deadline you can still submit, but it is marked late.
+                You have finished every unit of this block. The next units stay{' '}
+                <span className="font-semibold text-amber-700 dark:text-amber-400">locked</span> until you
+                submit <span className="font-semibold text-foreground">Checkpoint {checkpointDialog.item.number}</span>.
+              </p>
+              <p>
+                Covers <span className="text-foreground">{coversLabel(checkpointDialog.item.covers)}</span>
+                {' · '}<span className="text-foreground">{checkpointDialog.item.total_questions} questions</span>
+              </p>
+              <p>
+                Due <span className="font-semibold text-foreground">{formatDeadline(checkpointDialog.item.deadline)}</span>{' '}
+                ({deadlineCountdown(checkpointDialog.item.deadline)}). After the deadline you can still submit,
+                but it is marked late.
               </p>
             </div>
           )}

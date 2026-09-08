@@ -19,7 +19,19 @@ export async function getLesson(lessonId: string): Promise<Lesson> {
   }
 }
 
-export async function checkLessonAccess(lessonId: string): Promise<{ accessible: boolean; reason?: string }> {
+/**
+ * The server's explanation of a lesson it won't open: which gate fired, the unit's title (which
+ * it can name even for a course the student can't see) and what to do about it. Sent alongside
+ * the legacy `reason` string by GET /courses/lessons/{id}/check-access.
+ */
+export interface LessonLock {
+  unit_title: string | null;
+  kind: 'course_access' | 'checkpoint_quiz' | 'checkpoint_blocked' | 'trial' | 'module_schedule' | 'group_cap' | 'sequential' | string;
+  reason: string;
+  steps: string[];
+}
+
+export async function checkLessonAccess(lessonId: string): Promise<{ accessible: boolean; reason?: string; lock?: LessonLock | null }> {
   try {
     const response = await api.get(`/courses/lessons/${lessonId}/check-access`);
     return response.data;

@@ -7,6 +7,7 @@ import {
   CHECKPOINT_WINDOW_LABEL, coversLabel, deadlineCountdown, formatDeadline, lateLabel,
   type CheckpointUnit,
 } from '../../services/api/checkpoints';
+import type { LessonLock } from '../../services/api/lessons';
 
 interface CheckpointLockGuideProps {
   /** Why the lesson was refused, or null when checkpoint data doesn't explain it. */
@@ -16,20 +17,23 @@ interface CheckpointLockGuideProps {
   courseId: string;
   /** The server's own refusal reason, used only when `lock` is null. */
   detail: string | null;
+  /**
+   * The server's structured explanation (GET .../check-access). It is the authority on the
+   * unit's title and on which gate fired — it can name a unit in a course the client cannot
+   * see at all — so its title always wins. Its steps are used whenever `lock` above doesn't
+   * give us the richer, interactive checkpoint rendering.
+   */
+  serverLock?: LessonLock | null;
   onNavigate: (path: string) => void;
 }
 
-/** One numbered step of the "here's how to get in" chain. */
+/** One numbered step of the "here's how to get in" chain. The number is a plain bold numeral
+ *  rather than a chip: the emphasis carries the structure, so no extra chrome is needed. */
 const GuideStep = ({ n, title, children }: { n: number; title: string; children?: ReactNode }) => (
-  <li className="relative pl-10">
-    <span
-      className="absolute left-0 top-0 flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-semibold"
-      aria-hidden="true"
-    >
-      {n}
-    </span>
-    <p className="font-medium leading-7">{title}</p>
-    {children ? <div className="mt-1 space-y-1 text-sm text-muted-foreground">{children}</div> : null}
+  <li className="pl-7 -indent-7">
+    <span className="font-semibold text-muted-foreground">{n}. </span>
+    <span className="font-semibold text-foreground">{title}</span>
+    {children ? <span className="block indent-0 space-y-1 text-muted-foreground">{children}</span> : null}
   </li>
 );
 
@@ -50,7 +54,7 @@ const UnitChecklist = ({
         ) : (
           <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         )}
-        <span className={unit.completed ? 'text-emerald-700 dark:text-emerald-400' : ''}>
+        <span className={unit.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}>
           <span className="text-muted-foreground">{unit.kind === 'verbal' ? 'Verbal' : 'Math'} · </span>
           {!unit.completed && linkUnfinished ? (
             <button
@@ -70,23 +74,34 @@ const UnitChecklist = ({
 );
 
 export default function CheckpointLockGuide({
-  lock, unitTitle, courseId, detail, onNavigate,
+  lock, unitTitle, courseId, detail, serverLock, onNavigate,
 }: CheckpointLockGuideProps) {
-  const unitName = unitTitle || 'This unit';
+  // The server's title wins: it can name a unit whose course the client can't even list.
+  const resolvedTitle = serverLock?.unit_title || unitTitle || null;
+  const unitName = resolvedTitle || 'This unit';
 
-  // Fallback (no checkpoint explains the refusal): still name the unit when we know it, and
-  // still tell the student what to do. The reason itself comes from the server — we only add
-  // advice that holds whatever the cause was, rather than guessing at a specific gate.
-  let heading = unitTitle ? `${unitTitle} is locked` : 'You can’t open this unit yet';
+  // Fallback (no checkpoint explains the refusal). The server says which gate fired and what to
+  // do about it; we only supply generic advice when it didn't answer at all.
+  const serverReason = serverLock?.reason || detail;
+  const serverSteps = serverLock?.steps?.length ? serverLock.steps : null;
+  let heading = resolvedTitle ? `${resolvedTitle} is locked` : 'You can’t open this unit yet';
   let lede: ReactNode = 'This unit isn’t open for you yet.';
   let steps: ReactNode = (
     <>
       <GuideStep n={1} title="Why it’s locked">
-        <p>{detail || 'The server didn’t give a reason for this one.'}</p>
+        <p className="font-medium text-amber-700 dark:text-amber-400">
+          {serverReason || 'The server didn’t give a reason for this one.'}
+        </p>
       </GuideStep>
       <GuideStep n={2} title="What to do">
-        <p>Go back to the course and finish the units that come before this one.</p>
-        <p>If it still won’t open, ask your curator to check your access.</p>
+        {serverSteps ? (
+          serverSteps.map((step, i) => <p key={i}>{step}</p>)
+        ) : (
+          <>
+            <p>Go back to the course and finish the units that come before this one.</p>
+            <p>If it still won’t open, ask your curator to check your access.</p>
+          </>
+        )}
       </GuideStep>
     </>
   );
@@ -105,8 +120,8 @@ export default function CheckpointLockGuide({
           <GuideStep
             n={1}
             title={overdue
-              ? `Submit Checkpoint ${cp.number} — the deadline has passed`
-              : `Take Checkpoint ${cp.number} — it’s open now`}
+              ? `Submit Checkpoint ${cp.number}, the deadline has passed`
+              : `Take Checkpoint ${cp.number}, it’s open now`}
           >
             <p>{coversLabel(cp.covers)} · {cp.total_questions} questions</p>
             <UnitChecklist units={cp.covers} courseId={courseId} linkUnfinished={false} onNavigate={onNavigate} />
@@ -186,20 +201,16 @@ export default function CheckpointLockGuide({
   }
 
   return (
-    // The header and the actions are centred so the block reads as centred in its pane at any
-    // width (the sidebar collapses to w-0, which would otherwise leave short left-aligned lines
-    // drifting well left of the middle). The steps stay left-aligned — a numbered list is much
-    // harder to read centred — but sit inside the same centred, width-capped column.
+    // Header and actions are centred so the block reads as centred at any pane width (the
+    // sidebar collapses to w-0, which would otherwise leave short left-aligned lines drifting
+    // well left of the middle). The steps stay left-aligned, since a centred numbered list is
+    // much harder to read, inside the same centred column.
     <div className="mx-auto w-full max-w-xl text-center">
-      <div className="flex flex-col items-center gap-3">
-        <Lock className="h-6 w-6 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold">{heading}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{lede}</p>
-        </div>
-      </div>
+      <Lock className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
+      <h1 className="mt-3 text-xl font-semibold">{heading}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{lede}</p>
 
-      {steps ? <ol className="mt-8 space-y-5 text-left">{steps}</ol> : null}
+      {steps ? <ol className="mt-8 space-y-4 text-left text-sm">{steps}</ol> : null}
 
       <div className="mt-8 flex flex-wrap justify-center gap-2">
         {primary}
