@@ -232,6 +232,14 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
   const needsCancelChoice = (req: LessonRequest) =>
     req.request_type === 'cancel' && !cancelChoice[req.id];
 
+  /** The server's own message, when it sent one. A refused approval says what to do instead
+   *  — «…выберите «только отменить»» when no free slot exists for the added lesson — and a
+   *  generic banner would hide the one instruction that unblocks the head teacher. */
+  const serverDetail = (err: any): string | null => {
+    const detail = err?.response?.data?.detail;
+    return typeof detail === 'string' && detail.trim() ? detail : null;
+  };
+
   const handleApprove = async (req: LessonRequest) => {
     if (needsCancelChoice(req)) return;
     const id = req.id;
@@ -245,7 +253,7 @@ export default function LessonRequestManagement({ variant = 'admin' }: Props) {
       await fetchRequests();
     } catch (err) {
       console.error('Failed to approve:', err);
-      setError('Не удалось одобрить заявку.');
+      setError(serverDetail(err) ?? 'Не удалось одобрить заявку.');
     } finally {
       setProcessing(null);
     }
