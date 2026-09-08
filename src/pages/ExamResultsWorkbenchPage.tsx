@@ -59,10 +59,6 @@ const triageTone: Record<string, string> = {
   unscheduled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
 };
 
-// Fallback for the filter label only; the rule itself lives on the backend and every
-// row reports the threshold it was judged against (`marketing_threshold`).
-const DEFAULT_MARKETING_THRESHOLD = 1400;
-
 const chipBase = 'inline-block rounded px-1.5 py-0.5 text-[10px] leading-4 whitespace-nowrap';
 const chipOk = `${chipBase} font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300`;
 const chipMuted = `${chipBase} bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300`;
@@ -77,12 +73,18 @@ function MarketingChips({ row, t }: { row: ExamResultRow; t: (ru: string, en: st
   if (!row.marketing_eligible) return null;
   const byScore = row.marketing_basis.includes('score');
   const byTestimonial = row.marketing_basis.includes('testimonial');
+  // The qualifying sitting, spelled out: the verdict is judged on the student's current
+  // attempt, which is not always the attempt this row displays - a status or date filter
+  // can narrow the row to another one.
+  const attempt = row.marketing_score != null && row.marketing_test_date != null
+    ? ` — ${Number(row.marketing_score)}, ${row.marketing_test_date}`
+    : '';
   return (
     <span className="inline-flex items-center gap-1">
       {byScore && (
         <span className={chipOk}
-              title={t(`Текущая попытка выше ${row.marketing_threshold} баллов`,
-                       `Current attempt above ${row.marketing_threshold}`)}>
+              title={t(`Текущая попытка выше ${row.marketing_threshold} баллов${attempt}`,
+                       `Current attempt above ${row.marketing_threshold}${attempt}`)}>
           {t('балл', 'score')}
         </span>
       )}
@@ -206,17 +208,28 @@ export default function ExamResultsWorkbenchPage() {
     // "Marketing-ready" is decided server-side per row: the current attempt is above
     // the exam's threshold (SAT > 1400) OR an approved, consented testimonial exists.
     // The row carries the verdict, so no testimonial lookup is needed here.
-    if (marketingOnly && !r.marketing_eligible) return false;
+    // Explicitly `=== false`, so a row WITHOUT the field passes: the two apps deploy
+    // independently, and against an older API (which ignores `marketing_only` and sends
+    // no verdict) this degrades to "no filtering" instead of emptying the grid.
+    if (marketingOnly && r.marketing_eligible === false) return false;
     if (preset === 'all') return true;
     if (preset === 'done') return r.triage_status === 'completed';
     if (preset === 'overdue') return r.triage_status === 'overdue';
     return r.triage_status === 'overdue' || r.triage_status === 'due';
   }), [rows, preset, marketingOnly]);
 
-  // The threshold the rows were judged against; the label falls back to the default
-  // before the first page arrives or on exam types without a score rule.
+  // The threshold these rows were judged against, straight from the rows - null on an
+  // exam type with no score rule (IELTS, NUET) and before the first page arrives. The
+  // label must not advertise a score rule on a tab where no score can ever qualify.
   const marketingThreshold =
-    rows.find((r) => r.marketing_threshold != null)?.marketing_threshold ?? DEFAULT_MARKETING_THRESHOLD;
+    rows.find((r) => r.marketing_threshold != null)?.marketing_threshold ?? null;
+  const marketingLabel =
+    marketingThreshold != null
+      ? t(`Готово для маркетинга (${examType.toUpperCase()} > ${marketingThreshold} или отзыв)`,
+          `Marketing-ready (${examType.toUpperCase()} > ${marketingThreshold} or testimonial)`)
+      : rows.length > 0
+        ? t('Готово для маркетинга (только отзыв)', 'Marketing-ready (testimonial only)')
+        : t('Готово для маркетинга', 'Marketing-ready');
 
   const counts = useMemo(() => ({
     all: rows.length,
@@ -326,8 +339,7 @@ export default function ExamResultsWorkbenchPage() {
             <label className="ml-2 inline-flex items-center gap-1.5 text-xs">
               <input type="checkbox" checked={marketingOnly}
                      onChange={(e) => setMarketingOnly(e.target.checked)} />
-              {t(`Готово для маркетинга (SAT > ${marketingThreshold} или отзыв)`,
-                 `Marketing-ready (SAT > ${marketingThreshold} or testimonial)`)}
+              {marketingLabel}
             </label>
           </div>
 

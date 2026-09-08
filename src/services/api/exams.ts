@@ -85,6 +85,13 @@ export interface ExamResultRow {
   marketing_basis: Array<'score' | 'testimonial'>;
   /** Total a current attempt must exceed for this exam type; null when scores never qualify (IELTS, NUET). */
   marketing_threshold: number | null;
+  /**
+   * The attempt the 'score' basis was granted on - the student's CURRENT attempt, which
+   * is not always `result`: a status or date filter can narrow the displayed row to
+   * another sitting. Null whenever 'score' is not among the bases.
+   */
+  marketing_score: string | null;
+  marketing_test_date: string | null;
   attempts: ExamResultDetail[];
   result: {
     id: number;
