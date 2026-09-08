@@ -19,6 +19,8 @@ import QuizRenderer from '../components/lesson/QuizRenderer';
 import SummaryStepRenderer from '../components/lesson/SummaryStepRenderer';
 import TextLookupPopover from '../components/lesson/TextLookupPopover';
 import { toast } from '../components/Toast';
+import LessonLoadErrorCard, { type LessonLoadError } from '../components/lesson/LessonLoadErrorCard';
+import { readApiError } from '../services/api/apiError';
 import { gradeQuestion, getAnswerKey } from '../components/lesson/quiz/scoring';
 import { isQuizScorePassing, resolveQuizPassingScorePercent } from '../utils/quizPassingScore';
 
@@ -404,7 +406,7 @@ export default function LessonPage() {
   const [isCurrentStepFavorite, setIsCurrentStepFavorite] = useState(false);
   const [isCourseLoading, setIsCourseLoading] = useState(true);
   const [isLessonLoading, setIsLessonLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LessonLoadError | null>(null);
   const [stepsProgress, setStepsProgress] = useState<StepProgress[]>([]);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -696,7 +698,12 @@ export default function LessonPage() {
       setModules(modulesData);
     } catch (error) {
       console.error('Failed to load course data:', error);
-      setError('Failed to load course data');
+      const { detail, reasonCode, reasonDetails } = readApiError(error);
+      setError({
+        message: detail || 'Не удалось загрузить курс. Проверьте соединение и попробуйте ещё раз.',
+        code: reasonCode,
+        details: reasonDetails,
+      });
     } finally {
       if (showLoader) {
         setIsCourseLoading(false);
@@ -739,8 +746,12 @@ export default function LessonPage() {
 
       // Handle access check result
       if (!accessCheck.accessible) {
-        const reason = accessCheck.reason || 'Please complete previous lessons first.';
-        setError(reason);
+        const reason = accessCheck.reason || 'Сначала пройдите предыдущие уроки.';
+        setError({
+          message: reason,
+          code: accessCheck.reason_code,
+          details: accessCheck.reason_details,
+        });
         toast(reason, 'error');
         navigate(`/course/${courseId}`);
         return;
@@ -805,11 +816,15 @@ export default function LessonPage() {
 
     } catch (error) {
       console.error('Failed to load lesson data:', error);
-      const status = (error as { response?: { status?: number } })?.response?.status;
-      const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      // A refusal that carries a reason (a checkpoint holding this unit back, a checkpoint that is
-      // not open for this student) is shown as that reason, not as a generic failure.
-      setError(status === 403 && typeof detail === 'string' ? detail : 'Failed to load lesson data');
+      // Show what the server said. A refused lesson carries a `reason_code` and a Russian
+      // sentence — a pending checkpoint, no access to the course, a deleted lesson — and that is
+      // what the student needs to read. Only an unreadable failure falls back to the card.
+      const { detail, reasonCode, reasonDetails } = readApiError(error);
+      setError({
+        message: detail || 'Не удалось загрузить урок. Проверьте соединение и попробуйте ещё раз.',
+        code: reasonCode,
+        details: reasonDetails,
+      });
     } finally {
       setIsLessonLoading(false);
     }
@@ -2176,28 +2191,13 @@ export default function LessonPage() {
   }
 
   if (error) {
-    // A checkpoint is holding this unit back (or this checkpoint is not open): say so and lead
-    // the student to the checkpoint instead of offering a pointless Retry.
-    const lockedByCheckpoint = /checkpoint/i.test(error);
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center max-w-md px-6">
-          <h2 className={`text-2xl font-bold mb-2 ${lockedByCheckpoint ? 'text-foreground' : 'text-red-600 dark:text-red-400'}`}>
-            {lockedByCheckpoint ? 'This unit is locked' : 'Error'}
-          </h2>
-          <p className="text-muted-foreground">{error}</p>
-          {lockedByCheckpoint ? (
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <Button onClick={() => navigate('/checkpoints')}>Go to my checkpoints</Button>
-              <Button variant="outline" onClick={() => navigate(`/course/${courseId}`)}>Back to course</Button>
-            </div>
-          ) : (
-            <Button onClick={() => window.location.reload()} className="mt-4">
-              Retry
-            </Button>
-          )}
-        </div>
-      </div>
+      <LessonLoadErrorCard
+        error={error}
+        onRetry={() => window.location.reload()}
+        onBackToCourse={() => navigate(`/course/${courseId}`)}
+        onGoToCheckpoints={() => navigate('/checkpoints')}
+      />
     );
   }
 

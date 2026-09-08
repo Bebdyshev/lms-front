@@ -1,5 +1,16 @@
 import type { Lesson, Step } from '../../types';
 import { api } from './client';
+import { rethrowPreservingResponse } from './apiError';
+import type { ApiErrorInfo } from './apiError';
+
+/** `check-access` answers 200 even when it refuses, so the sidebar can grey a lesson out.
+ *  `reason` is the Russian sentence; `reason_code` is the same code a 403 would carry. */
+export interface LessonAccessCheck {
+  accessible: boolean;
+  reason?: string;
+  reason_code?: string;
+  reason_details?: ApiErrorInfo['reasonDetails'];
+}
 
 export async function getModuleLessons(courseId: string, moduleId: number): Promise<Lesson[]> {
   try {
@@ -15,16 +26,18 @@ export async function getLesson(lessonId: string): Promise<Lesson> {
     const response = await api.get(`/courses/lessons/${lessonId}`);
     return response.data;
   } catch (error) {
-    throw new Error('Failed to load lesson');
+    // Keep the refusal intact: the player shows the server's reason (a pending checkpoint,
+    // no access to the course, a deleted lesson) instead of a generic failure.
+    rethrowPreservingResponse(error, 'Failed to load lesson');
   }
 }
 
-export async function checkLessonAccess(lessonId: string): Promise<{ accessible: boolean; reason?: string }> {
+export async function checkLessonAccess(lessonId: string): Promise<LessonAccessCheck> {
   try {
     const response = await api.get(`/courses/lessons/${lessonId}/check-access`);
     return response.data;
   } catch (error) {
-    throw new Error('Failed to check lesson access');
+    rethrowPreservingResponse(error, 'Failed to check lesson access');
   }
 }
 
@@ -81,7 +94,7 @@ export async function getLessonSteps(lessonId: string, includeContent: boolean =
     const response = await api.get(`/courses/lessons/${lessonId}/steps`, { params });
     return response.data;
   } catch (error) {
-    throw new Error('Failed to get lesson steps');
+    rethrowPreservingResponse(error, 'Failed to get lesson steps');
   }
 }
 

@@ -1,5 +1,6 @@
 import type { StepProgress, CourseStepsProgress, StudentProgressOverview, DailyStreakInfo } from '../../types';
 import { api } from './client';
+import { rethrowPreservingResponse } from './apiError';
 
 export async function markLessonComplete(lessonId: string, timeSpent: number = 0) {
   try {
@@ -86,7 +87,7 @@ export async function getLessonStepsProgress(lessonId: string): Promise<StepProg
     const response = await api.get(`/progress/lesson/${lessonId}/steps`);
     return response.data;
   } catch (error) {
-    throw new Error('Failed to get lesson steps progress');
+    rethrowPreservingResponse(error, 'Failed to get lesson steps progress');
   }
 }
 
