@@ -51,6 +51,23 @@ function RequestDetail({ req }: { req: LessonRequest }) {
       ? <span>Covered by <span className="text-foreground font-medium">{name}</span></span>
       : <span>No substitute selected</span>;
   }
+  // An approved cancel carries the head teacher's decision: the lesson simply disappeared,
+  // or one lesson was appended to the end of the course — and, if so, when.
+  if (req.request_type === 'cancel' && req.status === 'approved' && req.cancel_resolution) {
+    const reason = req.reason ? <span> · {req.reason}</span> : null;
+    if (req.cancel_resolution === 'add_replacement') {
+      return (
+        <span>
+          Cancelled; a replacement lesson was added
+          {req.replacement_datetime && (
+            <> on <span className="text-foreground font-medium">{formatDateTime(req.replacement_datetime)}</span></>
+          )}
+          {reason}
+        </span>
+      );
+    }
+    return <span>Cancelled, no replacement lesson{reason}</span>;
+  }
   if (req.reason) return <span>{req.reason}</span>;
   return <span>—</span>;
 }
