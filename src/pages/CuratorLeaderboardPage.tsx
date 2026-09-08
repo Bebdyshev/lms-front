@@ -22,6 +22,7 @@ import {
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { parseAsUTC } from '../lib/datetime';
+import { formatGroupCloseDate } from '../lib/groupList';
 import { isAttendanceLockedLesson } from '../lib/attendance';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -445,6 +446,12 @@ export default function CuratorLeaderboardPage({ embedded = false, titleSlot }: 
   const isTeacher = user?.role === 'teacher';
   // Teachers get an English UI; curators/admins keep Russian.
   const t = (ru: string, en: string) => (isTeacher ? en : ru);
+  // «(закроется 10.09)» — the pending close of a group inside its grace window. The date
+  // comes from the backend; the Wednesday rule is never recomputed here.
+  const closeLabel = (group: Group) => {
+    const day = formatGroupCloseDate(group);
+    return day && t(`(закроется ${day})`, `(closes ${day})`);
+  };
   // Curators view attendance read-only; every other role on this page can mark it.
   const canMarkAttendance = user?.role !== 'curator';
   // The assignment builder route is teacher/admin-only — gate the Assign shortcut the same way.
@@ -1273,8 +1280,11 @@ export default function CuratorLeaderboardPage({ embedded = false, titleSlot }: 
                                                         <span className="truncate text-xs font-medium text-gray-900 dark:text-foreground">
                                                             {getGroupDateText(g)}
                                                         </span>
-                                                        {g.is_over && (
+                                                        {g.is_over ? (
                                                             <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{t('(завершена)', '(completed)')}</span>
+                                                        ) : closeLabel(g) && (
+                                                            // Finished, but still open to everyone until the Wednesday cutoff.
+                                                            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{closeLabel(g)}</span>
                                                         )}
                                                     </div>
                                                     {teacher && (
