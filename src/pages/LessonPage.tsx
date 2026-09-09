@@ -16,6 +16,7 @@ import { buildCheckpointHints, blockingCheckpointForUnit, isOpen as isCheckpoint
 import CheckpointLockGuide from '../components/checkpoints/CheckpointLockGuide';
 import { unitStepProgress } from '../lib/unitProgress';
 import YouTubeVideoPlayer from '../components/YouTubeVideoPlayer';
+import HlsVideoPlayer from '../components/HlsVideoPlayer';
 import { renderTextWithLatex } from '../utils/latex';
 import FlashcardViewer from '../components/lesson/FlashcardViewer';
 import QuizRenderer from '../components/lesson/QuizRenderer';
@@ -164,7 +165,9 @@ const extractStepVideoUrls = (step: Step) => {
 
   return {
     ru: (step.video_url_ru || step.video_url || '').trim(),
-    en: (step.video_url_en || metadataEnUrl || '').trim()
+    en: (step.video_url_en || metadataEnUrl || '').trim(),
+    hls: (step.hls_url || '').trim(),
+    hlsEn: (step.hls_url_en || '').trim()
   }
 }
 
@@ -1991,6 +1994,7 @@ export default function LessonPage() {
           const defaultVideoLanguage: StepVideoLanguage = hasRuVideo ? 'ru' : 'en'
           const selectedVideoLanguage = selectedVideoLanguageByStep.get(currentStep.id.toString()) || defaultVideoLanguage
           const activeVideoUrl = selectedVideoLanguage === 'en' ? stepVideoUrls.en : stepVideoUrls.ru
+          const activeHlsUrl = selectedVideoLanguage === 'en' ? stepVideoUrls.hlsEn : stepVideoUrls.hls
           const currentVideoStepError = videoStepTechErrors.get(currentStep.id.toString())
           const cleanVideoContentText = stripVideoLanguageMeta(currentStep.content_text)
           const handleVideoError = (errorMessage: string) => {
@@ -2046,14 +2050,25 @@ export default function LessonPage() {
                       </Button>
                     </div>
                   )}
-                  <YouTubeVideoPlayer
-                    key={`${currentStep.id}-${selectedVideoLanguage}`}
-                    url={activeVideoUrl}
-                    title={currentStep.title || 'Lesson Video'}
-                    className="w-full"
-                    onError={handleVideoError}
-                    onProgress={handleVideoProgress}
-                  />
+                  {activeHlsUrl ? (
+                    <HlsVideoPlayer
+                      key={`${currentStep.id}-${selectedVideoLanguage}`}
+                      url={activeHlsUrl}
+                      title={currentStep.title || 'Lesson Video'}
+                      className="w-full"
+                      onError={handleVideoError}
+                      onProgress={handleVideoProgress}
+                    />
+                  ) : (
+                    <YouTubeVideoPlayer
+                      key={`${currentStep.id}-${selectedVideoLanguage}`}
+                      url={activeVideoUrl}
+                      title={currentStep.title || 'Lesson Video'}
+                      className="w-full"
+                      onError={handleVideoError}
+                      onProgress={handleVideoProgress}
+                    />
+                  )}
                 </div>
               )}
               {currentVideoStepError && (
