@@ -12,6 +12,8 @@ export interface ReviewUnit {
   lesson_id: number
   title: string
   quizzes: ReviewQuizStep[]
+  /** How many of the group have completed this unit. Optional: an older backend won't send it. */
+  completed_count?: number
 }
 
 export interface ReviewQuizzesResponse {
