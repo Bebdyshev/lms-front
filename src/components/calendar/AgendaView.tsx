@@ -2,6 +2,7 @@ import type { Event } from '../../types';
 import {
   cx, formatTime, eventStyle, eventTitle, typeLabel, isSubstitutedForTeacher, startOfDay, isSameDay,
 } from './calendarUtils';
+import { almatyCivilDate, todayInAlmaty } from '../../lib/datetime';
 import { CalendarDays, Play } from 'lucide-react';
 
 interface Props {
@@ -16,15 +17,15 @@ interface DayGroup {
 }
 
 function groupUpcoming(events: Event[]): DayGroup[] {
-  const today0 = startOfDay(new Date());
+  const today0 = todayInAlmaty();
   const upcoming = events
-    .filter((e) => startOfDay(new Date(e.start_datetime)).getTime() >= today0.getTime())
+    .filter((e) => almatyCivilDate(e.start_datetime).getTime() >= today0.getTime())
     .sort((a, b) => new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime());
 
   const groups: DayGroup[] = [];
   const byKey = new Map<string, DayGroup>();
   upcoming.forEach((e) => {
-    const d = startOfDay(new Date(e.start_datetime));
+    const d = almatyCivilDate(e.start_datetime);
     const key = d.toDateString();
     let g = byKey.get(key);
     if (!g) {
@@ -45,7 +46,8 @@ function dayLabel(date: Date, today: Date): string {
 }
 
 export default function AgendaView({ events, user, onEventClick }: Props) {
-  const now = new Date();
+  // Days are Almaty days: "Today" is today in Kazakhstan, wherever the viewer is.
+  const now = todayInAlmaty();
   const groups = groupUpcoming(events);
   let nextMarked = false;
 

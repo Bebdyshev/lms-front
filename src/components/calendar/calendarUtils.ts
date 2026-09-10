@@ -1,4 +1,5 @@
 import type { Event, EventType } from '../../types';
+import { almatyCivilDate, todayInAlmaty } from '../../lib/datetime';
 
 // Kazakhstan timezone — backend stores UTC, we display/position in Almaty time.
 export const ALMATY_TZ = 'Asia/Almaty';
@@ -48,7 +49,7 @@ export interface MonthDay {
 export function buildMonthDays(anchor: Date, events: Event[]): MonthDay[] {
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
-  const today = new Date();
+  const today = todayInAlmaty();
   const firstDay = new Date(year, month, 1);
   const dow = firstDay.getDay();
   const start = new Date(firstDay);
@@ -58,14 +59,7 @@ export function buildMonthDays(anchor: Date, events: Event[]): MonthDay[] {
   for (let i = 0; i < 42; i++) {
     const date = new Date(start);
     date.setDate(start.getDate() + i);
-    const d0 = startOfDay(date);
-    const dayEvents = events
-      .filter((e) => {
-        const s = startOfDay(new Date(e.start_datetime));
-        const en = startOfDay(new Date(e.end_datetime));
-        return d0 >= s && d0 <= en;
-      })
-      .sort((a, b) => new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime());
+    const dayEvents = eventsOnDay(date, events);
     const wd = date.getDay();
     days.push({
       date,
@@ -90,13 +84,17 @@ export function buildWeekDays(anchor: Date): Date[] {
   });
 }
 
-/** Events that fall on `date` (by local day), sorted by start time. */
+/**
+ * Events that fall on `date` — a civil date — by their day in Almaty, sorted by start time.
+ * A 23:30 lesson in Almaty belongs to that Almaty day for everyone, not to the next day for a
+ * viewer whose laptop is set further east, nor to the previous one further west.
+ */
 export function eventsOnDay(date: Date, events: Event[]): Event[] {
-  const d0 = startOfDay(date);
+  const d0 = startOfDay(date).getTime();
   return events
     .filter((e) => {
-      const s = startOfDay(new Date(e.start_datetime));
-      const en = startOfDay(new Date(e.end_datetime));
+      const s = almatyCivilDate(e.start_datetime).getTime();
+      const en = almatyCivilDate(e.end_datetime).getTime();
       return d0 >= s && d0 <= en;
     })
     .sort((a, b) => new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime());

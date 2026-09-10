@@ -4,7 +4,9 @@ import type { Event } from '../../types';
 import {
   cx, formatTime, eventStyle, isSubstitutedForTeacher,
   eventsOnDay, weekTimeWindow, isSameDay, DAY_NAMES,
+  minutesInAlmaty,
 } from './calendarUtils';
+import { todayInAlmaty } from '../../lib/datetime';
 import {
   cardTitle, countLabel, lanesForWidth, planDay, tileDots, tileLabel, tileTooltip, type HourTile,
 } from './weekLayout';
@@ -126,9 +128,11 @@ export default function WeekView({ weekDays, events, user, onEventClick, onSlotC
   for (let h = startMin / 60; h <= endMin / 60; h++) hours.push(h);
   const bodyHeight = (endMin - startMin) * PX_PER_MIN;
 
+  // The school's clock, not the laptop's: events are placed in Almaty time, so "now" must be too.
   const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const todayIdx = weekDays.findIndex((d) => isSameDay(d, now));
+  const nowMin = minutesInAlmaty(now.toISOString());
+  const today = todayInAlmaty();
+  const todayIdx = weekDays.findIndex((d) => isSameDay(d, today));
   const showNow = todayIdx >= 0 && nowMin >= startMin && nowMin <= endMin;
 
   const openTile = (day: Date, tile: HourTile) => {
@@ -142,7 +146,7 @@ export default function WeekView({ weekDays, events, user, onEventClick, onSlotC
       <div className="grid border-b border-border bg-muted/40" style={{ gridTemplateColumns: GRID_COLS }}>
         <div />
         {days.map(({ day, dayEvents, plan }, i) => {
-          const today = isSameDay(day, now);
+          const isToday = isSameDay(day, today);
           return (
             <div key={i} className="border-l border-border px-2 py-2 text-center">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -151,7 +155,7 @@ export default function WeekView({ weekDays, events, user, onEventClick, onSlotC
               <div
                 className={cx(
                   'mx-auto mt-1 flex h-7 w-7 items-center justify-center text-[15px] font-semibold',
-                  today ? 'rounded-full bg-primary text-primary-foreground' : 'text-foreground',
+                  isToday ? 'rounded-full bg-primary text-primary-foreground' : 'text-foreground',
                 )}
               >
                 {day.getDate()}
@@ -244,7 +248,7 @@ export default function WeekView({ weekDays, events, user, onEventClick, onSlotC
             }}
           >
             <span className="absolute -left-[50px] -top-2.5 text-[10px] font-bold tabular-nums text-red-500">
-              {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
+              {formatTime(now.toISOString())}
             </span>
             <span className="absolute -left-1 -top-[5px] h-2 w-2 rounded-full bg-red-500" />
           </div>

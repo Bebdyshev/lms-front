@@ -6,8 +6,11 @@ import Router from "./routes/Router";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { registerPwa } from "./services/pwa";
 import { installDomErrorGuard } from "./utils/domErrorGuard";
+import { installAppTimeZone } from "./lib/datetime";
 
 installDomErrorGuard();
+// Every date on screen in Kazakhstan time, whatever zone the viewer's laptop is in.
+installAppTimeZone();
 
 // Suppress NextStep.js navigation warning for React SPA
 // This runs before React mounts to catch the warning early

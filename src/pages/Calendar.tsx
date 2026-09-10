@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '../components/ui/dialog';
 import Loader from '../components/Loader';
+import { SearchableSelect } from '../components/ui/searchable-select';
 import {
   getCalendarEvents, getTeacherGroups, getCuratorGroups, getGroups, getMyLessonRequests,
 } from '../services/api';
@@ -28,6 +29,7 @@ import {
 } from '../components/calendar/calendarUtils';
 import { countLabel } from '../components/calendar/weekLayout';
 import { matchesRecordingFilter, recordingsLocale, type RecordingFilter } from '../lib/recordings';
+import { todayInAlmaty } from '../lib/datetime';
 
 type CalView = 'month' | 'week' | 'agenda';
 const VIEWS: { id: CalView; label: string }[] = [
@@ -40,7 +42,8 @@ export default function Calendar() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [viewDate, setViewDate] = useState(new Date());
+  // The calendar opens on today in Kazakhstan, whatever zone the viewer's laptop is in.
+  const [viewDate, setViewDate] = useState(() => todayInAlmaty());
   const [view, setView] = useState<CalView>(() => {
     const saved = (typeof window !== 'undefined' && localStorage.getItem('calendar_view')) as CalView | null;
     if (saved === 'month' || saved === 'week' || saved === 'agenda') return saved;
@@ -145,6 +148,15 @@ export default function Calendar() {
     }
     return list;
   }, [events, eventTypeFilter, selectedGroupId, user, recordingFilter]);
+
+  // Alphabetical, so a long list can be scanned as well as searched ("aug gulz" finds
+  // "August 19 SAT - Gulzada"; the teacher is part of the name).
+  const groupOptions = useMemo(() => [
+    { value: 'all', label: 'All groups' },
+    ...[...groups]
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+      .map((g) => ({ value: String(g.id), label: g.name })),
+  ], [groups]);
 
   const monthDays = useMemo(() => buildMonthDays(viewDate, filtered), [viewDate, filtered]);
   const weekDays = useMemo(() => buildWeekDays(viewDate), [viewDate]);
@@ -254,7 +266,7 @@ export default function Calendar() {
           </button>
         </div>
 
-        <Button variant="outline" size="sm" onClick={() => setViewDate(new Date())} className="text-xs sm:text-sm">
+        <Button variant="outline" size="sm" onClick={() => setViewDate(todayInAlmaty())} className="text-xs sm:text-sm">
           Today
         </Button>
 
@@ -299,19 +311,15 @@ export default function Calendar() {
           {showGroupFilter && (
             <div className="flex items-center gap-1.5">
               <Users className="h-4 w-4 flex-none text-muted-foreground" />
-              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                <SelectTrigger className="h-9 w-[130px] sm:w-40">
-                  <SelectValue placeholder="All groups" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All groups</SelectItem>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id.toString()}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={groupOptions}
+                value={selectedGroupId}
+                onChange={setSelectedGroupId}
+                placeholder="All groups"
+                searchPlaceholder="Search groups or teachers…"
+                emptyText="No group matches"
+                className="h-9 w-[150px] sm:w-48"
+              />
             </div>
           )}
 
@@ -392,7 +400,7 @@ export default function Calendar() {
               <span className="font-normal text-muted-foreground">
                 {dayPeek?.toLocaleDateString('en-US', { day: 'numeric', month: 'long' })}
               </span>
-              {dayPeek && dayPeek.toDateString() === new Date().toDateString() && (
+              {dayPeek && dayPeek.toDateString() === todayInAlmaty().toDateString() && (
                 <Badge className="border-0 bg-primary/10 text-primary hover:bg-primary/10">Today</Badge>
               )}
             </DialogTitle>

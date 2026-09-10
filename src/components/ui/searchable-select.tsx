@@ -29,20 +29,38 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const selected = options.find((o) => o.value === value) ?? null;
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((o) => `${o.label} ${o.hint ?? ''}`.toLowerCase().includes(q));
+    // Every word must appear somewhere: "aug gulz" finds "August 19 SAT - Gulzada".
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return options;
+    return options.filter((o) => {
+      const haystack = `${o.label} ${o.hint ?? ''}`.toLowerCase();
+      return words.every((w) => haystack.includes(w));
+    });
   }, [options, query]);
 
   useEffect(() => {
     if (open) {
       setQuery('');
+      // Start on the current choice, so reopening shows where you are.
+      setActive(Math.max(0, options.findIndex((o) => o.value === value)));
       setTimeout(() => inputRef.current?.focus(), 0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    if (query) setActive(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [active, open]);
 
   const pick = (v: string) => { onChange(v); setOpen(false); };
 
@@ -65,21 +83,33 @@ export function SearchableSelect({
             placeholder={searchPlaceholder}
             className="h-9 border-0 px-0 shadow-none focus-visible:ring-0"
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && filtered[0]) { e.preventDefault(); pick(filtered[0].value); }
+              if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, filtered.length - 1)); }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+              if (e.key === 'Enter' && filtered.length) {
+                e.preventDefault();
+                pick((filtered[active] ?? filtered[0]).value);
+              }
               if (e.key === 'Escape') setOpen(false);
             }}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls="searchable-select-list"
+            aria-activedescendant={filtered[active] ? `searchable-option-${active}` : undefined}
           />
         </div>
-        <ul role="listbox" className="max-h-72 overflow-y-auto py-1">
+        <ul ref={listRef} id="searchable-select-list" role="listbox" className="max-h-72 overflow-y-auto py-1">
           {filtered.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">{emptyText}</li>}
-          {filtered.map((o) => (
+          {filtered.map((o, i) => (
             <li key={o.value}>
               <button
                 type="button"
                 role="option"
+                id={`searchable-option-${i}`}
+                data-index={i}
                 aria-selected={o.value === value}
                 onClick={() => pick(o.value)}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted/60 ${o.value === value ? 'bg-muted/40' : ''}`}
+                onMouseEnter={() => setActive(i)}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${i === active ? 'bg-muted' : o.value === value ? 'bg-muted/40' : ''}`}
               >
                 <Check className={`h-4 w-4 shrink-0 ${o.value === value ? 'opacity-100' : 'opacity-0'}`} aria-hidden="true" />
                 <span className="truncate">{o.label}</span>
