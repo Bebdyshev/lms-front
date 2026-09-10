@@ -39,10 +39,17 @@ export const ReviewOptionBars: React.FC<Props> = ({ stat, revealed, showNames })
             {option.label && (
               <span className="w-6 shrink-0 font-semibold">{option.label}</span>
             )}
-            {/* renderTextWithLatex returns an HTML string (KaTeX + markdown), so it has to
-                go through dangerouslySetInnerHTML — the same way ChoiceQuestion uses it. */}
+            {/* 'choice' rows are the question's own authored option text — safe to render as
+                HTML via renderTextWithLatex/dangerouslySetInnerHTML, same as ChoiceQuestion.
+                'text' rows are NOT: they are strings students typed into an answer box. This
+                repo's renderMarkdown deliberately preserves raw HTML tags and there is no
+                sanitizer, so piping student input through dangerouslySetInnerHTML here would
+                let a student's <img onerror=…> execute in the teacher's session on the class
+                projector. Free text always renders as a plain JSX child instead. */}
             {option.text
-              ? <span className="flex-1 break-words" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
+              ? (stat.distributionKind === 'choice'
+                  ? <span className="flex-1 break-words" dangerouslySetInnerHTML={{ __html: renderTextWithLatex(option.text) }} />
+                  : <span className="flex-1 break-words">{option.text}</span>)
               : <span className="flex-1 text-muted-foreground">—</span>}
             <span className="shrink-0 tabular-nums text-muted-foreground">
               {option.count} · {option.percent}%
@@ -54,7 +61,7 @@ export const ReviewOptionBars: React.FC<Props> = ({ stat, revealed, showNames })
               style={{ width: `${Math.min(option.percent, 100)}%` }}
             />
           </div>
-          {showNames && option.names.length > 0 && (
+          {revealed && showNames && option.names.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {option.names.map((name) => (
                 <span key={name} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">

@@ -51,7 +51,11 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames })
           <div>
             <p className="text-xs text-muted-foreground">{EN.percentCorrect}</p>
             <p className="text-2xl font-bold tabular-nums">
-              {stat.percentCorrect === null ? '—' : `${stat.percentCorrect}%`}
+              {/* Gated on `revealed` too: with per-option counts already on screen, a
+                  deterministic "% correct" figure for a single/multi-choice question
+                  identifies the right option before Reveal just as surely as printing it
+                  outright would. */}
+              {!revealed || stat.percentCorrect === null ? '—' : `${stat.percentCorrect}%`}
             </p>
           </div>
         </div>
@@ -70,7 +74,10 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames })
           </div>
         )}
 
-        {showNames && stat.graded && (
+        {/* Gated on `revealed` as well as `showNames`: cross-referencing "Correct · 7 —
+            <names>" against the per-option name chips identifies the correct option
+            instantly, before the teacher has pressed Reveal. */}
+        {revealed && showNames && stat.graded && (
           <div className="space-y-3">
             <p className="text-sm font-semibold">{EN.whoAnswered}</p>
             <NameList title={EN.correct} names={stat.names.correct} className="text-emerald-600 dark:text-emerald-400" />

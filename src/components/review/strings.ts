@@ -17,7 +17,6 @@ export const EN = {
   questions: 'Questions',
   submitted: 'Submitted',
   students: 'Students',
-  classAverage: 'Class average',
 
   questionOf: 'Question {n} of {total}',
   revealAnswer: 'Reveal answer',
@@ -52,6 +51,8 @@ export const EN = {
   summaryBottom: 'Needs attention',
   summaryHardest: 'Hardest questions',
   summaryNotSubmitted: 'Did not submit',
+  notSubmittedCount: '{count} did not submit',
+  anonymousStudent: 'Student',
   averageScore: 'Average',
   medianScore: 'Median',
   minScore: 'Lowest',
@@ -74,4 +75,24 @@ export function format(template: string, values: Record<string, string | number>
   return template.replace(/\{(\w+)\}/g, (match, key) =>
     Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match,
   )
+}
+
+// Readable labels for the question-type badge on the presenter — the raw slug
+// (`media_open_question`) is an implementation detail, not something to project on screen.
+export const QUESTION_TYPE_LABELS: Record<string, string> = {
+  single_choice: 'Single choice',
+  multiple_choice: 'Multiple choice',
+  short_answer: 'Short answer',
+  fill_blank: 'Fill in the blank',
+  text_completion: 'Text completion',
+  long_text: 'Long answer',
+  media_question: 'Media question',
+  media_open_question: 'Media open question',
+  matching: 'Matching',
+  image_content: 'Image',
+}
+
+export function questionTypeLabel(type: string | undefined): string {
+  if (!type) return ''
+  return QUESTION_TYPE_LABELS[type] || type
 }
