@@ -1,6 +1,7 @@
 import { Clock, ExternalLink, MapPin, Video, Users } from 'lucide-react';
 import { openPlatformPage, parsePlatformUrl } from '../../lib/platformLinks';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import LessonRecordingSection from './LessonRecordingSection';
 import type { Event, LessonRequest } from '../../types';
 import { cx, formatTime, eventStyle, typeLabel, isSubstitutedForTeacher } from './calendarUtils';
 
@@ -126,6 +127,8 @@ export default function EventDetailDialog({ event, open, onOpenChange, user, myR
               You are substituting
             </div>
           )}
+
+          {event.event_type === 'class' && <LessonRecordingSection event={event} />}
 
           {canAct && (
             <div className="mt-5 border-t border-border pt-4">

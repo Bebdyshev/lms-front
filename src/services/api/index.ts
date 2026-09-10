@@ -12,6 +12,7 @@ export * from './platformTests';
 export * from './targets';
 export * from './quizzes';
 export * from './events';
+export * from './recordings';
 export * from './uploads';
 export * from './users';
 export * from './trials';
