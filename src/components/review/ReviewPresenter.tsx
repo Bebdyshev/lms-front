@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react'
 import { Button } from '../ui/button'
 import { ReviewQuestionView } from './ReviewQuestionView'
+import { ReviewQuestionGrid } from './ReviewQuestionGrid'
 import { ReviewStatsPanel } from './ReviewStatsPanel'
 import { EN, format } from './strings'
 import type { ReviewSessionActions, ReviewSessionState } from './useReviewSession'
@@ -100,6 +101,17 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
         <div className="flex-1" />
         <span className="text-xs text-muted-foreground">{EN.keyboardHint}</span>
       </div>
+
+      {state.gridOpen && (
+        <div className="rounded border p-4">
+          <ReviewQuestionGrid
+            questions={state.questions}
+            statsByQuestionId={state.statsByQuestionId}
+            currentIndex={state.index}
+            onJump={(index) => { actions.jumpTo(index); actions.closeGrid() }}
+          />
+        </div>
+      )}
     </div>
   )
 }

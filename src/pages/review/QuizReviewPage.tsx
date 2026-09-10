@@ -3,6 +3,7 @@
 import React from 'react'
 import { ReviewLauncher } from '../../components/review/ReviewLauncher'
 import { ReviewPresenter } from '../../components/review/ReviewPresenter'
+import { ReviewSummary } from '../../components/review/ReviewSummary'
 import { useReviewSession } from '../../components/review/useReviewSession'
 import { EN } from '../../components/review/strings'
 import { Button } from '../../components/ui/button'
@@ -25,9 +26,11 @@ const QuizReviewPage: React.FC = () => {
         </div>
       )}
 
-      {state.phase === 'presenting'
-        ? <ReviewPresenter state={state} actions={actions} />
-        : <ReviewLauncher state={state} actions={actions} />}
+      {state.phase === 'summary' && (
+        <ReviewSummary summary={state.summary} onRestart={actions.restart} onExit={actions.exit} />
+      )}
+      {state.phase === 'presenting' && <ReviewPresenter state={state} actions={actions} />}
+      {state.phase === 'launcher' && <ReviewLauncher state={state} actions={actions} />}
     </div>
   )
 }
