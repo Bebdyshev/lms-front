@@ -26,6 +26,7 @@ export const EN = {
   hideStats: 'Hide stats',
   showNames: 'Show names',
   hideNames: 'Hide names',
+  namesAfterReveal: 'Names appear once you reveal the answer',
   questionList: 'Question list',
   next: 'Next',
   prev: 'Back',
