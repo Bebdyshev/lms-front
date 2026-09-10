@@ -25,10 +25,13 @@ export interface GradeQuestionResult {
    * correctParts/totalParts, just not thrown away. Absent (not just empty) for every other
    * question type — a caller can tell "no per-part detail here" from "this gap was answered
    * wrong" without inspecting question_type itself. NOT absent for a gap question with zero
-   * gaps: the loop below simply never runs, and `partResults` still comes back `[]` (present
-   * and truthy), because gap questions take this branch regardless of how many gaps they
-   * have. Review mode's per-gap stats (reviewStats.ts) read this instead of re-deriving gap
-   * correctness themselves — one grader, one answer key.
+   * gaps: gap questions take this branch regardless of how many gaps they have, and `total`
+   * is `Math.max(expected.length, provided.length)` — so `expected.length === 0` does NOT
+   * mean the loop below never runs; a submission with a non-empty `provided` array still
+   * runs it and still returns `partResults` full of `false` (nothing at `expected[i]` to
+   * match anything against), not an early-exited `[]`. Either way `partResults` comes back
+   * present and truthy. Review mode's per-gap stats (reviewStats.ts) read this instead of
+   * re-deriving gap correctness themselves — one grader, one answer key.
    */
   partResults?: boolean[]
 }

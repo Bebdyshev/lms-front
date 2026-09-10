@@ -15,6 +15,7 @@ import {
   isGapType,
   LETTERS,
   splitPipeAnswers,
+  wholeQuestionRevealed,
   type QuestionStat,
 } from './reviewStats'
 
@@ -52,6 +53,21 @@ const GAP_UPCOMING_CLASS = 'text-gray-400 dark:text-gray-500'
 // treat this exact span as one token", never re-locates tokens on its own.
 const NARROW_GAP_TOKEN = /^\[\[(.*?)\]\]$/
 
+export interface GapStepResult {
+  html: string
+  /**
+   * How many `[[…]]` tokens in `text` actually got assigned a gap slot — i.e. how many times
+   * the narrow re-check below passed. This is the one authoritative count of what's actually
+   * steppable/fillable in THIS render; see #F3 for why callers must use this instead of
+   * re-deriving "is there anything fillable here" from a second, independently-computed
+   * regex test (the old `gapHasLocatableToken`) or from getExpectedAnswers's own count (the
+   * old `gapTotal` used for "Gap N of M") — those two numbers come from two different
+   * regexes and can disagree with what this function actually marks up (see the doc comment
+   * below), which made Reveal a dead no-op in exactly the shapes that disagreement produces.
+   */
+  slotCount: number
+}
+
 /**
  * Renders one gap-question passage/heading for the step-through-one-gap-at-a-time view:
  * gaps already stepped past (index < gapIndex) print their expected answer — the teacher
@@ -60,10 +76,15 @@ const NARROW_GAP_TOKEN = /^\[\[(.*?)\]\]$/
  * later gap always prints the placeholder.
  *
  * Reuses reviewStats.ts's GAP_TOKEN_SOURCE — the exact pattern blankGapText uses to blank
- * every gap — to locate token boundaries, so no token is ever left un-blanked. But GAP_TOKEN_
- * SOURCE is broader than getExpectedAnswers's own tokenizer (scoring.ts's `.*?`, no `[\s\S]`):
- * a token whose contents span a newline matches here but not there. Only a broad match that
- * the narrow pattern (NARROW_GAP_TOKEN, checked against the matched span itself) would ALSO
+ * every gap — to locate token boundaries. An unterminated `[[` (no matching `]]` anywhere
+ * after it) is invisible to this pattern and renders raw, asterisked key included — that is
+ * a real, pre-existing gap, but it is shared byte-for-byte with blankGapText, so a student
+ * looking at their own screen already sees the exact same raw text; this file does not widen
+ * the leak, and fixing it is out of scope here. Given a properly `]]`-terminated token,
+ * though, every one is blanked. GAP_TOKEN_SOURCE is broader than getExpectedAnswers's own
+ * tokenizer (scoring.ts's `.*?`, no `[\s\S]`), though: a token whose contents span a newline
+ * matches here but not there. Only a broad match that the
+ * narrow pattern (NARROW_GAP_TOKEN, checked against the matched span itself) would ALSO
  * recognise gets an index into `expected` and advances the gap counter — a broad-only match
  * renders an unconditional, un-fillable blank instead. Without this check the two patterns'
  * token counts can disagree, and every index past the mismatch drifts out of alignment with
@@ -75,9 +96,9 @@ const NARROW_GAP_TOKEN = /^\[\[(.*?)\]\]$/
  * level as the rest of the passage), but are HTML-escaped here since — unlike the old flat
  * "Correct answer: …" list — they are now spliced into the middle of an HTML string.
  */
-export function gapStepHtml(text: string, gapIndex: number, expected: string[], revealed: boolean): string {
+export function gapStepHtml(text: string, gapIndex: number, expected: string[], revealed: boolean): GapStepResult {
   let gapPosition = 0
-  return text.replace(new RegExp(GAP_TOKEN_SOURCE, 'g'), (match) => {
+  const html = text.replace(new RegExp(GAP_TOKEN_SOURCE, 'g'), (match) => {
     if (!NARROW_GAP_TOKEN.test(match)) {
       // Not a token getExpectedAnswers would recognise either (same newline mismatch) — blank
       // it so nothing raw reaches the projector, but never assign it a gap slot.
@@ -95,6 +116,7 @@ export function gapStepHtml(text: string, gapIndex: number, expected: string[], 
     }
     return `<span class="${GAP_UPCOMING_CLASS}">____</span>`
   })
+  return { html, slotCount: gapPosition }
 }
 
 export const ReviewQuestionView: React.FC<Props> = ({
@@ -126,6 +148,11 @@ export const ReviewQuestionView: React.FC<Props> = ({
   // the gaps actually are.
   const gapExpected = isGap ? getExpectedAnswers(question) : []
   const gapSource = isGap ? getGapSourceText(question) : ''
+  // The answer key's own count — how many gaps this question has according to
+  // getExpectedAnswers, independent of whether gapStepHtml below can actually mark all of
+  // them up in the passage. This is what wholeQuestionRevealed needs (the same semantic
+  // ReviewStatsPanel's `stat.gaps.length` uses): "has the class reached the LAST gap",
+  // defined by the answer key, not by rendering quirks.
   const gapTotal = gapExpected.length
   // The rare fallback case: no content_text at all, so the gaps live in question_text
   // itself. The heading below would then just be a second, fully-blanked copy of the exact
@@ -133,14 +160,19 @@ export const ReviewQuestionView: React.FC<Props> = ({
   // same cloze twice, once inert and once steppable.
   const gapInHeadingOnly = isGap && !question.content_text && !!question.question_text
 
-  // Whether gapStepHtml has anything in the source text to mark up at all. getExpectedAnswers
-  // can fall through to correct_answer (scoring.ts:118-121) when the resolved source has no
-  // `[[…]]` token to parse — no tokens at all, or the tokens live in the other field (content_
-  // text non-empty but question_text carries the syntax, or vice versa). When that happens
-  // gapSource has no token for gapStepHtml to find either, so the passage renders completely
-  // unchanged by gapIndex/revealed: "Gap 1 of N" and working prev/next, but nothing ever gets
-  // marked FILLED/CURRENT and Reveal changes nothing (#3).
-  const gapHasLocatableToken = isGap && new RegExp(GAP_TOKEN_SOURCE).test(gapSource)
+  // Computed once and reused below for both the passage markup and everything that needs to
+  // know how many gaps are actually fillable in THIS render (#F3). Previously this was two
+  // independently-computed regex checks — a broad `.test()` for "is anything locatable" and
+  // getExpectedAnswers's own narrow-regex count for "Gap N of M" — which could disagree with
+  // what gapStepHtml actually marks up: a source whose only tokens span newlines reads as
+  // "locatable" under the broad test with zero slots actually assigned, and a narrow token
+  // that a broad-only match swallows (an unterminated `[[` eating past a real token's own
+  // `]]`) makes `getExpectedAnswers`'s count exceed what gapStepHtml can mark. Both left
+  // Reveal a dead no-op with no leak, just a broken affordance. `gapStep.slotCount` is the
+  // one number gapStepHtml itself produces while doing the real per-token narrow re-check
+  // (see its doc comment) — use that instead of re-deriving the same fact twice.
+  const gapStep = isGap ? gapStepHtml(gapSource, gapIndex, gapExpected, revealed) : null
+  const gapSlotTotal = gapStep ? gapStep.slotCount : 0
 
   // What Reveal shows for questions with no option list of their own.
   let revealAnswers: string[] = []
@@ -149,10 +181,11 @@ export const ReviewQuestionView: React.FC<Props> = ({
     // current gap, inline in the passage above (gapStepHtml). Populating this too would
     // reintroduce the "Reveal shows everything at once" problem the gap stepper exists to
     // fix (C1's failure mode). The one exception is the correct_answer-fallback case above:
-    // gapStepHtml has no token to fill there, so nothing in the passage will ever change on
-    // Reveal unless this flat line does the job instead — scoped to just the CURRENT gap,
-    // never the whole list, so it doesn't reopen the same problem for this path.
-    if (!gapHasLocatableToken && gapExpected[gapIndex] !== undefined) {
+    // gapStepHtml has no token to fill there (gapSlotTotal === 0), so nothing in the passage
+    // will ever change on Reveal unless this flat line does the job instead — scoped to just
+    // the CURRENT gap, never the whole list, so it doesn't reopen the same problem for this
+    // path.
+    if (gapSlotTotal === 0 && gapExpected[gapIndex] !== undefined) {
       revealAnswers = [gapExpected[gapIndex]]
     }
   } else if (PIPE_ANSWER_TYPES.has(question.question_type)) {
@@ -187,7 +220,7 @@ export const ReviewQuestionView: React.FC<Props> = ({
               <div
                 className="rounded-lg border-l-4 border-gray-300 dark:border-border bg-gray-50 dark:bg-secondary p-4 text-base leading-relaxed text-gray-700 dark:text-gray-300"
                 dangerouslySetInnerHTML={{
-                  __html: renderTextWithLatex(gapStepHtml(gapSource, gapIndex, gapExpected, revealed)),
+                  __html: renderTextWithLatex(gapStep!.html),
                 }}
               />
             )
@@ -198,10 +231,15 @@ export const ReviewQuestionView: React.FC<Props> = ({
               />
             )}
 
-        {isGap && gapTotal > 0 && (
+        {/* Gated on gapSlotTotal (gapStepHtml's own actual slot count), not gapTotal
+            (getExpectedAnswers's count) — see gapStep's doc comment above (#F3): the two can
+            disagree, and showing "Gap 1 of 2" with working-looking Prev/Next while the
+            passage only ever marks up 1 of those 2 is a broken affordance the class would
+            notice even though nothing leaks. */}
+        {isGap && gapSlotTotal > 0 && (
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary px-3 py-2 text-sm">
             <span className="font-semibold text-gray-900 dark:text-foreground">
-              {format(EN.gapOf, { n: gapIndex + 1, total: gapTotal })}
+              {format(EN.gapOf, { n: gapIndex + 1, total: gapSlotTotal })}
             </span>
             <div className="flex-1" />
             <Button
@@ -216,7 +254,7 @@ export const ReviewQuestionView: React.FC<Props> = ({
               variant="outline"
               size="sm"
               onClick={onNextGap}
-              disabled={gapIndex >= gapTotal - 1}
+              disabled={gapIndex >= gapSlotTotal - 1}
             >
               {EN.gapNext}
             </Button>
@@ -286,11 +324,14 @@ export const ReviewQuestionView: React.FC<Props> = ({
             has a dedicated tab for it, and the AI importer auto-populates it) — an
             AI-authored explanation for a cloze routinely enumerates every blank by number
             ("1. cat 2. mat 3. door …"). Gating this on the FIRST gap's reveal would dump every
-            answer on the projector at gap 1 of N (C1). Show it only once the class has
-            actually reached the last gap; for non-gap questions gapTotal is 0 and this
-            collapses back to the plain `revealed` check. The next `revealed &&` added to this
-            file should stop and ask which meaning it needs — this file has both. */}
-        {(!isGap || gapIndex === gapTotal - 1) && revealed && question.explanation && (
+            answer on the projector at gap 1 of N (C1). wholeQuestionRevealed (reviewStats.ts)
+            is this exact check, extracted so ReviewStatsPanel's whole-question consumers
+            (percentCorrect, the name lists) can share it instead of re-deriving it and getting
+            it wrong (#F1) — and its `gapTotal === 0` clause is what keeps a zero-gap gap
+            question's explanation reachable at all, instead of gating on `gapIndex === -1`
+            (#F2). The next `revealed &&` added to this file should stop and ask which meaning
+            it needs — this file has both. */}
+        {wholeQuestionRevealed(isGap, gapIndex, gapTotal, revealed) && question.explanation && (
           <div className="rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary p-3 text-sm text-gray-700 dark:text-gray-300">
             <span className="font-semibold text-gray-900 dark:text-foreground">{EN.explanation}: </span>
             <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(String(question.explanation)) }} />

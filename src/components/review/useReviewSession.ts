@@ -16,13 +16,19 @@ import {
 import { createRequestGuard, type RequestGuard } from './requestGuard'
 import { EN } from './strings'
 
+// Type-only re-export — deliberately NOT a value re-export of `initialState`/`reducer`. Those
+// were module-private before this file split off from reviewSessionReducer.ts, and nothing
+// imports them from here: useReviewSession.test.ts imports the pure reducer straight from
+// './reviewSessionReducer', with no apiClient in the import graph — see that module's own
+// header comment for why. Re-exporting the values here would invite a future test to pull the
+// reducer back in through this apiClient-laden module — the exact import path the split
+// exists to avoid (#F7).
 export type {
   Action,
   CourseOption,
   GroupOption,
   ReviewSessionState,
 } from './reviewSessionReducer'
-export { initialState, reducer } from './reviewSessionReducer'
 
 // A 403 means this group is not the user's; anything else is a generic load failure.
 function messageFor(err: any): string {

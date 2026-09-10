@@ -12,6 +12,7 @@ import {
   replayAnswer,
   reviewQuestions,
   splitPipeAnswers,
+  wholeQuestionRevealed,
   type ReviewAttempt,
 } from './reviewStats'
 import { gradeQuestion } from '../lesson/quiz/scoring'
@@ -767,5 +768,40 @@ describe('gradeQuestion — aggregate return values unchanged by the partResults
     expect(gradeQuestion(null, undefined, undefined)).toEqual({
       isCorrect: false, correctParts: 0, totalParts: 0, isReview: false,
     })
+  })
+})
+
+// wholeQuestionRevealed is C1's fix, extracted (#F1): the JSX condition that stops a
+// whole-question figure (percentCorrect, the name lists, the explanation) from disclosing an
+// answer before the class has reached the LAST gap of a cloze. This repo has no jsdom, so
+// this is the only place this predicate gets exercised at all — see #F5.
+describe('wholeQuestionRevealed', () => {
+  it('non-gap question: follows the raw revealed flag either way', () => {
+    expect(wholeQuestionRevealed(false, 0, 0, true)).toBe(true)
+    expect(wholeQuestionRevealed(false, 0, 0, false)).toBe(false)
+  })
+
+  it('gap question, not revealed at all: false regardless of position', () => {
+    expect(wholeQuestionRevealed(true, 0, 3, false)).toBe(false)
+    expect(wholeQuestionRevealed(true, 2, 3, false)).toBe(false)
+  })
+
+  it('gap question mid-sequence, revealed: still false -- later gaps have not been shown yet', () => {
+    // 3-gap cloze, currently on gap 1 (index 0) or gap 2 (index 1) of 3 -- neither is the
+    // last gap, so the whole-question verdict must stay hidden even though `revealed` is
+    // true for the CURRENT gap. This is exactly the boundary C1 exists to protect.
+    expect(wholeQuestionRevealed(true, 0, 3, true)).toBe(false)
+    expect(wholeQuestionRevealed(true, 1, 3, true)).toBe(false)
+  })
+
+  it('gap question at the last gap, revealed: true', () => {
+    expect(wholeQuestionRevealed(true, 2, 3, true)).toBe(true)
+  })
+
+  it('gapTotal === 0: collapses to the plain revealed check, like the non-gap case (#F2)', () => {
+    // A gap-type question with no locatable gaps must not gate on `gapIndex === gapTotal - 1`
+    // (0 === -1, unreachable) and hide whole-question content forever.
+    expect(wholeQuestionRevealed(true, 0, 0, true)).toBe(true)
+    expect(wholeQuestionRevealed(true, 0, 0, false)).toBe(false)
   })
 })

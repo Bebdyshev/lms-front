@@ -711,6 +711,35 @@ export function buildClassSummary(
   }
 }
 
+/**
+ * Whether a WHOLE-QUESTION consumer — one that describes the entire cloze, not one gap of
+ * it — may show correctness-revealing content right now. `revealed` itself means "this one
+ * gap is revealed" for gap questions (the semantic shift the gap stepper introduced); a
+ * consumer that prints something spanning every gap (an explanation that lists every blank,
+ * a whole-question percentCorrect, the correct/partial/incorrect name lists) must not key off
+ * that per-gap flag directly, or it leaks answers to gaps the class hasn't reached yet — see
+ * ReviewQuestionView's explanation gate (the original of this predicate) and
+ * ReviewStatsPanel's percentCorrect / name-list gates (#F1: the name lists were cleared in an
+ * earlier pass on the mistaken belief that they shared the same per-gap `revealed` as the
+ * bars above them, when in fact they describe the whole question).
+ *
+ * True for a non-gap question once `revealed`; true for a gap question only once the LAST gap
+ * is revealed (stepping past gap 1 of 3 must not already show whole-question correctness);
+ * and true whenever `gapTotal` is 0 — a gap-type question with no locatable gaps collapses to
+ * the plain `revealed` check, matching the non-gap case, rather than gating on `gapIndex ===
+ * -1` (unreachable) and hiding the content forever.
+ */
+export function wholeQuestionRevealed(
+  isGap: boolean,
+  gapIndex: number,
+  gapTotal: number,
+  revealed: boolean,
+): boolean {
+  if (!revealed) return false
+  if (!isGap || gapTotal === 0) return true
+  return gapIndex === gapTotal - 1
+}
+
 /** The question grid's colour bands. */
 export function accuracyBand(
   stat: QuestionStat | undefined,

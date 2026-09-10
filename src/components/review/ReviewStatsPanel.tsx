@@ -5,7 +5,7 @@ import React from 'react'
 import { Card, CardContent } from '../ui/card'
 import { ReviewOptionBars } from './ReviewOptionBars'
 import { ReviewGapBars } from './ReviewGapBars'
-import { isGapType, type QuestionStat } from './reviewStats'
+import { isGapType, wholeQuestionRevealed, type QuestionStat } from './reviewStats'
 import { EN, format } from './strings'
 
 interface Props {
@@ -50,6 +50,13 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames, g
   // one gap's own answers looked like.
   const isGap = isGapType(stat.questionType)
   const gapStat = isGap ? stat.gaps[gapIndex] : undefined
+  // Gates every WHOLE-QUESTION consumer below (percentCorrect, the name lists) — never the
+  // per-gap bars, which stay on the raw `revealed` they already use. See wholeQuestionRevealed's
+  // own doc comment (reviewStats.ts) for why a bare per-gap `revealed` is not enough here (#F1):
+  // a two-gap cloze with names on leaks the second gap's answer through simple elimination once
+  // the first gap's whole-question buckets and the second gap's nameless per-gap bars are both
+  // on screen, even though neither view alone shows anything.
+  const wholeRevealed = wholeQuestionRevealed(isGap, gapIndex, stat.gaps.length, revealed)
 
   return (
     <Card>
@@ -66,11 +73,13 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames, g
           <div>
             <p className={STAT_LABEL}>{EN.percentCorrect}</p>
             <p className={STAT_VALUE}>
-              {/* Gated on `revealed` too: with per-option counts already on screen, a
-                  deterministic "% correct" figure for a single/multi-choice question
-                  identifies the right option before Reveal just as surely as printing it
-                  outright would. */}
-              {!revealed || stat.percentCorrect === null ? '—' : `${stat.percentCorrect}%`}
+              {/* Gated on wholeQuestionRevealed, not the raw per-gap `revealed`: with
+                  per-option counts already on screen, a deterministic "% correct" figure for
+                  a single/multi-choice question identifies the right option before Reveal
+                  just as surely as printing it outright would — and for a cloze this is a
+                  WHOLE-QUESTION figure, so gating it on gap 1's own `revealed` would disclose
+                  it before the class has even reached the later gaps (#F1). */}
+              {!wholeRevealed || stat.percentCorrect === null ? '—' : `${stat.percentCorrect}%`}
             </p>
           </div>
         </div>
@@ -85,11 +94,15 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames, g
             distribution below — "the class's answers to this cloze" isn't one distribution,
             it's one per gap, and only the gap currently under discussion is relevant here.
             But `gapStat` is only there when getExpectedAnswers actually located gaps
-            (reviewStats.ts's gapCount); a fill_blank/text_completion with no locatable gap
-            but real submitted text (e.g. the correct_answer fallback — see ReviewQuestionView's
-            #3) has `stat.gaps` empty, so fall through to the same whole-question bars the
-            non-gap branch below uses rather than showing nothing — `stat.options` is still
-            computed for every question type regardless of isGap (#6). */}
+            (reviewStats.ts's gapCount) — and that count is still > 0 for the correct_answer
+            fallback ReviewQuestionView's gapStepHtml falls back to (getExpectedAnswers still
+            returns those entries; it's gapStepHtml's own per-token slot marking, not the gap
+            count, that comes up empty there — see gapStepHtml's #F3 doc comment). `stat.gaps`
+            is empty only when getExpectedAnswers itself returns `[]` — no `[[…]]` token in
+            either text field AND no correct_answer — so fall through to the same
+            whole-question bars the non-gap branch below uses rather than showing nothing —
+            `stat.options` is still computed for every question type regardless of isGap
+            (#6). */}
         {isGap && gapStat ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -115,10 +128,21 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames, g
           )
         )}
 
-        {/* Gated on `revealed` as well as `showNames`: cross-referencing "Correct · 7 —
-            <names>" against the per-option name chips identifies the correct option
-            instantly, before the teacher has pressed Reveal. */}
-        {revealed && showNames && stat.graded && (
+        {/* Gated on wholeQuestionRevealed as well as `showNames`, not the raw per-gap
+            `revealed`: cross-referencing "Correct · 7 — <names>" against the per-option name
+            chips identifies the correct option instantly, before the teacher has pressed
+            Reveal — and for a cloze these lists are WHOLE-QUESTION buckets (a 9-of-10-gap
+            submission is still one "partial" student here), so gap 1's own `revealed` is the
+            wrong gate: a two-gap example with three students —
+              gap 1 revealed: bars show `cat ✓ 2 — Alice, Bob`, `dog ✗ 1 — Carol`; these lists
+              show `Correct: Alice`, `Partial: Bob, Carol`;
+              step to gap 2, `revealed` resets: nameless per-gap bars show `sat • 2`, `ran • 1`
+            — lets the class work out from the PREVIOUS screen's buckets who was right on gap
+            1 (Alice yes, Bob and Carol no), and therefore, by elimination against the gap-2
+            counts, which un-named answer is correct on gap 2 — before Reveal. A previous pass
+            caught this for percentCorrect above but cleared this block on the mistaken belief
+            it shared the same (per-gap) `revealed` as the bars above it (#F1). */}
+        {wholeRevealed && showNames && stat.graded && (
           <div className="space-y-3 border-t border-gray-200 dark:border-border pt-4">
             <p className={SECTION_HEADING}>{EN.whoAnswered}</p>
             <NameList title={EN.correct} names={stat.names.correct} className="text-emerald-600 dark:text-emerald-400" />
