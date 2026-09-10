@@ -82,7 +82,7 @@ function getNavigationItems(
   const allItems: NavItemTuple[] = [
     ['/dashboard', ['head_curator', 'curator'].includes(_userRole || '') ? 'Дашборд' : 'Dashboard', Home, 0, null, 'dashboard-nav', 'primary'],
     ['/calendar', ['head_curator', 'curator'].includes(_userRole || '') ? 'Календарь' : 'Calendar', Calendar, 0, null, 'calendar-nav', 'primary'],
-    ['/recordings', ['head_curator', 'curator'].includes(_userRole || '') ? 'Записи уроков' : 'Lesson Recordings', Video, 0, null, 'recordings-nav', 'primary', true],
+    ['/recordings', ['head_curator', 'curator'].includes(_userRole || '') ? 'Записи уроков' : 'Lesson Recordings', Video, 0, null, 'recordings-nav', 'primary'],
     ['/courses', 'My Courses', BookOpen, 0, ['student'], 'courses-nav', 'primary'],
     ['/homework', _userRole === 'student' ? 'My Homework' : 'Homework', ClipboardList, _userRole === 'student' ? unseenGradedCount : 0, ['student', 'teacher'], 'assignments-nav', 'primary'],
     ['/favorites', 'My Favorites', Heart, 0, ['student'], 'favorites-nav', 'primary'],

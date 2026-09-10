@@ -1,3 +1,5 @@
+import { ALMATY_TZ, splitLessonTitle, timeRange } from './recordings';
+
 /**
  * Point a Google Meet link at the viewer's work account.
  *
@@ -30,4 +32,36 @@ export function meetJoinUrl(url: string | null | undefined, workspaceEmail?: str
 
   parsed.searchParams.set('authuser', account);
   return parsed.toString();
+}
+
+/**
+ * A ready-to-send Russian invitation to one lesson, for a group chat.
+ *
+ * The date is absolute ("Четверг, 10 сентября"), never "today": the message is read
+ * whenever someone opens the chat. The link is the lesson's own clean Meet link — never the
+ * viewer's Join link, which may carry their account (?authuser=…) and would ask every
+ * student to sign in as the teacher.
+ */
+export function meetInvitationText(lesson: {
+  title: string;
+  groups?: string[] | null;
+  start_datetime: string;
+  end_datetime: string;
+  meeting_url: string;
+}): string {
+  const { name, lesson: number } = splitLessonTitle(
+    lesson.title,
+    (lesson.groups ?? []).map((g) => ({ name: g })),
+    'ru',
+  );
+  const day = new Intl.DateTimeFormat('ru-RU', {
+    timeZone: ALMATY_TZ, weekday: 'long', day: 'numeric', month: 'long',
+  }).format(new Date(lesson.start_datetime));
+  return [
+    'Приглашение на урок',
+    number ? `${name}, ${number.toLowerCase()}` : name,
+    `${day[0].toLocaleUpperCase()}${day.slice(1)}, ${timeRange(lesson.start_datetime, lesson.end_datetime)} (время Алматы)`,
+    `Google Meet: ${lesson.meeting_url}`,
+    'Подключайтесь за пару минут до начала.',
+  ].join('\n');
 }

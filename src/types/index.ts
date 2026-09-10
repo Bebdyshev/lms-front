@@ -1148,6 +1148,18 @@ export interface Event {
   teacher_name?: string;
   created_at?: string;
   updated_at?: string;
+  /**
+   * The lesson's recording, for class lessons the viewer may watch; absent otherwise.
+   * Status only — the calendar response is cached, so it never carries a playback link.
+   */
+  recording?: RecordingSummary | null;
+}
+
+export type RecordingStatus = 'ready' | 'pending' | 'failed' | 'removed';
+
+export interface RecordingSummary {
+  status: RecordingStatus;
+  duration_seconds?: number | null;
 }
 
 // Alias for backward compatibility or convenience

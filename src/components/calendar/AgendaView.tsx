@@ -2,7 +2,7 @@ import type { Event } from '../../types';
 import {
   cx, formatTime, eventStyle, eventTitle, typeLabel, isSubstitutedForTeacher, startOfDay, isSameDay,
 } from './calendarUtils';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, Play } from 'lucide-react';
 
 interface Props {
   events: Event[];
@@ -106,6 +106,9 @@ export default function AgendaView({ events, user, onEventClick }: Props) {
                     <span className="block truncate text-[14px] font-medium text-foreground">
                       {eventTitle(event)}
                       {sub && <span className={cx('ml-2 text-[10px] font-bold', s.time)}>SUB</span>}
+                      {event.recording?.status === 'ready' && (
+                        <Play className="ml-2 inline h-3 w-3 fill-current align-[-1px] text-muted-foreground" aria-label="Recorded" />
+                      )}
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
                       <span className={cx('text-[10.5px] font-semibold uppercase tracking-wide', s.time)}>

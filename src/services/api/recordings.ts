@@ -1,4 +1,5 @@
 import { api } from './client';
+import type { RecordingStatus } from '../../types';
 
 /**
  * What the backend says about a lesson's recording.
@@ -8,12 +9,14 @@ import { api } from './client';
  * of a recording is not confirmed to someone who cannot watch it. The UI must therefore
  * treat "missing" as "show nothing", never as an error.
  */
-export type LessonRecordingStatus = 'ready' | 'pending' | 'failed' | 'missing';
+export type LessonRecordingStatus = 'ready' | 'pending' | 'failed' | 'removed' | 'missing';
 
 export interface LessonRecording {
   status: LessonRecordingStatus;
   /** Signed HLS URL, scoped to the current viewer and short-lived. Only when ready. */
   url: string | null;
+  /** Signed preview image under the same token. Only when ready, and only if one was made. */
+  poster_url?: string | null;
   duration_seconds?: number | null;
 }
 
@@ -37,4 +40,62 @@ export async function getLessonRecording(eventId: number): Promise<LessonRecordi
     }
     throw new Error('Failed to load the recording');
   }
+}
+
+
+/** One card in the Recordings library. Times are UTC ISO strings with a Z. */
+export interface RecordingLibraryItem {
+  event_id: number;
+  title: string;
+  topic: string | null;
+  start_datetime: string;
+  end_datetime: string;
+  groups: { id: number; name: string }[];
+  teacher: { id: number; name: string | null } | null;
+  status: RecordingStatus;
+  duration_seconds: number | null;
+  /** Signed for this viewer; null while processing, when removed, or if no preview exists. */
+  poster_url: string | null;
+  ingested_at: string | null;
+}
+
+export interface RecordingFacets {
+  groups: { id: number; name: string }[];
+  teachers: { id: number; name: string | null }[];
+}
+
+export interface RecordingLibraryPage {
+  items: RecordingLibraryItem[];
+  next_cursor: string | null;
+  /** First page only. */
+  total?: number;
+  /** First page only: what the filter menus can offer, from the viewer's whole library. */
+  facets?: RecordingFacets;
+}
+
+export type RecordingPeriod = '7d' | '30d' | 'all';
+
+export interface RecordingLibraryQuery {
+  limit?: number;
+  cursor?: string | null;
+  q?: string;
+  group_id?: number | null;
+  teacher_id?: number | null;
+  period?: RecordingPeriod;
+  status?: 'ready' | 'pending' | 'failed' | null;
+}
+
+/**
+ * A page of the viewer's Recordings library. **Never cached**: the preview links carry a
+ * media token minted for this viewer, exactly like the playback URL.
+ */
+export async function listRecordings(query: RecordingLibraryQuery = {}): Promise<RecordingLibraryPage> {
+  const params: Record<string, string | number> = {};
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '' && !(key === 'period' && value === 'all')) {
+      params[key] = value as string | number;
+    }
+  });
+  const response = await api.get('/recordings', { params, cache: false } as never);
+  return response.data as RecordingLibraryPage;
 }

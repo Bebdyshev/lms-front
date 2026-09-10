@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Loader2, PlayCircle, Video } from 'lucide-react';
+import { Loader2, Play, Video } from 'lucide-react';
 import HlsVideoPlayer from '../HlsVideoPlayer';
 import { getLessonRecording, type LessonRecording } from '../../services/api/recordings';
 import type { Event } from '../../types';
+import { formatClock } from '../../lib/recordings';
 
 interface Props {
   event: Event;
@@ -12,13 +13,6 @@ interface Props {
 function hasFinished(event: Event): boolean {
   const end = new Date(event.end_datetime ?? event.start_datetime);
   return Number.isFinite(end.getTime()) && end.getTime() < Date.now();
-}
-
-function formatDuration(seconds?: number | null): string | null {
-  if (!seconds || seconds <= 0) return null;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.round((seconds % 3600) / 60);
-  return h > 0 ? `${h} h ${m} min` : `${m} min`;
 }
 
 /**
@@ -94,33 +88,56 @@ export default function LessonRecordingSection({ event }: Props) {
     );
   }
 
-  if (recording.status === 'failed') {
+  if (recording.status === 'failed' || recording.status === 'removed' || !recording.url) {
     return (
       <div className="mt-4 border-t border-border pt-4">
         <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
           <Video className="h-4 w-4 flex-none text-muted-foreground/70" />
-          <span>The recording of this lesson is not available.</span>
+          <span>
+            {recording.status === 'removed'
+              ? 'The recording of this lesson is no longer available.'
+              : 'The recording of this lesson is not available.'}
+          </span>
         </div>
       </div>
     );
   }
 
-  const duration = formatDuration(recording.duration_seconds);
+  const clock = formatClock(recording.duration_seconds);
+  const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  const poster = recording.poster_url
+    ? (recording.poster_url.startsWith('http') ? recording.poster_url : `${backend}${recording.poster_url}`)
+    : null;
 
   return (
     <div className="mt-4 border-t border-border pt-4">
-      {watching && recording.url ? (
-        <HlsVideoPlayer url={recording.url} title={event.title} className="w-full" />
+      {watching ? (
+        <HlsVideoPlayer url={recording.url} poster={recording.poster_url} title={event.title} autoPlay className="w-full" />
       ) : (
         <button
           type="button"
           onClick={() => setWatching(true)}
-          className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left transition hover:bg-muted"
+          aria-label={`Watch the recording${clock ? `, ${clock}` : ''}`}
+          className="group relative block aspect-video w-full overflow-hidden rounded-lg bg-muted text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <PlayCircle className="h-5 w-5 flex-none text-primary" />
-          <span className="text-sm font-semibold text-foreground">Watch the recording</span>
-          {duration && (
-            <span className="ml-auto text-xs text-muted-foreground">{duration}</span>
+          {poster ? (
+            <img src={poster} alt="" loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+              <Video className="h-8 w-8 text-white/40" aria-hidden />
+            </span>
+          )}
+          <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" aria-hidden />
+          <span className="absolute inset-0 flex items-center justify-center" aria-hidden>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition group-hover:scale-105">
+              <Play className="ml-0.5 h-5 w-5 fill-slate-900 text-slate-900" />
+            </span>
+          </span>
+          <span className="absolute bottom-2.5 left-3 text-[13px] font-semibold text-white drop-shadow">Watch the recording</span>
+          {clock && (
+            <span className="absolute bottom-2.5 right-3 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+              {clock}
+            </span>
           )}
         </button>
       )}

@@ -1,6 +1,7 @@
-import { Clock, ExternalLink, MapPin, Video, Users } from 'lucide-react';
+import { Clock, Copy, ExternalLink, MapPin, Video, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import { openPlatformPage, parsePlatformUrl } from '../../lib/platformLinks';
-import { meetJoinUrl } from '../../lib/meetLinks';
+import { meetInvitationText, meetJoinUrl } from '../../lib/meetLinks';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import LessonRecordingSection from './LessonRecordingSection';
 import type { Event, LessonRequest } from '../../types';
@@ -107,6 +108,24 @@ export default function EventDetailDialog({ event, open, onOpenChange, user, myR
                 >
                   Join / Войти
                 </a>
+                {/* A ready-to-send invitation for the group chat, built on the clean link. The
+                    Join link above may carry the viewer's own account (?authuser=…), which
+                    would ask students to sign in as the teacher. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = meetInvitationText({ ...event, meeting_url: event.meeting_url as string });
+                    navigator.clipboard.writeText(text).then(
+                      () => toast.success('Приглашение скопировано', { description: 'Можно отправить в чат группы.' }),
+                      () => toast.error('Не удалось скопировать приглашение'),
+                    );
+                  }}
+                  title="Copy an invitation for the group chat"
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Copy className="h-3.5 w-3.5" aria-hidden />
+                  Скопировать приглашение
+                </button>
               </div>
             )}
 

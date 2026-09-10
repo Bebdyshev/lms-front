@@ -8,6 +8,10 @@ interface HlsVideoPlayerProps {
   className?: string;
   onError?: (error: string) => void;
   onProgress?: (progress: number) => void;
+  /** Picture shown before playback — a stored path or absolute URL, like `url`. */
+  poster?: string | null;
+  /** Start as soon as the video can play: for a player the viewer opened in order to watch. */
+  autoPlay?: boolean;
 }
 
 /**
@@ -21,6 +25,8 @@ export default function HlsVideoPlayer({
   className = '',
   onError,
   onProgress,
+  poster,
+  autoPlay = false,
 }: HlsVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onProgressRef = useRef<typeof onProgress>();
@@ -32,6 +38,7 @@ export default function HlsVideoPlayer({
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   const src = url.startsWith('http') ? url : `${backendUrl}${url}`;
+  const posterSrc = poster ? (poster.startsWith('http') ? poster : `${backendUrl}${poster}`) : undefined;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -95,6 +102,8 @@ export default function HlsVideoPlayer({
           controls
           playsInline
           preload="metadata"
+          poster={posterSrc}
+          autoPlay={autoPlay}
           title={title}
           className="w-full h-full"
           onTimeUpdate={handleTimeUpdate}
