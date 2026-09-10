@@ -109,9 +109,25 @@ export const isGapType = (type: string): boolean =>
  * Blank out `[[…]]` gap tokens for pre-reveal display. This does NOT parse the gap syntax
  * to find the answer key (that stays getExpectedAnswers's job in scoring.ts) — it only
  * removes the tokens so the projected text never shows the asterisked correct option.
+ * `[\s\S]*?` (not `.`) so a gap token whose contents span a newline still gets blanked —
+ * `.` never matches `\n` without the `s` flag, and this file's target runtime doesn't carry
+ * `s` support as a given.
  */
 export function blankGapText(text: string): string {
-  return text.replace(/\[\[(.*?)\]\]/g, '____')
+  return text.replace(/\[\[([\s\S]*?)\]\]/g, '____')
+}
+
+/**
+ * A field's displayable text for gap types, tokens blanked. Quiz content is inconsistent
+ * about which field carries the `[[…]]` syntax — usually content_text, but sometimes
+ * question_text (see scoring.ts's getExpectedAnswers and QuizRenderer.tsx's student-facing
+ * renderer, which both check either field for gaps) — so this must be applied to whichever
+ * field text is handed to it, not just content_text. Used for both the projected question's
+ * passage/heading (ReviewQuestionView) and the "Hardest questions" fallback text below. Pure
+ * display: it never decides correctness — that stays getExpectedAnswers's job.
+ */
+export function displayText(questionType: string, text: string | null | undefined): string {
+  return isGapType(questionType) ? blankGapText(String(text ?? '')) : String(text ?? '')
 }
 
 /**
@@ -320,13 +336,14 @@ export function buildQuestionStats(
       questionId: key,
       index,
       questionType: type,
-      // Gap questions (fill_blank, text_completion) usually have an empty question_text,
-      // and their content_text is the gapped source with the answer key marked by `*` --
-      // falling back to it raw would leak that key into the "Hardest questions" list on
-      // the finish screen the same way it leaked onto the presenter (see C1). Blank the
-      // gap tokens out of the fallback instead.
+      // Gap questions (fill_blank, text_completion) mark their answer key with `*` inside
+      // `[[…]]` tokens, and that syntax can land in EITHER content_text or question_text
+      // depending on how the quiz was authored (see displayText's doc comment) — showing
+      // either raw would leak the key into the "Hardest questions" list on the finish
+      // screen the same way it leaked onto the presenter (see C1). displayText blanks
+      // whichever field wins the fallback below.
       questionText: isGapType(type)
-        ? (question?.question_text || blankGapText((question?.content_text ?? '').toString()))
+        ? displayText(type, question?.question_text || question?.content_text)
         : (question?.question_text ?? question?.content_text ?? '').toString(),
       participants: parsed.length,
       answered,
@@ -410,10 +427,21 @@ function median(values: number[]): number | null {
  * image_content excluded. Gap questions (fill_blank, text_completion) are scored gap-by-gap
  * here, the same way the student's own result screen scores them (LessonPage's
  * getGapStatistics accumulates gradeQuestion's correctParts/totalParts per gap) — a 9-of-10
- * gap answer contributes 9/10, not 0/1. Every other gradable type stays all-or-nothing, one
- * part per question, matching LessonPage's regularQuestions/correctRegular counting. Without
- * this, a class average computed one-point-per-question would read lower than what students
- * saw on submission for any quiz using gaps.
+ * gap answer contributes 9/10, not 0/1. That part matches getGapStatistics exactly.
+ *
+ * The rest does NOT match LessonPage's own regularQuestions/correctRegular counting, and
+ * that is a real, visible divergence — not just an implementation detail. isGradable (above)
+ * excludes long_text entirely, and excludes any other question whose correct_answer doesn't
+ * resolve to a usable key, from BOTH the numerator and the denominator. LessonPage counts
+ * long_text as one regular question, correct iff the student wrote anything (gradeQuestion's
+ * long_text branch), and counts an unresolvable-key question as answered-and-wrong rather
+ * than dropping it. So for a quiz with 5 MCQs + 1 essay where a student gets 4 MCQs right and
+ * writes the essay, the student's own result screen reads 5/6 = 83.3% while this summary
+ * reads 4/5 = 80% for that same student's contribution. Whether an essay (or an unresolvable
+ * question) should count toward a projected class average is a product decision, not
+ * something this function tries to paper over — so treat any resemblance between this
+ * summary's percentage and a given student's own score as coincidental whenever the quiz
+ * contains long_text or unresolvable-key questions.
  */
 export function buildClassSummary(
   questionStats: QuestionStat[],

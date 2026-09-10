@@ -33,13 +33,18 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
         case 'ArrowLeft':
         case 'PageUp':
           e.preventDefault(); actions.prev(); break
+        // R always reveals — it's the headline shortcut (see EN.keyboardHint) and, unlike
+        // Enter/NumpadEnter below, is never a button's native activation key, so a focused
+        // toolbar button (left focused after a mouse click, e.g. in Chrome) must not
+        // swallow it.
+        case 'KeyR':
+          e.preventDefault(); actions.toggleReveal(); break
         // Enter/NumpadEnter also toggle reveal, but ONLY when focus is not on a button: a
         // focused toolbar button's native response to Enter is to click it, which already
         // calls the right handler. Swallowing Enter here unconditionally (as before) would
         // fire the click AND toggleReveal for the reveal button, and — worse — silently kill
         // Enter-activation for every OTHER toolbar button too, since the event never reached
         // the browser's default handling.
-        case 'KeyR':
         case 'Enter':
         case 'NumpadEnter':
           if (target && target.tagName === 'BUTTON') break

@@ -6,7 +6,7 @@ import { Card, CardContent } from '../ui/card'
 import { renderTextWithLatex } from '../../utils/latex'
 import { getExpectedAnswers } from '../lesson/quiz/scoring'
 import { EN, questionTypeLabel } from './strings'
-import { blankGapText, isCorrectOption, isGapType, LETTERS, splitPipeAnswers, type QuestionStat } from './reviewStats'
+import { displayText, isCorrectOption, isGapType, LETTERS, splitPipeAnswers, type QuestionStat } from './reviewStats'
 
 interface Props {
   question: any
@@ -23,12 +23,15 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
   }
 
   const isGap = isGapType(question.question_type)
-  // Gap questions store their key IN the content — content_text is the gapped source text,
-  // with the correct option inside each [[…]] token marked by `*` (see gapParser.ts). It
-  // must never be shown raw: the answer key would be visible the instant the question
-  // appears, before Reveal. blankGapText only strips the tokens for display; it does not
-  // parse them for correctness — getExpectedAnswers (scoring.ts) stays the only place that
-  // decides what the accepted answers are.
+  // Gap questions store their key IN the content, with the correct option inside each
+  // [[…]] token marked by `*` (see gapParser.ts). That syntax isn't confined to content_text
+  // — some quizzes carry it in question_text instead (scoring.ts's getExpectedAnswers and
+  // QuizRenderer.tsx's student-facing renderer both check either field for exactly this
+  // reason) — so BOTH the passage below and the heading further down must go through
+  // displayText, not just one of them. Neither must ever be shown raw: the answer key would
+  // be visible the instant the question appears, before Reveal. displayText only strips the
+  // tokens for display; it does not parse them for correctness — getExpectedAnswers
+  // (scoring.ts) stays the only place that decides what the accepted answers are.
   const passage = question.content_text
   const options: any[] = Array.isArray(question.options) ? question.options : []
 
@@ -66,7 +69,7 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
         {passage && (
           <div
             className="rounded border-l-4 border-muted-foreground/30 bg-muted/40 p-4 text-base leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: renderTextWithLatex(isGap ? blankGapText(String(passage)) : String(passage)) }}
+            dangerouslySetInnerHTML={{ __html: renderTextWithLatex(displayText(question.question_type, passage)) }}
           />
         )}
 
@@ -74,9 +77,14 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
           <img src={question.media_url} alt="" className="max-h-72 rounded object-contain" />
         )}
 
+        {/* Same leak this component's passage above already guards against (see the comment
+            on `isGap`): a gap question can carry its [[…*…]] tokens in question_text instead
+            of content_text, so this heading needs the same displayText treatment — a raw
+            question_text here is exactly what let the answer key reach the projector while
+            students' own screens (QuizRenderer.tsx) already hid it. */}
         <h2
           className="text-2xl font-semibold leading-snug"
-          dangerouslySetInnerHTML={{ __html: renderTextWithLatex(String(question.question_text || '')) }}
+          dangerouslySetInnerHTML={{ __html: renderTextWithLatex(displayText(question.question_type, question.question_text)) }}
         />
 
         {options.length > 0 && (

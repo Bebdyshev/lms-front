@@ -64,9 +64,12 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames })
           <p className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{EN.notGraded}</p>
         )}
 
-        {/* 'none' means this question type (matching) deliberately has no printable answer
-            distribution — the correct/partial/incorrect split below is the real answer for
-            it, so the heading and bars are omitted rather than shown above a "No data" line. */}
+        {/* 'none' means this question type (matching, or long_text) deliberately has no
+            printable answer distribution — long_text's raw value is a whole essay, which
+            must not be projected verbatim with the writer's name attached, and matching's
+            is a set of left→right index pairs, not a single printable answer. The
+            correct/partial/incorrect split below is the real answer for both, so the
+            heading and bars are omitted rather than shown above a "No data" line. */}
         {stat.distributionKind !== 'none' && (
           <div className="space-y-2">
             <p className="text-sm font-semibold">{EN.answerDistribution}</p>

@@ -4,6 +4,7 @@ import {
   blankGapText,
   buildClassSummary,
   buildQuestionStats,
+  displayText,
   isBlankAnswer,
   isCorrectOption,
   parseAnswerBlob,
@@ -35,6 +36,17 @@ const gaps = {
   id: 'q4',
   question_type: 'fill_blank',
   content_text: 'A [[cat*,dog]] and a [[hat*,bat]]',
+}
+
+// Some gap questions carry their [[…*…]] syntax in question_text rather than content_text —
+// scoring.ts's getExpectedAnswers and QuizRenderer.tsx's student view both check either
+// field for exactly this reason. This fixture has no content_text at all, so a fallback
+// that only ever blanks content_text (the C1 bug) would fall through to the raw,
+// answer-key-bearing question_text untouched.
+const gapsInQuestionText = {
+  id: 'q7',
+  question_type: 'fill_blank',
+  question_text: 'A [[cat*,dog]] and a [[hat*,bat]]',
 }
 
 const essay = { id: 'q5', question_type: 'long_text' }
@@ -417,11 +429,52 @@ describe('blankGapText', () => {
   it('leaves ordinary text untouched', () => {
     expect(blankGapText('No gaps here')).toBe('No gaps here')
   })
+
+  // Regression: `.` in the token regex never matches `\n` without the `s` flag, so a gap
+  // token whose contents happened to wrap onto a second line printed raw, key included.
+  it('blanks a gap token even when its contents span a newline', () => {
+    const withNewline = 'A [[cat*,\ndog]] day'
+    expect(blankGapText(withNewline)).toBe('A ____ day')
+    expect(blankGapText(withNewline)).not.toContain('*')
+  })
+})
+
+describe('displayText — the pure helper ReviewQuestionView renders through', () => {
+  it('blanks gap tokens in question_text, not just content_text (C1 regression)', () => {
+    // Reproduces the projector leak: a fill_blank question with no content_text at all,
+    // its [[cat*,dog]] key living only in question_text. ReviewQuestionView's heading reads
+    // question.question_text through this exact helper.
+    expect(displayText('fill_blank', gapsInQuestionText.question_text)).toBe('A ____ and a ____')
+    expect(displayText('fill_blank', gapsInQuestionText.question_text)).not.toContain('*')
+    expect(displayText('fill_blank', gapsInQuestionText.question_text)).not.toContain('[[')
+  })
+
+  it('blanks gap tokens in content_text too', () => {
+    expect(displayText('fill_blank', gaps.content_text)).toBe('A ____ and a ____')
+  })
+
+  it('leaves non-gap types untouched, asterisks and all', () => {
+    expect(displayText('single_choice', 'What is 2 * 2?')).toBe('What is 2 * 2?')
+  })
+
+  it('treats a null/undefined field as empty text', () => {
+    expect(displayText('fill_blank', undefined)).toBe('')
+    expect(displayText('fill_blank', null)).toBe('')
+  })
 })
 
 describe('buildQuestionStats — gap question text falls back to the blanked source, never the answer key', () => {
   it('never leaks the [[…*…]] gap syntax into questionText', () => {
     const [stat] = buildQuestionStats([gaps], [], names)
+    expect(stat.questionText).toBe('A ____ and a ____')
+    expect(stat.questionText).not.toContain('*')
+    expect(stat.questionText).not.toContain('[[')
+  })
+
+  // C1 regression: when the gap syntax lives in question_text instead, it used to win the
+  // `||` fallback unblanked and reach the finish screen's "Hardest questions" list raw.
+  it('never leaks the [[…*…]] gap syntax into questionText when the gaps live in question_text', () => {
+    const [stat] = buildQuestionStats([gapsInQuestionText], [], names)
     expect(stat.questionText).toBe('A ____ and a ____')
     expect(stat.questionText).not.toContain('*')
     expect(stat.questionText).not.toContain('[[')
