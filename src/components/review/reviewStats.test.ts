@@ -34,6 +34,16 @@ const gaps = {
 
 const essay = { id: 'q5', question_type: 'long_text' }
 
+const matching = {
+  id: 'q6',
+  question_type: 'matching',
+  question_text: 'Match the pairs',
+  matching_pairs: [
+    { left: 'cat', right: 'meow' },
+    { left: 'dog', right: 'woof' },
+  ],
+}
+
 const names = new Map([[1, 'Abenov'], [2, 'Borisov'], [3, 'Vlasov']])
 
 function attempt(studentId: number, answers: unknown): ReviewAttempt {
@@ -198,6 +208,42 @@ describe('buildQuestionStats — text answers', () => {
     expect(stat.partial).toBe(1)
     expect(stat.correct).toBe(0)
     expect(stat.names.partial).toEqual(['Abenov'])
+  })
+})
+
+describe('buildQuestionStats — matching', () => {
+  const fullyCorrect = { __type: 'Map', data: [[0, 0], [1, 1]] }
+  const halfCorrect = { __type: 'Map', data: [[0, 0], [1, 2]] }
+  const empty = { __type: 'Map', data: [] }
+
+  const attempts = [
+    attempt(1, [['q6', fullyCorrect]]),
+    attempt(2, [['q6', halfCorrect]]),
+    attempt(3, [['q6', empty]]),
+  ]
+  const [stat] = buildQuestionStats([matching], attempts, names)
+
+  it('buckets a fully-correct submission as correct and a partly-right one as partial', () => {
+    expect(stat.correct).toBe(1)
+    expect(stat.partial).toBe(1)
+    expect(stat.names.correct).toEqual(['Abenov'])
+    expect(stat.names.partial).toEqual(['Borisov'])
+  })
+
+  it('treats an empty matching map as unanswered', () => {
+    expect(stat.unanswered).toBe(1)
+    expect(stat.names.unanswered).toEqual(['Vlasov'])
+  })
+
+  it('has no answer distribution — a correct/partial/incorrect split only', () => {
+    expect(stat.distributionKind).toBe('none')
+    expect(stat.options).toEqual([])
+  })
+
+  it('treats a missing matching answer as unanswered too', () => {
+    const [missingStat] = buildQuestionStats([matching], [attempt(4, [])], names)
+    expect(missingStat.unanswered).toBe(1)
+    expect(missingStat.options).toEqual([])
   })
 })
 

@@ -53,7 +53,13 @@ export interface QuestionStat {
   percentCorrect: number | null
   /** False when the question has no resolvable answer key — show the spread, claim no verdict. */
   graded: boolean
-  distributionKind: 'choice' | 'text'
+  /**
+   * 'choice' bars per option, 'text' rows of what students typed, or 'none' when the
+   * question has no meaningful answer distribution to show — matching questions only
+   * get a correct/partial/incorrect split (per the review-mode spec), since their raw
+   * stored value is a set of left→right index pairs, not a single printable answer.
+   */
+  distributionKind: 'choice' | 'text' | 'none'
   options: OptionStat[]
   names: Record<AnswerBucket, string[]>
 }
@@ -176,6 +182,7 @@ export function buildQuestionStats(
     const type = question?.question_type ?? 'unknown'
     const graded = isGradable(question)
     const isChoice = CHOICE_TYPES.has(type) && Array.isArray(question?.options)
+    const isMatching = type === 'matching'
 
     const names: Record<AnswerBucket, string[]> = {
       correct: [], partial: [], incorrect: [], unanswered: [],
@@ -225,7 +232,7 @@ export function buildQuestionStats(
             slot.names.push(entry.name)
           }
         }
-      } else {
+      } else if (!isMatching) {
         const text = answerText(question, raw)
         const rowKey = normalizeText(text)
         const existing = textRows.get(rowKey)
@@ -254,17 +261,19 @@ export function buildQuestionStats(
           isCorrect: graded && isCorrectOption(question, optionIndex),
           names: choiceCounts[optionIndex].names,
         }))
-      : [...textRows.entries()]
-          .map(([rowKey, row]) => ({
-            key: rowKey,
-            label: '',
-            text: row.text,
-            count: row.count,
-            percent: answered > 0 ? round1((row.count / answered) * 100) : 0,
-            isCorrect: row.isCorrect,
-            names: row.names,
-          }))
-          .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text))
+      : isMatching
+        ? []
+        : [...textRows.entries()]
+            .map(([rowKey, row]) => ({
+              key: rowKey,
+              label: '',
+              text: row.text,
+              count: row.count,
+              percent: answered > 0 ? round1((row.count / answered) * 100) : 0,
+              isCorrect: row.isCorrect,
+              names: row.names,
+            }))
+            .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text))
 
     return {
       questionId: key,
@@ -279,7 +288,7 @@ export function buildQuestionStats(
       incorrect,
       percentCorrect: graded && answered > 0 ? round1((correct / answered) * 100) : null,
       graded,
-      distributionKind: isChoice ? 'choice' : 'text',
+      distributionKind: isChoice ? 'choice' : isMatching ? 'none' : 'text',
       options,
       names,
     }
