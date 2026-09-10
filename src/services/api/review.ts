@@ -11,7 +11,6 @@ export interface ReviewQuizStep {
 export interface ReviewUnit {
   lesson_id: number
   title: string
-  order: number
   quizzes: ReviewQuizStep[]
 }
 
