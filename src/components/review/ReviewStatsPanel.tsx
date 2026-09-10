@@ -13,8 +13,8 @@ interface Props {
   showNames: boolean
 }
 
-const STAT_LABEL = 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'
-const STAT_VALUE = 'text-2xl font-bold text-gray-900 dark:text-foreground tabular-nums'
+const STAT_LABEL = 'text-sm font-medium text-gray-500 dark:text-gray-400'
+const STAT_VALUE = 'text-3xl font-bold text-gray-900 dark:text-foreground tabular-nums'
 const SECTION_HEADING = 'text-sm font-semibold text-gray-700 dark:text-gray-200'
 const CHIP = 'rounded-full border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary px-2 py-0.5 text-xs text-gray-700 dark:text-gray-300'
 

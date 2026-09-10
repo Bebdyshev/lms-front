@@ -17,6 +17,7 @@ export const EN = {
   questions: 'Questions',
   submitted: 'Submitted',
   students: 'Students',
+  completed: 'Completed',
 
   questionOf: 'Question {n} of {total}',
   revealAnswer: 'Reveal answer',
