@@ -27,20 +27,28 @@ const PROGRAM_ALIASES: Record<ProgramKey, string[]> = {
 };
 
 /**
- * Match an alias as a whole word. JavaScript's `\b` only understands ASCII, so
- * it can't bound a Cyrillic alias at all — hence the explicit Unicode letter
- * class. Digits may follow ("GE12", "SAT2026" are real naming habits) but
- * letters may not, so "ge" never fires inside "Georgia" or "general", and "sat"
- * never fires inside "Saturday".
+ * A pattern matching any of `aliases` as whole words in a title. JavaScript's
+ * `\b` only understands ASCII, so it can't bound a Cyrillic alias at all —
+ * hence the explicit Unicode letter class. Digits may follow ("GE12", "SAT2026"
+ * are real naming habits) but letters may not, so "ge" never fires inside
+ * "Georgia" or "general", and "sat" never fires inside "Saturday". A space in
+ * an alias matches any run of whitespace, since titles are typed by hand.
  */
+export function titlePattern(aliases: string[]): RegExp {
+  // Note the escape set has no `-`: under the `u` flag, `\-` outside a
+  // character class is a SyntaxError, and since these patterns are built at
+  // import time that would take down the whole page on load.
+  const escaped = aliases.map((alias) =>
+    alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ +/g, '\\s+'),
+  );
+  return new RegExp(`(?:^|[^\\p{L}])(?:${escaped.join('|')})(?![\\p{L}])`, 'iu');
+}
+
 const PROGRAM_PATTERNS: Record<ProgramKey, RegExp> = Object.fromEntries(
-  (Object.entries(PROGRAM_ALIASES) as [ProgramKey, string[]][]).map(([key, aliases]) => {
-    // Note the escape set has no `-`: under the `u` flag, `\-` outside a
-    // character class is a SyntaxError, and since these patterns are built at
-    // import time that would take down the whole page on load.
-    const escaped = aliases.map((alias) => alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    return [key, new RegExp(`(?:^|[^\\p{L}])(?:${escaped.join('|')})(?![\\p{L}])`, 'iu')];
-  }),
+  (Object.entries(PROGRAM_ALIASES) as [ProgramKey, string[]][]).map(([key, aliases]) => [
+    key,
+    titlePattern(aliases),
+  ]),
 ) as Record<ProgramKey, RegExp>;
 
 export const PROGRAM_ORDER: ProgramKey[] = ['sat', 'ielts', 'nuet', 'general_english'];

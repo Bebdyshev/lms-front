@@ -2,17 +2,18 @@ import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Input } from '../ui/input';
 import { PROGRAM_BADGE_STYLES } from '../../lib/groupPicker';
+import { hasCurator } from './curator';
 import { PROGRAM_CHIP_LABELS, PROGRAM_ORDER, detectPrograms } from './programs';
 import type { ProgramKey } from './programs';
 import type { TelegramGroup } from '../../services/api/announcements';
 
 /**
- * Search and program filters for lists of Telegram groups.
+ * Search, program and curator filters for lists of Telegram groups.
  *
  * Shared by the announcement composer's recipient picker and the Groups tab, so
- * the two can't disagree about which groups count as "SAT". Programs come from
- * the group's title via `detectPrograms` — Telegram groups carry no program
- * metadata of their own.
+ * the two can't disagree about which groups count as "SAT". Programs and
+ * curators both come from the group's title, via `detectPrograms` and
+ * `hasCurator` — Telegram groups carry no metadata of their own.
  *
  * The hook only decides what is SHOWN. Anything that selects groups keeps its
  * own selection state, so narrowing the view never unticks a pick.
@@ -21,12 +22,21 @@ import type { TelegramGroup } from '../../services/api/announcements';
 /** A program filter, or the "no program in the name" bucket. */
 export type ProgramFilterKey = ProgramKey | 'other';
 
+/** Groups whose name says they have a curator (or mentor), or the rest. */
+export type CuratorFilterKey = 'with' | 'without';
+
 export function useGroupFilters(groups: TelegramGroup[]) {
   const [search, setSearch] = useState('');
   const [programFilter, setProgramFilter] = useState<Set<ProgramFilterKey>>(new Set());
+  // One at a time: "with" and "without" together would just mean everything.
+  const [curatorFilter, setCuratorFilter] = useState<CuratorFilterKey | null>(null);
 
   const programsById = useMemo(
     () => new Map(groups.map((group) => [group.id, detectPrograms(group.title || '')])),
+    [groups],
+  );
+  const curatorById = useMemo(
+    () => new Map(groups.map((group) => [group.id, hasCurator(group.title || '')])),
     [groups],
   );
 
@@ -38,31 +48,43 @@ export function useGroupFilters(groups: TelegramGroup[]) {
     );
   }, [groups, search]);
 
-  /** Per-chip counts, taken AFTER the search so each chip says what clicking it would show. */
-  const chipCounts = useMemo(() => {
-    const counts: Record<ProgramFilterKey, number> = {
+  /**
+   * What's shown, plus the per-chip counts. Each row of chips is counted with
+   * the search and the OTHER row applied, so every chip says what clicking it
+   * would show: with "With curator" on, "IELTS" counts IELTS groups that have one.
+   */
+  const { visibleGroups, programCounts, curatorCounts } = useMemo(() => {
+    const programCounts: Record<ProgramFilterKey | 'all', number> = {
+      all: 0,
       sat: 0,
       ielts: 0,
       nuet: 0,
       general_english: 0,
       other: 0,
     };
+    const curatorCounts: Record<CuratorFilterKey, number> = { with: 0, without: 0 };
+    const visibleGroups: TelegramGroup[] = [];
+
     for (const group of searchMatched) {
       const programs = programsById.get(group.id) ?? [];
-      if (programs.length === 0) counts.other += 1;
-      for (const program of programs) counts[program] += 1;
-    }
-    return counts;
-  }, [searchMatched, programsById]);
+      const curator = curatorById.get(group.id) ? 'with' : 'without';
+      const programMatch =
+        programFilter.size === 0 ||
+        (programs.length === 0
+          ? programFilter.has('other')
+          : programs.some((program) => programFilter.has(program)));
+      const curatorMatch = curatorFilter === null || curatorFilter === curator;
 
-  const visibleGroups = useMemo(() => {
-    if (programFilter.size === 0) return searchMatched;
-    return searchMatched.filter((group) => {
-      const programs = programsById.get(group.id) ?? [];
-      if (programs.length === 0) return programFilter.has('other');
-      return programs.some((program) => programFilter.has(program));
-    });
-  }, [searchMatched, programFilter, programsById]);
+      if (curatorMatch) {
+        programCounts.all += 1;
+        if (programs.length === 0) programCounts.other += 1;
+        for (const program of programs) programCounts[program] += 1;
+      }
+      if (programMatch) curatorCounts[curator] += 1;
+      if (programMatch && curatorMatch) visibleGroups.push(group);
+    }
+    return { visibleGroups, programCounts, curatorCounts };
+  }, [searchMatched, programFilter, curatorFilter, programsById, curatorById]);
 
   const toggleProgram = (key: ProgramFilterKey) => {
     setProgramFilter((current) => {
@@ -79,23 +101,37 @@ export function useGroupFilters(groups: TelegramGroup[]) {
     programFilter,
     toggleProgram,
     showAllPrograms: () => setProgramFilter(new Set()),
+    curatorFilter,
+    /** Picking the active one again turns the filter off. */
+    toggleCurator: (key: CuratorFilterKey) =>
+      setCuratorFilter((current) => (current === key ? null : key)),
     clearFilters: () => {
       setSearch('');
       setProgramFilter(new Set());
+      setCuratorFilter(null);
     },
     programsOf: (group: TelegramGroup): ProgramKey[] => programsById.get(group.id) ?? [],
-    searchMatched,
-    chipCounts,
+    programCounts,
+    curatorCounts,
     visibleGroups,
-    isFiltering: search.trim() !== '' || programFilter.size > 0,
+    isFiltering: search.trim() !== '' || programFilter.size > 0 || curatorFilter !== null,
   };
 }
 
 export type GroupFilters = ReturnType<typeof useGroupFilters>;
 
-/** The search box and the SAT / IELTS / NUET / GE chips. */
+/** The search box, the SAT / IELTS / NUET / GE chips and the curator chips. */
 export function GroupFilterBar({ filters }: { filters: GroupFilters }) {
-  const { search, setSearch, programFilter, toggleProgram, chipCounts, searchMatched } = filters;
+  const {
+    search,
+    setSearch,
+    programFilter,
+    toggleProgram,
+    programCounts,
+    curatorFilter,
+    toggleCurator,
+    curatorCounts,
+  } = filters;
   return (
     <div className="space-y-3">
       <div className="relative">
@@ -122,33 +158,51 @@ export function GroupFilterBar({ filters }: { filters: GroupFilters }) {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by program">
-        <FilterChip
-          label="All"
-          count={searchMatched.length}
-          active={programFilter.size === 0}
-          onClick={filters.showAllPrograms}
-        />
-        {PROGRAM_ORDER.map((key) => (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by program">
           <FilterChip
-            key={key}
-            label={PROGRAM_CHIP_LABELS[key]}
-            count={chipCounts[key]}
-            active={programFilter.has(key)}
-            activeClassName={PROGRAM_BADGE_STYLES[key]}
-            onClick={() => toggleProgram(key)}
+            label="All"
+            count={programCounts.all}
+            active={programFilter.size === 0}
+            onClick={filters.showAllPrograms}
           />
-        ))}
-        {/* Only offered when something actually lands there — usually staff
-            chats whose names carry no program. */}
-        {(chipCounts.other > 0 || programFilter.has('other')) && (
+          {PROGRAM_ORDER.map((key) => (
+            <FilterChip
+              key={key}
+              label={PROGRAM_CHIP_LABELS[key]}
+              count={programCounts[key]}
+              active={programFilter.has(key)}
+              activeClassName={PROGRAM_BADGE_STYLES[key]}
+              onClick={() => toggleProgram(key)}
+            />
+          ))}
+          {/* Only offered when something actually lands there — usually staff
+              chats whose names carry no program. */}
+          {(programCounts.other > 0 || programFilter.has('other')) && (
+            <FilterChip
+              label="Other"
+              count={programCounts.other}
+              active={programFilter.has('other')}
+              onClick={() => toggleProgram('other')}
+            />
+          )}
+        </div>
+
+        {/* No "All" chip here: with neither picked, the filter is simply off. */}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by curator">
           <FilterChip
-            label="Other"
-            count={chipCounts.other}
-            active={programFilter.has('other')}
-            onClick={() => toggleProgram('other')}
+            label="With curator"
+            count={curatorCounts.with}
+            active={curatorFilter === 'with'}
+            onClick={() => toggleCurator('with')}
           />
-        )}
+          <FilterChip
+            label="Without curator"
+            count={curatorCounts.without}
+            active={curatorFilter === 'without'}
+            onClick={() => toggleCurator('without')}
+          />
+        </div>
       </div>
     </div>
   );
