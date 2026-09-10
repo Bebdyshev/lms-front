@@ -222,6 +222,7 @@ export interface ReviewSessionActions {
   selectUnit: (lessonId: number) => void
   selectQuiz: (stepId: number) => void
   start: () => Promise<void>
+  startQuiz: (lessonId: number, stepId: number) => Promise<void>
   next: () => void
   prev: () => void
   jumpTo: (index: number) => void
@@ -326,13 +327,13 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
     dispatch({ type: 'selectQuiz', stepId })
   }, [])
 
-  const start = useCallback(async () => {
-    const { selectedStepId, selectedGroupId } = stateRef.current
-    if (!selectedStepId || !selectedGroupId) return
+  // Shared by start() and startQuiz(): both end up fetching the same session, they just
+  // get stepId/groupId from different places (state vs. explicit args).
+  const runStart = useCallback(async (stepId: number, groupId: number) => {
     const token = guard.start()
     dispatch({ type: 'loading' })
     try {
-      const payload = await apiClient.getReviewSession(selectedStepId, selectedGroupId)
+      const payload = await apiClient.getReviewSession(stepId, groupId)
       if (!guard.isCurrent(token)) return // superseded by a newer selection
       dispatch({ type: 'started', payload })
     } catch (err) {
@@ -340,6 +341,28 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
       dispatch({ type: 'error', message: messageFor(err) })
     }
   }, [])
+
+  const start = useCallback(async () => {
+    const { selectedStepId, selectedGroupId } = stateRef.current
+    if (!selectedStepId || !selectedGroupId) return
+    await runStart(selectedStepId, selectedGroupId)
+  }, [runStart])
+
+  // A "Worth reviewing" row already knows exactly which lesson/quiz it wants started --
+  // it doesn't need the two-step select-then-press-Start dance. It still dispatches
+  // selectUnit/selectQuiz so the pickers above reflect the choice, but it must NOT then
+  // call start() and rely on stateRef to have caught up: dispatch is async, so stateRef
+  // (updated on render) can still hold the previous selection when start() would run in
+  // the same tick. Taking stepId directly from the click sidesteps that race entirely --
+  // only groupId is read from state, and that's already settled by the time this list is
+  // visible at all (it only renders once a group is selected).
+  const startQuiz = useCallback(async (lessonId: number, stepId: number) => {
+    dispatch({ type: 'selectUnit', lessonId })
+    dispatch({ type: 'selectQuiz', stepId })
+    const groupId = stateRef.current.selectedGroupId
+    if (!groupId) return
+    await runStart(stepId, groupId)
+  }, [runStart])
 
   const next = useCallback(() => dispatch({ type: 'index', index: stateRef.current.index + 1 }), [])
   const prev = useCallback(() => dispatch({ type: 'index', index: stateRef.current.index - 1 }), [])
@@ -358,11 +381,11 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
   useEffect(() => { loadCourses() }, [loadCourses])
 
   const actions = useMemo<ReviewSessionActions>(() => ({
-    loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start,
+    loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start, startQuiz,
     next, prev, jumpTo,
     toggleReveal, toggleStats, toggleNames, toggleGrid, closeGrid,
     finish, restart, exit,
-  }), [loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start,
+  }), [loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start, startQuiz,
     next, prev, jumpTo, toggleReveal, toggleStats, toggleNames, toggleGrid,
     closeGrid, finish, restart, exit])
 

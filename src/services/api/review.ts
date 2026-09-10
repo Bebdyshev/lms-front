@@ -6,6 +6,9 @@ export interface ReviewQuizStep {
   title: string
   question_count: number
   submitted_count: number
+  /** The class average of the score students themselves saw. Optional: an older backend
+   *  won't send it, and even a current one omits it while nobody has submitted yet. */
+  average_percent?: number | null
 }
 
 export interface ReviewUnit {

@@ -1,12 +1,14 @@
 // Setup screen: the teacher picks course -> group -> unit -> quiz before anything reaches
 // the class. Each select only appears once its parent has a value, so the path is obvious.
-import React from 'react'
+import React, { useMemo } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { EN } from './strings'
+import { EN, format } from './strings'
 import type { ReviewSessionActions, ReviewSessionState } from './useReviewSession'
+import type { ReviewUnit } from '../../services/api/review'
 
 interface Props {
   state: ReviewSessionState
@@ -17,10 +19,70 @@ const FIELD_LABEL = 'text-sm font-medium text-gray-500 dark:text-gray-400'
 const STAT_LABEL = 'text-sm font-medium text-gray-500 dark:text-gray-400'
 const STAT_VALUE = 'text-3xl font-bold text-gray-900 dark:text-foreground tabular-nums'
 
+// How many rows the "Worth reviewing" list shows before collapsing the rest into a "+N
+// more" line -- a 40-unit course flattens into a lot of quizzes, and this screen is a
+// picker, not a report.
+const WORTH_REVIEWING_LIMIT = 10
+
+interface WorthReviewingRow {
+  lessonId: number
+  stepId: number
+  unitTitle: string
+  quizTitle: string
+  submittedCount: number
+  averagePercent: number | null
+}
+
+// Flattens every taken quiz across every unit into one list. A quiz nobody submitted has
+// no average and nothing to review, so it's excluded here rather than filtered later.
+function flattenTakenQuizzes(units: ReviewUnit[]): WorthReviewingRow[] {
+  const rows: WorthReviewingRow[] = []
+  units.forEach((unit) => {
+    unit.quizzes.forEach((quiz) => {
+      if (quiz.submitted_count > 0) {
+        rows.push({
+          lessonId: unit.lesson_id,
+          stepId: quiz.step_id,
+          unitTitle: unit.title,
+          quizTitle: quiz.title,
+          submittedCount: quiz.submitted_count,
+          averagePercent: typeof quiz.average_percent === 'number' ? quiz.average_percent : null,
+        })
+      }
+    })
+  })
+  return rows
+}
+
 export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
   const unit = state.units.find((u) => u.lesson_id === state.selectedLessonId) || null
   const quiz = unit?.quizzes.find((q) => q.step_id === state.selectedStepId) || null
   const busy = state.status === 'loading'
+
+  // Every quiz the group has taken, flattened across units, cheapest to recompute only
+  // when the units list itself changes (not on every keystroke/toggle elsewhere on the
+  // page).
+  const takenQuizzes = useMemo(() => flattenTakenQuizzes(state.units), [state.units])
+
+  // If not one of them carries an average, there's nothing to sort by -- ranking would be
+  // arbitrary (effectively "whatever order the API happened to return"), so the caller
+  // renders a hint instead of a list in that case.
+  const hasAverages = takenQuizzes.some((row) => row.averagePercent !== null)
+
+  // Ascending by average (missing averages sort last, since we can't say how worth
+  // reviewing they are); Array#sort is stable, so equal averages keep the API's own unit
+  // order rather than being reshuffled.
+  const sortedQuizzes = useMemo(() => {
+    if (!hasAverages) return []
+    return [...takenQuizzes].sort((a, b) => {
+      const left = a.averagePercent ?? Infinity
+      const right = b.averagePercent ?? Infinity
+      return left - right
+    })
+  }, [takenQuizzes, hasAverages])
+
+  const visibleQuizzes = sortedQuizzes.slice(0, WORTH_REVIEWING_LIMIT)
+  const hiddenCount = sortedQuizzes.length - visibleQuizzes.length
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -152,6 +214,61 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* "Which quiz is worth the class's time" is the question a teacher actually has
+          before pressing Start -- answer it directly once course+group are picked, instead
+          of making them open every unit/quiz dropdown to find out. Gated on status ===
+          'ready' for the same reason as the noQuizzes message above: on a failed load
+          `units` is stale/empty too, and this list must not claim "nothing taken yet"
+          while we in fact don't know. */}
+      {state.selectedCourseId && state.selectedGroupId && state.status === 'ready' && (
+        <Card className="mt-6 shadow-sm border border-gray-200 dark:border-border">
+          <CardHeader className="px-6 py-4 border-b border-gray-100 dark:border-border">
+            <CardTitle className="text-base font-semibold text-gray-900 dark:text-foreground">
+              {EN.worthReviewingTitle}
+            </CardTitle>
+            {sortedQuizzes.length > 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">{EN.worthReviewingSubtitle}</p>
+            )}
+          </CardHeader>
+          <CardContent className="divide-y divide-gray-100 dark:divide-border px-6 py-2">
+            {takenQuizzes.length === 0 ? (
+              <p className="py-2 text-sm text-gray-500 dark:text-gray-400">{EN.worthReviewingEmpty}</p>
+            ) : !hasAverages ? (
+              <p className="py-2 text-sm text-gray-500 dark:text-gray-400">{EN.worthReviewingNoAverages}</p>
+            ) : (
+              <>
+                {visibleQuizzes.map((row) => (
+                  <button
+                    key={`${row.lessonId}-${row.stepId}`}
+                    type="button"
+                    onClick={() => actions.startQuiz(row.lessonId, row.stepId)}
+                    className="flex w-full items-center justify-between gap-4 rounded-sm py-2.5 text-left text-sm text-gray-700 dark:text-gray-300 first:pt-0 last:pb-0 hover:text-gray-900 dark:hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-background"
+                  >
+                    <span className="truncate font-medium text-gray-900 dark:text-foreground">
+                      {row.unitTitle} · {row.quizTitle}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-3 tabular-nums text-gray-500 dark:text-gray-400">
+                      <span>{format(EN.worthReviewingSubmittedOf, { submitted: row.submittedCount, total: state.rosterCount })}</span>
+                      <span>
+                        {row.averagePercent !== null
+                          ? format(EN.worthReviewingAvgOf, { percent: Math.round(row.averagePercent) })
+                          : '—'}
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+                    </span>
+                  </button>
+                ))}
+                {hiddenCount > 0 && (
+                  <p className="pt-2.5 text-sm text-gray-500 dark:text-gray-400">
+                    {format(EN.worthReviewingMore, { count: hiddenCount })}
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
