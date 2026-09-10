@@ -29,6 +29,7 @@ interface Props {
 export default function RecordingCard({ item, locale, onOpen }: Props) {
   const t = TEXT[locale];
   const [posterBroken, setPosterBroken] = useState(false);
+  const [posterLoaded, setPosterLoaded] = useState(false);
   const { name, lesson } = splitLessonTitle(item.title, item.groups, locale);
   const clock = formatClock(item.duration_seconds);
   const ready = item.status === 'ready';
@@ -43,14 +44,22 @@ export default function RecordingCard({ item, locale, onOpen }: Props) {
     >
       <div className="relative aspect-video w-full overflow-hidden bg-slate-900">
         {poster ? (
-          <img
-            src={poster}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onError={() => setPosterBroken(true)}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-          />
+          <>
+            {/* Until the picture arrives, a soft pulse rather than a flat dark box. */}
+            {!posterLoaded && <span className="absolute inset-0 animate-pulse bg-slate-700/60" aria-hidden />}
+            <img
+              src={poster}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onLoad={() => setPosterLoaded(true)}
+              onError={() => setPosterBroken(true)}
+              className={cx(
+                'h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]',
+                posterLoaded ? 'opacity-100' : 'opacity-0',
+              )}
+            />
+          </>
         ) : (
           <div
             className={cx(

@@ -47,10 +47,18 @@ export default function HlsVideoPlayer({
 
     let hls: Hls | null = null;
 
+    // The autoplay attribute alone is not enough with hls.js: whether it starts loading
+    // before play() depends on timing, and the recording player sometimes sat at 0:00.
+    // Starting explicitly once the stream is known makes "opened to watch" reliable.
+    const start = () => {
+      if (autoPlay) video.play().catch(() => { /* blocked by the browser: the controls remain */ });
+    };
+
     if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: true, lowLatencyMode: false });
       hls.loadSource(src);
       hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, start);
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           // Try to recover network/media errors once before giving up.
@@ -67,15 +75,17 @@ export default function HlsVideoPlayer({
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari / iOS: native HLS.
       video.src = src;
+      video.addEventListener('loadedmetadata', start, { once: true });
     } else {
       setFailed(true);
       onError?.('This browser cannot play the video.');
     }
 
     return () => {
+      video.removeEventListener('loadedmetadata', start);
       if (hls) hls.destroy();
     };
-  }, [src]);
+  }, [src, autoPlay]);
 
   const handleTimeUpdate = () => {
     const v = videoRef.current;
@@ -101,7 +111,7 @@ export default function HlsVideoPlayer({
           ref={videoRef}
           controls
           playsInline
-          preload="metadata"
+          preload={autoPlay ? 'auto' : 'metadata'}
           poster={posterSrc}
           autoPlay={autoPlay}
           title={title}
