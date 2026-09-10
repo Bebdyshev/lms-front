@@ -326,6 +326,55 @@ describe('buildClassSummary', () => {
   it('passes the not-submitted list through', () => {
     expect(summary.notSubmitted.map((s) => s.full_name)).toEqual(['Gagarin'])
   })
+
+  it('averages differing times rather than echoing a shared constant', () => {
+    const asymmetric = [
+      { ...attempts[0], time_spent_seconds: 10 },
+      { ...attempts[1], time_spent_seconds: 20 },
+      { ...attempts[2], time_spent_seconds: 90 },
+    ]
+    const asymmetricSummary = buildClassSummary(stats, questions, asymmetric, names, [])
+    // Mean = 40; times[0] = 10, min = 10, max = 90 — a broken "average" landing on any
+    // of those (or on the shared attempt() default of 60) would fail this.
+    expect(asymmetricSummary.averageTimeSeconds).toBe(40)
+  })
+
+  it('excludes a null time_spent_seconds from the average instead of coercing it to 0', () => {
+    const withNull = [
+      { ...attempts[0], time_spent_seconds: 100 },
+      { ...attempts[1], time_spent_seconds: null },
+      { ...attempts[2], time_spent_seconds: 20 },
+    ]
+    const summaryWithNull = buildClassSummary(stats, questions, withNull, names, [])
+    // Correct: mean of [100, 20] = 60. A null-coerced-to-0 average would give (100+0+20)/3 = 40.
+    expect(summaryWithNull.averageTimeSeconds).toBe(60)
+  })
+})
+
+describe('buildClassSummary — score distribution buckets a gap percentage', () => {
+  it('counts a 79.3% score in the 60–79% bucket, not nowhere', () => {
+    // 29 gradable short-answer questions, 23 answered correctly: 23/29 = 79.3103...%,
+    // which round1's to 79.3 — a value the old `>= min && <= max` comparison put in
+    // neither the 60–79 nor the 80–100 bucket.
+    const total = 29
+    const correctCount = 23
+    const gapQuestions = Array.from({ length: total }, (_, i) => ({
+      id: `gq${i}`,
+      question_type: 'short_answer',
+      correct_answer: 'yes',
+    }))
+    const answers = gapQuestions.map((q, i) => [q.id, i < correctCount ? 'yes' : 'no'])
+    const gapAttempts = [attempt(1, answers)]
+    const gapStats = buildQuestionStats(gapQuestions, gapAttempts, names)
+    const gapSummary = buildClassSummary(gapStats, gapQuestions, gapAttempts, names, [])
+
+    expect(gapSummary.top[0].percent).toBeCloseTo(79.3, 5)
+    expect(gapSummary.distribution.reduce((n, b) => n + b.count, 0)).toBe(
+      gapSummary.participants,
+    )
+    const bucket = gapSummary.distribution.find((b) => b.label === '60–79%')
+    expect(bucket?.count).toBe(1)
+  })
 })
 
 describe('buildClassSummary — empty case', () => {

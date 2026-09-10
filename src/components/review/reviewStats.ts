@@ -397,7 +397,7 @@ export function buildClassSummary(
   const ranked = [...scores].sort((a, b) => b.percent - a.percent || a.fullName.localeCompare(b.fullName))
 
   const hardest = questionStats
-    .filter((stat) => stat.graded && stat.answered > 0 && stat.percentCorrect !== null)
+    .filter((stat) => stat.graded && stat.percentCorrect !== null)
     .sort((a, b) => (a.percentCorrect as number) - (b.percentCorrect as number))
     .slice(0, 5)
     .map((stat) => ({
@@ -421,9 +421,14 @@ export function buildClassSummary(
     averageTimeSeconds: times.length
       ? Math.round(times.reduce((sum, t) => sum + t, 0) / times.length)
       : null,
-    distribution: BUCKETS.map((bucket) => ({
+    // `percent` is round1'd — one decimal place, not an integer — so inclusive integer
+    // ranges (0–19, 20–39, …) leave gaps at every boundary: 79.3 belongs to neither
+    // 60–79 nor 80–100 under `>= min && <= max`. Bucket by index instead so every
+    // percent in [0,100] lands in exactly one bucket by construction (100 clamps into
+    // the last one).
+    distribution: BUCKETS.map((bucket, i) => ({
       ...bucket,
-      count: percents.filter((p) => p >= bucket.min && p <= bucket.max).length,
+      count: percents.filter((p) => Math.min(BUCKETS.length - 1, Math.floor(p / 20)) === i).length,
     })),
     top: ranked.slice(0, 3),
     // In a group of three or four the same student can appear in both lists. That is honest
