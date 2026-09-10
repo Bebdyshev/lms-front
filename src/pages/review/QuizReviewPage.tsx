@@ -2,6 +2,7 @@
 // network call live in useReviewSession.
 import React from 'react'
 import { ReviewLauncher } from '../../components/review/ReviewLauncher'
+import { ReviewPresenter } from '../../components/review/ReviewPresenter'
 import { useReviewSession } from '../../components/review/useReviewSession'
 import { EN } from '../../components/review/strings'
 import { Button } from '../../components/ui/button'
@@ -24,7 +25,9 @@ const QuizReviewPage: React.FC = () => {
         </div>
       )}
 
-      <ReviewLauncher state={state} actions={actions} />
+      {state.phase === 'presenting'
+        ? <ReviewPresenter state={state} actions={actions} />
+        : <ReviewLauncher state={state} actions={actions} />}
     </div>
   )
 }

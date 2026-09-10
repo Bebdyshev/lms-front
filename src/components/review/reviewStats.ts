@@ -9,7 +9,7 @@ import {
   getExpectedAnswers,
 } from '../lesson/quiz/scoring'
 
-const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
+export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
 export interface ReviewAttempt {
   student_id: number
@@ -151,7 +151,7 @@ function isGradable(question: any): boolean {
   return getExpectedAnswers(question).length > 0
 }
 
-function isCorrectOption(question: any, index: number): boolean {
+export function isCorrectOption(question: any, index: number): boolean {
   const key = question?.correct_answer
   if (Array.isArray(key)) return key.map(Number).includes(index)
   return Number(key) === index
