@@ -8,6 +8,7 @@ import {
   getAnswerKey,
   getExpectedAnswers,
   normalizeMcArray,
+  normalizeText,
 } from '../lesson/quiz/scoring'
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
@@ -24,6 +25,35 @@ export interface ReviewAttempt {
 }
 
 export type AnswerBucket = 'correct' | 'partial' | 'incorrect' | 'unanswered'
+
+/** A single gap can only be right or wrong — there is no partial credit within one blank. */
+export type GapAnswerBucket = 'correct' | 'incorrect' | 'unanswered'
+
+export interface GapAnswerOption {
+  /** Stable identity: the normalised (case/space-insensitive) text. */
+  key: string
+  /** What to print — the answer exactly as a student typed it, first occurrence wins. */
+  text: string
+  count: number
+  /** Share of this gap's answered count, 1 dp. */
+  percent: number
+  isCorrect: boolean
+  names: string[]
+}
+
+export interface GapStat {
+  index: number
+  participants: number
+  answered: number
+  unanswered: number
+  correct: number
+  incorrect: number
+  /** Share of answered that were correct; null when nobody answered this gap. */
+  percentCorrect: number | null
+  /** What students typed for this gap, grouped case/space-insensitively, most common first. */
+  options: GapAnswerOption[]
+  names: Record<GapAnswerBucket, string[]>
+}
 
 export interface OptionStat {
   /** Stable identity: the option index for choice questions, the normalised text otherwise. */
@@ -65,14 +95,19 @@ export interface QuestionStat {
   distributionKind: 'choice' | 'text' | 'none'
   options: OptionStat[]
   names: Record<AnswerBucket, string[]>
+  /**
+   * Per-gap breakdown for fill_blank / text_completion questions, one entry per gap in
+   * source order — empty for every other question type. This is additive: `answered`,
+   * `correct`, `options`, etc. above still describe the whole cloze question exactly as
+   * before (a 9-of-10-gaps submission still counts as one "partial" question there); this
+   * array is what lets the presenter step through and discuss one gap at a time.
+   */
+  gaps: GapStat[]
 }
 
 const CHOICE_TYPES = new Set(['single_choice', 'multiple_choice', 'media_question'])
 
 const round1 = (value: number): number => Math.round(value * 10) / 10
-
-const normalizeText = (value: unknown): string =>
-  (value ?? '').toString().trim().toLowerCase()
 
 /** Turn `{__type:'Map', data:[...]}` back into a real Map (see deserializeQuizAnswers). */
 const rehydrate = (raw: unknown): unknown => {
@@ -106,6 +141,17 @@ export const isGapType = (type: string): boolean =>
   type === 'fill_blank' || type === 'text_completion'
 
 /**
+ * Source pattern for a `[[…]]` gap token — shared by every place that needs to locate (not
+ * parse) gap boundaries. blankGapText below uses it to blank every token; the presenter's
+ * gap-stepper (ReviewQuestionView) uses the same pattern to split a passage into segments it
+ * can step through one at a time. A plain string, not a compiled RegExp, so each caller
+ * builds its own `g`-flagged instance — sharing one RegExp object across independent
+ * `.replace()` call sites is safe on its own (the spec resets `lastIndex` per call), but a
+ * shared source string is one less thing that can ever drift between the two.
+ */
+export const GAP_TOKEN_SOURCE = '\\[\\[([\\s\\S]*?)\\]\\]'
+
+/**
  * Blank out `[[…]]` gap tokens for pre-reveal display. This does NOT parse the gap syntax
  * to find the answer key (that stays getExpectedAnswers's job in scoring.ts) — it only
  * removes the tokens so the projected text never shows the asterisked correct option.
@@ -124,9 +170,20 @@ export const isGapType = (type: string): boolean =>
  *  - `[\s\S]*?` is lazy and eats to the first `]]` it finds, so a nested-bracket expression
  *    (e.g. a matrix literal `[[a,b],[c,d]]`) collapses to a single ____ instead of rendering
  *    as written — this is exactly why blankHeading (below) uses `[^\]]+` instead.
+ *
+ * The same newline caveat applies to the gap-stepper (ReviewQuestionView's gapStepHtml),
+ * which locates tokens with this exact pattern too — and used to inherit the mismatch itself
+ * (C2): a multi-line gap token still counted as a numbered gap there, so its presence shifted
+ * every later gap's index out of alignment with getExpectedAnswers's `.*?`-based `expected[]`,
+ * and the gap the class was looking at could render a neighbour's answer, unrevealed. Fixed
+ * by having gapStepHtml re-check each broad match against the narrow pattern itself: only a
+ * token both patterns agree on gets a slot in `expected` and advances the gap counter; a
+ * broad-only token (contents spanning a newline, same as here) renders an unconditional,
+ * un-fillable blank instead. That keeps this function's "broader is the safe direction" true
+ * at that call site too — do not "simplify" gapStepHtml back to indexing every broad match.
  */
 export function blankGapText(text: string): string {
-  return text.replace(/\[\[([\s\S]*?)\]\]/g, '____')
+  return text.replace(new RegExp(GAP_TOKEN_SOURCE, 'g'), '____')
 }
 
 /**
@@ -268,6 +325,10 @@ export function buildQuestionStats(
     // with the writer's name attached (see review-mode spec). Both get a correct/partial/
     // incorrect split instead of an answer distribution.
     const noDistribution = type === 'matching' || type === 'long_text'
+    const isGap = isGapType(type)
+    // getExpectedAnswers's own length IS the gap count — same source scoring.ts grades
+    // against, so a gap the answer key doesn't recognise never gets a stepper slot.
+    const gapCount = isGap ? getExpectedAnswers(question).length : 0
 
     const names: Record<AnswerBucket, string[]> = {
       correct: [], partial: [], incorrect: [], unanswered: [],
@@ -279,6 +340,23 @@ export function buildQuestionStats(
       : []
     const textRows = new Map<string, { text: string; count: number; names: string[]; isCorrect: boolean }>()
 
+    // One slot per gap, accumulated alongside the whole-question totals above — additive,
+    // never read by the whole-question branch and never feeding back into it.
+    const gapTotals: Omit<GapStat, 'options' | 'percentCorrect'>[] = Array.from(
+      { length: gapCount },
+      (_, gapIndex) => ({
+        index: gapIndex,
+        participants: parsed.length,
+        answered: 0,
+        unanswered: 0,
+        correct: 0,
+        incorrect: 0,
+        names: { correct: [], incorrect: [], unanswered: [] },
+      }),
+    )
+    const gapGroups: Map<string, { text: string; count: number; names: string[]; isCorrect: boolean }>[] =
+      Array.from({ length: gapCount }, () => new Map())
+
     let answered = 0
     let correct = 0
     let partial = 0
@@ -289,13 +367,32 @@ export function buildQuestionStats(
 
       if (isBlankAnswer(question, raw)) {
         names.unanswered.push(entry.name)
+        // The whole cloze is blank, so every gap in it is unanswered too — no need to
+        // replay/grade anything to know that.
+        for (let g = 0; g < gapCount; g += 1) {
+          gapTotals[g].unanswered += 1
+          gapTotals[g].names.unanswered.push(entry.name)
+        }
         continue
       }
       answered += 1
 
+      // A gap array can be shorter than the expected list — replayAnswer already turns a
+      // missing/non-array raw value into `[]`, so a short array simply leaves the later
+      // indices `undefined` below, which the blank check treats as unanswered, not wrong.
+      let gapProvided: string[] = []
+      let gapPartResults: boolean[] = []
+
       if (graded) {
         const { answer, gapAnswer } = replayAnswer(question, raw)
         const result = gradeQuestion(question, answer, gapAnswer)
+        if (isGap) {
+          gapProvided = gapAnswer || []
+          // gradeQuestion is the ONLY place gap correctness is decided — partResults is
+          // exactly the per-gap verdicts it already computed while producing
+          // correctParts/totalParts above. Nothing here re-derives correctness.
+          gapPartResults = result.partResults || []
+        }
         if (result.isCorrect) {
           correct += 1
           names.correct.push(entry.name)
@@ -305,6 +402,37 @@ export function buildQuestionStats(
         } else {
           incorrect += 1
           names.incorrect.push(entry.name)
+        }
+      }
+
+      if (isGap) {
+        for (let g = 0; g < gapCount; g += 1) {
+          const value = gapProvided[g]
+          const gap = gapTotals[g]
+          if (value === undefined || value === null || value.toString().trim() === '') {
+            gap.unanswered += 1
+            gap.names.unanswered.push(entry.name)
+            continue
+          }
+          gap.answered += 1
+          const isCorrect = !!gapPartResults[g]
+          if (isCorrect) {
+            gap.correct += 1
+            gap.names.correct.push(entry.name)
+          } else {
+            gap.incorrect += 1
+            gap.names.incorrect.push(entry.name)
+          }
+
+          const text = value.toString().trim()
+          const rowKey = normalizeText(text)
+          const existingGapRow = gapGroups[g].get(rowKey)
+          if (existingGapRow) {
+            existingGapRow.count += 1
+            existingGapRow.names.push(entry.name)
+          } else {
+            gapGroups[g].set(rowKey, { text, count: 1, names: [entry.name], isCorrect })
+          }
         }
       }
 
@@ -360,6 +488,21 @@ export function buildQuestionStats(
             }))
             .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text))
 
+    const gaps: GapStat[] = gapTotals.map((gap, g) => ({
+      ...gap,
+      percentCorrect: gap.answered > 0 ? round1((gap.correct / gap.answered) * 100) : null,
+      options: [...gapGroups[g].entries()]
+        .map(([rowKey, row]) => ({
+          key: rowKey,
+          text: row.text,
+          count: row.count,
+          percent: gap.answered > 0 ? round1((row.count / gap.answered) * 100) : 0,
+          isCorrect: row.isCorrect,
+          names: row.names,
+        }))
+        .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text)),
+    }))
+
     return {
       questionId: key,
       index,
@@ -389,6 +532,7 @@ export function buildQuestionStats(
       distributionKind: isChoice ? 'choice' : noDistribution ? 'none' : 'text',
       options,
       names,
+      gaps,
     }
   })
 }
@@ -565,6 +709,35 @@ export function buildClassSummary(
     bottom: [...ranked].reverse().slice(0, 3),
     hardest,
   }
+}
+
+/**
+ * Whether a WHOLE-QUESTION consumer — one that describes the entire cloze, not one gap of
+ * it — may show correctness-revealing content right now. `revealed` itself means "this one
+ * gap is revealed" for gap questions (the semantic shift the gap stepper introduced); a
+ * consumer that prints something spanning every gap (an explanation that lists every blank,
+ * a whole-question percentCorrect, the correct/partial/incorrect name lists) must not key off
+ * that per-gap flag directly, or it leaks answers to gaps the class hasn't reached yet — see
+ * ReviewQuestionView's explanation gate (the original of this predicate) and
+ * ReviewStatsPanel's percentCorrect / name-list gates (#F1: the name lists were cleared in an
+ * earlier pass on the mistaken belief that they shared the same per-gap `revealed` as the
+ * bars above them, when in fact they describe the whole question).
+ *
+ * True for a non-gap question once `revealed`; true for a gap question only once the LAST gap
+ * is revealed (stepping past gap 1 of 3 must not already show whole-question correctness);
+ * and true whenever `gapTotal` is 0 — a gap-type question with no locatable gaps collapses to
+ * the plain `revealed` check, matching the non-gap case, rather than gating on `gapIndex ===
+ * -1` (unreachable) and hiding the content forever.
+ */
+export function wholeQuestionRevealed(
+  isGap: boolean,
+  gapIndex: number,
+  gapTotal: number,
+  revealed: boolean,
+): boolean {
+  if (!revealed) return false
+  if (!isGap || gapTotal === 0) return true
+  return gapIndex === gapTotal - 1
 }
 
 /** The question grid's colour bands. */

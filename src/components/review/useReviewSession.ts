@@ -1,214 +1,34 @@
 // The ONLY module in review mode that touches the network. Every component reads this
 // state object and calls these actions; none of them imports the API client.
 //
-// Two invariants worth stating, both learned in a classroom:
-//   * `revealed` resets on every question change — the answer must never already be on
-//     screen when a new question appears;
-//   * the stats / names / grid toggles persist across questions, so the teacher does not
-//     press them once per question.
+// The state shape, actions, and the reducer itself live in reviewSessionReducer.ts — split
+// out so that pure module has no network/router imports and can be unit-tested directly (see
+// its header comment). This file wires that reducer into a real useReducer() and adds every
+// async action creator (the actual network calls) around it.
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import apiClient from '../../services/api'
-import type {
-  ReviewSessionResponse,
-  ReviewUnit,
-} from '../../services/api/review'
 import {
-  buildClassSummary,
-  buildQuestionStats,
-  reviewQuestions,
-  type ClassSummary,
-  type QuestionStat,
-  type ReviewAttempt,
-  type StudentRef,
-} from './reviewStats'
+  initialState,
+  reducer,
+  type ReviewSessionState,
+} from './reviewSessionReducer'
 import { createRequestGuard, type RequestGuard } from './requestGuard'
 import { EN } from './strings'
 
-export interface CourseOption { id: number; title: string }
-export interface GroupOption { id: number; name: string; studentCount: number }
-
-export interface ReviewSessionState {
-  phase: 'launcher' | 'presenting' | 'summary'
-  status: 'idle' | 'loading' | 'ready' | 'error'
-  error: string | null
-
-  courses: CourseOption[]
-  groups: GroupOption[]
-  units: ReviewUnit[]
-  rosterCount: number
-
-  selectedCourseId: number | null
-  selectedGroupId: number | null
-  selectedLessonId: number | null
-  selectedStepId: number | null
-
-  step: ReviewSessionResponse['step'] | null
-  questions: any[]
-  stats: QuestionStat[]
-  statsByQuestionId: Record<string, QuestionStat>
-  summary: ClassSummary | null
-  roster: StudentRef[]
-  attempts: ReviewAttempt[]
-  notSubmitted: StudentRef[]
-
-  index: number
-  revealed: boolean
-  statsVisible: boolean
-  namesVisible: boolean
-  gridOpen: boolean
-}
-
-const initialState: ReviewSessionState = {
-  phase: 'launcher',
-  status: 'idle',
-  error: null,
-  courses: [],
-  groups: [],
-  units: [],
-  rosterCount: 0,
-  selectedCourseId: null,
-  selectedGroupId: null,
-  selectedLessonId: null,
-  selectedStepId: null,
-  step: null,
-  questions: [],
-  stats: [],
-  statsByQuestionId: {},
-  summary: null,
-  roster: [],
-  attempts: [],
-  notSubmitted: [],
-  index: 0,
-  revealed: false,
-  statsVisible: true,
-  // Opt in, not opt out: the very first frame a class sees must not show who got the
-  // question wrong. The teacher can turn names on once they choose to.
-  namesVisible: false,
-  gridOpen: false,
-}
-
-type Action =
-  | { type: 'loading' }
-  | { type: 'error'; message: string }
-  | { type: 'courses'; courses: CourseOption[] }
-  | { type: 'selectCourse'; courseId: number | null }
-  | { type: 'groups'; groups: GroupOption[] }
-  | { type: 'selectGroup'; groupId: number | null }
-  | { type: 'quizzes'; units: ReviewUnit[]; rosterCount: number }
-  | { type: 'selectUnit'; lessonId: number | null }
-  | { type: 'selectQuiz'; stepId: number | null }
-  | { type: 'started'; payload: ReviewSessionResponse }
-  | { type: 'index'; index: number }
-  | { type: 'toggleReveal' }
-  | { type: 'toggleStats' }
-  | { type: 'toggleNames' }
-  | { type: 'toggleGrid' }
-  | { type: 'closeGrid' }
-  | { type: 'finish' }
-  | { type: 'restart' }
-
-function clampIndex(i: number, total: number): number {
-  if (total <= 0) return 0
-  return Math.min(Math.max(i, 0), total - 1)
-}
-
-function reducer(state: ReviewSessionState, action: Action): ReviewSessionState {
-  switch (action.type) {
-    case 'loading':
-      return { ...state, status: 'loading', error: null }
-    case 'error':
-      return { ...state, status: 'error', error: action.message }
-
-    case 'courses':
-      return { ...state, status: 'ready', error: null, courses: action.courses }
-    case 'selectCourse':
-      return {
-        ...state,
-        selectedCourseId: action.courseId,
-        selectedGroupId: null,
-        selectedLessonId: null,
-        selectedStepId: null,
-        groups: [],
-        units: [],
-      }
-    case 'groups':
-      return { ...state, status: 'ready', error: null, groups: action.groups }
-    case 'selectGroup':
-      return {
-        ...state,
-        selectedGroupId: action.groupId,
-        selectedLessonId: null,
-        selectedStepId: null,
-        units: [],
-      }
-    case 'quizzes':
-      return {
-        ...state,
-        status: 'ready',
-        error: null,
-        units: action.units,
-        rosterCount: action.rosterCount,
-      }
-    case 'selectUnit':
-      return { ...state, selectedLessonId: action.lessonId, selectedStepId: null }
-    case 'selectQuiz':
-      return { ...state, selectedStepId: action.stepId }
-
-    case 'started': {
-      const { step, attempts, roster, not_submitted: notSubmitted } = action.payload
-      const questions = reviewQuestions(step.content)
-      const nameById = new Map(roster.map((s) => [s.student_id, s.full_name]))
-      const stats = buildQuestionStats(questions, attempts, nameById)
-      const statsByQuestionId: Record<string, QuestionStat> = {}
-      // Keyed by question id, never by index: a question removed from the quiz after the
-      // attempts were stored would silently shift every stat if we keyed by position.
-      stats.forEach((stat) => { statsByQuestionId[stat.questionId] = stat })
-      return {
-        ...state,
-        status: 'ready',
-        error: null,
-        phase: 'presenting',
-        step,
-        questions,
-        stats,
-        statsByQuestionId,
-        summary: buildClassSummary(stats, questions, attempts, nameById, notSubmitted),
-        roster,
-        attempts,
-        notSubmitted,
-        index: 0,
-        revealed: false,
-      }
-    }
-
-    case 'index':
-      return {
-        ...state,
-        index: clampIndex(action.index, state.questions.length),
-        revealed: false,
-      }
-
-    case 'toggleReveal':
-      return { ...state, revealed: !state.revealed }
-    case 'toggleStats':
-      return { ...state, statsVisible: !state.statsVisible }
-    case 'toggleNames':
-      return { ...state, namesVisible: !state.namesVisible }
-    case 'toggleGrid':
-      return { ...state, gridOpen: !state.gridOpen }
-    case 'closeGrid':
-      return { ...state, gridOpen: false }
-
-    case 'finish':
-      return { ...state, phase: 'summary', gridOpen: false }
-    case 'restart':
-      return { ...state, phase: 'presenting', index: 0, revealed: false }
-
-    default:
-      return state
-  }
-}
+// Type-only re-export — deliberately NOT a value re-export of `initialState`/`reducer`. Those
+// were module-private before this file split off from reviewSessionReducer.ts, and nothing
+// imports them from here: useReviewSession.test.ts imports the pure reducer straight from
+// './reviewSessionReducer', with no apiClient in the import graph — see that module's own
+// header comment for why. Re-exporting the values here would invite a future test to pull the
+// reducer back in through this apiClient-laden module — the exact import path the split
+// exists to avoid (#F7).
+export type {
+  Action,
+  CourseOption,
+  GroupOption,
+  ReviewSessionState,
+} from './reviewSessionReducer'
 
 // A 403 means this group is not the user's; anything else is a generic load failure.
 function messageFor(err: any): string {
@@ -226,6 +46,8 @@ export interface ReviewSessionActions {
   next: () => void
   prev: () => void
   jumpTo: (index: number) => void
+  nextGap: () => void
+  prevGap: () => void
   toggleReveal: () => void
   toggleStats: () => void
   toggleNames: () => void
@@ -368,6 +190,11 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
   const prev = useCallback(() => dispatch({ type: 'index', index: stateRef.current.index - 1 }), [])
   const jumpTo = useCallback((index: number) => dispatch({ type: 'index', index }), [])
 
+  // Gap navigation is deliberately its own action pair, not a repurposing of next/prev —
+  // ← / → must keep meaning "next/previous question" everywhere in the presenter.
+  const nextGap = useCallback(() => dispatch({ type: 'gapIndex', gapIndex: stateRef.current.gapIndex + 1 }), [])
+  const prevGap = useCallback(() => dispatch({ type: 'gapIndex', gapIndex: stateRef.current.gapIndex - 1 }), [])
+
   const toggleReveal = useCallback(() => dispatch({ type: 'toggleReveal' }), [])
   const toggleStats = useCallback(() => dispatch({ type: 'toggleStats' }), [])
   const toggleNames = useCallback(() => dispatch({ type: 'toggleNames' }), [])
@@ -382,11 +209,11 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
 
   const actions = useMemo<ReviewSessionActions>(() => ({
     loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start, startQuiz,
-    next, prev, jumpTo,
+    next, prev, jumpTo, nextGap, prevGap,
     toggleReveal, toggleStats, toggleNames, toggleGrid, closeGrid,
     finish, restart, exit,
   }), [loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start, startQuiz,
-    next, prev, jumpTo, toggleReveal, toggleStats, toggleNames, toggleGrid,
+    next, prev, jumpTo, nextGap, prevGap, toggleReveal, toggleStats, toggleNames, toggleGrid,
     closeGrid, finish, restart, exit])
 
   return [state, actions]

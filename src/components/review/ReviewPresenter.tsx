@@ -5,6 +5,7 @@ import { Button } from '../ui/button'
 import { ReviewQuestionView } from './ReviewQuestionView'
 import { ReviewQuestionGrid } from './ReviewQuestionGrid'
 import { ReviewStatsPanel } from './ReviewStatsPanel'
+import { isGapType } from './reviewStats'
 import { EN, format } from './strings'
 import type { ReviewSessionActions, ReviewSessionState } from './useReviewSession'
 
@@ -19,6 +20,7 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
   const total = state.questions.length
   const question = total > 0 ? state.questions[state.index] : null
   const stat = question ? state.statsByQuestionId[String(question.id)] : undefined
+  const isGapQuestion = question ? isGapType(question.question_type) : false
 
   // Matched on `event.code`, not `event.key`: teachers here run a Russian keyboard layout,
   // where R reports key === 'к'. `code === 'KeyR'` is layout-proof.
@@ -60,6 +62,16 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
           break
         case 'KeyG':
           actions.toggleGrid(); break
+        // Gap navigation gets its own keys, never ArrowLeft/ArrowRight above — those must
+        // keep meaning "next/previous question" everywhere in the presenter. [ and ] are
+        // unused by every other shortcut here (see EN.keyboardHint) and only do anything
+        // when the current question actually has gaps to step through.
+        case 'BracketRight':
+          if (isGapQuestion) { e.preventDefault(); actions.nextGap() }
+          break
+        case 'BracketLeft':
+          if (isGapQuestion) { e.preventDefault(); actions.prevGap() }
+          break
         case 'Escape':
           if (state.gridOpen) actions.closeGrid()
           break
@@ -69,7 +81,7 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actions, state.gridOpen, state.revealed])
+  }, [actions, state.gridOpen, state.revealed, isGapQuestion])
 
   return (
     <div className="space-y-4">
@@ -113,9 +125,22 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
       </div>
 
       <div className={`grid gap-4 ${state.statsVisible ? 'lg:grid-cols-[1.35fr_1fr]' : 'grid-cols-1'}`}>
-        <ReviewQuestionView question={question} stat={stat} revealed={state.revealed} statsVisible={state.statsVisible} />
+        <ReviewQuestionView
+          question={question}
+          stat={stat}
+          revealed={state.revealed}
+          statsVisible={state.statsVisible}
+          gapIndex={state.gapIndex}
+          onPrevGap={actions.prevGap}
+          onNextGap={actions.nextGap}
+        />
         {state.statsVisible && (
-          <ReviewStatsPanel stat={stat} revealed={state.revealed} showNames={state.namesVisible} />
+          <ReviewStatsPanel
+            stat={stat}
+            revealed={state.revealed}
+            showNames={state.namesVisible}
+            gapIndex={state.gapIndex}
+          />
         )}
       </div>
 
@@ -123,7 +148,9 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
         <Button variant="outline" onClick={actions.prev} disabled={state.index <= 0}>{EN.prev}</Button>
         <Button variant="outline" onClick={actions.next} disabled={state.index >= total - 1}>{EN.next}</Button>
         <div className="flex-1" />
-        <span className="text-xs text-gray-500 dark:text-gray-400">{EN.keyboardHint}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {isGapQuestion ? EN.keyboardHintGap : EN.keyboardHint}
+        </span>
       </div>
 
       {state.gridOpen && (

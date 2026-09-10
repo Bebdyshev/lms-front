@@ -47,6 +47,13 @@ export const EN = {
   notGraded: 'This question has no answer key — showing the spread only',
   otherAnswers: 'Other answers',
 
+  gapOf: 'Gap {n} of {total}',
+  gapPrev: '← Previous gap',
+  gapNext: 'Next gap →',
+  gapAnsweredOf: '{answered}/{participants} answered',
+  gapBreakdown: 'This gap',
+  gapNoAnswer: 'No answer',
+
   summaryTitle: 'Review summary',
   summaryDistribution: 'Score distribution',
   summaryTop: 'Top results',
@@ -77,7 +84,10 @@ export const EN = {
   loadError: 'Could not load the data. Please try again.',
   accessDenied: "You don't have access to this group",
   retry: 'Retry',
+  // Two variants: `[ ] step gap` only does anything on a gap question (ReviewPresenter gates
+  // those keys on isGapQuestion), so the hint only advertises it there — see keyboardHintGap.
   keyboardHint: '← → navigate · R reveal · S stats · N names · G question list',
+  keyboardHintGap: '← → navigate · R reveal · S stats · N names · G question list · [ ] step gap',
 } as const
 
 /** format(EN.questionOf, { n: 3, total: 22 }) -> 'Question 3 of 22' */

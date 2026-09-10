@@ -19,6 +19,21 @@ export interface GradeQuestionResult {
   correctParts: number
   totalParts: number
   isReview: boolean
+  /**
+   * Per-gap verdicts, in gap order, for fill_blank / text_completion questions only — the
+   * same expected[i] === provided[i] comparison the loop below already makes to produce
+   * correctParts/totalParts, just not thrown away. Absent (not just empty) for every other
+   * question type — a caller can tell "no per-part detail here" from "this gap was answered
+   * wrong" without inspecting question_type itself. NOT absent for a gap question with zero
+   * gaps: gap questions take this branch regardless of how many gaps they have, and `total`
+   * is `Math.max(expected.length, provided.length)` — so `expected.length === 0` does NOT
+   * mean the loop below never runs; a submission with a non-empty `provided` array still
+   * runs it and still returns `partResults` full of `false` (nothing at `expected[i]` to
+   * match anything against), not an early-exited `[]`. Either way `partResults` comes back
+   * present and truthy. Review mode's per-gap stats (reviewStats.ts) read this instead of
+   * re-deriving gap correctness themselves — one grader, one answer key.
+   */
+  partResults?: boolean[]
 }
 
 const SUCCESS_CLASS = 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
@@ -64,11 +79,22 @@ const stripHtmlSimple = (str: string): string => {
   return cleaned.trim()
 }
 
+/**
+ * Which field actually carries a gap question's `[[…]]` tokens: content_text if it has any
+ * text at all, else question_text. Quiz content is inconsistent about which field the gap
+ * syntax lands in (see review mode's displayText doc comment for the same story from the
+ * review side), so this one resolution order is shared by getExpectedAnswers below and by
+ * review mode's gap-stepper (ReviewQuestionView), which needs the same source text to render
+ * — never a second, potentially-diverging guess at where the gaps live.
+ */
+export const getGapSourceText = (question: any): string =>
+  (question?.content_text || question?.question_text || '').toString()
+
 export const getExpectedAnswers = (question: any): string[] => {
   if (!question) return []
   const type = question.question_type
   if (type === 'fill_blank' || type === 'text_completion') {
-    const sourceText = (question.content_text || question.question_text || '').toString()
+    const sourceText = getGapSourceText(question)
     const gapTokens = sourceText.match(/\[\[(.*?)\]\]/g) || []
     if (type === 'fill_blank') {
       const parsed = gapTokens.map((token: string) => {
@@ -108,7 +134,11 @@ export const getExpectedAnswers = (question: any): string[] => {
   return []
 }
 
-const normalizeText = (value: unknown): string =>
+// Exported so reviewStats.ts's gap-row grouping keys off the exact same normalisation
+// gradeQuestion uses to decide a gap's verdict (see #9: two independently-written copies of
+// this, even if identical today, are one drift away from a row merging two students who
+// actually disagreed with gradeQuestion — one of them would carry a verdict they didn't earn).
+export const normalizeText = (value: unknown): string =>
   (value ?? '').toString().trim().toLowerCase()
 
 const toMatchingMap = (raw: unknown): Map<number, number> => {
@@ -148,10 +178,19 @@ export const gradeQuestion = (
     const provided = (gapAnswer || []).map(normalizeText)
     const total = Math.max(expected.length, provided.length)
     let correct = 0
+    const partResults: boolean[] = []
     for (let i = 0; i < total; i += 1) {
-      if (expected[i] && provided[i] && expected[i] === provided[i]) correct += 1
+      const partCorrect = !!(expected[i] && provided[i] && expected[i] === provided[i])
+      if (partCorrect) correct += 1
+      partResults.push(partCorrect)
     }
-    return { isCorrect: total > 0 && correct === total, correctParts: correct, totalParts: total, isReview: false }
+    return {
+      isCorrect: total > 0 && correct === total,
+      correctParts: correct,
+      totalParts: total,
+      isReview: false,
+      partResults,
+    }
   }
 
   if (type === 'long_text') {
