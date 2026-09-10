@@ -46,6 +46,7 @@ const BluebookGroupGridPage = lazy(() => import('../pages/BluebookGroupGridPage.
 const ExamResultsWorkbenchPage = lazy(() => import('../pages/ExamResultsWorkbenchPage.tsx'));
 const QuestionReportsPage = lazy(() => import('../pages/admin/QuestionReportsPage.tsx'));
 const WeeklyTopStudentsPage = lazy(() => import('../pages/admin/WeeklyTopStudentsPage.tsx'));
+const TelegramAnnouncementsPage = lazy(() => import('../pages/admin/TelegramAnnouncementsPage.tsx'));
 const CheckpointsAdminPage = lazy(() => import('../pages/admin/CheckpointsAdminPage.tsx'));
 const UserManagement = lazy(() => import('../pages/UserManagement.tsx'));
 const ManualUnlocksPage = lazy(() => import('../pages/admin/ManualUnlocksPage.tsx'));
@@ -441,6 +442,19 @@ export default function Router() {
             <ProtectedRoute allowedRoles={['admin']}>
               <AppLayout>
                 <WeeklyTopStudentsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Telegram broadcasts. Heads only: this reaches every student group
+              at once, so it deliberately stops short of curators and teachers.
+              The same role list is enforced server-side in lms-backend's
+              src/announcements/routes -- that is the real gate, since the
+              Support platform authenticates us by service key, not user token. */}
+          <Route path="/admin/announcements" element={
+            <ProtectedRoute allowedRoles={['admin', 'head_curator', 'head_teacher']}>
+              <AppLayout>
+                <TelegramAnnouncementsPage />
               </AppLayout>
             </ProtectedRoute>
           } />

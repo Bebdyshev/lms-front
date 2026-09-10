@@ -35,6 +35,7 @@ import {
   Timer,
   Headset,
   Presentation,
+  Megaphone,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Course } from '../types';
@@ -98,6 +99,7 @@ function getNavigationItems(
     ['/admin/courses', 'Manage Courses', BookMarked, 0, ['admin'], 'courses-management', 'admin'],
     ['/admin/users', 'Manage Users', Users, 0, ['admin', 'head_curator'], 'users-management', 'admin'],
     ['/admin/weekly-top-students', 'Weekly Top Students', Trophy, 0, ['admin'], 'weekly-top-students-nav', 'admin'],
+    ['/admin/announcements', 'Telegram Announcements', Megaphone, 0, ['admin', 'head_curator', 'head_teacher'], 'announcements-nav', 'admin'],
     ['/admin/checkpoints', 'SAT Checkpoints', ClipboardCheck, 0, ['admin', 'head_curator', 'head_teacher', 'teacher', 'curator'], 'checkpoints-admin-nav', 'admin'],
     ['/admin/events', 'Manage Events', Calendar, 0, ['admin'], 'events-management', 'admin'],
     ['/exam-results', ['head_curator', 'curator'].includes(_userRole || '') ? 'Результаты экзаменов' : 'Exam Results', ClipboardCheck, 0, ['teacher', 'curator', 'head_curator', 'head_teacher', 'admin'], 'exam-results-nav', 'primary'],
