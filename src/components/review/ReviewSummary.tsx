@@ -13,8 +13,8 @@ interface Props {
   onExit: () => void
 }
 
-const STAT_LABEL = 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'
-const STAT_VALUE = 'text-2xl font-bold text-gray-900 dark:text-foreground tabular-nums'
+const STAT_LABEL = 'text-sm font-medium text-gray-500 dark:text-gray-400'
+const STAT_VALUE = 'text-3xl font-bold text-gray-900 dark:text-foreground tabular-nums'
 const SECTION_HEADING = 'text-sm font-semibold text-gray-700 dark:text-gray-200'
 const CHIP = 'rounded-full border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary px-2 py-0.5 text-xs text-gray-700 dark:text-gray-300'
 
@@ -30,10 +30,10 @@ const ScoreList: React.FC<{ title: string; students: StudentScore[]; showNames: 
 }) => (
   <Card>
     <CardHeader className="pb-3"><CardTitle className={SECTION_HEADING}>{title}</CardTitle></CardHeader>
-    <CardContent className="space-y-1.5">
+    <CardContent className="divide-y divide-gray-100 dark:divide-border">
       {students.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">{EN.noData}</p>}
       {students.map((student) => (
-        <div key={student.studentId} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
+        <div key={student.studentId} className="flex justify-between py-1.5 text-sm text-gray-700 dark:text-gray-300 first:pt-0 last:pb-0">
           <span>{showNames ? student.fullName : EN.anonymousStudent}</span>
           <span className="tabular-nums text-gray-500 dark:text-gray-400">
             {student.correct}/{student.total} · {student.percent}%
@@ -100,10 +100,10 @@ export const ReviewSummary: React.FC<Props> = ({ summary, namesVisible, onRestar
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className={SECTION_HEADING}>{EN.summaryHardest}</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="divide-y divide-gray-100 dark:divide-border">
           {summary.hardest.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">{EN.noData}</p>}
           {summary.hardest.map((question) => (
-            <div key={question.questionId} className="flex gap-3 text-sm text-gray-700 dark:text-gray-300">
+            <div key={question.questionId} className="flex gap-3 py-2 text-sm text-gray-700 dark:text-gray-300 first:pt-0 last:pb-0">
               <span className="w-8 shrink-0 font-semibold text-gray-900 dark:text-foreground">{question.index + 1}</span>
               <span className="flex-1 line-clamp-2">{question.questionText || '—'}</span>
               <span className="shrink-0 tabular-nums text-gray-500 dark:text-gray-400">

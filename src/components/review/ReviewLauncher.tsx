@@ -1,7 +1,7 @@
 // Setup screen: the teacher picks course -> group -> unit -> quiz before anything reaches
 // the class. Each select only appears once its parent has a value, so the path is obvious.
 import React from 'react'
-import { Card, CardContent } from '../ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
@@ -13,9 +13,9 @@ interface Props {
   actions: ReviewSessionActions
 }
 
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'
-const STAT_LABEL = 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'
-const STAT_VALUE = 'text-2xl font-bold text-gray-900 dark:text-foreground'
+const FIELD_LABEL = 'text-sm font-medium text-gray-500 dark:text-gray-400'
+const STAT_LABEL = 'text-sm font-medium text-gray-500 dark:text-gray-400'
+const STAT_VALUE = 'text-3xl font-bold text-gray-900 dark:text-foreground tabular-nums'
 
 export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
   const unit = state.units.find((u) => u.lesson_id === state.selectedLessonId) || null
@@ -23,13 +23,33 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
   const busy = state.status === 'loading'
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground">{EN.pageTitle}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{EN.subtitle}</p>
-      </div>
+    <div className="mx-auto max-w-4xl">
+      <Card className="shadow-sm border border-gray-200 dark:border-border">
+        <CardHeader className="px-6 py-4 border-b border-gray-100 dark:border-border bg-white dark:bg-card rounded-t-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg font-bold text-gray-900 dark:text-foreground">{EN.pageTitle}</CardTitle>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{EN.subtitle}</p>
+            </div>
 
-      <Card>
+            {quiz && (
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className={STAT_LABEL}>{EN.questions}</p>
+                  <p className={STAT_VALUE}>{quiz.question_count}</p>
+                </div>
+                <div>
+                  <p className={STAT_LABEL}>{EN.submitted}</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className={STAT_VALUE}>{quiz.submitted_count}</span>
+                    <span className="text-sm text-gray-400 dark:text-gray-500">/{state.rosterCount}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
         <CardContent className="space-y-6 p-6">
           <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -76,7 +96,14 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
                   <SelectTrigger id="review-unit"><SelectValue placeholder={EN.selectUnit} /></SelectTrigger>
                   <SelectContent>
                     {state.units.map((u) => (
-                      <SelectItem key={u.lesson_id} value={String(u.lesson_id)}>{u.title}</SelectItem>
+                      <SelectItem key={u.lesson_id} value={String(u.lesson_id)}>
+                        {/* completed_count is optional so a launcher pointed at an older
+                            backend (no completed_count in the response) still renders the
+                            title alone, with no dangling " · " separator. */}
+                        {typeof u.completed_count === 'number'
+                          ? `${u.title} · ${EN.completed}: ${u.completed_count}/${state.rosterCount}`
+                          : u.title}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -111,33 +138,18 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
             <p className="text-sm text-gray-500 dark:text-gray-400">{EN.noQuizzes}</p>
           )}
 
-          <div className="border-t border-gray-200 dark:border-border pt-6">
-            {quiz && (
-              <div className="flex flex-wrap gap-8">
-                <div>
-                  <p className={STAT_LABEL}>{EN.questions}</p>
-                  <p className={STAT_VALUE}>{quiz.question_count}</p>
-                </div>
-                <div>
-                  <p className={STAT_LABEL}>{EN.submitted}</p>
-                  <p className={STAT_VALUE}>{quiz.submitted_count}/{state.rosterCount}</p>
-                </div>
-              </div>
-            )}
+          {quiz && quiz.submitted_count === 0 && (
+            <p className="text-sm text-amber-600 dark:text-amber-400">{EN.noSubmissions}</p>
+          )}
 
-            {quiz && quiz.submitted_count === 0 && (
-              <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">{EN.noSubmissions}</p>
-            )}
-
-            <Button
-              size="lg"
-              className="mt-6 w-full sm:w-auto"
-              onClick={actions.start}
-              disabled={!state.selectedStepId || busy}
-            >
-              {busy ? EN.loading : EN.start}
-            </Button>
-          </div>
+          <Button
+            size="lg"
+            className="w-full sm:w-auto"
+            onClick={actions.start}
+            disabled={!state.selectedStepId || busy}
+          >
+            {busy ? EN.loading : EN.start}
+          </Button>
         </CardContent>
       </Card>
     </div>
