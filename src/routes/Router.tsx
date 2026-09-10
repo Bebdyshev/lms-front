@@ -59,6 +59,7 @@ const EventManagement = lazy(() => import('../pages/EventManagement.tsx'));
 const CreateEvent = lazy(() => import('../pages/CreateEvent.tsx'));
 const EditEvent = lazy(() => import('../pages/EditEvent.tsx'));
 const Calendar = lazy(() => import('../pages/Calendar.tsx'));
+const LessonRecordings = lazy(() => import('../pages/LessonRecordings.tsx'));
 const SubstitutionRequestPage = lazy(() => import('../pages/SubstitutionRequestPage.tsx'));
 const MyLessonRequests = lazy(() => import('../pages/MyLessonRequests.tsx'));
 const HeadTeacherLessonRequestsPage = lazy(() => import('../pages/HeadTeacherLessonRequestsPage.tsx'));
@@ -562,6 +563,14 @@ export default function Router() {
             <ProtectedRoute>
               <AppLayout>
                 <Calendar />
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/recordings" element={
+            <ProtectedRoute>
+              <AppLayout>
+                <LessonRecordings />
               </AppLayout>
             </ProtectedRoute>
           } />

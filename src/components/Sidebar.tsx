@@ -35,6 +35,7 @@ import {
   Timer,
   Headset,
   Presentation,
+  Video,
   Megaphone,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -58,7 +59,8 @@ const getCategoryLabels = (isRu: boolean): Record<NavCategory, string> =>
         admin: 'ADMIN',
       };
 
-// Navigation items: optional 7th field = category (defaults to primary)
+// Navigation items: optional 7th field = category (defaults to primary),
+// optional 8th = show a "Soon" pill for a feature that is announced but not open yet.
 type NavItemTuple = [
   to: string,
   label: string,
@@ -67,6 +69,7 @@ type NavItemTuple = [
   roles: string[] | null,
   dataTour?: string,
   category?: NavCategory,
+  comingSoon?: boolean,
 ];
 
 function getNavigationItems(
@@ -79,6 +82,7 @@ function getNavigationItems(
   const allItems: NavItemTuple[] = [
     ['/dashboard', ['head_curator', 'curator'].includes(_userRole || '') ? 'Дашборд' : 'Dashboard', Home, 0, null, 'dashboard-nav', 'primary'],
     ['/calendar', ['head_curator', 'curator'].includes(_userRole || '') ? 'Календарь' : 'Calendar', Calendar, 0, null, 'calendar-nav', 'primary'],
+    ['/recordings', ['head_curator', 'curator'].includes(_userRole || '') ? 'Записи уроков' : 'Lesson Recordings', Video, 0, null, 'recordings-nav', 'primary', true],
     ['/courses', 'My Courses', BookOpen, 0, ['student'], 'courses-nav', 'primary'],
     ['/homework', _userRole === 'student' ? 'My Homework' : 'Homework', ClipboardList, _userRole === 'student' ? unseenGradedCount : 0, ['student', 'teacher'], 'assignments-nav', 'primary'],
     ['/favorites', 'My Favorites', Heart, 0, ['student'], 'favorites-nav', 'primary'],
@@ -117,7 +121,11 @@ function getNavigationItems(
   ];
 
   if (_userRole === 'student' && isSpecialGroupStudent) {
-    return allItems.filter(([to]) => to !== '/calendar' && to !== '/homework');
+    // These students have no calendar, so a lesson-recordings entry would only lead them
+    // to lessons they cannot see.
+    return allItems.filter(
+      ([to]) => to !== '/calendar' && to !== '/homework' && to !== '/recordings'
+    );
   }
 
   return allItems;
@@ -361,7 +369,7 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                 <div className="mx-2 my-2 h-px bg-gray-200 dark:bg-gray-700 shrink-0" aria-hidden />
               )}
               <div className="flex flex-col gap-1">
-                {section.items.map(([to, label, Icon, badge, , dataTour]) => {
+                {section.items.map(([to, label, Icon, badge, , dataTour, , comingSoon]) => {
                   // Handle expandable My Courses
                   if ((to === '/courses' && user?.role === 'student') || (to === '/teacher/courses' && user?.role === 'teacher')) {
                     return (
@@ -459,6 +467,11 @@ export default function Sidebar({ variant = 'desktop', isCollapsed = false, onTo
                       {!isCollapsed && (
                         <>
                           <span className="flex-1 min-w-0 text-gray-800 dark:text-gray-200 text-sm">{label}</span>
+                          {comingSoon && (
+                            <span className="ml-2 shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                              {['head_curator', 'curator'].includes(user?.role || '') ? 'Скоро' : 'Soon'}
+                            </span>
+                          )}
                           {badge > 0 && (
                             <span className="ml-2 text-xs bg-red-600 text-white rounded-full px-2 py-0.5">{badge}</span>
                           )}
