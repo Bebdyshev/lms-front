@@ -30,6 +30,8 @@ export interface User {
   is_analytics_hidden?: boolean; // Curator hidden from analytics/dashboard/leaderboard views
   is_trial?: boolean; // Sales-prospect trial account (see /trial-access admin page)
   trial_expires_at?: string; // Earliest active trial deadline; absent/undefined => no active trial
+  /** From /auth/me only: the user's own Google Workspace address, used to open Meet on the work account. */
+  workspace_email?: string | null;
 }
 
 export type UserRole = 'student' | 'teacher' | 'curator' | 'admin' | 'head_curator' | 'head_teacher' | 'parent';

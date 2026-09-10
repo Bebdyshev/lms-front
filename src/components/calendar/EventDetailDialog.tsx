@@ -1,5 +1,6 @@
 import { Clock, ExternalLink, MapPin, Video, Users } from 'lucide-react';
 import { openPlatformPage, parsePlatformUrl } from '../../lib/platformLinks';
+import { meetJoinUrl } from '../../lib/meetLinks';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import LessonRecordingSection from './LessonRecordingSection';
 import type { Event, LessonRequest } from '../../types';
@@ -11,7 +12,7 @@ interface Props {
   event: Event | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: { id?: number | string; role?: string } | null | undefined;
+  user: { id?: number | string; role?: string; workspace_email?: string | null } | null | undefined;
   myRequests: Map<number, LessonRequest>;
   onRequest: (type: RequestType, event: Event) => void;
 }
@@ -99,7 +100,7 @@ export default function EventDetailDialog({ event, open, onOpenChange, user, myR
               <div className="flex items-center gap-2.5">
                 <Video className="h-4 w-4 flex-none text-muted-foreground/70" />
                 <a
-                  href={event.meeting_url}
+                  href={meetJoinUrl(event.meeting_url, user?.workspace_email)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-primary underline-offset-4 hover:underline"
