@@ -53,6 +53,11 @@ export default function TeacherClassPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [studentStats, setStudentStats] = useState<{ [key: string]: StudentStats }>({});
+  // Archived groups: hidden by default, listed with a badge when switched on.
+  // `pendingArchived` holds the ones whose student stats are not loaded yet.
+  const [showArchived, setShowArchived] = useState(false);
+  const [pendingArchived, setPendingArchived] = useState<Group[]>([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   
   // Bonus Modal State
   const [bonusModalOpen, setBonusModalOpen] = useState(false);
@@ -79,6 +84,88 @@ export default function TeacherClassPage() {
     loadTeacherGroups();
   }, []);
 
+  const enrichGroup = async (group: Group): Promise<TeacherGroup> => {
+    try {
+      
+      const students = group.students || [];
+      const statsPromises = students.map(async (student) => {
+        try {
+          const progressOverview = await apiClient.getStudentProgressOverviewById(student.id.toString());
+          
+          const stats = {
+            total_courses: progressOverview.total_courses,
+            completed_courses: progressOverview.courses.filter(c => c.completion_percentage >= 100).length,
+            average_progress: progressOverview.overall_completion_percentage,
+            last_activity: null, 
+            total_lessons: progressOverview.total_lessons,
+            completed_lessons: progressOverview.completed_lessons,
+            total_steps: progressOverview.total_steps,
+            completed_steps: progressOverview.completed_steps,
+            total_time_spent_minutes: progressOverview.total_time_spent_minutes,
+            overall_completion_percentage: progressOverview.overall_completion_percentage
+          };
+          
+          return {
+            studentId: student.id,
+            stats
+          };
+        } catch (error) {
+          console.error(`Failed to load stats for student ${student.id}:`, error);
+          return {
+            studentId: student.id,
+            stats: {
+              total_courses: 0,
+              completed_courses: 0,
+              average_progress: 0,
+              last_activity: null,
+              total_lessons: 0,
+              completed_lessons: 0,
+              total_steps: 0,
+              completed_steps: 0,
+              total_time_spent_minutes: 0,
+              overall_completion_percentage: 0
+            }
+          };
+        }
+      });
+      
+      const studentStats = await Promise.all(statsPromises);
+      const statsMap = studentStats.reduce((acc, { studentId, stats }) => {
+        acc[studentId] = stats;
+        return acc;
+      }, {} as { [key: string]: StudentStats });
+      
+      setStudentStats(prev => ({ ...prev, ...statsMap }));
+      
+      const activeStudents = students.filter(s => s.is_active).length;
+      const totalProgress = students.reduce((sum, student) => {
+        const stats = statsMap[student.id];
+        return sum + (stats?.average_progress || 0);
+      }, 0);
+      const averageProgress = students.length > 0 ? totalProgress / students.length : 0;
+      
+      return {
+        ...group,
+        students,
+        total_students: students.length,
+        active_students: activeStudents,
+        average_progress: averageProgress,
+        is_expanded: false
+      };
+    } catch (error) {
+      console.error(`Failed to process group ${group.id}:`, error);
+      // Возвращаем группу без студентов, но с ошибкой
+      return {
+        ...group,
+        students: group.students || [],
+        total_students: group.students?.length || 0,
+        active_students: group.students?.filter(s => s.is_active).length || 0,
+        average_progress: 0,
+        is_expanded: false
+      };
+    }
+  };
+
   const loadTeacherGroups = async () => {
     try {
       setIsLoading(true);
@@ -86,92 +173,16 @@ export default function TeacherClassPage() {
       
       const groupsData = await apiClient.getTeacherGroups();
       const teacherGroups = groupsData || [];
-      
-      const enrichedGroups: TeacherGroup[] = await Promise.all(
-        teacherGroups.map(async (group) => {
-          try {
-            
-            const students = group.students || [];
-            const statsPromises = students.map(async (student) => {
-              try {
-                const progressOverview = await apiClient.getStudentProgressOverviewById(student.id.toString());
-                
-                const stats = {
-                  total_courses: progressOverview.total_courses,
-                  completed_courses: progressOverview.courses.filter(c => c.completion_percentage >= 100).length,
-                  average_progress: progressOverview.overall_completion_percentage,
-                  last_activity: null, 
-                  total_lessons: progressOverview.total_lessons,
-                  completed_lessons: progressOverview.completed_lessons,
-                  total_steps: progressOverview.total_steps,
-                  completed_steps: progressOverview.completed_steps,
-                  total_time_spent_minutes: progressOverview.total_time_spent_minutes,
-                  overall_completion_percentage: progressOverview.overall_completion_percentage
-                };
-                
-                return {
-                  studentId: student.id,
-                  stats
-                };
-              } catch (error) {
-                console.error(`Failed to load stats for student ${student.id}:`, error);
-                return {
-                  studentId: student.id,
-                  stats: {
-                    total_courses: 0,
-                    completed_courses: 0,
-                    average_progress: 0,
-                    last_activity: null,
-                    total_lessons: 0,
-                    completed_lessons: 0,
-                    total_steps: 0,
-                    completed_steps: 0,
-                    total_time_spent_minutes: 0,
-                    overall_completion_percentage: 0
-                  }
-                };
-              }
-            });
-            
-            const studentStats = await Promise.all(statsPromises);
-            const statsMap = studentStats.reduce((acc, { studentId, stats }) => {
-              acc[studentId] = stats;
-              return acc;
-            }, {} as { [key: string]: StudentStats });
-            
-            setStudentStats(prev => ({ ...prev, ...statsMap }));
-            
-            const activeStudents = students.filter(s => s.is_active).length;
-            const totalProgress = students.reduce((sum, student) => {
-              const stats = statsMap[student.id];
-              return sum + (stats?.average_progress || 0);
-            }, 0);
-            const averageProgress = students.length > 0 ? totalProgress / students.length : 0;
-            
-            return {
-              ...group,
-              students,
-              total_students: students.length,
-              active_students: activeStudents,
-              average_progress: averageProgress,
-              is_expanded: false
-            };
-          } catch (error) {
-            console.error(`Failed to process group ${group.id}:`, error);
-            // Возвращаем группу без студентов, но с ошибкой
-            return {
-              ...group,
-              students: group.students || [],
-              total_students: group.students?.length || 0,
-              active_students: group.students?.filter(s => s.is_active).length || 0,
-              average_progress: 0,
-              is_expanded: false
-            };
-          }
-        })
-      );
-      
+
+      // Archived groups are enriched lazily (see the effect below): the per-student
+      // progress calls are this page's expensive part and archived cohorts are
+      // opened occasionally, not daily.
+      const current = teacherGroups.filter((g) => g.is_active !== false);
+      const archived = teacherGroups.filter((g) => g.is_active === false);
+      const enrichedGroups: TeacherGroup[] = await Promise.all(current.map(enrichGroup));
+
       setGroups(enrichedGroups);
+      setPendingArchived(archived);
     } catch (error) {
       console.error('Failed to load teacher groups:', error);
       setError('Failed to load class data');
@@ -179,6 +190,23 @@ export default function TeacherClassPage() {
       setIsLoading(false);
     }
   };
+
+  // Load archived groups' student stats the first time they are shown.
+  useEffect(() => {
+    if (!showArchived || pendingArchived.length === 0) return;
+    let cancelled = false;
+    const batch = pendingArchived;
+    setArchivedLoading(true);
+    Promise.all(batch.map(enrichGroup))
+      .then((enriched) => {
+        if (cancelled) return;
+        setGroups((prev) => [...prev, ...enriched.filter((e) => !prev.some((g) => g.id === e.id))]);
+        setPendingArchived([]);
+      })
+      .finally(() => { if (!cancelled) setArchivedLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showArchived, pendingArchived]);
 
   const toggleGroupExpansion = (groupId: number) => {
     setGroups(prev => prev.map(group => {
@@ -216,7 +244,10 @@ export default function TeacherClassPage() {
     }
   };
 
-  const filteredGroups = groups.filter(group => 
+  const visibleGroups = showArchived ? groups : groups.filter((g) => g.is_active !== false);
+  const archivedCount = groups.filter((g) => g.is_active === false).length + pendingArchived.length;
+
+  const filteredGroups = visibleGroups.filter(group =>
     group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     group.students.some(student => 
       (student.name || student.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -224,10 +255,10 @@ export default function TeacherClassPage() {
     )
   );
 
-  const totalStudents = groups.reduce((sum, group) => sum + group.total_students, 0);
-  const totalActiveStudents = groups.reduce((sum, group) => sum + group.active_students, 0);
-  const overallAverageProgress = groups.length > 0 
-    ? groups.reduce((sum, group) => sum + group.average_progress, 0) / groups.length 
+  const totalStudents = visibleGroups.reduce((sum, group) => sum + group.total_students, 0);
+  const totalActiveStudents = visibleGroups.reduce((sum, group) => sum + group.active_students, 0);
+  const overallAverageProgress = visibleGroups.length > 0
+    ? visibleGroups.reduce((sum, group) => sum + group.average_progress, 0) / visibleGroups.length
     : 0;
 
   return (
@@ -268,7 +299,7 @@ export default function TeacherClassPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Groups</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-foreground">{groups.length}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-foreground">{visibleGroups.length}</p>
               </div>
             </div>
           </CardContent>
@@ -330,6 +361,18 @@ export default function TeacherClassPage() {
               className="pl-10 bg-white dark:bg-card"
             />
           </div>
+          {archivedCount > 0 && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none w-fit">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              Show archived groups ({archivedCount})
+              {archivedLoading && <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />}
+            </label>
+          )}
         </CardContent>
       </Card>
 
@@ -357,7 +400,11 @@ export default function TeacherClassPage() {
           <GraduationCap className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-foreground mb-2">No groups found</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            {searchQuery ? 'No groups or students match your search.' : 'You don\'t have any groups assigned yet.'}
+            {searchQuery
+              ? 'No groups or students match your search.'
+              : !showArchived && archivedCount > 0
+                ? `No current groups. Turn on “Show archived groups” to see your ${archivedCount} archived.`
+                : 'You don\'t have any groups assigned yet.'}
           </p>
         </div>
       ) : (
@@ -380,7 +427,12 @@ export default function TeacherClassPage() {
                       )}
                     </Button>
                     <div>
-                      <CardTitle className="text-lg text-gray-900 dark:text-foreground">{group.name}</CardTitle>
+                      <CardTitle className="text-lg text-gray-900 dark:text-foreground flex items-center gap-2">
+                        {group.name}
+                        {group.is_active === false && (
+                          <Badge variant="outline" className="text-xs font-normal text-gray-500 border-gray-300">Archived</Badge>
+                        )}
+                      </CardTitle>
                       {group.description && (
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{group.description}</p>
                       )}
@@ -459,9 +511,14 @@ export default function TeacherClassPage() {
                                 <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-secondary">
                                   <td className="px-4 py-4 whitespace-nowrap">
                                     <div>
-                                      <div className="text-sm font-medium text-gray-900 dark:text-foreground">
+                                      <button
+                                        type="button"
+                                        onClick={() => navigate(`/analytics/student/${student.id}`)}
+                                        className="text-sm font-medium text-gray-900 dark:text-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left"
+                                        title="Open student analytics"
+                                      >
                                         {student.name || student.full_name}
-                                      </div>
+                                      </button>
                                       <div className="text-sm text-gray-500 dark:text-gray-400">{student.email}</div>
                                       {student.student_id && (
                                         <div className="text-xs text-gray-400 dark:text-gray-500">ID: {student.student_id}</div>

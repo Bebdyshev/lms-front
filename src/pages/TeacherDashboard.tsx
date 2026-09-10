@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import type { TeacherTodayHomework } from '../services/api';
@@ -74,6 +74,11 @@ interface StudentProgress {
   student_email: string;
   student_avatar: string | null;
   group_name?: string | null;
+  group_id?: number | null;
+  /** The student's group here is archived (only present with "Archived groups" on). */
+  group_is_archived?: boolean;
+  /** The student's account is deactivated (only present with "Deactivated students" on). */
+  is_inactive?: boolean;
   course_id: number;
   course_title: string;
   current_lesson_id: number | null;
@@ -164,6 +169,12 @@ export default function TeacherDashboard() {
   const [activeTab, setActiveTab] = useState('pending');
   const [activeGroup, setActiveGroup] = useState('all');
   const [studentSearch, setStudentSearch] = useState('');
+  // Finished cohorts stay reachable: archived groups and deactivated students are
+  // opt-in, mirroring the curator journal.
+  const [showArchivedGroups, setShowArchivedGroups] = useState(false);
+  const [showInactiveStudents, setShowInactiveStudents] = useState(false);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const studentsQueryKey = useRef('0|0');
   
   // Quiz grading modal state
   const [selectedQuizAttempt, setSelectedQuizAttempt] = useState<any>(null);
@@ -353,7 +364,10 @@ export default function TeacherDashboard() {
         apiClient.getDashboardStats(),
         apiClient.getPendingSubmissionsMeta(100, 0),
         apiClient.getRecentSubmissions(20),
-        apiClient.getTeacherStudentsProgress(),
+        apiClient.getTeacherStudentsProgress({
+          includeArchived: showArchivedGroups,
+          includeInactive: showInactiveStudents,
+        }),
         apiClient.getUngradedQuizAttempts(),
         apiClient.getGradedQuizAttempts(),
         apiClient.getTeacherTodayHomework(),
@@ -795,14 +809,43 @@ export default function TeacherDashboard() {
     return unifiedSubmissions;
   }, [unifiedSubmissions, activeTab]);
 
-  // Group filtering
+  // Re-query the student list when an archived/deactivated switch flips. The key
+  // guard skips the initial render (the dashboard load already fetched defaults)
+  // and survives StrictMode's double effect.
+  useEffect(() => {
+    const key = `${Number(showArchivedGroups)}|${Number(showInactiveStudents)}`;
+    if (key === studentsQueryKey.current) return;
+    studentsQueryKey.current = key;
+    let cancelled = false;
+    setStudentsLoading(true);
+    apiClient.getTeacherStudentsProgress({
+      includeArchived: showArchivedGroups,
+      includeInactive: showInactiveStudents,
+    })
+      .then((rows) => { if (!cancelled) setStudentsProgress(rows); })
+      .finally(() => { if (!cancelled) setStudentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [showArchivedGroups, showInactiveStudents]);
+
+  // Group filtering — current groups first, archived ones after.
   const uniqueGroups = useMemo(() => {
-    const groups = new Set<string>();
+    const groups = new Map<string, boolean>();
     studentsProgress.forEach(s => {
-      if (s.group_name) groups.add(s.group_name);
+      if (!s.group_name) return;
+      // A name counts as archived only if every row under it is archived.
+      const archived = Boolean(s.group_is_archived);
+      groups.set(s.group_name, groups.has(s.group_name) ? groups.get(s.group_name)! && archived : archived);
     });
-    return Array.from(groups).sort();
+    return Array.from(groups, ([name, archived]) => ({ name, archived }))
+      .sort((a, b) => Number(a.archived) - Number(b.archived) || a.name.localeCompare(b.name));
   }, [studentsProgress]);
+
+  // Turning "Archived groups" off can remove the selected group from the list.
+  useEffect(() => {
+    if (activeGroup !== 'all' && !uniqueGroups.some(g => g.name === activeGroup)) {
+      setActiveGroup('all');
+    }
+  }, [uniqueGroups, activeGroup]);
 
   const filteredStudents = useMemo(() => {
     let list = activeGroup === 'all'
@@ -1336,21 +1379,45 @@ export default function TeacherDashboard() {
                   <SelectContent>
                     <SelectItem value="all">All Students</SelectItem>
                     {uniqueGroups.map(group => (
-                      <SelectItem key={group} value={group}>{group}</SelectItem>
+                      <SelectItem key={group.name} value={group.name}>
+                        {group.name}{group.archived ? ' (archived)' : ''}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
+              <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showArchivedGroups}
+                  onChange={(e) => setShowArchivedGroups(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Archived groups
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showInactiveStudents}
+                  onChange={(e) => setShowInactiveStudents(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Deactivated students
+              </label>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className={`p-0 transition-opacity ${studentsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
           {filteredStudents.length === 0 ? (
             <div className="p-12 text-center bg-gray-50/50 dark:bg-secondary/50">
               <Users className="w-12 h-12 text-gray-300 dark:text-gray-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-foreground mb-1">No students found</h3>
-              <p className="text-gray-500 dark:text-gray-400">Try adjusting the group filter.</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                {showArchivedGroups
+                  ? 'Try adjusting the group filter.'
+                  : 'Try adjusting the group filter, or turn on “Archived groups” to see finished cohorts.'}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1367,7 +1434,14 @@ export default function TeacherDashboard() {
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-border">
                   {paginatedStudents.map((student, index) => (
-                    <tr key={`${student.student_id}-${student.course_id}-${index}`} className="hover:bg-gray-50/80 dark:hover:bg-secondary/30 transition-colors">
+                    <tr
+                      key={`${student.student_id}-${student.course_id}-${index}`}
+                      className="hover:bg-gray-50/80 dark:hover:bg-secondary/30 transition-colors cursor-pointer"
+                      title="Open student analytics"
+                      onClick={() => navigate(
+                        `/analytics/student/${student.student_id}${student.course_id ? `?course_id=${student.course_id}` : ''}`
+                      )}
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center">
                           {student.student_avatar ? (
@@ -1382,16 +1456,30 @@ export default function TeacherDashboard() {
                             </div>
                           )}
                           <div>
-                            <div className="font-medium text-gray-900 dark:text-foreground">{student.student_name}</div>
+                            <div className="font-medium text-gray-900 dark:text-foreground">
+                              {student.student_name}
+                              {student.is_inactive && (
+                                <span className="ml-1.5 text-[10px] font-normal text-red-500 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-1 py-px align-middle">
+                                  Deactivated
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">{student.student_email}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         {student.group_name ? (
-                          <Badge variant="outline" className="bg-gray-50 dark:bg-secondary inline-flex items-center whitespace-nowrap">
-                            {student.group_name.split("-")[0]}
-                          </Badge>
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="bg-gray-50 dark:bg-secondary inline-flex items-center whitespace-nowrap">
+                              {student.group_name.split("-")[0]}
+                            </Badge>
+                            {student.group_is_archived && (
+                              <Badge variant="outline" className="text-[10px] text-gray-500 border-gray-300 whitespace-nowrap">
+                                Archived
+                              </Badge>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500 text-xs">-</span>
                         )}

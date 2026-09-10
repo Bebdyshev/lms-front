@@ -350,9 +350,16 @@ export async function getHeadTeacherHwGapsToday(): Promise<HeadTeacherHwGaps> {
   }
 }
 
-export async function getTeacherStudentsProgress() {
+export async function getTeacherStudentsProgress(options?: {
+  includeArchived?: boolean;
+  includeInactive?: boolean;
+}) {
   try {
-    const response = await api.get('/dashboard/teacher/students-progress');
+    // Archived groups / deactivated students are opt-in, like the curator journal.
+    const params: Record<string, boolean> = {};
+    if (options?.includeArchived) params.include_archived = true;
+    if (options?.includeInactive) params.include_inactive = true;
+    const response = await api.get('/dashboard/teacher/students-progress', { params });
     return response.data.students_progress || [];
   } catch (error) {
     console.warn('Failed to load students progress:', error);
