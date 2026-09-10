@@ -247,3 +247,72 @@ export async function recallAnnouncement(id: number): Promise<AnnouncementDetail
 export const TEXT_LIMIT = 4096;
 export const CAPTION_LIMIT = 1024;
 export const MAX_IMAGES = 10;
+
+// --- Telegram rich text ----------------------------------------------------
+//
+// Telegram's two markup modes are MarkdownV2 and HTML. MarkdownV2 makes you
+// escape eighteen characters wherever they appear in ordinary prose, which is
+// hostile to text a human typed; HTML needs only &, < and > escaped. So the
+// composer speaks HTML, and the server sanitises it to Telegram's allowed tag
+// set before storing it.
+
+/** Tags the toolbar can produce. Kept in step with the server's allowlist in
+ *  `backend/src/announcements/formatting.py`. */
+export type MarkupTag = 'b' | 'i' | 'u' | 's' | 'code' | 'blockquote' | 'tg-spoiler';
+
+/**
+ * The message as a recipient reads it — tags removed, entities decoded.
+ *
+ * This is what Telegram's 4096/1024 caps apply to: the limits are enforced on
+ * the message AFTER entity parsing, so `<b>hi</b>` is two characters. A counter
+ * that measured the raw string would refuse text that comfortably fits.
+ */
+export function visibleText(body: string): string {
+  const withoutTags = body
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '');
+  const el = document.createElement('textarea');
+  el.innerHTML = withoutTags;
+  return el.value;
+}
+
+export function visibleLength(body: string): number {
+  return visibleText(body).length;
+}
+
+/**
+ * Render a body for the preview pane.
+ *
+ * Escapes everything first, then re-enables only the known tags. The content is
+ * written by an admin in their own browser, but escape-then-allow is the only
+ * version of this that stays correct when someone pastes markup from elsewhere.
+ */
+export function renderPreviewHtml(body: string): string {
+  const escaped = body
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const simple = ['b', 'i', 'u', 's', 'code', 'blockquote'];
+  let out = escaped;
+  for (const tag of simple) {
+    out = out
+      .replace(new RegExp(`&lt;${tag}&gt;`, 'gi'), `<${tag}>`)
+      .replace(new RegExp(`&lt;/${tag}&gt;`, 'gi'), `</${tag}>`);
+  }
+  // Spoilers have no browser equivalent; show them blurred so the sender can
+  // see the extent of what will be hidden.
+  out = out
+    .replace(/&lt;tg-spoiler&gt;/gi, '<span class="rounded bg-muted-foreground/30 text-transparent">')
+    .replace(/&lt;\/tg-spoiler&gt;/gi, '</span>');
+  // Links: only http(s), matching the server's scheme allowlist.
+  out = out.replace(
+    /&lt;a href=&quot;(https?:\/\/[^&"]+)&quot;&gt;([\s\S]*?)&lt;\/a&gt;/gi,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline">$2</a>',
+  );
+  out = out.replace(
+    /&lt;a href="(https?:\/\/[^&"]+)"&gt;([\s\S]*?)&lt;\/a&gt;/gi,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline">$2</a>',
+  );
+  return out.replace(/\n/g, '<br />');
+}

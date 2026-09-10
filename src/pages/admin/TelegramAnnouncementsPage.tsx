@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Bold,
   Check,
   ChevronLeft,
+  Code,
+  EyeOff,
   ImagePlus,
+  Italic,
+  Link2,
   Loader2,
   Megaphone,
   Pin,
+  Quote,
   RefreshCw,
   Send,
+  Strikethrough,
   Trash2,
+  Underline,
   Undo2,
   X,
 } from 'lucide-react';
@@ -41,6 +49,9 @@ import {
   CAPTION_LIMIT,
   MAX_IMAGES,
   TEXT_LIMIT,
+  renderPreviewHtml,
+  visibleLength,
+  visibleText,
   cancelAnnouncement,
   createAnnouncement,
   getAnnouncement,
@@ -55,6 +66,7 @@ import type {
   Announcement,
   AnnouncementDetail,
   AnnouncementStatus,
+  MarkupTag,
   RecipientSummary,
   TelegramGroup,
 } from '../../services/api/announcements';
@@ -212,6 +224,106 @@ export default function TelegramAnnouncementsPage() {
 }
 
 // ---------------------------------------------------------------------------
+// Formatting toolbar
+// ---------------------------------------------------------------------------
+
+/**
+ * Telegram's markup, inserted as literal tags into a plain textarea.
+ *
+ * A WYSIWYG editor would have to map a contentEditable DOM back onto Telegram's
+ * narrow tag set, and every mismatch becomes a message that renders differently
+ * from the preview. Showing the tags is honest instead: what is in the box is
+ * exactly what the server stores and what Telegram parses. The preview pane
+ * below covers the readability cost.
+ */
+const FORMAT_ACTIONS: {
+  tag: MarkupTag;
+  label: string;
+  icon: typeof Bold;
+  shortcut?: string;
+}[] = [
+  { tag: 'b', label: 'Bold', icon: Bold, shortcut: '⌘B' },
+  { tag: 'i', label: 'Italic', icon: Italic, shortcut: '⌘I' },
+  { tag: 'u', label: 'Underline', icon: Underline, shortcut: '⌘U' },
+  { tag: 's', label: 'Strikethrough', icon: Strikethrough },
+  { tag: 'code', label: 'Monospace', icon: Code },
+  { tag: 'blockquote', label: 'Quote', icon: Quote },
+  { tag: 'tg-spoiler', label: 'Spoiler', icon: EyeOff },
+];
+
+interface FormatToolbarProps {
+  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  value: string;
+  onChange: (next: string) => void;
+}
+
+function FormatToolbar({ textareaRef, value, onChange }: FormatToolbarProps) {
+  /** Wrap the current selection, or drop an empty pair at the caret. */
+  const wrap = (open: string, close: string) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? start;
+    const selected = value.slice(start, end);
+    const next = value.slice(0, start) + open + selected + close + value.slice(end);
+    onChange(next);
+    // Restore a sensible caret after React re-renders: keep the selection if
+    // there was one, otherwise land between the tags ready to type.
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = start + open.length;
+      el.setSelectionRange(caret, caret + selected.length);
+    });
+  };
+
+  const applyTag = (tag: MarkupTag) => wrap(`<${tag}>`, `</${tag}>`);
+
+  const applyLink = () => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? 0;
+    const end = el?.selectionEnd ?? start;
+    const selected = value.slice(start, end);
+    const url = window.prompt('Link URL', 'https://');
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      toast('Only http:// and https:// links can be sent', 'error');
+      return;
+    }
+    wrap(`<a href="${url}">`, '</a>');
+    if (!selected) {
+      toast('Type the link text between the tags', 'info');
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-muted/40 p-1">
+      {FORMAT_ACTIONS.map(({ tag, label, icon: Icon, shortcut }) => (
+        <button
+          key={tag}
+          type="button"
+          onClick={() => applyTag(tag)}
+          title={shortcut ? `${label} (${shortcut})` : label}
+          aria-label={label}
+          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+        >
+          <Icon className="h-4 w-4" />
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={applyLink}
+        title="Link (⌘K)"
+        aria-label="Link"
+        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+      >
+        <Link2 className="h-4 w-4" />
+      </button>
+      <span className="ml-auto pr-1 text-[11px] text-muted-foreground">Telegram formatting</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Compose
 // ---------------------------------------------------------------------------
 
@@ -223,6 +335,7 @@ interface ComposeTabProps {
 
 function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
   const [body, setBody] = useState('');
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [images, setImages] = useState<File[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
   const [allStudents, setAllStudents] = useState(false);
@@ -247,9 +360,34 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
    * at 4096. With images attached, a longer body is sent as a second message
    * rather than truncated — worth saying out loud, because the composer would
    * otherwise look like it was silently ignoring the lower limit.
+   *
+   * Counted on the VISIBLE text: the caps apply after Telegram parses entities,
+   * so `<b>hi</b>` is two characters. Counting the raw markup would refuse text
+   * that comfortably fits.
    */
-  const limit = images.length > 0 && body.length <= CAPTION_LIMIT ? CAPTION_LIMIT : TEXT_LIMIT;
-  const splitsIntoTwoMessages = images.length > 0 && body.length > CAPTION_LIMIT;
+  const bodyLength = visibleLength(body);
+  const limit = images.length > 0 && bodyLength <= CAPTION_LIMIT ? CAPTION_LIMIT : TEXT_LIMIT;
+  const splitsIntoTwoMessages = images.length > 0 && bodyLength > CAPTION_LIMIT;
+
+  /** ⌘/Ctrl + B, I, U for the three people reach for most. */
+  const handleBodyShortcut = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!event.metaKey && !event.ctrlKey) return;
+    const tag = { b: 'b', i: 'i', u: 'u' }[event.key.toLowerCase()];
+    if (!tag) return;
+    event.preventDefault();
+    const el = bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? body.length;
+    const end = el.selectionEnd ?? start;
+    const open = `<${tag}>`;
+    const close = `</${tag}>`;
+    setBody(body.slice(0, start) + open + body.slice(start, end) + close + body.slice(end));
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = start + open.length;
+      el.setSelectionRange(caret, caret + (end - start));
+    });
+  };
 
   const toggleGroup = (id: number) => {
     setSelectedGroups((current) => {
@@ -285,8 +423,9 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
   };
 
   const validate = (): string | null => {
-    if (!body.trim() && images.length === 0) return 'Write a message or attach an image';
-    if (body.length > TEXT_LIMIT) return `Text is limited to ${TEXT_LIMIT} characters`;
+    if (!visibleText(body).trim() && images.length === 0)
+      return 'Write a message or attach an image';
+    if (bodyLength > TEXT_LIMIT) return `Text is limited to ${TEXT_LIMIT} characters`;
     if (images.length > MAX_IMAGES) return `Telegram allows at most ${MAX_IMAGES} images`;
     if (recipientCount === 0) return 'Select at least one group, or all linked students';
     if (scheduledFor && new Date(scheduledFor).getTime() <= Date.now()) {
@@ -310,7 +449,7 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
       toast('Enter the numeric chat ID of your staff test group', 'error');
       return;
     }
-    if (!body.trim() && images.length === 0) {
+    if (!visibleText(body).trim() && images.length === 0) {
       toast('Write a message or attach an image first', 'error');
       return;
     }
@@ -374,21 +513,37 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
+              <FormatToolbar textareaRef={bodyRef} value={body} onChange={setBody} />
               <Textarea
+                ref={bodyRef}
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
+                onKeyDown={handleBodyShortcut}
                 placeholder="What should the students know?"
-                className="min-h-[160px]"
+                className="min-h-[160px] font-mono text-sm"
               />
-              <div className="flex items-center justify-between text-xs">
-                <span className={body.length > TEXT_LIMIT ? 'text-rose-600' : 'text-muted-foreground'}>
-                  {body.length} / {limit}
+              <div className="flex items-center justify-between gap-4 text-xs">
+                <span className={bodyLength > TEXT_LIMIT ? 'text-rose-600' : 'text-muted-foreground'}>
+                  {bodyLength} / {limit}
                 </span>
                 {splitsIntoTwoMessages && (
-                  <span className="text-muted-foreground">
+                  <span className="text-right text-muted-foreground">
                     Over {CAPTION_LIMIT} characters — the text will arrive as a separate message
                     below the photos.
                   </span>
+                )}
+              </div>
+            </div>
+
+            {/* The preview is what makes showing raw tags acceptable: the sender
+                always has the rendered result in front of them. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Preview</Label>
+              <div className="min-h-[64px] rounded-md border border-border bg-muted/30 p-3 text-sm leading-relaxed text-foreground [&_a]:text-primary [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono">
+                {visibleText(body).trim() ? (
+                  <span dangerouslySetInnerHTML={{ __html: renderPreviewHtml(body) }} />
+                ) : (
+                  <span className="text-muted-foreground">Nothing to preview yet.</span>
                 )}
               </div>
             </div>
