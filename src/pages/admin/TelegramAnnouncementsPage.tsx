@@ -14,6 +14,7 @@ import {
   Pin,
   Quote,
   RefreshCw,
+  Search,
   Send,
   Strikethrough,
   Trash2,
@@ -45,10 +46,14 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { toast } from '../../components/Toast';
+import { PROGRAM_BADGE_STYLES } from '../../lib/groupPicker';
 import {
   CAPTION_LIMIT,
   MAX_IMAGES,
+  PROGRAM_CHIP_LABELS,
+  PROGRAM_ORDER,
   TEXT_LIMIT,
+  detectPrograms,
   renderPreviewHtml,
   visibleLength,
   visibleText,
@@ -67,6 +72,7 @@ import type {
   AnnouncementDetail,
   AnnouncementStatus,
   MarkupTag,
+  ProgramKey,
   RecipientSummary,
   TelegramGroup,
 } from '../../services/api/announcements';
@@ -323,6 +329,40 @@ function FormatToolbar({ textareaRef, value, onChange }: FormatToolbarProps) {
   );
 }
 
+/** A program filter, or the "no program in the name" bucket. */
+type ProgramFilterKey = ProgramKey | 'other';
+
+interface FilterChipProps {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  /** Colour when active; defaults to the primary colour. Program chips pass the
+   *  LMS's own program badge colours so SAT reads blue here as everywhere else. */
+  activeClassName?: string;
+}
+
+function FilterChip({ label, count, active, onClick, activeClassName }: FilterChipProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      // An empty chip is a dead end — but never disable an ACTIVE one, or a
+      // search that empties it would leave it stuck on with no way to turn it off.
+      disabled={count === 0 && !active}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? `border-current ${activeClassName ?? 'bg-primary text-primary-foreground'}`
+          : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+      }`}
+    >
+      {label}
+      <span className="tabular-nums opacity-70">{count}</span>
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Compose
 // ---------------------------------------------------------------------------
@@ -348,12 +388,101 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
   const [confirmText, setConfirmText] = useState('');
   const [sending, setSending] = useState(false);
 
+  // --- recipient search & program filters ---------------------------------
+  //
+  // Filtering only changes what is SHOWN. Selection is independent of it, so
+  // narrowing to SAT, ticking two groups, then switching to IELTS keeps those two
+  // ticked. The summary line says how many selected groups the current filters
+  // hide, because the confirm dialog counts them even when they are off screen.
+  const [groupSearch, setGroupSearch] = useState('');
+  const [programFilter, setProgramFilter] = useState<Set<ProgramFilterKey>>(new Set());
+
+  const groupPrograms = useMemo(
+    () => new Map(approvedGroups.map((group) => [group.id, detectPrograms(group.title || '')])),
+    [approvedGroups],
+  );
+
+  const searchMatched = useMemo(() => {
+    const query = groupSearch.trim().toLocaleLowerCase();
+    if (!query) return approvedGroups;
+    return approvedGroups.filter((group) =>
+      (group.title || String(group.telegram_chat_id)).toLocaleLowerCase().includes(query),
+    );
+  }, [approvedGroups, groupSearch]);
+
+  /** Per-chip counts, taken AFTER the search so each chip says what clicking it would show. */
+  const chipCounts = useMemo(() => {
+    const counts: Record<ProgramFilterKey, number> = {
+      sat: 0,
+      ielts: 0,
+      nuet: 0,
+      general_english: 0,
+      other: 0,
+    };
+    for (const group of searchMatched) {
+      const programs = groupPrograms.get(group.id) ?? [];
+      if (programs.length === 0) counts.other += 1;
+      for (const program of programs) counts[program] += 1;
+    }
+    return counts;
+  }, [searchMatched, groupPrograms]);
+
+  const visibleGroups = useMemo(() => {
+    if (programFilter.size === 0) return searchMatched;
+    return searchMatched.filter((group) => {
+      const programs = groupPrograms.get(group.id) ?? [];
+      if (programs.length === 0) return programFilter.has('other');
+      return programs.some((program) => programFilter.has(program));
+    });
+  }, [searchMatched, programFilter, groupPrograms]);
+
+  // Counted against the CURRENT approved list, not the raw selection. A group
+  // removed between loading the page and pressing Refresh is dropped by the
+  // server, and counting it here would make the confirm dialog promise a
+  // recipient that never ships.
+  const selectedApproved = useMemo(
+    () => approvedGroups.filter((group) => selectedGroups.has(group.id)),
+    [approvedGroups, selectedGroups],
+  );
+  const selectedGroupCount = selectedApproved.length;
+  const visibleIds = useMemo(() => new Set(visibleGroups.map((g) => g.id)), [visibleGroups]);
+  const hiddenSelectedCount = selectedApproved.filter((g) => !visibleIds.has(g.id)).length;
+  const allVisibleSelected =
+    visibleGroups.length > 0 && visibleGroups.every((group) => selectedGroups.has(group.id));
+  const isFiltering = groupSearch.trim() !== '' || programFilter.size > 0;
+
+  const toggleProgram = (key: ProgramFilterKey) => {
+    setProgramFilter((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const clearFilters = () => {
+    setGroupSearch('');
+    setProgramFilter(new Set());
+  };
+
+  /** Select or deselect only what the filters show, leaving hidden picks alone. */
+  const setVisibleSelected = (select: boolean) => {
+    setSelectedGroups((current) => {
+      const next = new Set(current);
+      for (const group of visibleGroups) {
+        if (select) next.add(group.id);
+        else next.delete(group.id);
+      }
+      return next;
+    });
+  };
+
   // Object URLs must be revoked or every re-pick leaks one.
   const previews = useMemo(() => images.map((file) => URL.createObjectURL(file)), [images]);
   useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
 
   const studentCount = allStudents ? summary?.students_opted_in ?? 0 : 0;
-  const recipientCount = selectedGroups.size + studentCount;
+  const recipientCount = selectedGroupCount + studentCount;
 
   /**
    * Telegram caps a photo caption at 1024 characters but a standalone message
@@ -436,7 +565,7 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
 
   const buildPayload = () => ({
     body: body.trim(),
-    target_group_ids: Array.from(selectedGroups),
+    target_group_ids: selectedApproved.map((group) => group.id),
     target_all_students: allStudents,
     pin,
     silent,
@@ -626,44 +755,149 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
                 one it is already in), then approve it under Groups.
               </p>
             ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="all-groups"
-                    checked={selectedGroups.size === approvedGroups.length}
-                    onCheckedChange={(checked) =>
-                      setSelectedGroups(
-                        checked === true ? new Set(approvedGroups.map((g) => g.id)) : new Set(),
-                      )
-                    }
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={groupSearch}
+                    onChange={(event) => setGroupSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setGroupSearch('');
+                    }}
+                    placeholder="Search groups by name…"
+                    aria-label="Search groups by name"
+                    className="pl-9 pr-9"
                   />
-                  <Label htmlFor="all-groups" className="cursor-pointer text-sm font-medium">
-                    All groups ({approvedGroups.length})
-                  </Label>
+                  {groupSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setGroupSearch('')}
+                      aria-label="Clear search"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
-                <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-border p-3">
-                  {approvedGroups.map((group) => (
-                    <div key={group.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`group-${group.id}`}
-                        checked={selectedGroups.has(group.id)}
-                        onCheckedChange={() => toggleGroup(group.id)}
-                      />
-                      <Label
-                        htmlFor={`group-${group.id}`}
-                        className="flex-1 cursor-pointer text-sm font-normal"
-                      >
-                        {group.title || group.telegram_chat_id}
-                      </Label>
-                      {pin && !group.bot_is_admin && (
-                        <span className="text-xs text-amber-600" title="Pinning needs admin rights">
-                          can't pin
-                        </span>
-                      )}
-                    </div>
+
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by program">
+                  <FilterChip
+                    label="All"
+                    count={searchMatched.length}
+                    active={programFilter.size === 0}
+                    onClick={() => setProgramFilter(new Set())}
+                  />
+                  {PROGRAM_ORDER.map((key) => (
+                    <FilterChip
+                      key={key}
+                      label={PROGRAM_CHIP_LABELS[key]}
+                      count={chipCounts[key]}
+                      active={programFilter.has(key)}
+                      activeClassName={PROGRAM_BADGE_STYLES[key]}
+                      onClick={() => toggleProgram(key)}
+                    />
                   ))}
+                  {/* Only offered when something actually lands there — usually
+                      staff chats whose names carry no program. */}
+                  {(chipCounts.other > 0 || programFilter.has('other')) && (
+                    <FilterChip
+                      label="Other"
+                      count={chipCounts.other}
+                      active={programFilter.has('other')}
+                      onClick={() => toggleProgram('other')}
+                    />
+                  )}
                 </div>
-              </>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="select-visible-groups"
+                      checked={allVisibleSelected}
+                      disabled={visibleGroups.length === 0}
+                      onCheckedChange={(checked) => setVisibleSelected(checked === true)}
+                    />
+                    <Label
+                      htmlFor="select-visible-groups"
+                      className="cursor-pointer text-sm font-medium"
+                    >
+                      {isFiltering
+                        ? `Select all ${visibleGroups.length} shown`
+                        : `All groups (${approvedGroups.length})`}
+                    </Label>
+                  </div>
+                  {selectedGroupCount > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>
+                        {selectedGroupCount} selected
+                        {hiddenSelectedCount > 0 && (
+                          <span className="text-amber-600">
+                            {' '}
+                            · {hiddenSelectedCount} hidden by filters
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGroups(new Set())}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="max-h-72 space-y-0.5 overflow-y-auto rounded-md border border-border p-1.5">
+                  {visibleGroups.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      No groups match these filters.{' '}
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  ) : (
+                    visibleGroups.map((group) => (
+                      <div
+                        key={group.id}
+                        className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          id={`group-${group.id}`}
+                          checked={selectedGroups.has(group.id)}
+                          onCheckedChange={() => toggleGroup(group.id)}
+                        />
+                        <Label
+                          htmlFor={`group-${group.id}`}
+                          className="flex-1 cursor-pointer truncate text-sm font-normal"
+                        >
+                          {group.title || group.telegram_chat_id}
+                        </Label>
+                        {(groupPrograms.get(group.id) ?? []).map((key) => (
+                          <span
+                            key={key}
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${PROGRAM_BADGE_STYLES[key]}`}
+                          >
+                            {PROGRAM_CHIP_LABELS[key]}
+                          </span>
+                        ))}
+                        {pin && !group.bot_is_admin && (
+                          <span
+                            className="shrink-0 text-xs text-amber-600"
+                            title="Pinning needs admin rights"
+                          >
+                            can't pin
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             )}
 
             <div className="flex items-center gap-2 border-t border-border pt-3">
@@ -763,10 +997,10 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
               Will reach{' '}
               <span className="font-semibold text-foreground">{recipientCount}</span> recipient
               {recipientCount === 1 ? '' : 's'}
-              {selectedGroups.size > 0 && studentCount > 0 && (
+              {selectedGroupCount > 0 && studentCount > 0 && (
                 <>
                   {' '}
-                  ({selectedGroups.size} group{selectedGroups.size > 1 ? 's' : ''}, {studentCount}{' '}
+                  ({selectedGroupCount} group{selectedGroupCount > 1 ? 's' : ''}, {studentCount}{' '}
                   student{studentCount > 1 ? 's' : ''})
                 </>
               )}
@@ -787,8 +1021,8 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
             </DialogTitle>
             <DialogDescription>
               This will reach {recipientCount} recipient{recipientCount === 1 ? '' : 's'}
-              {selectedGroups.size > 0 &&
-                ` — ${selectedGroups.size} group${selectedGroups.size > 1 ? 's' : ''}`}
+              {selectedGroupCount > 0 &&
+                ` — ${selectedGroupCount} group${selectedGroupCount > 1 ? 's' : ''}`}
               {studentCount > 0 && ` — ${studentCount} student${studentCount > 1 ? 's' : ''}`}.
               Type SEND to confirm.
             </DialogDescription>
