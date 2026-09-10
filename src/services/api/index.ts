@@ -26,6 +26,7 @@ export * from './lesson-requests';
 export * from './admin';
 export * from './lectures';
 export * from './daily-questions';
+export * from './review';
 export * from './reports';
 
 // Re-export client utilities for direct access
@@ -72,6 +73,7 @@ import { getLessonRequests, getPendingLessonRequests, getMyLessonRequests, getIn
 import { getDashboardStats, getRecentActivity, updateStudyTime, getTeacherSalaryBreakdown, getAdminDashboard, getAdminDashboardCharts, getAdminStats, completeStepsForUser, resetStepsForUser, getUserProgressSummary, reportQuestionError, getQuestionErrorReports, getQuestionErrorReportDetail, updateQuestionErrorReportStatus, updateQuestion, manualUnlockLesson, manualLockLesson, getManualUnlocks, getStudentsJournal, getStudentJournalGroups, getStudentProfile } from './admin';
 import { fetchModules, fetchLectures, createLecture, deleteLecture, updateLecture, fetchLecturesByModule } from './lectures';
 import { getDailyQuestionsStatus, getDailyQuestionsRecommendations, completeDailyQuestions } from './daily-questions';
+import { getReviewQuizzes, getReviewSession } from './review';
 
 const apiClient = {
   // Auth
@@ -148,6 +150,8 @@ const apiClient = {
   getGroupStudentsAnalytics, getStudentProgressHistory,
   exportStudentReport, exportGroupReport, exportAllStudentsReport, exportAnalyticsExcel,
   getStudentDetailedProgress, getStudentSatScores, getStudentLearningPath,
+  // Quiz Review
+  getReviewQuizzes, getReviewSession,
   // Curator
   getCuratorPendingSubmissions, getCuratorRecentSubmissions, getCuratorStudentsProgress,
   getCuratorAssignmentsAnalytics, getCuratorHomeworkByGroup, getCuratorGroups,
