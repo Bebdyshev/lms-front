@@ -10,8 +10,11 @@ export const APP_TIMEZONE = 'Asia/Almaty';
  * Parses ISO string as UTC. If no Z or offset (+05:00) — appends Z.
  */
 export function parseAsUTC(s: string): Date {
-  const hasTz = s.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(s);
-  return new Date(hasTz ? s : s + 'Z');
+  // "…+00:00Z" is an offset-aware datetime that also got a Z appended by the serializer; the
+  // offset is the truth, and the Z alone would make the string unparseable.
+  const cleaned = /[+-]\d{2}:\d{2}Z$/.test(s) ? s.slice(0, -1) : s;
+  const hasTz = cleaned.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(cleaned);
+  return new Date(hasTz ? cleaned : cleaned + 'Z');
 }
 
 /**
@@ -73,6 +76,10 @@ const CIVIL_DAY = new Intl.DateTimeFormat('en-CA', {
  */
 export function almatyCivilDate(instant: Date | string = new Date()): Date {
   const d = typeof instant === 'string' ? parseAsUTC(instant) : instant;
+  // Never throw inside a render: Intl throws on an invalid Date, and one malformed event would
+  // take the whole calendar down. An Invalid Date compares false with everything, so the event
+  // simply falls out of every day — as it did before.
+  if (!d || Number.isNaN(d.getTime())) return new Date(NaN);
   const [y, m, day] = CIVIL_DAY.format(d).split('-').map(Number);
   return new Date(y, m - 1, day);
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { almatyCivilDate, installAppTimeZone, todayInAlmaty, uninstallAppTimeZone } from './datetime';
+import { almatyCivilDate, installAppTimeZone, parseAsUTC, todayInAlmaty, uninstallAppTimeZone } from './datetime';
 import { eventsOnDay } from '../components/calendar/calendarUtils';
 import type { Event } from '../types';
 
@@ -103,5 +103,23 @@ describe('Almaty days', () => {
     } as unknown as Event;
     expect(eventsOnDay(new Date(2026, 8, 10), [lesson, early]).map((e) => e.id)).toEqual([1]);
     expect(eventsOnDay(new Date(2026, 8, 11), [lesson, early]).map((e) => e.id)).toEqual([1, 2]);
+  });
+});
+
+describe('malformed dates never take the calendar down', () => {
+  it('an unreadable date is no date, not an exception', () => {
+    // 2026-09-10: one such event crashed the whole calendar for admins.
+    expect(() => almatyCivilDate('not a date')).not.toThrow();
+    expect(Number.isNaN(almatyCivilDate('not a date').getTime())).toBe(true);
+  });
+
+  it('an event with an unreadable date falls out of every day', () => {
+    const broken = { id: 9, title: 'x', event_type: 'class', start_datetime: 'garbage', end_datetime: 'garbage' } as unknown as Event;
+    expect(eventsOnDay(new Date(2026, 8, 10), [broken])).toEqual([]);
+  });
+
+  it('reads an offset-aware time that also got a Z appended', () => {
+    expect(parseAsUTC('2026-09-10T14:00:00+00:00Z').toISOString()).toBe('2026-09-10T14:00:00.000Z');
+    expect(almatyCivilDate('2026-09-10T20:30:00+00:00Z').getDate()).toBe(11);
   });
 });
