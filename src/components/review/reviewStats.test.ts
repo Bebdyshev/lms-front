@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   accuracyBand,
   blankGapText,
+  blankHeading,
   buildClassSummary,
   buildQuestionStats,
   displayText,
@@ -47,6 +48,19 @@ const gapsInQuestionText = {
   id: 'q7',
   question_type: 'fill_blank',
   question_text: 'A [[cat*,dog]] and a [[hat*,bat]]',
+}
+
+// The actual class of bug (this is the third occurrence): a question whose question_type is
+// NOT a gap type — converted by an importer, a mistyped slug, a short_answer authored from a
+// cloze — but whose question_text still carries [[…*…]] gap syntax anyway. A fix that keys
+// off question_type (isGapType) rather than the presence of the tokens themselves prints the
+// asterisked key on the projector while QuizRenderer.tsx's student view (which strips
+// question_text unconditionally, not gated by type) already showed [[blank]].
+const gapsInQuestionTextWrongType = {
+  id: 'q8',
+  question_type: 'short_answer',
+  question_text: 'A [[cat*,dog]] and a [[hat*,bat]]',
+  correct_answer: 'cat',
 }
 
 const essay = { id: 'q5', question_type: 'long_text' }
@@ -453,13 +467,49 @@ describe('displayText — the pure helper ReviewQuestionView renders through', (
     expect(displayText('fill_blank', gaps.content_text)).toBe('A ____ and a ____')
   })
 
-  it('leaves non-gap types untouched, asterisks and all', () => {
+  // displayText stays gated by question_type (content_text is shown raw for non-gap types —
+  // see QuizRenderer.tsx:760). It does NOT mean question_text is left alone for non-gap
+  // types in general: ReviewQuestionView's heading and buildQuestionStats's questionText
+  // fallback go through blankHeading instead, which blanks unconditionally. See the
+  // 'blankHeading' and regression describe blocks below for that half of the picture.
+  it('leaves content_text-style callers untouched for non-gap types, asterisks and all', () => {
     expect(displayText('single_choice', 'What is 2 * 2?')).toBe('What is 2 * 2?')
   })
 
   it('treats a null/undefined field as empty text', () => {
     expect(displayText('fill_blank', undefined)).toBe('')
     expect(displayText('fill_blank', null)).toBe('')
+  })
+})
+
+describe('blankHeading — the unconditional blanker for question_text headings', () => {
+  it('replaces every [[…]] gap token with a blank placeholder, matching QuizRenderer.tsx\'s student-facing regex', () => {
+    expect(blankHeading('A [[cat*,dog]] and a [[hat*,bat]]')).toBe('A ____ and a ____')
+  })
+
+  it('leaves ordinary text untouched', () => {
+    expect(blankHeading('No gaps here')).toBe('No gaps here')
+  })
+
+  it('treats a null/undefined field as empty text', () => {
+    expect(blankHeading(undefined)).toBe('')
+    expect(blankHeading(null)).toBe('')
+  })
+
+  // [^\]]+ (unlike blankGapText's [\s\S]*?) refuses to match across a nested-bracket
+  // expression, so a matrix literal keeps rendering as written instead of collapsing to a
+  // single ____.
+  it('does not match across nested brackets, e.g. a matrix literal', () => {
+    expect(blankHeading('[[a,b],[c,d]]')).toBe('[[a,b],[c,d]]')
+  })
+
+  // Item 1's core regression: blankHeading blanks by looking at the text, not the type —
+  // unlike displayText/isGapType, it must blank a gap token in question_text even when
+  // question_type is something other than fill_blank/text_completion.
+  it('blanks [[…*…]] tokens in question_text even when question_type is not a gap type', () => {
+    expect(blankHeading(gapsInQuestionTextWrongType.question_text)).toBe('A ____ and a ____')
+    expect(blankHeading(gapsInQuestionTextWrongType.question_text)).not.toContain('*')
+    expect(blankHeading(gapsInQuestionTextWrongType.question_text)).not.toContain('[[')
   })
 })
 
@@ -475,6 +525,17 @@ describe('buildQuestionStats — gap question text falls back to the blanked sou
   // `||` fallback unblanked and reach the finish screen's "Hardest questions" list raw.
   it('never leaks the [[…*…]] gap syntax into questionText when the gaps live in question_text', () => {
     const [stat] = buildQuestionStats([gapsInQuestionText], [], names)
+    expect(stat.questionText).toBe('A ____ and a ____')
+    expect(stat.questionText).not.toContain('*')
+    expect(stat.questionText).not.toContain('[[')
+  })
+
+  // Item 1 regression: the non-gap-type branch of the questionText fallback used to be
+  // gated by isGapType(type) and pass question_text through raw, so a converted/mistyped
+  // question whose question_type isn't a gap type but whose question_text still carries
+  // [[…*…]] tokens leaked the key into the "Hardest questions" list on the finish screen.
+  it('never leaks the [[…*…]] gap syntax into questionText when question_type is not a gap type', () => {
+    const [stat] = buildQuestionStats([gapsInQuestionTextWrongType], [], names)
     expect(stat.questionText).toBe('A ____ and a ____')
     expect(stat.questionText).not.toContain('*')
     expect(stat.questionText).not.toContain('[[')

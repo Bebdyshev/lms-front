@@ -6,7 +6,7 @@ import { Card, CardContent } from '../ui/card'
 import { renderTextWithLatex } from '../../utils/latex'
 import { getExpectedAnswers } from '../lesson/quiz/scoring'
 import { EN, questionTypeLabel } from './strings'
-import { displayText, isCorrectOption, isGapType, LETTERS, splitPipeAnswers, type QuestionStat } from './reviewStats'
+import { blankHeading, displayText, isCorrectOption, isGapType, LETTERS, splitPipeAnswers, type QuestionStat } from './reviewStats'
 
 interface Props {
   question: any
@@ -27,11 +27,14 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
   // [[…]] token marked by `*` (see gapParser.ts). That syntax isn't confined to content_text
   // — some quizzes carry it in question_text instead (scoring.ts's getExpectedAnswers and
   // QuizRenderer.tsx's student-facing renderer both check either field for exactly this
-  // reason) — so BOTH the passage below and the heading further down must go through
-  // displayText, not just one of them. Neither must ever be shown raw: the answer key would
-  // be visible the instant the question appears, before Reveal. displayText only strips the
-  // tokens for display; it does not parse them for correctness — getExpectedAnswers
-  // (scoring.ts) stays the only place that decides what the accepted answers are.
+  // reason) — so BOTH the passage below and the heading further down must have their
+  // tokens blanked. Neither must ever be shown raw: the answer key would be visible the
+  // instant the question appears, before Reveal. The passage goes through displayText
+  // (gated by isGapType, matching content_text's own gate on the student side); the heading
+  // goes through blankHeading instead (unconditional, matching QuizRenderer.tsx's
+  // question_text handling) — see blankHeading's doc comment for why they differ. Neither
+  // helper parses the tokens for correctness — getExpectedAnswers (scoring.ts) stays the
+  // only place that decides what the accepted answers are.
   const passage = question.content_text
   const options: any[] = Array.isArray(question.options) ? question.options : []
 
@@ -79,12 +82,17 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
 
         {/* Same leak this component's passage above already guards against (see the comment
             on `isGap`): a gap question can carry its [[…*…]] tokens in question_text instead
-            of content_text, so this heading needs the same displayText treatment — a raw
-            question_text here is exactly what let the answer key reach the projector while
-            students' own screens (QuizRenderer.tsx) already hid it. */}
+            of content_text, so this heading needs blanking too — a raw question_text here is
+            exactly what let the answer key reach the projector while students' own screens
+            (QuizRenderer.tsx) already hid it. Unlike the passage above, this goes through
+            blankHeading rather than displayText: question_text can carry gap syntax even
+            when question_type ISN'T a gap type (an importer conversion, a mistyped slug, a
+            short_answer authored from a cloze), and QuizRenderer.tsx's student-facing
+            renderer strips question_text unconditionally, not gated by type — so this must
+            match that, not displayText's isGapType gate. */}
         <h2
           className="text-2xl font-semibold leading-snug"
-          dangerouslySetInnerHTML={{ __html: renderTextWithLatex(displayText(question.question_type, question.question_text)) }}
+          dangerouslySetInnerHTML={{ __html: renderTextWithLatex(blankHeading(question.question_text)) }}
         />
 
         {options.length > 0 && (

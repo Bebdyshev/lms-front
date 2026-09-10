@@ -22,7 +22,7 @@ import {
   type ReviewAttempt,
   type StudentRef,
 } from './reviewStats'
-import { createRequestGuard } from './requestGuard'
+import { createRequestGuard, type RequestGuard } from './requestGuard'
 import { EN } from './strings'
 
 export interface CourseOption { id: number; title: string }
@@ -252,7 +252,18 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
   // with data for the wrong course/group/quiz -- including flipping into 'presenting'
   // with a different group's questions and answers. Do not "simplify" this away; the fix
   // is deliberately not disabling the selects while loading.
-  const guard = useRef(createRequestGuard()).current
+  //
+  // useRef's argument is not lazy -- useRef(createRequestGuard()) would call the factory on
+  // every render and throw the result away every time but the first, which is wasteful but,
+  // more importantly, easy to later "fix" by hoisting the guard out of the hook into module
+  // scope, which would turn this per-hook-instance guard into a singleton shared by every
+  // mounted useReviewSession. Initialise lazily on first use instead, so there is exactly
+  // one guard instance per hook instance, shared by all three async actions below.
+  const guardRef = useRef<RequestGuard | null>(null)
+  if (guardRef.current === null) {
+    guardRef.current = createRequestGuard()
+  }
+  const guard = guardRef.current
 
   const loadCourses = useCallback(async () => {
     dispatch({ type: 'loading' })

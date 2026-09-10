@@ -37,4 +37,23 @@ describe('createRequestGuard', () => {
     // request 1 resolves after -- it must still be recognized as stale
     expect(guard.isCurrent(token1)).toBe(false)
   })
+
+  it('two createRequestGuard() calls are independent -- one guard\'s tokens do not supersede another\'s', () => {
+    // This is what makes "one guard per hook instance" (useReviewSession's useRef) correct
+    // rather than incidental: if createRequestGuard held module-level state, two mounted
+    // instances of useReviewSession (or two tests) would stomp on each other's tokens.
+    const guardA = createRequestGuard()
+    const guardB = createRequestGuard()
+
+    const tokenA1 = guardA.start()
+    const tokenB1 = guardB.start()
+
+    // Starting guardB does not touch guardA's counter.
+    expect(guardA.isCurrent(tokenA1)).toBe(true)
+    expect(guardB.isCurrent(tokenB1)).toBe(true)
+
+    // Advancing guardB further must not make guardA's still-current token stale.
+    guardB.start()
+    expect(guardA.isCurrent(tokenA1)).toBe(true)
+  })
 })

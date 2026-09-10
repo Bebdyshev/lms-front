@@ -112,10 +112,38 @@ export const isGapType = (type: string): boolean =>
  * `[\s\S]*?` (not `.`) so a gap token whose contents span a newline still gets blanked —
  * `.` never matches `\n` without the `s` flag, and this file's target runtime doesn't carry
  * `s` support as a given.
+ *
+ * This is intentionally broader than scoring.ts's getExpectedAnswers, whose token regex is
+ * `.*?` (no `[\s\S]`) — the set of tokens blanked here is a strict superset of the set
+ * scoring treats as real tokens, which is the safe direction: this can never fail to blank
+ * something scoring would grade. Do not "align" the two regexes; that direction reintroduces
+ * a leak. Two consequences of the mismatch, both intentional:
+ *  - a gap token whose contents span a newline is blanked here but is NOT a token to
+ *    scoring.ts, so Reveal falls back to correct_answer and the number of ____ printed here
+ *    won't match the answer list Reveal shows;
+ *  - `[\s\S]*?` is lazy and eats to the first `]]` it finds, so a nested-bracket expression
+ *    (e.g. a matrix literal `[[a,b],[c,d]]`) collapses to a single ____ instead of rendering
+ *    as written — this is exactly why blankHeading (below) uses `[^\]]+` instead.
  */
 export function blankGapText(text: string): string {
   return text.replace(/\[\[([\s\S]*?)\]\]/g, '____')
 }
+
+/**
+ * Blank `[[…]]` gap tokens in a heading/text field unconditionally — by the presence of the
+ * tokens, not by question_type. Mirrors QuizRenderer.tsx's student-facing renderer, which
+ * strips question_text at all three of its render paths regardless of question_type; uses
+ * the exact same regex (`[^\]]+`, not blankGapText's `[\s\S]*?`) so the two can never
+ * disagree, and so a nested-bracket expression like a matrix literal `[[a,b],[c,d]]` is left
+ * alone instead of collapsing to one ____.
+ *
+ * Use this for question_text headings (ReviewQuestionView, buildQuestionStats's questionText
+ * fallback). Do NOT use it for content_text — that field is shown raw for non-gap types on
+ * the student side too (QuizRenderer.tsx:760), so it stays gated by isGapType via
+ * displayText.
+ */
+export const blankHeading = (text: string | null | undefined): string =>
+  String(text ?? '').replace(/\[\[([^\]]+)\]\]/g, '____')
 
 /**
  * A field's displayable text for gap types, tokens blanked. Quiz content is inconsistent
@@ -342,9 +370,14 @@ export function buildQuestionStats(
       // either raw would leak the key into the "Hardest questions" list on the finish
       // screen the same way it leaked onto the presenter (see C1). displayText blanks
       // whichever field wins the fallback below.
+      //
+      // The non-gap branch still goes through blankHeading: a question whose question_type
+      // isn't a gap type can still carry `[[…*…]]` syntax in question_text (an importer
+      // conversion, a mistyped slug, a short_answer authored from a cloze), and that key
+      // must not reach "Hardest questions" either — see blankHeading's doc comment.
       questionText: isGapType(type)
         ? displayText(type, question?.question_text || question?.content_text)
-        : (question?.question_text ?? question?.content_text ?? '').toString(),
+        : blankHeading(question?.question_text ?? question?.content_text),
       participants: parsed.length,
       answered,
       unanswered: names.unanswered.length,
@@ -422,10 +455,12 @@ function median(values: number[]): number | null {
 }
 
 /**
- * Scores are recomputed here rather than read from the stored score_percentage, so the
- * summary counts exactly what the grid and the presenter count: gradable questions,
- * image_content excluded. Gap questions (fill_blank, text_completion) are scored gap-by-gap
- * here, the same way the student's own result screen scores them (LessonPage's
+ * Scores are recomputed here rather than read from the stored score_percentage — and this
+ * summary does NOT count what the grid and the presenter count. Those iterate
+ * reviewQuestions() and so show every non-image_content question, long_text and
+ * unresolvable-key questions included; this summary restricts itself to gradable questions
+ * only (isGradable, above). Gap questions (fill_blank, text_completion) are scored
+ * gap-by-gap here, the same way the student's own result screen scores them (LessonPage's
  * getGapStatistics accumulates gradeQuestion's correctParts/totalParts per gap) — a 9-of-10
  * gap answer contributes 9/10, not 0/1. That part matches getGapStatistics exactly.
  *
@@ -434,8 +469,12 @@ function median(values: number[]): number | null {
  * excludes long_text entirely, and excludes any other question whose correct_answer doesn't
  * resolve to a usable key, from BOTH the numerator and the denominator. LessonPage counts
  * long_text as one regular question, correct iff the student wrote anything (gradeQuestion's
- * long_text branch), and counts an unresolvable-key question as answered-and-wrong rather
- * than dropping it. So for a quiz with 5 MCQs + 1 essay where a student gets 4 MCQs right and
+ * long_text branch) — for students where isSpecialGroupStudent is false. LessonPage.tsx
+ * excludes long_text entirely for isSpecialGroupStudent instead (graded by the teacher
+ * there; counting it locally would distort the denominator before grading completes), in
+ * which case LessonPage agrees with isGradable, which also excludes it. LessonPage also
+ * counts an unresolvable-key question as answered-and-wrong rather than dropping it. So for
+ * a quiz with 5 MCQs + 1 essay where a non-special-group student gets 4 MCQs right and
  * writes the essay, the student's own result screen reads 5/6 = 83.3% while this summary
  * reads 4/5 = 80% for that same student's contribution. Whether an essay (or an unresolvable
  * question) should count toward a projected class average is a product decision, not
