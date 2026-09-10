@@ -7,6 +7,8 @@ import { SearchableSelect } from '../ui/searchable-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { toast } from '../Toast';
 import { errorMessage } from './shared';
+import { InvitationChatsView } from './InvitationChatsView';
+import { chatRows } from './invitationChats';
 import {
   confirmInvitationLinks, getInvitationLinks, setInvitationLink,
   type InvitationGroupRow, type InvitationLinks,
@@ -39,6 +41,8 @@ export function LessonInvitationsTab() {
   const [busy, setBusy] = useState<number | 'all' | null>(null);
   const [view, setView] = useState<View>('all');
   const [query, setQuery] = useState('');
+  // Two ways to read the same links: from the LMS side, or from Telegram's.
+  const [mode, setMode] = useState<'groups' | 'chats'>('groups');
 
   const load = useCallback(async () => {
     try {
@@ -77,11 +81,11 @@ export function LessonInvitationsTab() {
   );
   const readOnly = !!data?.chats_error;
 
-  const link = async (row: InvitationGroupRow, chatId: number | null) => {
-    setBusy(row.id);
+  const saveLink = async (groupId: number, groupName: string, chatId: number | null) => {
+    setBusy(groupId);
     try {
-      await setInvitationLink(row.id, chatId);
-      toast(chatId === null ? `Unlinked ${row.name}` : `Linked ${row.name}`, 'success');
+      await setInvitationLink(groupId, chatId);
+      toast(chatId === null ? `Unlinked ${groupName}` : `Linked ${groupName}`, 'success');
       await load();
     } catch (error) {
       toast(errorMessage(error, 'Failed to save the link'), 'error');
@@ -89,6 +93,11 @@ export function LessonInvitationsTab() {
       setBusy(null);
     }
   };
+  const link = (row: InvitationGroupRow, chatId: number | null) => saveLink(row.id, row.name, chatId);
+  const chatsWithoutGroup = useMemo(
+    () => (data ? chatRows(data).filter((r) => r.groups.length === 0).length : 0),
+    [data],
+  );
 
   const confirmAll = async () => {
     const pairs = groups
@@ -160,6 +169,32 @@ export function LessonInvitationsTab() {
           </div>
         )}
 
+        <div className="inline-flex gap-0.5 self-start rounded-lg border border-border bg-muted/40 p-0.5" role="tablist" aria-label="View links by">
+          {([
+            { key: 'groups', label: 'By LMS group', count: null },
+            { key: 'chats', label: 'By Telegram chat', count: chatsWithoutGroup },
+          ] as const).map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              role="tab"
+              aria-selected={mode === m.key}
+              onClick={() => setMode(m.key)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${mode === m.key
+                ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {m.label}
+              {m.count ? (
+                <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-semibold tabular-nums text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
+                      title="Chats with no LMS group">
+                  {m.count}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'groups' && (
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative w-full sm:w-64">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -193,9 +228,13 @@ export function LessonInvitationsTab() {
             </Button>
           )}
         </div>
+        )}
       </CardHeader>
 
       <CardContent className="p-0">
+        {mode === 'chats' && data ? (
+          <InvitationChatsView data={data} busy={busy !== null} readOnly={readOnly} onLink={saveLink} />
+        ) : (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -264,6 +303,7 @@ export function LessonInvitationsTab() {
             </TableBody>
           </Table>
         </div>
+        )}
       </CardContent>
     </Card>
   );
