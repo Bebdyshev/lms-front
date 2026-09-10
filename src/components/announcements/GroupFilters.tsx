@@ -2,12 +2,9 @@ import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Input } from '../ui/input';
 import { PROGRAM_BADGE_STYLES } from '../../lib/groupPicker';
-import {
-  PROGRAM_CHIP_LABELS,
-  PROGRAM_ORDER,
-  detectPrograms,
-} from '../../services/api/announcements';
-import type { ProgramKey, TelegramGroup } from '../../services/api/announcements';
+import { PROGRAM_CHIP_LABELS, PROGRAM_ORDER, detectPrograms } from './programs';
+import type { ProgramKey } from './programs';
+import type { TelegramGroup } from '../../services/api/announcements';
 
 /**
  * Search and program filters for lists of Telegram groups.
