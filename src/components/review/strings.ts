@@ -61,6 +61,14 @@ export const EN = {
   averageTime: 'Average time',
   minutesShort: 'min',
 
+  worthReviewingTitle: 'Worth reviewing',
+  worthReviewingSubtitle: 'Every quiz this group has taken, lowest class average first',
+  worthReviewingSubmittedOf: '{submitted}/{total} submitted',
+  worthReviewingAvgOf: 'class avg {percent}%',
+  worthReviewingMore: '+{count} more',
+  worthReviewingEmpty: 'This group has not taken anything yet',
+  worthReviewingNoAverages: "Class averages aren't available yet — pick a quiz above to review it",
+
   noData: 'No data',
   noQuizzes: 'This course has no unit quizzes yet',
   noSubmissions: 'Nobody in this group has taken this quiz yet',
