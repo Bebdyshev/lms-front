@@ -240,6 +240,17 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
   const stateRef = useRef(state)
   stateRef.current = state
 
+  // Guards against stale-response races: selectCourse -> selectGroup -> start form a
+  // strictly ordered cascade, so a single shared counter is enough. Each of those three
+  // actions bumps it before firing its request and captures its own value; when the
+  // request resolves (success or failure) it only dispatches if the counter still matches,
+  // i.e. no newer selection has superseded it. Without this, a slow response for a
+  // selection the teacher has since changed away from can land after a newer one and
+  // silently overwrite the screen with data for the wrong course/group/quiz -- including
+  // flipping into 'presenting' with a different group's questions and answers. Do not
+  // "simplify" this away; the fix is deliberately not disabling the selects while loading.
+  const requestTokenRef = useRef(0)
+
   const loadCourses = useCallback(async () => {
     dispatch({ type: 'loading' })
     try {
@@ -256,9 +267,11 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
   const selectCourse = useCallback(async (courseId: number) => {
     dispatch({ type: 'selectCourse', courseId })
     if (!courseId) return
+    const token = ++requestTokenRef.current
     dispatch({ type: 'loading' })
     try {
       const data = await apiClient.getCourseGroupsAnalytics(String(courseId))
+      if (token !== requestTokenRef.current) return // superseded by a newer selection
       const groups = (data?.groups || [])
         .filter((g: any) => !g.is_archived)
         .map((g: any) => ({
@@ -268,6 +281,7 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
         }))
       dispatch({ type: 'groups', groups })
     } catch (err) {
+      if (token !== requestTokenRef.current) return // superseded by a newer selection
       dispatch({ type: 'error', message: messageFor(err) })
     }
   }, [])
@@ -276,11 +290,14 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
     dispatch({ type: 'selectGroup', groupId })
     const courseId = stateRef.current.selectedCourseId
     if (!groupId || !courseId) return
+    const token = ++requestTokenRef.current
     dispatch({ type: 'loading' })
     try {
       const data = await apiClient.getReviewQuizzes(courseId, groupId)
+      if (token !== requestTokenRef.current) return // superseded by a newer selection
       dispatch({ type: 'quizzes', units: data.units || [], rosterCount: data.roster_count || 0 })
     } catch (err) {
+      if (token !== requestTokenRef.current) return // superseded by a newer selection
       dispatch({ type: 'error', message: messageFor(err) })
     }
   }, [])
@@ -296,11 +313,14 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
   const start = useCallback(async () => {
     const { selectedStepId, selectedGroupId } = stateRef.current
     if (!selectedStepId || !selectedGroupId) return
+    const token = ++requestTokenRef.current
     dispatch({ type: 'loading' })
     try {
       const payload = await apiClient.getReviewSession(selectedStepId, selectedGroupId)
+      if (token !== requestTokenRef.current) return // superseded by a newer selection
       dispatch({ type: 'started', payload })
     } catch (err) {
+      if (token !== requestTokenRef.current) return // superseded by a newer selection
       dispatch({ type: 'error', message: messageFor(err) })
     }
   }, [])

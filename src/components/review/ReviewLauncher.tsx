@@ -3,6 +3,7 @@
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
+import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { EN } from './strings'
 import type { ReviewSessionActions, ReviewSessionState } from './useReviewSession'
@@ -25,12 +26,12 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">{EN.courseLabel}</label>
+          <Label htmlFor="review-course">{EN.courseLabel}</Label>
           <Select
             value={state.selectedCourseId ? String(state.selectedCourseId) : undefined}
             onValueChange={(value) => actions.selectCourse(Number(value))}
           >
-            <SelectTrigger><SelectValue placeholder={EN.selectCourse} /></SelectTrigger>
+            <SelectTrigger id="review-course"><SelectValue placeholder={EN.selectCourse} /></SelectTrigger>
             <SelectContent>
               {state.courses.map((course) => (
                 <SelectItem key={course.id} value={String(course.id)}>{course.title}</SelectItem>
@@ -41,12 +42,12 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
 
         {state.selectedCourseId && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">{EN.groupLabel}</label>
+            <Label htmlFor="review-group">{EN.groupLabel}</Label>
             <Select
               value={state.selectedGroupId ? String(state.selectedGroupId) : undefined}
               onValueChange={(value) => actions.selectGroup(Number(value))}
             >
-              <SelectTrigger><SelectValue placeholder={EN.selectGroup} /></SelectTrigger>
+              <SelectTrigger id="review-group"><SelectValue placeholder={EN.selectGroup} /></SelectTrigger>
               <SelectContent>
                 {state.groups.map((group) => (
                   <SelectItem key={group.id} value={String(group.id)}>
@@ -64,12 +65,12 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
 
         {state.units.length > 0 && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">{EN.unitLabel}</label>
+            <Label htmlFor="review-unit">{EN.unitLabel}</Label>
             <Select
               value={state.selectedLessonId ? String(state.selectedLessonId) : undefined}
               onValueChange={(value) => actions.selectUnit(Number(value))}
             >
-              <SelectTrigger><SelectValue placeholder={EN.selectUnit} /></SelectTrigger>
+              <SelectTrigger id="review-unit"><SelectValue placeholder={EN.selectUnit} /></SelectTrigger>
               <SelectContent>
                 {state.units.map((u) => (
                   <SelectItem key={u.lesson_id} value={String(u.lesson_id)}>{u.title}</SelectItem>
@@ -81,12 +82,12 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
 
         {unit && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">{EN.quizLabel}</label>
+            <Label htmlFor="review-quiz">{EN.quizLabel}</Label>
             <Select
               value={state.selectedStepId ? String(state.selectedStepId) : undefined}
               onValueChange={(value) => actions.selectQuiz(Number(value))}
             >
-              <SelectTrigger><SelectValue placeholder={EN.selectQuiz} /></SelectTrigger>
+              <SelectTrigger id="review-quiz"><SelectValue placeholder={EN.selectQuiz} /></SelectTrigger>
               <SelectContent>
                 {unit.quizzes.map((q) => (
                   <SelectItem key={q.step_id} value={String(q.step_id)}>
