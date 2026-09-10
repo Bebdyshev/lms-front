@@ -4,13 +4,16 @@
 import React from 'react'
 import { Card, CardContent } from '../ui/card'
 import { ReviewOptionBars } from './ReviewOptionBars'
-import type { QuestionStat } from './reviewStats'
-import { EN } from './strings'
+import { ReviewGapBars } from './ReviewGapBars'
+import { isGapType, type QuestionStat } from './reviewStats'
+import { EN, format } from './strings'
 
 interface Props {
   stat: QuestionStat | undefined
   revealed: boolean
   showNames: boolean
+  /** Which gap of `stat` is under discussion — ignored when the question isn't a gap type. */
+  gapIndex: number
 }
 
 const STAT_LABEL = 'text-sm font-medium text-gray-500 dark:text-gray-400'
@@ -34,12 +37,19 @@ const NameList: React.FC<{ title: string; names: string[]; className: string }> 
   )
 }
 
-export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames }) => {
+export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames, gapIndex }) => {
   if (!stat) {
     return (
       <Card><CardContent className="p-4 text-sm text-gray-500 dark:text-gray-400">{EN.noData}</CardContent></Card>
     )
   }
+
+  // The boxes and name lists below still describe the WHOLE cloze question (a 9-of-10-gap
+  // submission is still one "partial" student there) — additive, unchanged by the gap
+  // stepper. Only the "Answer distribution" section below switches, per gap, to what that
+  // one gap's own answers looked like.
+  const isGap = isGapType(stat.questionType)
+  const gapStat = isGap ? stat.gaps[gapIndex] : undefined
 
   return (
     <Card>
@@ -71,17 +81,34 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames })
           </p>
         )}
 
-        {/* 'none' means this question type (matching, or long_text) deliberately has no
-            printable answer distribution — long_text's raw value is a whole essay, which
-            must not be projected verbatim with the writer's name attached, and matching's
-            is a set of left→right index pairs, not a single printable answer. The
-            correct/partial/incorrect split below is the real answer for both, so the
-            heading and bars are omitted rather than shown above a "No data" line. */}
-        {stat.distributionKind !== 'none' && (
-          <div className="space-y-2">
-            <p className={SECTION_HEADING}>{EN.answerDistribution}</p>
-            <ReviewOptionBars stat={stat} revealed={revealed} showNames={showNames} />
-          </div>
+        {/* Gap questions get a per-gap breakdown instead of the whole-question answer
+            distribution below — "the class's answers to this cloze" isn't one distribution,
+            it's one per gap, and only the gap currently under discussion is relevant here. */}
+        {isGap ? (
+          gapStat && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className={SECTION_HEADING}>{EN.gapBreakdown}</p>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {format(EN.gapAnsweredOf, { answered: gapStat.answered, participants: gapStat.participants })}
+                </span>
+              </div>
+              <ReviewGapBars gap={gapStat} revealed={revealed} showNames={showNames} />
+            </div>
+          )
+        ) : (
+          /* 'none' means this question type (matching, or long_text) deliberately has no
+             printable answer distribution — long_text's raw value is a whole essay, which
+             must not be projected verbatim with the writer's name attached, and matching's
+             is a set of left→right index pairs, not a single printable answer. The
+             correct/partial/incorrect split below is the real answer for both, so the
+             heading and bars are omitted rather than shown above a "No data" line. */
+          stat.distributionKind !== 'none' && (
+            <div className="space-y-2">
+              <p className={SECTION_HEADING}>{EN.answerDistribution}</p>
+              <ReviewOptionBars stat={stat} revealed={revealed} showNames={showNames} />
+            </div>
+          )
         )}
 
         {/* Gated on `revealed` as well as `showNames`: cross-referencing "Correct · 7 —

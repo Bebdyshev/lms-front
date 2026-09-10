@@ -14,6 +14,7 @@ import {
   splitPipeAnswers,
   type ReviewAttempt,
 } from './reviewStats'
+import { gradeQuestion } from '../lesson/quiz/scoring'
 
 const single = {
   id: 'q1',
@@ -61,6 +62,13 @@ const gapsInQuestionTextWrongType = {
   question_type: 'short_answer',
   question_text: 'A [[cat*,dog]] and a [[hat*,bat]]',
   correct_answer: 'cat',
+}
+
+// A richer cloze fixture for per-gap stats — three gaps, expected ['cat', 'mat', 'door'].
+const threeGaps = {
+  id: 'q9',
+  question_type: 'fill_blank',
+  content_text: 'The [[cat*,dog]] sat on the [[mat*,rug]] near the [[door*,window]]',
 }
 
 const essay = { id: 'q5', question_type: 'long_text' }
@@ -598,5 +606,166 @@ describe('buildClassSummary — partial credit on multi-gap questions (I6)', () 
     const stats = buildQuestionStats(questions, attempts, names)
     const summary = buildClassSummary(stats, questions, attempts, names, [])
     expect(summary.top[0]).toMatchObject({ correct: 2, total: 2, percent: 100 })
+  })
+})
+
+describe('buildQuestionStats — per-gap stats (gap stepper)', () => {
+  it('counts correct/incorrect/unanswered per gap, independently of the other gaps', () => {
+    const attempts = [
+      attempt(1, [['q9', ['cat', 'mat', 'door']]]),   // all three correct
+      attempt(2, [['q9', ['cat', 'rug', 'door']]]),   // gap 2 (mat) wrong
+      attempt(3, [['q9', ['dog', 'mat', 'window']]]), // gaps 1 and 3 wrong
+    ]
+    const [stat] = buildQuestionStats([threeGaps], attempts, names)
+    expect(stat.gaps).toHaveLength(3)
+
+    expect(stat.gaps[0]).toMatchObject({ answered: 3, correct: 2, incorrect: 1, unanswered: 0 })
+    expect(stat.gaps[1]).toMatchObject({ answered: 3, correct: 2, incorrect: 1, unanswered: 0 })
+    expect(stat.gaps[2]).toMatchObject({ answered: 3, correct: 2, incorrect: 1, unanswered: 0 })
+
+    // The class-wide correct/incorrect/partial split (whole-question stats) is untouched by
+    // any of this — still computed from gradeQuestion's aggregate verdict per student.
+    expect(stat.correct).toBe(1) // only student 1 got every gap right
+    expect(stat.partial).toBe(2)
+  })
+
+  it('treats a gap array shorter than the expected list as unanswered for the missing gaps, not wrong', () => {
+    const attempts = [
+      attempt(1, [['q9', ['cat', 'mat', 'door']]]), // full answer
+      attempt(2, [['q9', ['cat', 'mat']]]),         // third gap missing entirely
+    ]
+    const [stat] = buildQuestionStats([threeGaps], attempts, names)
+    expect(stat.gaps[0]).toMatchObject({ answered: 2, correct: 2, incorrect: 0, unanswered: 0 })
+    expect(stat.gaps[1]).toMatchObject({ answered: 2, correct: 2, incorrect: 0, unanswered: 0 })
+    // Gap 3 (door): student 2's array has no third entry.
+    expect(stat.gaps[2]).toMatchObject({ answered: 1, correct: 1, incorrect: 0, unanswered: 1 })
+    expect(stat.gaps[2].names.unanswered).toEqual(['Borisov'])
+  })
+
+  it('groups typed answers case/space-insensitively but shows the text as first typed, most common first', () => {
+    const attempts = [
+      attempt(1, [['q9', ['Cat', 'mat', 'door']]]),
+      attempt(2, [['q9', [' cat ', 'mat', 'door']]]),
+      attempt(3, [['q9', ['dog', 'mat', 'door']]]),
+    ]
+    const [stat] = buildQuestionStats([threeGaps], attempts, names)
+    const gap0 = stat.gaps[0]
+    expect(gap0.options.map((o) => o.text)).toEqual(['Cat', 'dog'])
+    expect(gap0.options[0].count).toBe(2)
+    expect(gap0.options[0].isCorrect).toBe(true)
+    expect(gap0.options[0].names).toEqual(['Abenov', 'Borisov'])
+    expect(gap0.options[1].text).toBe('dog')
+    expect(gap0.options[1].count).toBe(1)
+    expect(gap0.options[1].isCorrect).toBe(false)
+  })
+
+  it('reports a gap nobody answered as fully unanswered, with no options and a null percentCorrect', () => {
+    const attempts = [
+      attempt(1, [['q9', ['cat', 'mat']]]), // nobody ever fills gap 3
+      attempt(2, [['q9', ['cat', 'rug']]]),
+    ]
+    const [stat] = buildQuestionStats([threeGaps], attempts, names)
+    const gap2 = stat.gaps[2]
+    expect(gap2.answered).toBe(0)
+    expect(gap2.unanswered).toBe(2)
+    expect(gap2.correct).toBe(0)
+    expect(gap2.incorrect).toBe(0)
+    expect(gap2.percentCorrect).toBeNull()
+    expect(gap2.options).toEqual([])
+    expect(gap2.names.unanswered).toEqual(['Abenov', 'Borisov'])
+  })
+
+  it('marks every gap unanswered when the whole cloze was left blank, without needing to replay/grade it', () => {
+    const attempts = [attempt(1, [])] // never touched q9 at all
+    const [stat] = buildQuestionStats([threeGaps], attempts, names)
+    expect(stat.gaps.every((g) => g.unanswered === 1 && g.answered === 0)).toBe(true)
+  })
+
+  it('gives non-gap questions an empty gaps array', () => {
+    const [stat] = buildQuestionStats([single], [], names)
+    expect(stat.gaps).toEqual([])
+  })
+
+  it('keeps the whole-question distribution (joined "cat / hat" row) unchanged alongside the new per-gap breakdown', () => {
+    // Regression: the per-gap stats are additive, not a replacement of the existing
+    // whole-question text-row behaviour (reviewStats.ts:242-245's join(' / ')).
+    const attempts = [attempt(1, [['q4', ['cat', 'hat']]])]
+    const [stat] = buildQuestionStats([gaps], attempts, names)
+    expect(stat.options[0].text).toBe('cat / hat')
+    expect(stat.gaps).toHaveLength(2)
+    expect(stat.gaps[0]).toMatchObject({ correct: 1, incorrect: 0, unanswered: 0 })
+    expect(stat.gaps[1]).toMatchObject({ correct: 1, incorrect: 0, unanswered: 0 })
+  })
+})
+
+describe('gradeQuestion — aggregate return values unchanged by the partResults addition (scoring.ts regression guard)', () => {
+  it('image_content: unchanged', () => {
+    expect(gradeQuestion({ question_type: 'image_content' }, undefined, undefined)).toEqual({
+      isCorrect: true, correctParts: 0, totalParts: 0, isReview: false,
+    })
+  })
+
+  it('fill_blank / text_completion: isCorrect/correctParts/totalParts/isReview unchanged; partResults is additive only', () => {
+    const full = gradeQuestion(gaps, undefined, ['cat', 'bat'])
+    expect(full).toMatchObject({ isCorrect: false, correctParts: 1, totalParts: 2, isReview: false })
+    expect(full.partResults).toEqual([true, false])
+
+    const allCorrect = gradeQuestion(gaps, undefined, ['cat', 'hat'])
+    expect(allCorrect).toMatchObject({ isCorrect: true, correctParts: 2, totalParts: 2, isReview: false })
+
+    const none = gradeQuestion(gaps, undefined, [])
+    expect(none).toMatchObject({ isCorrect: false, correctParts: 0, totalParts: 2, isReview: false })
+  })
+
+  it('long_text: unchanged, including the isSpecialGroupStudent review path', () => {
+    expect(gradeQuestion(essay, 'an answer', undefined)).toEqual({
+      isCorrect: true, correctParts: 1, totalParts: 1, isReview: false,
+    })
+    expect(gradeQuestion(essay, '', undefined)).toEqual({
+      isCorrect: false, correctParts: 0, totalParts: 1, isReview: false,
+    })
+    expect(gradeQuestion(essay, 'an answer', undefined, { isSpecialGroupStudent: true })).toEqual({
+      isCorrect: false, correctParts: 0, totalParts: 0, isReview: true,
+    })
+  })
+
+  it('short_answer: unchanged', () => {
+    expect(gradeQuestion(short, 'cat', undefined)).toEqual({
+      isCorrect: true, correctParts: 1, totalParts: 1, isReview: false,
+    })
+    expect(gradeQuestion(short, 'dog', undefined)).toEqual({
+      isCorrect: false, correctParts: 0, totalParts: 1, isReview: false,
+    })
+  })
+
+  it('multiple_choice: unchanged', () => {
+    expect(gradeQuestion(multi, [0, 2], undefined)).toEqual({
+      isCorrect: true, correctParts: 1, totalParts: 1, isReview: false,
+    })
+    expect(gradeQuestion(multi, [0], undefined)).toEqual({
+      isCorrect: false, correctParts: 0, totalParts: 1, isReview: false,
+    })
+  })
+
+  it('matching: unchanged', () => {
+    const fullyCorrect = new Map([[0, 0], [1, 1]])
+    expect(gradeQuestion(matching, fullyCorrect, undefined)).toEqual({
+      isCorrect: true, correctParts: 2, totalParts: 2, isReview: false,
+    })
+  })
+
+  it('single_choice / default fallback branch: unchanged', () => {
+    expect(gradeQuestion(single, 1, undefined)).toEqual({
+      isCorrect: true, correctParts: 1, totalParts: 1, isReview: false,
+    })
+    expect(gradeQuestion(single, 2, undefined)).toEqual({
+      isCorrect: false, correctParts: 0, totalParts: 1, isReview: false,
+    })
+  })
+
+  it('null question: unchanged', () => {
+    expect(gradeQuestion(null, undefined, undefined)).toEqual({
+      isCorrect: false, correctParts: 0, totalParts: 0, isReview: false,
+    })
   })
 })

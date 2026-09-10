@@ -13,6 +13,7 @@ import type {
   ReviewSessionResponse,
   ReviewUnit,
 } from '../../services/api/review'
+import { getExpectedAnswers } from '../lesson/quiz/scoring'
 import {
   buildClassSummary,
   buildQuestionStats,
@@ -53,6 +54,12 @@ export interface ReviewSessionState {
   notSubmitted: StudentRef[]
 
   index: number
+  /**
+   * Which gap of the current question is under discussion — meaningful only when that
+   * question is a gap type (fill_blank / text_completion); 0 and ignored otherwise. Resets
+   * to 0 on every question change, exactly like `revealed` does.
+   */
+  gapIndex: number
   revealed: boolean
   statsVisible: boolean
   namesVisible: boolean
@@ -80,6 +87,7 @@ const initialState: ReviewSessionState = {
   attempts: [],
   notSubmitted: [],
   index: 0,
+  gapIndex: 0,
   revealed: false,
   statsVisible: true,
   // Opt in, not opt out: the very first frame a class sees must not show who got the
@@ -100,6 +108,7 @@ type Action =
   | { type: 'selectQuiz'; stepId: number | null }
   | { type: 'started'; payload: ReviewSessionResponse }
   | { type: 'index'; index: number }
+  | { type: 'gapIndex'; gapIndex: number }
   | { type: 'toggleReveal' }
   | { type: 'toggleStats' }
   | { type: 'toggleNames' }
@@ -178,6 +187,7 @@ function reducer(state: ReviewSessionState, action: Action): ReviewSessionState 
         attempts,
         notSubmitted,
         index: 0,
+        gapIndex: 0,
         revealed: false,
       }
     }
@@ -186,8 +196,23 @@ function reducer(state: ReviewSessionState, action: Action): ReviewSessionState 
       return {
         ...state,
         index: clampIndex(action.index, state.questions.length),
+        // A new question means a new gap 1, not wherever the previous question's stepper
+        // happened to be left — same reset `revealed` already gets on question change.
+        gapIndex: 0,
         revealed: false,
       }
+
+    case 'gapIndex': {
+      const question = state.questions[state.index]
+      const gapCount = question ? getExpectedAnswers(question).length : 0
+      return {
+        ...state,
+        gapIndex: clampIndex(action.gapIndex, gapCount),
+        // Moving to another gap must not leave the previous gap's answer on screen —
+        // mirrors how moving to another question already resets this.
+        revealed: false,
+      }
+    }
 
     case 'toggleReveal':
       return { ...state, revealed: !state.revealed }
@@ -203,7 +228,7 @@ function reducer(state: ReviewSessionState, action: Action): ReviewSessionState 
     case 'finish':
       return { ...state, phase: 'summary', gridOpen: false }
     case 'restart':
-      return { ...state, phase: 'presenting', index: 0, revealed: false }
+      return { ...state, phase: 'presenting', index: 0, gapIndex: 0, revealed: false }
 
     default:
       return state
@@ -226,6 +251,8 @@ export interface ReviewSessionActions {
   next: () => void
   prev: () => void
   jumpTo: (index: number) => void
+  nextGap: () => void
+  prevGap: () => void
   toggleReveal: () => void
   toggleStats: () => void
   toggleNames: () => void
@@ -368,6 +395,11 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
   const prev = useCallback(() => dispatch({ type: 'index', index: stateRef.current.index - 1 }), [])
   const jumpTo = useCallback((index: number) => dispatch({ type: 'index', index }), [])
 
+  // Gap navigation is deliberately its own action pair, not a repurposing of next/prev —
+  // ← / → must keep meaning "next/previous question" everywhere in the presenter.
+  const nextGap = useCallback(() => dispatch({ type: 'gapIndex', gapIndex: stateRef.current.gapIndex + 1 }), [])
+  const prevGap = useCallback(() => dispatch({ type: 'gapIndex', gapIndex: stateRef.current.gapIndex - 1 }), [])
+
   const toggleReveal = useCallback(() => dispatch({ type: 'toggleReveal' }), [])
   const toggleStats = useCallback(() => dispatch({ type: 'toggleStats' }), [])
   const toggleNames = useCallback(() => dispatch({ type: 'toggleNames' }), [])
@@ -382,11 +414,11 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
 
   const actions = useMemo<ReviewSessionActions>(() => ({
     loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start, startQuiz,
-    next, prev, jumpTo,
+    next, prev, jumpTo, nextGap, prevGap,
     toggleReveal, toggleStats, toggleNames, toggleGrid, closeGrid,
     finish, restart, exit,
   }), [loadCourses, selectCourse, selectGroup, selectUnit, selectQuiz, start, startQuiz,
-    next, prev, jumpTo, toggleReveal, toggleStats, toggleNames, toggleGrid,
+    next, prev, jumpTo, nextGap, prevGap, toggleReveal, toggleStats, toggleNames, toggleGrid,
     closeGrid, finish, restart, exit])
 
   return [state, actions]
