@@ -294,3 +294,151 @@ export function buildQuestionStats(
     }
   })
 }
+
+export interface StudentRef {
+  student_id: number
+  full_name: string
+}
+
+export interface ScoreBucket {
+  label: string
+  min: number
+  max: number
+  count: number
+}
+
+export interface StudentScore {
+  studentId: number
+  fullName: string
+  correct: number
+  total: number
+  percent: number
+}
+
+export interface HardQuestion {
+  questionId: string
+  index: number
+  questionText: string
+  answered: number
+  correct: number
+  percentCorrect: number
+}
+
+export interface ClassSummary {
+  participants: number
+  notSubmitted: StudentRef[]
+  averagePercent: number | null
+  medianPercent: number | null
+  minPercent: number | null
+  maxPercent: number | null
+  averageTimeSeconds: number | null
+  /** Always five buckets, 0–19 … 80–100. */
+  distribution: ScoreBucket[]
+  top: StudentScore[]
+  bottom: StudentScore[]
+  hardest: HardQuestion[]
+}
+
+const BUCKETS: { label: string; min: number; max: number }[] = [
+  { label: '0–19%', min: 0, max: 19 },
+  { label: '20–39%', min: 20, max: 39 },
+  { label: '40–59%', min: 40, max: 59 },
+  { label: '60–79%', min: 60, max: 79 },
+  { label: '80–100%', min: 80, max: 100 },
+]
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? round1((sorted[mid - 1] + sorted[mid]) / 2)
+    : round1(sorted[mid])
+}
+
+/**
+ * Scores are recomputed here rather than read from the stored score_percentage, so the
+ * summary counts exactly the questions the grid and the presenter count: gradable ones,
+ * image_content excluded.
+ */
+export function buildClassSummary(
+  questionStats: QuestionStat[],
+  questions: any[],
+  attempts: ReviewAttempt[],
+  nameById: Map<number, string>,
+  notSubmitted: StudentRef[],
+): ClassSummary {
+  const gradable = questions.filter((q) => isGradable(q))
+  const total = gradable.length
+
+  const scores: StudentScore[] = attempts.map((attempt) => {
+    const values = parseAnswerBlob(attempt.answers)
+    let correct = 0
+    for (const question of gradable) {
+      const raw = values.get(getAnswerKey(question))
+      if (isBlankAnswer(question, raw)) continue
+      const { answer, gapAnswer } = replayAnswer(question, raw)
+      if (gradeQuestion(question, answer, gapAnswer).isCorrect) correct += 1
+    }
+    return {
+      studentId: attempt.student_id,
+      fullName: nameById.get(attempt.student_id) ?? `#${attempt.student_id}`,
+      correct,
+      total,
+      percent: total > 0 ? round1((correct / total) * 100) : 0,
+    }
+  })
+
+  const percents = scores.map((s) => s.percent)
+  const times = attempts
+    .map((a) => a.time_spent_seconds)
+    .filter((t): t is number => typeof t === 'number' && t >= 0)
+
+  const ranked = [...scores].sort((a, b) => b.percent - a.percent || a.fullName.localeCompare(b.fullName))
+
+  const hardest = questionStats
+    .filter((stat) => stat.graded && stat.answered > 0 && stat.percentCorrect !== null)
+    .sort((a, b) => (a.percentCorrect as number) - (b.percentCorrect as number))
+    .slice(0, 5)
+    .map((stat) => ({
+      questionId: stat.questionId,
+      index: stat.index,
+      questionText: stat.questionText,
+      answered: stat.answered,
+      correct: stat.correct,
+      percentCorrect: stat.percentCorrect as number,
+    }))
+
+  return {
+    participants: attempts.length,
+    notSubmitted,
+    averagePercent: percents.length
+      ? round1(percents.reduce((sum, p) => sum + p, 0) / percents.length)
+      : null,
+    medianPercent: median(percents),
+    minPercent: percents.length ? Math.min(...percents) : null,
+    maxPercent: percents.length ? Math.max(...percents) : null,
+    averageTimeSeconds: times.length
+      ? Math.round(times.reduce((sum, t) => sum + t, 0) / times.length)
+      : null,
+    distribution: BUCKETS.map((bucket) => ({
+      ...bucket,
+      count: percents.filter((p) => p >= bucket.min && p <= bucket.max).length,
+    })),
+    top: ranked.slice(0, 3),
+    // In a group of three or four the same student can appear in both lists. That is honest
+    // — hiding them would leave "Needs attention" mysteriously empty for a small class.
+    bottom: [...ranked].reverse().slice(0, 3),
+    hardest,
+  }
+}
+
+/** The question grid's colour bands. */
+export function accuracyBand(
+  stat: QuestionStat | undefined,
+): 'none' | 'low' | 'medium' | 'high' {
+  if (!stat || stat.answered === 0 || stat.percentCorrect === null) return 'none'
+  if (stat.percentCorrect < 50) return 'low'
+  if (stat.percentCorrect < 80) return 'medium'
+  return 'high'
+}

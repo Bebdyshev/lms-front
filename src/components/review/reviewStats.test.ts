@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accuracyBand,
+  buildClassSummary,
   buildQuestionStats,
   isBlankAnswer,
   parseAnswerBlob,
@@ -274,5 +276,82 @@ describe('buildQuestionStats — empty case', () => {
     expect(stat.answered).toBe(0)
     expect(stat.percentCorrect).toBeNull()
     expect(stat.options.every((o) => o.count === 0 && o.percent === 0)).toBe(true)
+  })
+})
+
+describe('buildClassSummary', () => {
+  const questions = [single, multi]
+  const attempts = [
+    attempt(1, [['q1', 1], ['q2', [0, 2]]]),   // 2/2
+    attempt(2, [['q1', 1], ['q2', [1]]]),      // 1/2
+    attempt(3, [['q1', 0], ['q2', [1]]]),      // 0/2
+  ]
+  const stats = buildQuestionStats(questions, attempts, names)
+  const summary = buildClassSummary(stats, questions, attempts, names, [
+    { student_id: 4, full_name: 'Gagarin' },
+  ])
+
+  it('scores each student over the graded questions', () => {
+    expect(summary.participants).toBe(3)
+    expect(summary.top[0]).toMatchObject({ fullName: 'Abenov', correct: 2, percent: 100 })
+    expect(summary.bottom[0]).toMatchObject({ fullName: 'Vlasov', correct: 0, percent: 0 })
+  })
+
+  it('reports average, median, min and max', () => {
+    expect(summary.averagePercent).toBe(50)
+    expect(summary.medianPercent).toBe(50)
+    expect(summary.minPercent).toBe(0)
+    expect(summary.maxPercent).toBe(100)
+  })
+
+  it('averages the attempt time', () => {
+    expect(summary.averageTimeSeconds).toBe(60)
+  })
+
+  it('always returns five score buckets that sum to the participants', () => {
+    expect(summary.distribution).toHaveLength(5)
+    expect(summary.distribution.map((b) => b.label)).toEqual([
+      '0–19%', '20–39%', '40–59%', '60–79%', '80–100%',
+    ])
+    expect(summary.distribution.reduce((n, b) => n + b.count, 0)).toBe(3)
+  })
+
+  it('ranks the hardest questions first', () => {
+    expect(summary.hardest[0].questionId).toBe('q2')
+    expect(summary.hardest[0].percentCorrect).toBeLessThan(
+      summary.hardest[1].percentCorrect,
+    )
+  })
+
+  it('passes the not-submitted list through', () => {
+    expect(summary.notSubmitted.map((s) => s.full_name)).toEqual(['Gagarin'])
+  })
+})
+
+describe('buildClassSummary — empty case', () => {
+  it('nulls the averages rather than dividing by zero', () => {
+    const stats = buildQuestionStats([single], [], names)
+    const summary = buildClassSummary(stats, [single], [], names, [])
+    expect(summary.participants).toBe(0)
+    expect(summary.averagePercent).toBeNull()
+    expect(summary.medianPercent).toBeNull()
+    expect(summary.averageTimeSeconds).toBeNull()
+    expect(summary.top).toEqual([])
+    expect(summary.distribution).toHaveLength(5)
+  })
+})
+
+describe('accuracyBand', () => {
+  it('maps percentCorrect onto the grid colours', () => {
+    const at = (percentCorrect: number | null, answered = 3) =>
+      ({ percentCorrect, answered } as any)
+    expect(accuracyBand(at(null, 0))).toBe('none')
+    expect(accuracyBand(undefined)).toBe('none')
+    expect(accuracyBand(at(0))).toBe('low')
+    expect(accuracyBand(at(49.9))).toBe('low')
+    expect(accuracyBand(at(50))).toBe('medium')
+    expect(accuracyBand(at(79.9))).toBe('medium')
+    expect(accuracyBand(at(80))).toBe('high')
+    expect(accuracyBand(at(100))).toBe('high')
   })
 })
