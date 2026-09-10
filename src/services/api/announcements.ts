@@ -242,3 +242,61 @@ export async function recallAnnouncement(id: number): Promise<AnnouncementDetail
     rethrow(error, 'Failed to recall the announcement');
   }
 }
+
+// --- Lesson invitations: which Telegram chat is which LMS group's -------------------------
+
+export interface InvitationChat {
+  id: number;
+  title: string;
+}
+
+export interface InvitationGroupRow {
+  id: number;
+  name: string;
+  link: {
+    chat_id: number;
+    chat_title: string | null;
+    /** false when the linked chat is no longer approved and active; null if unknown. */
+    chat_available: boolean | null;
+    linked_at: string | null;
+  } | null;
+  suggestion: { chat_id: number; chat_title: string; score: number } | null;
+  last_invitation: { status: 'pending' | 'sent' | 'failed' | 'skipped'; at: string | null; error: string | null } | null;
+}
+
+export interface InvitationLinks {
+  /** Whether the minute job is switched on (ENABLE_TELEGRAM_LESSON_INVITES). */
+  enabled: boolean;
+  /** Set when Support could not be reached: links are shown but cannot be changed. */
+  chats_error: string | null;
+  chats: InvitationChat[];
+  groups: InvitationGroupRow[];
+}
+
+export async function getInvitationLinks(): Promise<InvitationLinks> {
+  try {
+    const response = await api.get('/telegram-links', NO_CACHE);
+    return response.data;
+  } catch (error) {
+    rethrow(error, 'Failed to load lesson invitation settings');
+  }
+}
+
+export async function setInvitationLink(lmsGroupId: number, chatId: number | null): Promise<void> {
+  try {
+    await api.put(`/telegram-links/${lmsGroupId}`, { support_group_id: chatId });
+  } catch (error) {
+    rethrow(error, 'Failed to save the link');
+  }
+}
+
+export async function confirmInvitationLinks(
+  pairs: { lms_group_id: number; support_group_id: number }[],
+): Promise<number> {
+  try {
+    const response = await api.post('/telegram-links/confirm', { pairs });
+    return response.data.linked;
+  } catch (error) {
+    rethrow(error, 'Failed to confirm the suggestions');
+  }
+}
