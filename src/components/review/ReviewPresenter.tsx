@@ -53,8 +53,11 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
           e.preventDefault(); actions.toggleReveal(); break
         case 'KeyS':
           actions.toggleStats(); break
+        // Mirrors the toolbar button's disabled state: names only render once revealed,
+        // so toggling here before Reveal would be the same silent no-op.
         case 'KeyN':
-          actions.toggleNames(); break
+          if (state.revealed) actions.toggleNames()
+          break
         case 'KeyG':
           actions.toggleGrid(); break
         case 'Escape':
@@ -66,7 +69,7 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [actions, state.gridOpen])
+  }, [actions, state.gridOpen, state.revealed])
 
   return (
     <div className="space-y-4">
@@ -91,7 +94,17 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
         <Button variant="outline" size="sm" onClick={actions.toggleStats}>
           {state.statsVisible ? EN.hideStats : EN.showStats}
         </Button>
-        <Button variant="outline" size="sm" onClick={actions.toggleNames}>
+        {/* Names are gated on `revealed` (see ReviewStatsPanel): "Correct · 7 — <names>"
+            beside the distribution bars hands the class the answer before Reveal. Toggling
+            this pre-reveal therefore changed the label and nothing else, which reads as a
+            broken button. Disable it until Reveal and say why, rather than silently no-op. */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={actions.toggleNames}
+          disabled={!state.revealed}
+          title={state.revealed ? undefined : EN.namesAfterReveal}
+        >
           {state.namesVisible ? EN.hideNames : EN.showNames}
         </Button>
         <Button variant="outline" size="sm" onClick={actions.toggleGrid}>{EN.questionList}</Button>
