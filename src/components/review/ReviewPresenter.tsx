@@ -148,7 +148,9 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
         <Button variant="outline" onClick={actions.prev} disabled={state.index <= 0}>{EN.prev}</Button>
         <Button variant="outline" onClick={actions.next} disabled={state.index >= total - 1}>{EN.next}</Button>
         <div className="flex-1" />
-        <span className="text-xs text-gray-500 dark:text-gray-400">{EN.keyboardHint}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {isGapQuestion ? EN.keyboardHintGap : EN.keyboardHint}
+        </span>
       </div>
 
       {state.gridOpen && (

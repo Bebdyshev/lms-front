@@ -83,19 +83,23 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames, g
 
         {/* Gap questions get a per-gap breakdown instead of the whole-question answer
             distribution below — "the class's answers to this cloze" isn't one distribution,
-            it's one per gap, and only the gap currently under discussion is relevant here. */}
-        {isGap ? (
-          gapStat && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className={SECTION_HEADING}>{EN.gapBreakdown}</p>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {format(EN.gapAnsweredOf, { answered: gapStat.answered, participants: gapStat.participants })}
-                </span>
-              </div>
-              <ReviewGapBars gap={gapStat} revealed={revealed} showNames={showNames} />
+            it's one per gap, and only the gap currently under discussion is relevant here.
+            But `gapStat` is only there when getExpectedAnswers actually located gaps
+            (reviewStats.ts's gapCount); a fill_blank/text_completion with no locatable gap
+            but real submitted text (e.g. the correct_answer fallback — see ReviewQuestionView's
+            #3) has `stat.gaps` empty, so fall through to the same whole-question bars the
+            non-gap branch below uses rather than showing nothing — `stat.options` is still
+            computed for every question type regardless of isGap (#6). */}
+        {isGap && gapStat ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className={SECTION_HEADING}>{EN.gapBreakdown}</p>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {format(EN.gapAnsweredOf, { answered: gapStat.answered, participants: gapStat.participants })}
+              </span>
             </div>
-          )
+            <ReviewGapBars gap={gapStat} revealed={revealed} showNames={showNames} />
+          </div>
         ) : (
           /* 'none' means this question type (matching, or long_text) deliberately has no
              printable answer distribution — long_text's raw value is a whole essay, which

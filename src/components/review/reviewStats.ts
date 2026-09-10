@@ -8,6 +8,7 @@ import {
   getAnswerKey,
   getExpectedAnswers,
   normalizeMcArray,
+  normalizeText,
 } from '../lesson/quiz/scoring'
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
@@ -108,9 +109,6 @@ const CHOICE_TYPES = new Set(['single_choice', 'multiple_choice', 'media_questio
 
 const round1 = (value: number): number => Math.round(value * 10) / 10
 
-const normalizeText = (value: unknown): string =>
-  (value ?? '').toString().trim().toLowerCase()
-
 /** Turn `{__type:'Map', data:[...]}` back into a real Map (see deserializeQuizAnswers). */
 const rehydrate = (raw: unknown): unknown => {
   if (raw && typeof raw === 'object' && (raw as any).__type === 'Map') {
@@ -174,10 +172,15 @@ export const GAP_TOKEN_SOURCE = '\\[\\[([\\s\\S]*?)\\]\\]'
  *    as written — this is exactly why blankHeading (below) uses `[^\]]+` instead.
  *
  * The same newline caveat applies to the gap-stepper (ReviewQuestionView's gapStepHtml),
- * which locates tokens with this exact pattern too: a multi-line gap token can make its
- * token count disagree with getExpectedAnswers's `.*?`-based count. That mismatch can only
- * ever show an extra blank or fall back to a placeholder (`expected[index] || '____'`) —
- * never an unrevealed answer — so it inherits the same "safe direction" as this function.
+ * which locates tokens with this exact pattern too — and used to inherit the mismatch itself
+ * (C2): a multi-line gap token still counted as a numbered gap there, so its presence shifted
+ * every later gap's index out of alignment with getExpectedAnswers's `.*?`-based `expected[]`,
+ * and the gap the class was looking at could render a neighbour's answer, unrevealed. Fixed
+ * by having gapStepHtml re-check each broad match against the narrow pattern itself: only a
+ * token both patterns agree on gets a slot in `expected` and advances the gap counter; a
+ * broad-only token (contents spanning a newline, same as here) renders an unconditional,
+ * un-fillable blank instead. That keeps this function's "broader is the safe direction" true
+ * at that call site too — do not "simplify" gapStepHtml back to indexing every broad match.
  */
 export function blankGapText(text: string): string {
   return text.replace(new RegExp(GAP_TOKEN_SOURCE, 'g'), '____')

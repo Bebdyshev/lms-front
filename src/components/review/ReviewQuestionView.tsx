@@ -45,6 +45,13 @@ const GAP_CURRENT_REVEALED_CLASS =
   'rounded px-1.5 py-0.5 mx-0.5 border-2 border-emerald-500 dark:border-emerald-400 bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-100 font-semibold'
 const GAP_UPCOMING_CLASS = 'text-gray-400 dark:text-gray-500'
 
+// scoring.ts's getExpectedAnswers locates tokens with `/\[\[(.*?)\]\]/g` — no `[\s\S]`, so a
+// token whose contents span a newline is invisible to it (see reviewStats.ts's GAP_TOKEN_SOURCE
+// doc comment). Anchored so it is applied to one already-broad-matched span at a time (below),
+// not used to scan raw text itself — this only ever answers "would the narrow tokenizer also
+// treat this exact span as one token", never re-locates tokens on its own.
+const NARROW_GAP_TOKEN = /^\[\[(.*?)\]\]$/
+
 /**
  * Renders one gap-question passage/heading for the step-through-one-gap-at-a-time view:
  * gaps already stepped past (index < gapIndex) print their expected answer — the teacher
@@ -53,16 +60,29 @@ const GAP_UPCOMING_CLASS = 'text-gray-400 dark:text-gray-500'
  * later gap always prints the placeholder.
  *
  * Reuses reviewStats.ts's GAP_TOKEN_SOURCE — the exact pattern blankGapText uses to blank
- * every gap — to locate token boundaries. It does not parse token contents itself; the
- * expected answer for each position still comes from getExpectedAnswers (scoring.ts), the
- * only place that decides what the correct option is. `expected` values are quiz-authored
- * content already rendered elsewhere via dangerouslySetInnerHTML (same trust level as the
- * rest of the passage), but are HTML-escaped here since — unlike the old flat
+ * every gap — to locate token boundaries, so no token is ever left un-blanked. But GAP_TOKEN_
+ * SOURCE is broader than getExpectedAnswers's own tokenizer (scoring.ts's `.*?`, no `[\s\S]`):
+ * a token whose contents span a newline matches here but not there. Only a broad match that
+ * the narrow pattern (NARROW_GAP_TOKEN, checked against the matched span itself) would ALSO
+ * recognise gets an index into `expected` and advances the gap counter — a broad-only match
+ * renders an unconditional, un-fillable blank instead. Without this check the two patterns'
+ * token counts can disagree, and every index past the mismatch drifts out of alignment with
+ * `expected[]` — including the CURRENT (unrevealed) gap's own answer bleeding into an already-
+ * "answered" slot (C2). The expected answer for each position still comes from
+ * getExpectedAnswers (scoring.ts), the only place that decides what the correct option is —
+ * this function only decides which token gets which position. `expected` values are
+ * quiz-authored content already rendered elsewhere via dangerouslySetInnerHTML (same trust
+ * level as the rest of the passage), but are HTML-escaped here since — unlike the old flat
  * "Correct answer: …" list — they are now spliced into the middle of an HTML string.
  */
-function gapStepHtml(text: string, gapIndex: number, expected: string[], revealed: boolean): string {
+export function gapStepHtml(text: string, gapIndex: number, expected: string[], revealed: boolean): string {
   let gapPosition = 0
-  return text.replace(new RegExp(GAP_TOKEN_SOURCE, 'g'), () => {
+  return text.replace(new RegExp(GAP_TOKEN_SOURCE, 'g'), (match) => {
+    if (!NARROW_GAP_TOKEN.test(match)) {
+      // Not a token getExpectedAnswers would recognise either (same newline mismatch) — blank
+      // it so nothing raw reaches the projector, but never assign it a gap slot.
+      return `<span class="${GAP_UPCOMING_CLASS}">____</span>`
+    }
     const index = gapPosition
     gapPosition += 1
     if (index < gapIndex) {
@@ -113,13 +133,28 @@ export const ReviewQuestionView: React.FC<Props> = ({
   // same cloze twice, once inert and once steppable.
   const gapInHeadingOnly = isGap && !question.content_text && !!question.question_text
 
+  // Whether gapStepHtml has anything in the source text to mark up at all. getExpectedAnswers
+  // can fall through to correct_answer (scoring.ts:118-121) when the resolved source has no
+  // `[[…]]` token to parse — no tokens at all, or the tokens live in the other field (content_
+  // text non-empty but question_text carries the syntax, or vice versa). When that happens
+  // gapSource has no token for gapStepHtml to find either, so the passage renders completely
+  // unchanged by gapIndex/revealed: "Gap 1 of N" and working prev/next, but nothing ever gets
+  // marked FILLED/CURRENT and Reveal changes nothing (#3).
+  const gapHasLocatableToken = isGap && new RegExp(GAP_TOKEN_SOURCE).test(gapSource)
+
   // What Reveal shows for questions with no option list of their own.
   let revealAnswers: string[] = []
   if (isGap) {
     // Gap questions no longer dump every expected answer here — Reveal now fills only the
     // current gap, inline in the passage above (gapStepHtml). Populating this too would
     // reintroduce the "Reveal shows everything at once" problem the gap stepper exists to
-    // fix.
+    // fix (C1's failure mode). The one exception is the correct_answer-fallback case above:
+    // gapStepHtml has no token to fill there, so nothing in the passage will ever change on
+    // Reveal unless this flat line does the job instead — scoped to just the CURRENT gap,
+    // never the whole list, so it doesn't reopen the same problem for this path.
+    if (!gapHasLocatableToken && gapExpected[gapIndex] !== undefined) {
+      revealAnswers = [gapExpected[gapIndex]]
+    }
   } else if (PIPE_ANSWER_TYPES.has(question.question_type)) {
     // short_answer / media_open_question store several accepted answers pipe-separated;
     // gradeQuestion splits on the same character to grade. Showing that split instead of
@@ -246,7 +281,16 @@ export const ReviewQuestionView: React.FC<Props> = ({
           </p>
         )}
 
-        {revealed && question.explanation && (
+        {/* `revealed` is per-GAP now (see the semantic shift documented on gapStepHtml
+            above), but `explanation` is whole-question, authored content (QuizLessonEditor.tsx
+            has a dedicated tab for it, and the AI importer auto-populates it) — an
+            AI-authored explanation for a cloze routinely enumerates every blank by number
+            ("1. cat 2. mat 3. door …"). Gating this on the FIRST gap's reveal would dump every
+            answer on the projector at gap 1 of N (C1). Show it only once the class has
+            actually reached the last gap; for non-gap questions gapTotal is 0 and this
+            collapses back to the plain `revealed` check. The next `revealed &&` added to this
+            file should stop and ask which meaning it needs — this file has both. */}
+        {(!isGap || gapIndex === gapTotal - 1) && revealed && question.explanation && (
           <div className="rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary p-3 text-sm text-gray-700 dark:text-gray-300">
             <span className="font-semibold text-gray-900 dark:text-foreground">{EN.explanation}: </span>
             <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(String(question.explanation)) }} />

@@ -23,9 +23,11 @@ export interface GradeQuestionResult {
    * Per-gap verdicts, in gap order, for fill_blank / text_completion questions only — the
    * same expected[i] === provided[i] comparison the loop below already makes to produce
    * correctParts/totalParts, just not thrown away. Absent (not just empty) for every other
-   * question type, and for gap questions with zero gaps, so a caller can tell "no per-part
-   * detail here" from "this gap was answered wrong" without inspecting question_type itself.
-   * Review mode's per-gap stats (reviewStats.ts) read this instead of re-deriving gap
+   * question type — a caller can tell "no per-part detail here" from "this gap was answered
+   * wrong" without inspecting question_type itself. NOT absent for a gap question with zero
+   * gaps: the loop below simply never runs, and `partResults` still comes back `[]` (present
+   * and truthy), because gap questions take this branch regardless of how many gaps they
+   * have. Review mode's per-gap stats (reviewStats.ts) read this instead of re-deriving gap
    * correctness themselves — one grader, one answer key.
    */
   partResults?: boolean[]
@@ -129,7 +131,11 @@ export const getExpectedAnswers = (question: any): string[] => {
   return []
 }
 
-const normalizeText = (value: unknown): string =>
+// Exported so reviewStats.ts's gap-row grouping keys off the exact same normalisation
+// gradeQuestion uses to decide a gap's verdict (see #9: two independently-written copies of
+// this, even if identical today, are one drift away from a row merging two students who
+// actually disagreed with gradeQuestion — one of them would carry a verdict they didn't earn).
+export const normalizeText = (value: unknown): string =>
   (value ?? '').toString().trim().toLowerCase()
 
 const toMatchingMap = (raw: unknown): Map<number, number> => {
