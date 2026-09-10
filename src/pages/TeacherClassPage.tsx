@@ -32,6 +32,32 @@ interface TeacherGroup extends Group {
   is_expanded?: boolean;
 }
 
+// At most this many per-student progress requests in flight. The page used to fire
+// one per student all at once — 378 for the largest class — which exhausted the
+// database pool: most failed (503 / "server closed the connection"), their stats
+// rendered as 0, and the burst slowed the API for everyone else too.
+const MAX_PARALLEL_STATS = 6;
+
+const limitStats = (() => {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  const next = () => {
+    if (active >= MAX_PARALLEL_STATS || queue.length === 0) return;
+    active++;
+    queue.shift()!();
+  };
+  return <T,>(task: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      queue.push(() => {
+        task().then(resolve, reject).finally(() => {
+          active--;
+          next();
+        });
+      });
+      next();
+    });
+})();
+
 interface StudentStats {
   total_courses: number;
   completed_courses: number;
@@ -90,7 +116,9 @@ export default function TeacherClassPage() {
       const students = group.students || [];
       const statsPromises = students.map(async (student) => {
         try {
-          const progressOverview = await apiClient.getStudentProgressOverviewById(student.id.toString());
+          const progressOverview = await limitStats(() =>
+            apiClient.getStudentProgressOverviewById(student.id.toString())
+          );
           
           const stats = {
             total_courses: progressOverview.total_courses,
