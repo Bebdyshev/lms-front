@@ -30,12 +30,12 @@ export const ReviewQuestionGrid: React.FC<Props> = ({
   questions, statsByQuestionId, currentIndex, onJump,
 }) => {
   if (questions.length === 0) {
-    return <p className="text-sm text-muted-foreground">{EN.noData}</p>
+    return <p className="text-sm text-gray-500 dark:text-gray-400">{EN.noData}</p>
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold">{EN.questionList}</p>
+      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{EN.questionList}</p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2">
         {questions.map((question, index) => {
           const stat = statsByQuestionId[String(question.id)]
@@ -46,7 +46,7 @@ export const ReviewQuestionGrid: React.FC<Props> = ({
               type="button"
               onClick={() => onJump(index)}
               aria-current={index === currentIndex ? 'true' : undefined}
-              className={`aspect-square rounded font-bold ${BAND_CLASS[band]} ${
+              className={`aspect-square rounded-md text-sm font-bold transition-colors ${BAND_CLASS[band]} ${
                 index === currentIndex ? 'ring-2 ring-offset-2 ring-primary' : ''
               }`}
             >
@@ -55,9 +55,9 @@ export const ReviewQuestionGrid: React.FC<Props> = ({
           )
         })}
       </div>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 border-t border-gray-200 dark:border-border pt-3">
         {LEGEND.map((item) => (
-          <span key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span key={item.label} className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
             <span className={`h-3 w-3 rounded ${BAND_CLASS[item.band]}`} />
             {item.label}
           </span>

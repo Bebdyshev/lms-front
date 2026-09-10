@@ -13,16 +13,21 @@ interface Props {
   showNames: boolean
 }
 
+const STAT_LABEL = 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'
+const STAT_VALUE = 'text-2xl font-bold text-gray-900 dark:text-foreground tabular-nums'
+const SECTION_HEADING = 'text-sm font-semibold text-gray-700 dark:text-gray-200'
+const CHIP = 'rounded-full border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary px-2 py-0.5 text-xs text-gray-700 dark:text-gray-300'
+
 const NameList: React.FC<{ title: string; names: string[]; className: string }> = ({
   title, names, className,
 }) => {
   if (names.length === 0) return null
   return (
-    <div className="space-y-1">
-      <p className={`text-sm font-semibold ${className}`}>{title} · {names.length}</p>
-      <div className="flex flex-wrap gap-1">
+    <div className="space-y-1.5">
+      <p className={`text-xs font-semibold ${className}`}>{title} · {names.length}</p>
+      <div className="flex flex-wrap gap-1.5">
         {names.map((name) => (
-          <span key={name} className="rounded bg-muted px-1.5 py-0.5 text-xs">{name}</span>
+          <span key={name} className={CHIP}>{name}</span>
         ))}
       </div>
     </div>
@@ -32,25 +37,25 @@ const NameList: React.FC<{ title: string; names: string[]; className: string }> 
 export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames }) => {
   if (!stat) {
     return (
-      <Card><CardContent className="p-4 text-sm text-muted-foreground">{EN.noData}</CardContent></Card>
+      <Card><CardContent className="p-4 text-sm text-gray-500 dark:text-gray-400">{EN.noData}</CardContent></Card>
     )
   }
 
   return (
     <Card>
-      <CardContent className="space-y-4 p-4">
+      <CardContent className="space-y-5 p-4">
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-xs text-muted-foreground">{EN.answered}</p>
-            <p className="text-2xl font-bold tabular-nums">{stat.answered}</p>
+            <p className={STAT_LABEL}>{EN.answered}</p>
+            <p className={STAT_VALUE}>{stat.answered}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">{EN.noAnswer}</p>
-            <p className="text-2xl font-bold tabular-nums">{stat.unanswered}</p>
+            <p className={STAT_LABEL}>{EN.noAnswer}</p>
+            <p className={STAT_VALUE}>{stat.unanswered}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">{EN.percentCorrect}</p>
-            <p className="text-2xl font-bold tabular-nums">
+            <p className={STAT_LABEL}>{EN.percentCorrect}</p>
+            <p className={STAT_VALUE}>
               {/* Gated on `revealed` too: with per-option counts already on screen, a
                   deterministic "% correct" figure for a single/multi-choice question
                   identifies the right option before Reveal just as surely as printing it
@@ -61,7 +66,9 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames })
         </div>
 
         {!stat.graded && (
-          <p className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{EN.notGraded}</p>
+          <p className="rounded-md border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+            {EN.notGraded}
+          </p>
         )}
 
         {/* 'none' means this question type (matching, or long_text) deliberately has no
@@ -72,7 +79,7 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames })
             heading and bars are omitted rather than shown above a "No data" line. */}
         {stat.distributionKind !== 'none' && (
           <div className="space-y-2">
-            <p className="text-sm font-semibold">{EN.answerDistribution}</p>
+            <p className={SECTION_HEADING}>{EN.answerDistribution}</p>
             <ReviewOptionBars stat={stat} revealed={revealed} showNames={showNames} />
           </div>
         )}
@@ -81,12 +88,12 @@ export const ReviewStatsPanel: React.FC<Props> = ({ stat, revealed, showNames })
             <names>" against the per-option name chips identifies the correct option
             instantly, before the teacher has pressed Reveal. */}
         {revealed && showNames && stat.graded && (
-          <div className="space-y-3">
-            <p className="text-sm font-semibold">{EN.whoAnswered}</p>
+          <div className="space-y-3 border-t border-gray-200 dark:border-border pt-4">
+            <p className={SECTION_HEADING}>{EN.whoAnswered}</p>
             <NameList title={EN.correct} names={stat.names.correct} className="text-emerald-600 dark:text-emerald-400" />
             <NameList title={EN.partial} names={stat.names.partial} className="text-amber-600 dark:text-amber-400" />
             <NameList title={EN.incorrect} names={stat.names.incorrect} className="text-rose-600 dark:text-rose-400" />
-            <NameList title={EN.noAnswer} names={stat.names.unanswered} className="text-muted-foreground" />
+            <NameList title={EN.noAnswer} names={stat.names.unanswered} className="text-gray-500 dark:text-gray-400" />
           </div>
         )}
       </CardContent>

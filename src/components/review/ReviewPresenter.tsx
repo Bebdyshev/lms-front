@@ -13,6 +13,8 @@ interface Props {
   actions: ReviewSessionActions
 }
 
+const BADGE = 'rounded-md border border-gray-200 dark:border-border px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400'
+
 export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
   const total = state.questions.length
   const question = total > 0 ? state.questions[state.index] : null
@@ -69,15 +71,15 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-lg font-bold">
+        <span className="text-lg font-bold text-gray-900 dark:text-foreground">
           {total > 0 ? format(EN.questionOf, { n: state.index + 1, total }) : EN.noData}
         </span>
         {state.step && (
-          <span className="rounded border px-2 py-0.5 text-xs text-muted-foreground">
+          <span className={BADGE}>
             {state.step.lesson_title} · {state.step.title}
           </span>
         )}
-        <span className="rounded border px-2 py-0.5 text-xs text-muted-foreground">
+        <span className={BADGE}>
           {EN.submitted}: {state.attempts.length}/{state.roster.length}
         </span>
 
@@ -108,11 +110,11 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
         <Button variant="outline" onClick={actions.prev} disabled={state.index <= 0}>{EN.prev}</Button>
         <Button variant="outline" onClick={actions.next} disabled={state.index >= total - 1}>{EN.next}</Button>
         <div className="flex-1" />
-        <span className="text-xs text-muted-foreground">{EN.keyboardHint}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">{EN.keyboardHint}</span>
       </div>
 
       {state.gridOpen && (
-        <div className="rounded border p-4">
+        <div className="rounded-lg border border-gray-200 dark:border-border p-4">
           <ReviewQuestionGrid
             questions={state.questions}
             statsByQuestionId={state.statsByQuestionId}

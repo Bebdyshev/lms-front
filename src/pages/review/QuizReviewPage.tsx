@@ -25,7 +25,7 @@ const QuizReviewPage: React.FC = () => {
   return (
     <div className="p-6 space-y-4">
       {state.status === 'error' && (
-        <div className="flex items-center gap-3 rounded border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-rose-600 dark:text-rose-400">
+        <div className="flex items-center gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
           <span className="flex-1">{state.error || EN.loadError}</span>
           <Button variant="outline" size="sm" onClick={retry}>{EN.retry}</Button>
         </div>

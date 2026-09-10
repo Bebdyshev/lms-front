@@ -17,9 +17,11 @@ interface Props {
 
 const PIPE_ANSWER_TYPES = new Set(['short_answer', 'media_open_question'])
 
+const BADGE = 'rounded-md border border-gray-200 dark:border-border px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400'
+
 export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, statsVisible }) => {
   if (!question) {
-    return <Card><CardContent className="p-6 text-muted-foreground">{EN.noData}</CardContent></Card>
+    return <Card><CardContent className="p-6 text-sm text-gray-500 dark:text-gray-400">{EN.noData}</CardContent></Card>
   }
 
   const isGap = isGapType(question.question_type)
@@ -57,10 +59,10 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
   return (
     <Card>
       <CardContent className="space-y-4 p-6">
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <span className="rounded border px-2 py-0.5">{questionTypeLabel(question.question_type)}</span>
+        <div className="flex flex-wrap gap-2">
+          <span className={BADGE}>{questionTypeLabel(question.question_type)}</span>
           {question.difficulty && (
-            <span className="rounded border px-2 py-0.5">{question.difficulty}</span>
+            <span className={BADGE}>{question.difficulty}</span>
           )}
         </div>
 
@@ -71,13 +73,13 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
             one place that distinction matters. */}
         {passage && (
           <div
-            className="rounded border-l-4 border-muted-foreground/30 bg-muted/40 p-4 text-base leading-relaxed"
+            className="rounded-lg border-l-4 border-gray-300 dark:border-border bg-gray-50 dark:bg-secondary p-4 text-base leading-relaxed text-gray-700 dark:text-gray-300"
             dangerouslySetInnerHTML={{ __html: renderTextWithLatex(displayText(question.question_type, passage)) }}
           />
         )}
 
         {question.media_url && (
-          <img src={question.media_url} alt="" className="max-h-72 rounded object-contain" />
+          <img src={question.media_url} alt="" className="max-h-72 rounded-lg object-contain" />
         )}
 
         {/* Same leak this component's passage above already guards against (see the comment
@@ -91,7 +93,7 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
             renderer strips question_text unconditionally, not gated by type — so this must
             match that, not displayText's isGapType gate. */}
         <h2
-          className="text-2xl font-semibold leading-snug"
+          className="text-2xl font-semibold leading-snug text-gray-900 dark:text-foreground"
           dangerouslySetInnerHTML={{ __html: renderTextWithLatex(blankHeading(question.question_text)) }}
         />
 
@@ -103,21 +105,21 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
               return (
                 <div
                   key={index}
-                  className={`flex items-center gap-3 rounded border-2 p-3 ${
+                  className={`flex items-center gap-3 rounded-lg border-2 p-3 ${
                     correct
                       ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                      : 'border-border'
+                      : 'border-gray-200 dark:border-border'
                   }`}
                 >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 dark:border-border text-sm font-bold text-gray-700 dark:text-gray-200">
                     {option?.letter || LETTERS[index] || index + 1}
                   </span>
                   <span
-                    className="flex-1"
+                    className="flex-1 text-sm text-gray-700 dark:text-gray-300"
                     dangerouslySetInnerHTML={{ __html: renderTextWithLatex(String(option?.text ?? '')) }}
                   />
                   {statsVisible && (
-                    <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{count}</span>
+                    <span className="shrink-0 text-sm tabular-nums text-gray-500 dark:text-gray-400">{count}</span>
                   )}
                 </div>
               )
@@ -126,15 +128,15 @@ export const ReviewQuestionView: React.FC<Props> = ({ question, stat, revealed, 
         )}
 
         {revealed && options.length === 0 && revealAnswers.length > 0 && (
-          <p className="rounded border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
-            <span className="font-semibold">{EN.correctAnswer}: </span>
+          <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-gray-700 dark:text-gray-300">
+            <span className="font-semibold text-gray-900 dark:text-foreground">{EN.correctAnswer}: </span>
             {revealAnswers.join(', ')}
           </p>
         )}
 
         {revealed && question.explanation && (
-          <div className="rounded bg-muted p-3 text-sm">
-            <span className="font-semibold">{EN.explanation}: </span>
+          <div className="rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-secondary p-3 text-sm text-gray-700 dark:text-gray-300">
+            <span className="font-semibold text-gray-900 dark:text-foreground">{EN.explanation}: </span>
             <span dangerouslySetInnerHTML={{ __html: renderTextWithLatex(String(question.explanation)) }} />
           </div>
         )}
