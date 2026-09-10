@@ -3,11 +3,12 @@
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
-import { EN } from './strings'
+import { EN, format } from './strings'
 import type { ClassSummary, StudentScore } from './reviewStats'
 
 interface Props {
   summary: ClassSummary | null
+  namesVisible: boolean
   onRestart: () => void
   onExit: () => void
 }
@@ -19,14 +20,16 @@ const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   </div>
 )
 
-const ScoreList: React.FC<{ title: string; students: StudentScore[] }> = ({ title, students }) => (
+const ScoreList: React.FC<{ title: string; students: StudentScore[]; showNames: boolean }> = ({
+  title, students, showNames,
+}) => (
   <Card>
     <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
     <CardContent className="space-y-1">
       {students.length === 0 && <p className="text-sm text-muted-foreground">{EN.noData}</p>}
       {students.map((student) => (
         <div key={student.studentId} className="flex justify-between text-sm">
-          <span>{student.fullName}</span>
+          <span>{showNames ? student.fullName : EN.anonymousStudent}</span>
           <span className="tabular-nums text-muted-foreground">
             {student.correct}/{student.total} · {student.percent}%
           </span>
@@ -36,7 +39,7 @@ const ScoreList: React.FC<{ title: string; students: StudentScore[] }> = ({ titl
   </Card>
 )
 
-export const ReviewSummary: React.FC<Props> = ({ summary, onRestart, onExit }) => {
+export const ReviewSummary: React.FC<Props> = ({ summary, namesVisible, onRestart, onExit }) => {
   if (!summary) {
     return <p className="text-sm text-muted-foreground">{EN.noData}</p>
   }
@@ -83,8 +86,11 @@ export const ReviewSummary: React.FC<Props> = ({ summary, onRestart, onExit }) =
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <ScoreList title={EN.summaryTop} students={summary.top} />
-        <ScoreList title={EN.summaryBottom} students={summary.bottom} />
+        {/* Top results is always named — praising who did well publicly is not the privacy
+            concern this fix addresses. "Needs attention" singles out who struggled, which
+            is exactly the kind of thing namesVisible exists to gate. */}
+        <ScoreList title={EN.summaryTop} students={summary.top} showNames />
+        <ScoreList title={EN.summaryBottom} students={summary.bottom} showNames={namesVisible} />
       </div>
 
       <Card>
@@ -108,15 +114,21 @@ export const ReviewSummary: React.FC<Props> = ({ summary, onRestart, onExit }) =
         <CardContent>
           {summary.notSubmitted.length === 0
             ? <p className="text-sm text-muted-foreground">—</p>
-            : (
-              <div className="flex flex-wrap gap-1">
-                {summary.notSubmitted.map((student) => (
-                  <span key={student.student_id} className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                    {student.full_name}
-                  </span>
-                ))}
-              </div>
-            )}
+            : namesVisible
+              ? (
+                <div className="flex flex-wrap gap-1">
+                  {summary.notSubmitted.map((student) => (
+                    <span key={student.student_id} className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                      {student.full_name}
+                    </span>
+                  ))}
+                </div>
+              )
+              : (
+                <p className="text-sm text-muted-foreground">
+                  {format(EN.notSubmittedCount, { count: summary.notSubmitted.length })}
+                </p>
+              )}
         </CardContent>
       </Card>
     </div>

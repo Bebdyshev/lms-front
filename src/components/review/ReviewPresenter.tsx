@@ -33,12 +33,16 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
         case 'ArrowLeft':
         case 'PageUp':
           e.preventDefault(); actions.prev(); break
-        // Enter is cancelled too: if a toolbar button still holds focus from a click, the
-        // browser's default for Enter is to click it, so the class would advance a question
-        // at the same instant the answer appears.
+        // Enter/NumpadEnter also toggle reveal, but ONLY when focus is not on a button: a
+        // focused toolbar button's native response to Enter is to click it, which already
+        // calls the right handler. Swallowing Enter here unconditionally (as before) would
+        // fire the click AND toggleReveal for the reveal button, and — worse — silently kill
+        // Enter-activation for every OTHER toolbar button too, since the event never reached
+        // the browser's default handling.
         case 'KeyR':
         case 'Enter':
         case 'NumpadEnter':
+          if (target && target.tagName === 'BUTTON') break
           e.preventDefault(); actions.toggleReveal(); break
         case 'KeyS':
           actions.toggleStats(); break
@@ -89,7 +93,7 @@ export const ReviewPresenter: React.FC<Props> = ({ state, actions }) => {
       </div>
 
       <div className={`grid gap-4 ${state.statsVisible ? 'lg:grid-cols-[1.35fr_1fr]' : 'grid-cols-1'}`}>
-        <ReviewQuestionView question={question} stat={stat} revealed={state.revealed} />
+        <ReviewQuestionView question={question} stat={stat} revealed={state.revealed} statsVisible={state.statsVisible} />
         {state.statsVisible && (
           <ReviewStatsPanel stat={stat} revealed={state.revealed} showNames={state.namesVisible} />
         )}

@@ -81,7 +81,9 @@ const initialState: ReviewSessionState = {
   index: 0,
   revealed: false,
   statsVisible: true,
-  namesVisible: true,
+  // Opt in, not opt out: the very first frame a class sees must not show who got the
+  // question wrong. The teacher can turn names on once they choose to.
+  namesVisible: false,
   gridOpen: false,
 }
 
@@ -272,8 +274,10 @@ export function useReviewSession(): [ReviewSessionState, ReviewSessionActions] {
     try {
       const data = await apiClient.getCourseGroupsAnalytics(String(courseId))
       if (token !== requestTokenRef.current) return // superseded by a newer selection
+      // No `!g.is_archived` filter here: getCourseGroupsAnalytics already excludes archived
+      // groups unless asked otherwise, so this would be a redundant (and silently
+      // divergent, if that default ever changes) second copy of that rule.
       const groups = (data?.groups || [])
-        .filter((g: any) => !g.is_archived)
         .map((g: any) => ({
           id: Number(g.group_id),
           name: g.group_name,

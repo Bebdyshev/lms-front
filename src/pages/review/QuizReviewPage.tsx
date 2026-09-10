@@ -13,6 +13,11 @@ const QuizReviewPage: React.FC = () => {
 
   const retry = () => {
     if (state.selectedStepId && state.selectedGroupId) actions.start()
+    // A failed quizzes-load happens with a group already selected but no quiz chosen yet.
+    // Falling through to selectCourse here would reset selectedGroupId and refetch the
+    // group list instead of retrying the quiz list for the group the teacher already
+    // picked.
+    else if (state.selectedGroupId) actions.selectGroup(state.selectedGroupId)
     else if (state.selectedCourseId) actions.selectCourse(state.selectedCourseId)
     else actions.loadCourses()
   }
@@ -27,7 +32,12 @@ const QuizReviewPage: React.FC = () => {
       )}
 
       {state.phase === 'summary' && (
-        <ReviewSummary summary={state.summary} onRestart={actions.restart} onExit={actions.exit} />
+        <ReviewSummary
+          summary={state.summary}
+          namesVisible={state.namesVisible}
+          onRestart={actions.restart}
+          onExit={actions.exit}
+        />
       )}
       {state.phase === 'presenting' && <ReviewPresenter state={state} actions={actions} />}
       {state.phase === 'launcher' && <ReviewLauncher state={state} actions={actions} />}
