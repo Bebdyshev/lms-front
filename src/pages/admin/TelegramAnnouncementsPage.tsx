@@ -14,7 +14,6 @@ import {
   Pin,
   Quote,
   RefreshCw,
-  Search,
   Send,
   Strikethrough,
   Trash2,
@@ -46,14 +45,15 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 import { toast } from '../../components/Toast';
-import { PROGRAM_BADGE_STYLES } from '../../lib/groupPicker';
+import {
+  GroupFilterBar,
+  ProgramBadges,
+  useGroupFilters,
+} from '../../components/announcements/GroupFilters';
 import {
   CAPTION_LIMIT,
   MAX_IMAGES,
-  PROGRAM_CHIP_LABELS,
-  PROGRAM_ORDER,
   TEXT_LIMIT,
-  detectPrograms,
   renderPreviewHtml,
   visibleLength,
   visibleText,
@@ -72,7 +72,6 @@ import type {
   AnnouncementDetail,
   AnnouncementStatus,
   MarkupTag,
-  ProgramKey,
   RecipientSummary,
   TelegramGroup,
 } from '../../services/api/announcements';
@@ -329,40 +328,6 @@ function FormatToolbar({ textareaRef, value, onChange }: FormatToolbarProps) {
   );
 }
 
-/** A program filter, or the "no program in the name" bucket. */
-type ProgramFilterKey = ProgramKey | 'other';
-
-interface FilterChipProps {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-  /** Colour when active; defaults to the primary colour. Program chips pass the
-   *  LMS's own program badge colours so SAT reads blue here as everywhere else. */
-  activeClassName?: string;
-}
-
-function FilterChip({ label, count, active, onClick, activeClassName }: FilterChipProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      // An empty chip is a dead end — but never disable an ACTIVE one, or a
-      // search that empties it would leave it stuck on with no way to turn it off.
-      disabled={count === 0 && !active}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-        active
-          ? `border-current ${activeClassName ?? 'bg-primary text-primary-foreground'}`
-          : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-      }`}
-    >
-      {label}
-      <span className="tabular-nums opacity-70">{count}</span>
-    </button>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Compose
 // ---------------------------------------------------------------------------
@@ -394,47 +359,8 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
   // narrowing to SAT, ticking two groups, then switching to IELTS keeps those two
   // ticked. The summary line says how many selected groups the current filters
   // hide, because the confirm dialog counts them even when they are off screen.
-  const [groupSearch, setGroupSearch] = useState('');
-  const [programFilter, setProgramFilter] = useState<Set<ProgramFilterKey>>(new Set());
-
-  const groupPrograms = useMemo(
-    () => new Map(approvedGroups.map((group) => [group.id, detectPrograms(group.title || '')])),
-    [approvedGroups],
-  );
-
-  const searchMatched = useMemo(() => {
-    const query = groupSearch.trim().toLocaleLowerCase();
-    if (!query) return approvedGroups;
-    return approvedGroups.filter((group) =>
-      (group.title || String(group.telegram_chat_id)).toLocaleLowerCase().includes(query),
-    );
-  }, [approvedGroups, groupSearch]);
-
-  /** Per-chip counts, taken AFTER the search so each chip says what clicking it would show. */
-  const chipCounts = useMemo(() => {
-    const counts: Record<ProgramFilterKey, number> = {
-      sat: 0,
-      ielts: 0,
-      nuet: 0,
-      general_english: 0,
-      other: 0,
-    };
-    for (const group of searchMatched) {
-      const programs = groupPrograms.get(group.id) ?? [];
-      if (programs.length === 0) counts.other += 1;
-      for (const program of programs) counts[program] += 1;
-    }
-    return counts;
-  }, [searchMatched, groupPrograms]);
-
-  const visibleGroups = useMemo(() => {
-    if (programFilter.size === 0) return searchMatched;
-    return searchMatched.filter((group) => {
-      const programs = groupPrograms.get(group.id) ?? [];
-      if (programs.length === 0) return programFilter.has('other');
-      return programs.some((program) => programFilter.has(program));
-    });
-  }, [searchMatched, programFilter, groupPrograms]);
+  const filters = useGroupFilters(approvedGroups);
+  const { visibleGroups, isFiltering } = filters;
 
   // Counted against the CURRENT approved list, not the raw selection. A group
   // removed between loading the page and pressing Refresh is dropped by the
@@ -449,21 +375,6 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
   const hiddenSelectedCount = selectedApproved.filter((g) => !visibleIds.has(g.id)).length;
   const allVisibleSelected =
     visibleGroups.length > 0 && visibleGroups.every((group) => selectedGroups.has(group.id));
-  const isFiltering = groupSearch.trim() !== '' || programFilter.size > 0;
-
-  const toggleProgram = (key: ProgramFilterKey) => {
-    setProgramFilter((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const clearFilters = () => {
-    setGroupSearch('');
-    setProgramFilter(new Set());
-  };
 
   /** Select or deselect only what the filters show, leaving hidden picks alone. */
   const setVisibleSelected = (select: boolean) => {
@@ -756,58 +667,7 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
               </p>
             ) : (
               <div className="space-y-3">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={groupSearch}
-                    onChange={(event) => setGroupSearch(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') setGroupSearch('');
-                    }}
-                    placeholder="Search groups by name…"
-                    aria-label="Search groups by name"
-                    className="pl-9 pr-9"
-                  />
-                  {groupSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setGroupSearch('')}
-                      aria-label="Clear search"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by program">
-                  <FilterChip
-                    label="All"
-                    count={searchMatched.length}
-                    active={programFilter.size === 0}
-                    onClick={() => setProgramFilter(new Set())}
-                  />
-                  {PROGRAM_ORDER.map((key) => (
-                    <FilterChip
-                      key={key}
-                      label={PROGRAM_CHIP_LABELS[key]}
-                      count={chipCounts[key]}
-                      active={programFilter.has(key)}
-                      activeClassName={PROGRAM_BADGE_STYLES[key]}
-                      onClick={() => toggleProgram(key)}
-                    />
-                  ))}
-                  {/* Only offered when something actually lands there — usually
-                      staff chats whose names carry no program. */}
-                  {(chipCounts.other > 0 || programFilter.has('other')) && (
-                    <FilterChip
-                      label="Other"
-                      count={chipCounts.other}
-                      active={programFilter.has('other')}
-                      onClick={() => toggleProgram('other')}
-                    />
-                  )}
-                </div>
+                <GroupFilterBar filters={filters} />
 
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -854,7 +714,7 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
                       No groups match these filters.{' '}
                       <button
                         type="button"
-                        onClick={clearFilters}
+                        onClick={filters.clearFilters}
                         className="font-medium text-primary hover:underline"
                       >
                         Clear filters
@@ -877,14 +737,7 @@ function ComposeTab({ approvedGroups, summary, onSent }: ComposeTabProps) {
                         >
                           {group.title || group.telegram_chat_id}
                         </Label>
-                        {(groupPrograms.get(group.id) ?? []).map((key) => (
-                          <span
-                            key={key}
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${PROGRAM_BADGE_STYLES[key]}`}
-                          >
-                            {PROGRAM_CHIP_LABELS[key]}
-                          </span>
-                        ))}
+                        <ProgramBadges programs={filters.programsOf(group)} />
                         {pin && !group.bot_is_admin && (
                           <span
                             className="shrink-0 text-xs text-amber-600"
@@ -1304,6 +1157,11 @@ interface GroupsTabProps {
 
 function GroupsTab({ groups, loading, onChanged }: GroupsTabProps) {
   const [busyId, setBusyId] = useState<number | null>(null);
+  // Same filters as the composer's recipient picker, over EVERY group here --
+  // pending, approved, rejected and removed alike -- so finding a group to
+  // approve works the same way as finding one to send to.
+  const filters = useGroupFilters(groups);
+  const { visibleGroups } = filters;
 
   const update = async (group: TelegramGroup, status: 'approved' | 'rejected') => {
     setBusyId(group.id);
@@ -1327,6 +1185,11 @@ function GroupsTab({ groups, loading, onChanged }: GroupsTabProps) {
           to it — or after someone posts <code>/register</code> in a group it is already in. A group
           receives nothing until you approve it.
         </p>
+        {groups.length > 0 && (
+          <div className="pt-3">
+            <GroupFilterBar filters={filters} />
+          </div>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
@@ -1353,12 +1216,28 @@ function GroupsTab({ groups, loading, onChanged }: GroupsTabProps) {
                     No groups discovered yet. Add the bot to a group to get started.
                   </TableCell>
                 </TableRow>
+              ) : visibleGroups.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
+                    No groups match these filters.{' '}
+                    <button
+                      type="button"
+                      onClick={filters.clearFilters}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Clear filters
+                    </button>
+                  </TableCell>
+                </TableRow>
               ) : (
-                groups.map((group) => (
+                visibleGroups.map((group) => (
                   <TableRow key={group.id}>
                     <TableCell>
-                      <div className="font-medium text-foreground">
-                        {group.title || 'Untitled group'}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-medium text-foreground">
+                          {group.title || 'Untitled group'}
+                        </span>
+                        <ProgramBadges programs={filters.programsOf(group)} />
                       </div>
                       <div className="text-xs text-muted-foreground">{group.telegram_chat_id}</div>
                     </TableCell>
