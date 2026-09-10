@@ -59,7 +59,11 @@ export const ReviewLauncher: React.FC<Props> = ({ state, actions }) => {
           </div>
         )}
 
-        {state.selectedGroupId && state.units.length === 0 && !busy && (
+        {/* Only claim the course has no quizzes when the load actually SUCCEEDED. Keyed on
+            status === 'ready' rather than !busy: on a failed load `units` is empty too, and
+            the old condition printed "no unit quizzes yet" beside the error banner — telling
+            the teacher something false about their course at the moment we in fact know nothing. */}
+        {state.selectedGroupId && state.units.length === 0 && state.status === 'ready' && (
           <p className="text-sm text-muted-foreground">{EN.noQuizzes}</p>
         )}
 
