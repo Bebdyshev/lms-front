@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   accuracyBand,
+  blankGapText,
   buildClassSummary,
   buildQuestionStats,
   isBlankAnswer,
+  isCorrectOption,
   parseAnswerBlob,
   replayAnswer,
   reviewQuestions,
+  splitPipeAnswers,
   type ReviewAttempt,
 } from './reviewStats'
 
@@ -250,12 +253,13 @@ describe('buildQuestionStats — matching', () => {
 })
 
 describe('buildQuestionStats — ungradable questions', () => {
-  it('marks long_text ungraded and still lists what was written', () => {
+  it('marks long_text ungraded and gives it no answer distribution — essays must not be projected verbatim with names attached', () => {
     const attempts = [attempt(1, [['q5', 'Because the sky is blue.']])]
     const [stat] = buildQuestionStats([essay], attempts, names)
     expect(stat.graded).toBe(false)
     expect(stat.percentCorrect).toBeNull()
-    expect(stat.options[0].text).toBe('Because the sky is blue.')
+    expect(stat.distributionKind).toBe('none')
+    expect(stat.options).toEqual([])
   })
 
   it('marks a choice question with no resolvable key ungraded rather than all-wrong', () => {
@@ -402,5 +406,83 @@ describe('accuracyBand', () => {
     expect(accuracyBand(at(79.9))).toBe('medium')
     expect(accuracyBand(at(80))).toBe('high')
     expect(accuracyBand(at(100))).toBe('high')
+  })
+})
+
+describe('blankGapText', () => {
+  it('replaces every [[…]] gap token with a blank placeholder, never the marked answer', () => {
+    expect(blankGapText('A [[cat*,dog]] and a [[hat*,bat]]')).toBe('A ____ and a ____')
+  })
+
+  it('leaves ordinary text untouched', () => {
+    expect(blankGapText('No gaps here')).toBe('No gaps here')
+  })
+})
+
+describe('buildQuestionStats — gap question text falls back to the blanked source, never the answer key', () => {
+  it('never leaks the [[…*…]] gap syntax into questionText', () => {
+    const [stat] = buildQuestionStats([gaps], [], names)
+    expect(stat.questionText).toBe('A ____ and a ____')
+    expect(stat.questionText).not.toContain('*')
+    expect(stat.questionText).not.toContain('[[')
+  })
+})
+
+describe('splitPipeAnswers', () => {
+  it('splits a pipe-delimited correct_answer into a readable, trimmed list', () => {
+    expect(splitPipeAnswers({ correct_answer: 'paris | Paris|the capital ' })).toEqual([
+      'paris', 'Paris', 'the capital',
+    ])
+  })
+
+  it('returns an empty list when there is nothing to split', () => {
+    expect(splitPipeAnswers({ correct_answer: null })).toEqual([])
+    expect(splitPipeAnswers({})).toEqual([])
+  })
+})
+
+describe('isCorrectOption', () => {
+  it('agrees with gradeQuestion for single_choice, including its strict equality', () => {
+    expect(isCorrectOption(single, 1)).toBe(true)
+    expect(isCorrectOption(single, 2)).toBe(false)
+  })
+
+  it('does not disagree with gradeQuestion when correct_answer is authored as a numeric string', () => {
+    // gradeQuestion's fallback path is a strict `===`, so a stored option index (a number)
+    // never matches a correct_answer authored as the string "1" -- every student is graded
+    // incorrect. The old coercing `Number(key) === index` would paint option B green here,
+    // contradicting the score the whole class actually received.
+    const stringKeyed = { ...single, correct_answer: '1' }
+    expect(isCorrectOption(stringKeyed, 1)).toBe(false)
+  })
+
+  it('agrees with gradeQuestion for multiple_choice by reusing its own membership test', () => {
+    expect(isCorrectOption(multi, 0)).toBe(true)
+    expect(isCorrectOption(multi, 1)).toBe(false)
+    expect(isCorrectOption(multi, 2)).toBe(true)
+  })
+})
+
+describe('buildClassSummary — partial credit on multi-gap questions (I6)', () => {
+  it('credits a half-right gap answer with partial credit, matching the score the student saw on submission', () => {
+    const questions = [gaps]
+    const attempts = [attempt(1, [['q4', ['cat', 'bat']]])] // 1 of 2 gaps correct
+    const stats = buildQuestionStats(questions, attempts, names)
+    const summary = buildClassSummary(stats, questions, attempts, names, [])
+    // An all-or-nothing scoring (gradeQuestion(...).isCorrect per question) would count
+    // this as 0/1 = 0%. Scored gap-by-gap, like the student's own result screen, it is
+    // 1/2 = 50%.
+    expect(summary.top[0]).toMatchObject({ correct: 1, total: 2, percent: 50 })
+  })
+
+  it('still scores non-gap questions all-or-nothing, one part per question', () => {
+    const questions = [single, multi]
+    const attempts = [
+      attempt(1, [['q1', 1], ['q2', [0, 2]]]),
+      attempt(2, [['q1', 1], ['q2', [1]]]),
+    ]
+    const stats = buildQuestionStats(questions, attempts, names)
+    const summary = buildClassSummary(stats, questions, attempts, names, [])
+    expect(summary.top[0]).toMatchObject({ correct: 2, total: 2, percent: 100 })
   })
 })

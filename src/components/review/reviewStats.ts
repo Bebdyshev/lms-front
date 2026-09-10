@@ -7,6 +7,7 @@ import {
   gradeQuestion,
   getAnswerKey,
   getExpectedAnswers,
+  normalizeMcArray,
 } from '../lesson/quiz/scoring'
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
@@ -55,9 +56,11 @@ export interface QuestionStat {
   graded: boolean
   /**
    * 'choice' bars per option, 'text' rows of what students typed, or 'none' when the
-   * question has no meaningful answer distribution to show — matching questions only
-   * get a correct/partial/incorrect split (per the review-mode spec), since their raw
-   * stored value is a set of left→right index pairs, not a single printable answer.
+   * question has no meaningful answer distribution to show. Matching gets this because its
+   * raw stored value is a set of left→right index pairs, not a single printable answer;
+   * long_text gets it because its raw value is a whole essay, which review mode must not
+   * project verbatim with the writer's name attached. Both fall back to a
+   * correct/partial/incorrect split instead (per the review-mode spec).
    */
   distributionKind: 'choice' | 'text' | 'none'
   options: OptionStat[]
@@ -99,8 +102,31 @@ export function parseAnswerBlob(json: string | null | undefined): Map<string, un
   }
 }
 
-const isGapType = (type: string): boolean =>
+export const isGapType = (type: string): boolean =>
   type === 'fill_blank' || type === 'text_completion'
+
+/**
+ * Blank out `[[…]]` gap tokens for pre-reveal display. This does NOT parse the gap syntax
+ * to find the answer key (that stays getExpectedAnswers's job in scoring.ts) — it only
+ * removes the tokens so the projected text never shows the asterisked correct option.
+ */
+export function blankGapText(text: string): string {
+  return text.replace(/\[\[(.*?)\]\]/g, '____')
+}
+
+/**
+ * short_answer / media_open_question store their accepted answers pipe-separated, and
+ * gradeQuestion (scoring.ts) splits on the same character to grade. This mirrors only that
+ * split for display — not the correctness decision — so Reveal shows a readable list
+ * instead of the raw "paris|Paris|the capital" string.
+ */
+export function splitPipeAnswers(question: any): string[] {
+  return (question?.correct_answer ?? '')
+    .toString()
+    .split('|')
+    .map((a: string) => a.trim())
+    .filter(Boolean)
+}
 
 /**
  * "No answer" is its own bucket, never a wrong option. -1 is a single choice the
@@ -151,10 +177,21 @@ function isGradable(question: any): boolean {
   return getExpectedAnswers(question).length > 0
 }
 
+/**
+ * Whether an option index is part of the answer key. Delegates to gradeQuestion so this can
+ * never disagree with the score a student saw:
+ *  - multiple_choice reuses gradeQuestion's own membership test (normalizeMcArray) against
+ *    the same correct_answer field it grades against;
+ *  - every other choice type (single_choice, media_question) asks gradeQuestion directly
+ *    whether that index, submitted alone, would have graded correct — including its strict
+ *    (non-coercing) equality, so a correct_answer authored as the string "1" is treated the
+ *    same way here as it is when a student's own attempt is graded.
+ */
 export function isCorrectOption(question: any, index: number): boolean {
-  const key = question?.correct_answer
-  if (Array.isArray(key)) return key.map(Number).includes(index)
-  return Number(key) === index
+  if (question?.question_type === 'multiple_choice') {
+    return normalizeMcArray(question?.correct_answer).includes(index)
+  }
+  return gradeQuestion(question, index, undefined).isCorrect
 }
 
 /** The printable form of a stored answer: gap arrays read best joined. */
@@ -182,7 +219,11 @@ export function buildQuestionStats(
     const type = question?.question_type ?? 'unknown'
     const graded = isGradable(question)
     const isChoice = CHOICE_TYPES.has(type) && Array.isArray(question?.options)
-    const isMatching = type === 'matching'
+    // matching's raw stored value is a set of left->right index pairs, not a single
+    // printable answer; long_text's is a whole essay, which must not be projected verbatim
+    // with the writer's name attached (see review-mode spec). Both get a correct/partial/
+    // incorrect split instead of an answer distribution.
+    const noDistribution = type === 'matching' || type === 'long_text'
 
     const names: Record<AnswerBucket, string[]> = {
       correct: [], partial: [], incorrect: [], unanswered: [],
@@ -232,7 +273,7 @@ export function buildQuestionStats(
             slot.names.push(entry.name)
           }
         }
-      } else if (!isMatching) {
+      } else if (!noDistribution) {
         const text = answerText(question, raw)
         const rowKey = normalizeText(text)
         const existing = textRows.get(rowKey)
@@ -261,7 +302,7 @@ export function buildQuestionStats(
           isCorrect: graded && isCorrectOption(question, optionIndex),
           names: choiceCounts[optionIndex].names,
         }))
-      : isMatching
+      : noDistribution
         ? []
         : [...textRows.entries()]
             .map(([rowKey, row]) => ({
@@ -279,7 +320,14 @@ export function buildQuestionStats(
       questionId: key,
       index,
       questionType: type,
-      questionText: (question?.question_text ?? question?.content_text ?? '').toString(),
+      // Gap questions (fill_blank, text_completion) usually have an empty question_text,
+      // and their content_text is the gapped source with the answer key marked by `*` --
+      // falling back to it raw would leak that key into the "Hardest questions" list on
+      // the finish screen the same way it leaked onto the presenter (see C1). Blank the
+      // gap tokens out of the fallback instead.
+      questionText: isGapType(type)
+        ? (question?.question_text || blankGapText((question?.content_text ?? '').toString()))
+        : (question?.question_text ?? question?.content_text ?? '').toString(),
       participants: parsed.length,
       answered,
       unanswered: names.unanswered.length,
@@ -288,7 +336,7 @@ export function buildQuestionStats(
       incorrect,
       percentCorrect: graded && answered > 0 ? round1((correct / answered) * 100) : null,
       graded,
-      distributionKind: isChoice ? 'choice' : isMatching ? 'none' : 'text',
+      distributionKind: isChoice ? 'choice' : noDistribution ? 'none' : 'text',
       options,
       names,
     }
@@ -358,8 +406,14 @@ function median(values: number[]): number | null {
 
 /**
  * Scores are recomputed here rather than read from the stored score_percentage, so the
- * summary counts exactly the questions the grid and the presenter count: gradable ones,
- * image_content excluded.
+ * summary counts exactly what the grid and the presenter count: gradable questions,
+ * image_content excluded. Gap questions (fill_blank, text_completion) are scored gap-by-gap
+ * here, the same way the student's own result screen scores them (LessonPage's
+ * getGapStatistics accumulates gradeQuestion's correctParts/totalParts per gap) — a 9-of-10
+ * gap answer contributes 9/10, not 0/1. Every other gradable type stays all-or-nothing, one
+ * part per question, matching LessonPage's regularQuestions/correctRegular counting. Without
+ * this, a class average computed one-point-per-question would read lower than what students
+ * saw on submission for any quiz using gaps.
  */
 export function buildClassSummary(
   questionStats: QuestionStat[],
@@ -369,23 +423,31 @@ export function buildClassSummary(
   notSubmitted: StudentRef[],
 ): ClassSummary {
   const gradable = questions.filter((q) => isGradable(q))
-  const total = gradable.length
 
   const scores: StudentScore[] = attempts.map((attempt) => {
     const values = parseAnswerBlob(attempt.answers)
-    let correct = 0
+    let correctParts = 0
+    let totalParts = 0
     for (const question of gradable) {
       const raw = values.get(getAnswerKey(question))
+      if (isGapType(question?.question_type)) {
+        const { gapAnswer } = replayAnswer(question, raw)
+        const result = gradeQuestion(question, undefined, gapAnswer)
+        correctParts += result.correctParts
+        totalParts += result.totalParts
+        continue
+      }
+      totalParts += 1
       if (isBlankAnswer(question, raw)) continue
       const { answer, gapAnswer } = replayAnswer(question, raw)
-      if (gradeQuestion(question, answer, gapAnswer).isCorrect) correct += 1
+      if (gradeQuestion(question, answer, gapAnswer).isCorrect) correctParts += 1
     }
     return {
       studentId: attempt.student_id,
       fullName: nameById.get(attempt.student_id) ?? `#${attempt.student_id}`,
-      correct,
-      total,
-      percent: total > 0 ? round1((correct / total) * 100) : 0,
+      correct: correctParts,
+      total: totalParts,
+      percent: totalParts > 0 ? round1((correctParts / totalParts) * 100) : 0,
     }
   })
 
